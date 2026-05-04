@@ -35,16 +35,8 @@
       box-shadow: 0 30px 60px -12px rgba(0,0,0,.35), 0 18px 36px -18px rgba(213,43,30,.4);
     }
 
-    /* Floating 3D animation */
-    @keyframes float3d {
-      0%,100% { transform: translateY(0) rotateX(0) rotateY(0) translateZ(0); }
-      25%     { transform: translateY(-10px) rotateX(2deg) rotateY(-2deg) translateZ(10px); }
-      50%     { transform: translateY(-6px) rotateX(-2deg) rotateY(2deg) translateZ(20px); }
-      75%     { transform: translateY(-12px) rotateX(1deg) rotateY(3deg) translateZ(15px); }
-    }
-    .floating-card { animation: float3d 7s ease-in-out infinite !important; transform-style:preserve-3d; }
-    .floating-card:nth-child(2) { animation-delay: -2s !important; }
-    .floating-card:nth-child(3) { animation-delay: -4s !important; }
+    /* Add depth to existing floating cards — keep original float1/float2/float3 animations */
+    .floating-card { transform-style: preserve-3d; }
 
     /* 3D rotating brand logo on hover */
     .nav-brand {
@@ -56,16 +48,12 @@
       transform: rotateY(360deg) scale(1.05);
     }
 
-    /* 3D button press */
+    /* 3D button press — additive, doesn't override original :hover transitions */
     .btn-red, .btn-order, .nav-cta, .g-btn-primary, .sf-submit, .m-submit {
       transform-style: preserve-3d;
-      transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease, background .25s ease !important;
-    }
-    .btn-red:hover, .btn-order:hover, .nav-cta:hover, .g-btn-primary:hover {
-      transform: translateY(-3px) translateZ(15px) rotateX(-5deg) !important;
     }
     .btn-red:active, .btn-order:active, .nav-cta:active, .g-btn-primary:active {
-      transform: translateY(0) translateZ(0) rotateX(2deg) scale(.98) !important;
+      transform: translateY(0) translateZ(0) rotateX(2deg) scale(.98);
     }
 
     /* Parallax scroll layers */
@@ -133,9 +121,9 @@
   document.head.appendChild(s);
 })();
 
-/* ─── TILT 3D ON CARDS ─── */
+/* ─── TILT 3D ON CARDS — excludes .floating-card to preserve original float anim ─── */
 (function tilt3D(){
-  const SELECTOR = '.srv-card, .g-price-card, .rev-card, .floating-card, .cred-glass, .stripe-wrap, .review-card-3d, .g-feat-card, .cert-card';
+  const SELECTOR = '.srv-card, .g-price-card, .rev-card, .cred-glass, .stripe-wrap, .review-card-3d, .g-feat-card, .cert-card';
   const MAX_TILT = 12;
 
   function attach(el){
@@ -181,15 +169,12 @@
   new MutationObserver(init).observe(document.body, {childList:true, subtree:true});
 })();
 
-/* ─── PARALLAX SCROLL — multi-layer depth ─── */
+/* ─── PARALLAX SCROLL — only on hero bg layers, only while hero visible ─── */
 (function parallax(){
   const layers = [];
   const init = () => {
-    document.querySelectorAll('.hero-glow, .hero-map, .hero-right, .floating-card').forEach((el, i) => {
-      const speed = el.classList.contains('hero-glow') ? -0.3
-                  : el.classList.contains('hero-map')  ? -0.15
-                  : el.classList.contains('hero-right')? 0.12
-                  : 0.06 + i*0.02;
+    document.querySelectorAll('.hero-glow, .hero-map').forEach((el) => {
+      const speed = el.classList.contains('hero-glow') ? -0.25 : -0.12;
       layers.push({el, speed});
       el.classList.add('parallax-layer');
     });
@@ -198,6 +183,10 @@
   let ticking = false;
   window.addEventListener('scroll', () => {
     if(ticking) return;
+    const hero = document.querySelector('.hero');
+    if(!hero) return;
+    const heroBottom = hero.offsetTop + hero.offsetHeight;
+    if(window.scrollY > heroBottom) return; // stop once scrolled past hero
     ticking = true;
     requestAnimationFrame(() => {
       const y = window.scrollY;
