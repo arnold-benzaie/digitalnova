@@ -584,6 +584,71 @@ footer{background:#050505;}
 }
 /* Badge hover effect */
 .cert-badge-wrap:hover svg{filter:drop-shadow(0 12px 28px rgba(0,0,0,.18));}
+
+/* ─── HERO BACKGROUND VIDEO ─── */
+.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.55;filter:saturate(1.1) contrast(1.05);}
+.hero-video-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(140deg,rgba(8,8,8,.65) 0%,rgba(19,5,5,.55) 45%,rgba(13,13,13,.7) 100%);pointer-events:none;}
+.hero-bg{z-index:0;}
+.hero-map,.hero-glow{z-index:1;}
+.hero-content{z-index:3;}
+@media(max-width:768px){.hero-video{opacity:.35;}}
+
+/* ─── GOOGLE MAPS PRESENCE SECTION ─── */
+.maps-sec{background:linear-gradient(180deg,#fff 0%,#F8FAFE 100%);padding:100px 56px 60px;position:relative;overflow:hidden;}
+.maps-sec::before{content:"";position:absolute;top:-50px;right:-50px;width:400px;height:400px;background:radial-gradient(circle,rgba(66,133,244,.12),transparent 70%);pointer-events:none;}
+.maps-sec::after{content:"";position:absolute;bottom:-50px;left:-50px;width:400px;height:400px;background:radial-gradient(circle,rgba(213,43,30,.08),transparent 70%);pointer-events:none;}
+.maps-inner{max-width:1280px;margin:0 auto;position:relative;z-index:1;}
+.maps-header{text-align:center;margin-bottom:60px;}
+.maps-header .sec-h{display:inline-block;}
+
+/* MacBook + iPhone mockup */
+.maps-mockup-wrap{position:relative;max-width:1080px;margin:0 auto 80px;height:auto;display:flex;justify-content:center;align-items:flex-end;gap:0;flex-wrap:wrap;perspective:1500px;}
+.laptop{position:relative;width:min(820px,90%);transform-style:preserve-3d;transition:transform .8s cubic-bezier(.2,.8,.2,1);}
+.maps-mockup-wrap:hover .laptop{transform:rotateY(-3deg) rotateX(2deg);}
+.laptop-screen{background:#1a1a1a;border-radius:18px 18px 6px 6px;padding:18px 18px 22px;box-shadow:0 30px 80px rgba(0,0,0,.25),0 0 0 2px #2a2a2a inset;position:relative;overflow:hidden;aspect-ratio:16/10;}
+.laptop-notch{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:80px;height:6px;background:#0a0a0a;border-radius:0 0 8px 8px;z-index:2;}
+.laptop-base{height:14px;background:linear-gradient(180deg,#c7c7cc,#9a9a9e);border-radius:0 0 16px 16px;margin:0 -22px;position:relative;box-shadow:0 14px 30px rgba(0,0,0,.18);}
+.laptop-base::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:6px;background:#86868b;border-radius:0 0 8px 8px;}
+.laptop .map-iframe{width:100%;height:100%;border:none;border-radius:6px;display:block;}
+
+.phone{position:absolute;right:6%;bottom:-30px;width:200px;background:#1a1a1a;border-radius:30px;padding:8px;box-shadow:0 28px 60px rgba(0,0,0,.32),0 0 0 2px #2a2a2a inset;transform:rotate(2deg);transition:transform .8s cubic-bezier(.2,.8,.2,1);z-index:5;}
+.maps-mockup-wrap:hover .phone{transform:rotate(0deg) translateY(-12px) scale(1.05);}
+.phone-notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:90px;height:24px;background:#000;border-radius:14px;z-index:2;}
+.phone-screen{aspect-ratio:9/19;border-radius:24px;overflow:hidden;background:#000;}
+.phone .map-iframe{width:100%;height:100%;border:none;display:block;}
+@media(max-width:760px){.phone{position:relative;right:auto;bottom:auto;margin-top:24px;transform:none;}}
+
+/* Floating pins */
+.map-pin{position:absolute;background:#fff;border:2px solid var(--g-blue);border-radius:24px;padding:7px 16px;font-size:12px;font-weight:700;color:#1A1A1A;box-shadow:0 12px 32px rgba(66,133,244,.25);animation:pinFloat 4.5s ease-in-out infinite;z-index:6;}
+.map-pin.pin-1{top:8%;left:-20px;animation-delay:0s;border-color:var(--rouge);box-shadow:0 12px 32px rgba(213,43,30,.25);}
+.map-pin.pin-2{top:30%;right:-30px;animation-delay:1.5s;border-color:var(--bleu-eu);}
+.map-pin.pin-3{bottom:18%;left:5%;animation-delay:3s;border-color:#34A853;box-shadow:0 12px 32px rgba(52,168,83,.25);}
+@keyframes pinFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-12px) scale(1.05)}}
+@media(max-width:760px){.map-pin{display:none;}}
+
+/* Maps features */
+.maps-features{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:60px;}
+.map-feat{background:#fff;border:1px solid #ECEFF5;border-radius:16px;padding:24px;text-align:center;transition:all .35s cubic-bezier(.2,.8,.2,1);}
+.map-feat:hover{transform:translateY(-6px);box-shadow:0 20px 48px rgba(66,133,244,.12);border-color:rgba(66,133,244,.3);}
+.map-feat-ic{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px;}
+.map-feat-h{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:#1A1A1A;margin-bottom:6px;}
+.map-feat-d{font-size:12px;color:#666;line-height:1.7;}
+@media(max-width:900px){.maps-features{grid-template-columns:1fr 1fr;}}
+@media(max-width:520px){.maps-features{grid-template-columns:1fr;}}
+
+/* Contact block */
+.contact-block{max-width:1080px;margin:80px auto 0;background:#fff;border-radius:24px;padding:60px 40px;box-shadow:0 24px 60px rgba(0,0,0,.06);border:1px solid #ECEFF5;}
+.contact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.contact-card{display:block;text-align:center;background:#F8FAFE;border:1.5px solid #ECEFF5;border-radius:16px;padding:28px 18px;text-decoration:none;color:inherit;transition:all .35s cubic-bezier(.2,.8,.2,1);}
+.contact-card:hover{transform:translateY(-6px) scale(1.03);box-shadow:0 22px 50px rgba(213,43,30,.12);border-color:rgba(213,43,30,.3);background:#fff;}
+.contact-ic{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;color:#fff;}
+.contact-h{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:#1A1A1A;margin-bottom:6px;}
+.contact-d{font-size:13px;color:#666;line-height:1.6;}
+@media(max-width:900px){.contact-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:520px){.contact-grid{grid-template-columns:1fr;}.contact-block{padding:40px 24px;}}
+
+/* Responsive maps section */
+@media(max-width:760px){.maps-sec{padding:70px 24px 40px;}}
 </style>
 </head>
 <body>
@@ -624,6 +689,13 @@ footer{background:#050505;}
 <!-- ═══ HERO ═══ -->
 <section class="hero">
   <div class="hero-bg"></div>
+  <!-- Cinematic background video — 4K stock footage -->
+  <video class="hero-video" autoplay muted loop playsinline preload="auto"
+         poster="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=85">
+    <source src="https://cdn.pixabay.com/video/2023/10/04/183201-873441757_large.mp4" type="video/mp4"/>
+    <source src="https://cdn.pixabay.com/video/2020/11/24/56773-485524833_large.mp4" type="video/mp4"/>
+  </video>
+  <div class="hero-video-overlay"></div>
   <div class="hero-map"></div>
   <div class="hero-glow"></div>
   <div class="hero-content">
@@ -1384,6 +1456,95 @@ footer{background:#050505;}
   </div>
 
 </div><!-- END google-sec -->
+
+<!-- ═══════════════════════════════════════════
+     SECTION GOOGLE MAPS — Placez votre entreprise sur la carte
+════════════════════════════════════════════ -->
+<section class="maps-sec" id="maps-presence">
+  <div class="maps-inner">
+    <div class="maps-header anim anim-up">
+      <span class="sec-tag" style="background:rgba(66,133,244,.1);border-color:rgba(66,133,244,.25);color:#4285F4;">📍 Google Maps Business</span>
+      <h2 class="sec-h">Placez votre entreprise <em>sur la carte</em></h2>
+      <p class="sec-sub" style="margin:14px auto 0;text-align:center;">Permettez à vos potentiels clients de retrouver votre entreprise en ligne — sur Google Maps, Apple Plans et Bing Maps simultanément.</p>
+    </div>
+
+    <div class="maps-mockup-wrap anim anim-zoom">
+      <!-- MacBook mockup -->
+      <div class="laptop">
+        <div class="laptop-screen">
+          <iframe class="map-iframe" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d178857.43053499966!2d-73.85664384375!3d45.55914829999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4cc91a541c64b70d%3A0x654e3138211fefef!2sMontr%C3%A9al%2C%20QC!5e0!3m2!1sen!2sca!4v1715000000000"></iframe>
+        </div>
+        <div class="laptop-base"></div>
+        <div class="laptop-notch"></div>
+      </div>
+      <!-- Phone mockup -->
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <iframe class="map-iframe" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d44637.6912!2d2.331!3d48.8666!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66e1f06e2b70f%3A0x40b82c3688c9460!2sParis%2C%20France!5e0!3m2!1sen!2sfr!4v1715000000000"></iframe>
+        </div>
+      </div>
+      <!-- Floating pins -->
+      <div class="map-pin pin-1">📍 Montréal</div>
+      <div class="map-pin pin-2">📍 Paris</div>
+      <div class="map-pin pin-3">📍 Toronto</div>
+    </div>
+
+    <div class="maps-features stagger">
+      <div class="map-feat">
+        <div class="map-feat-ic" style="background:linear-gradient(135deg,#4285F4,#34A853);">🗺️</div>
+        <div class="map-feat-h">Google Maps</div>
+        <div class="map-feat-d">Fiche optimisée pour apparaître sur Google Maps lors d'une recherche locale.</div>
+      </div>
+      <div class="map-feat">
+        <div class="map-feat-ic" style="background:linear-gradient(135deg,#000,#444);">🍎</div>
+        <div class="map-feat-h">Apple Plans</div>
+        <div class="map-feat-d">Présence simultanée sur Apple Maps pour tous les utilisateurs iOS et Mac.</div>
+      </div>
+      <div class="map-feat">
+        <div class="map-feat-ic" style="background:linear-gradient(135deg,#FBBC05,#F4B400);">📊</div>
+        <div class="map-feat-h">Statistiques en direct</div>
+        <div class="map-feat-d">Vues, recherches, itinéraires demandés — tout est traqué et optimisé.</div>
+      </div>
+      <div class="map-feat">
+        <div class="map-feat-ic" style="background:linear-gradient(135deg,#EA4335,#C5221F);">🎯</div>
+        <div class="map-feat-h">Géo-ciblage SEO</div>
+        <div class="map-feat-d">Mots-clés géolocalisés pour dominer votre quartier, ville et région.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contactez-nous block -->
+  <div class="contact-block anim anim-up" id="contact">
+    <h3 class="sec-h" style="text-align:center;">Contactez-<em>nous</em></h3>
+    <p class="sec-sub" style="margin:14px auto 32px;text-align:center;">Veuillez contacter notre service technique par mail. Réponse rapide assurée. Permettez-nous de rester en contact avec vous et de répondre à vos questions.</p>
+    <div class="contact-grid stagger">
+      <a href="mailto:contact@digitalnova.ca" class="contact-card">
+        <div class="contact-ic" style="background:linear-gradient(135deg,var(--rouge),var(--rouge2));">✉️</div>
+        <div class="contact-h">Email</div>
+        <div class="contact-d">contact@digitalnova.ca</div>
+      </a>
+      <a href="tel:+15148000000" class="contact-card">
+        <div class="contact-ic" style="background:linear-gradient(135deg,#4285F4,#1565C0);">📞</div>
+        <div class="contact-h">Téléphone Canada</div>
+        <div class="contact-d">+1 (514) 800-0000</div>
+      </a>
+      <a href="tel:+33180000000" class="contact-card">
+        <div class="contact-ic" style="background:linear-gradient(135deg,var(--bleu-eu),#001B66);">🇫🇷</div>
+        <div class="contact-h">Téléphone Europe</div>
+        <div class="contact-d">+33 1 80 00 00 00</div>
+      </a>
+      <a href="https://wa.me/15148000000" target="_blank" rel="noopener" class="contact-card">
+        <div class="contact-ic" style="background:linear-gradient(135deg,#25D366,#128C7E);">💬</div>
+        <div class="contact-h">WhatsApp</div>
+        <div class="contact-d">Réponse sous 2h · 7j/7</div>
+      </a>
+    </div>
+  </div>
+</section>
+
 
 <!-- ═══ SERVICES ═══ -->
 <section id="services" class="zone-section">
@@ -2786,5 +2947,6 @@ function doPayment(){
 </script>
 <script src="i18n-sparkles.js"></script>
 <script src="3d-effects.js"></script>
+<script src="animations-pack.js"></script>
 </body>
 </html>

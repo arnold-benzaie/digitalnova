@@ -633,6 +633,33 @@ const T = {
   "Confidentialité":"Privacy",
   "CGV":"Terms",
 
+  // Maps section
+  "📍 Google Maps Business":"📍 Google Maps Business",
+  "Placez votre entreprise":"Put your business",
+  "sur la carte":"on the map",
+  "Permettez à vos potentiels clients de retrouver votre entreprise en ligne — sur Google Maps, Apple Plans et Bing Maps simultanément.":"Let your potential customers find your business online — on Google Maps, Apple Maps and Bing Maps simultaneously.",
+  "📍 Montréal":"📍 Montreal",
+  "📍 Paris":"📍 Paris",
+  "📍 Toronto":"📍 Toronto",
+  "Google Maps":"Google Maps",
+  "Fiche optimisée pour apparaître sur Google Maps lors d'une recherche locale.":"Optimized listing to appear on Google Maps during local searches.",
+  "Apple Plans":"Apple Maps",
+  "Présence simultanée sur Apple Maps pour tous les utilisateurs iOS et Mac.":"Simultaneous presence on Apple Maps for all iOS and Mac users.",
+  "Statistiques en direct":"Live Statistics",
+  "Vues, recherches, itinéraires demandés — tout est traqué et optimisé.":"Views, searches, directions requested — everything is tracked and optimized.",
+  "Géo-ciblage SEO":"SEO Geo-targeting",
+  "Mots-clés géolocalisés pour dominer votre quartier, ville et région.":"Geolocated keywords to dominate your neighborhood, city and region.",
+
+  // Contact block
+  "Contactez-":"Contact",
+  "nous":"us",
+  "Veuillez contacter notre service technique par mail. Réponse rapide assurée. Permettez-nous de rester en contact avec vous et de répondre à vos questions.":"Please contact our technical service by email. Quick response guaranteed. Let us stay in touch with you and answer your questions.",
+  "Email":"Email",
+  "Téléphone Canada":"Phone Canada",
+  "Téléphone Europe":"Phone Europe",
+  "WhatsApp":"WhatsApp",
+  "Réponse sous 2h · 7j/7":"Response within 2h · 7 days/week",
+
   // Modal
   "Traitement Stripe…":"Processing Stripe…",
   "Paiement Confirmé !":"Payment Confirmed!",
