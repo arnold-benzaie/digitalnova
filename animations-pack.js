@@ -81,22 +81,24 @@
       animation: shimmer 4s linear infinite;
     }
 
-    /* ─── BACKGROUND GRADIENT ANIMATION ─── */
+    /* ─── BACKGROUND GRADIENT ANIMATION (excluded score-block — too distracting) ─── */
     @keyframes gradShift {
       0%,100% { background-position: 0% 50%; }
       50%     { background-position: 100% 50%; }
     }
-    .ribbon, .nl-sec, .score-block {
+    .ribbon, .nl-sec {
       background-size: 200% 200% !important;
       animation: gradShift 8s ease infinite;
     }
 
-    /* ─── HOVER LIFT ON ALL CARDS / BUTTONS ─── */
-    .floating-card, .reg-row, .c-badge, .tchip, .s-chip, .kpi, .rib-item,
+    /* ─── HOVER LIFT ON CARDS / BUTTONS (floating-card kept calm) ─── */
+    .reg-row, .c-badge, .tchip, .s-chip, .kpi, .rib-item,
     .fc a, .foot-legal a, .nav-center a, .zone-tab, .lang-btn, .zone-btn {
       transition: transform .3s cubic-bezier(.2,.8,.2,1), color .3s ease, background .3s ease, border-color .3s ease, box-shadow .3s ease;
     }
-    .floating-card:hover { transform: translateY(-6px) scale(1.03); }
+    /* Floating card: very subtle hover — no scale, just light lift */
+    .floating-card { transition: transform .35s ease, box-shadow .35s ease; }
+    .floating-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.18); }
     .reg-row:hover { transform: translateX(4px); }
     .c-badge:hover, .tchip:hover { transform: translateY(-3px) scale(1.06); }
     .kpi:hover { transform: translateY(-4px); }
@@ -159,14 +161,14 @@
     /* ─── SCORE BAR FILL ANIM ─── */
     .bar-f { transition: width 1.4s cubic-bezier(.2,.8,.2,1); }
 
-    /* ─── REVIEW STARS PULSE ─── */
+    /* ─── REVIEW STARS — calm, only on rev-card hover, score block kept still ─── */
     @keyframes starTwinkle {
-      0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-      50%     { transform: scale(1.15); filter: drop-shadow(0 0 6px rgba(245,166,35,.7)); }
+      0%,100% { transform: scale(1); }
+      50%     { transform: scale(1.08); filter: drop-shadow(0 0 4px rgba(245,166,35,.5)); }
     }
-    .rev-stars, .score-stars { display: inline-block; }
-    .rev-card:hover .rev-stars, .score-block:hover .score-stars {
-      animation: starTwinkle 1s ease-in-out infinite;
+    .rev-stars { display: inline-block; }
+    .rev-card:hover .rev-stars {
+      animation: starTwinkle 1.6s ease-in-out infinite;
     }
 
     /* ─── KPI / number glow on reveal ─── */
@@ -248,7 +250,7 @@
     const map = [
       ['.sec-h, .ghero-title, .g-feat-title, .nl-title, .seo-explain h3', 'anim anim-up'],
       ['.sec-sub, .ghero-sub, .g-feat-sub, .nl-sub, .ft-desc', 'anim anim-up'],
-      ['.srv-card, .g-price-card, .rev-card, .cert-card, .g-feat-card, .reg-row, .floating-card, .c-badge, .tchip, .kpi, .faq-it, .g-step', 'anim anim-zoom'],
+      ['.srv-card, .g-price-card, .rev-card, .cert-card, .g-feat-card, .reg-row, .c-badge, .tchip, .kpi, .faq-it, .g-step', 'anim anim-zoom'],
       ['.cred-glass, .stripe-wrap, .review-card-3d, .seo-explain', 'anim anim-flip'],
       ['.score-block, .ribbon', 'anim anim-blur'],
       ['.hero-pre, .hero-h1, .hero-sub, .hero-btns, .hero-kpis', 'anim anim-up'],

@@ -75,13 +75,13 @@ nav.scrolled{background:rgba(8,8,8,.97);backdrop-filter:blur(16px);box-shadow:0 
 .kpi-n{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:700;color:var(--blanc);line-height:1;}
 .kpi-l{font-size:11px;font-weight:500;color:rgba(255,255,255,.4);letter-spacing:.12em;text-transform:uppercase;margin-top:4px;}
 .hero-right{display:flex;flex-direction:column;gap:16px;animation:fadeRight 1s .4s both;}
-.floating-card{background:rgba(255,255,255,.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:22px 26px;transition:transform .3s;}
-.floating-card:nth-child(1){animation:float1 5s ease-in-out infinite;}
-.floating-card:nth-child(2){animation:float2 6s ease-in-out infinite;}
-.floating-card:nth-child(3){animation:float3 4.5s ease-in-out infinite;}
-@keyframes float1{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-@keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-@keyframes float3{0%,100%{transform:translateY(0)}50%{transform:translateY(-13px)}}
+.floating-card{background:rgba(15,15,15,.55);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:22px 26px;transition:transform .3s;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.floating-card:nth-child(1){animation:float1 9s ease-in-out infinite;}
+.floating-card:nth-child(2){animation:float2 10s ease-in-out infinite;}
+.floating-card:nth-child(3){animation:float3 8.5s ease-in-out infinite;}
+@keyframes float1{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes float2{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes float3{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 .fc-label{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:8px;}
 .fc-val{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:700;color:var(--blanc);}
 .fc-val.red{color:var(--rouge);}

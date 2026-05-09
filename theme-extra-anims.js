@@ -235,16 +235,7 @@
     /* Faq icon spin */
     .faq-it .faq-ic { transition: transform .4s cubic-bezier(.4,2,.4,1); }
 
-    /* Score bar animated stripes */
-    @keyframes barStripe {
-      0% { background-position: 0 0; }
-      100% { background-position: 30px 0; }
-    }
-    .bar-f {
-      background-image: linear-gradient(45deg, rgba(255,255,255,.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.1) 75%, transparent 75%);
-      background-size: 30px 30px;
-      animation: barStripe 1.5s linear infinite;
-    }
+    /* Score bar — kept clean, no stripes (per user request: don't move too much in score block) */
 
     /* Number ticker pulse */
     .kpi-n { transition: transform .3s ease; }
