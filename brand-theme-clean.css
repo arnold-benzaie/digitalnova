@@ -1,0 +1,331 @@
+/* ═══════════════════════════════════════════════════════
+   DIGITALNOVA — Brand theme: Clean Tech Minimal
+   Inspired by mapidealocal.com aesthetic
+   White-dominant · Tech blue accents · Spacious · Corporate-trustworthy
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* PRIMARY — tech blue replaces copper */
+  --rouge:   #1B5BFF;   /* vivid tech blue (CTAs, accents) */
+  --rouge2:  #0E3FD8;   /* deeper blue for hover/gradient end */
+  --or:      #0A2540;   /* deep navy (replaces gold for headings accents) */
+  --or2:     #1B5BFF;   /* bright blue accent */
+
+  /* NEUTRALS — clean light palette */
+  --noir:    #0A2540;   /* deep navy text (warm black) */
+  --noir2:   #1A2A3A;
+  --blanc:   #FFFFFF;   /* pure white background */
+  --gris:    #4A5568;   /* medium slate text */
+  --gris2:   #E5EAF0;   /* light gray border */
+  --bleu-eu: #0E3FD8;   /* harmonized */
+
+  --sh-red:  0 8px 24px rgba(27,91,255,.18);
+  --sh-dark: 0 12px 40px rgba(10,37,64,.10);
+
+  --tech-blue: #1B5BFF;
+  --tech-blue-deep: #0E3FD8;
+  --tech-blue-light: #4D7BFF;
+  --tech-blue-soft: #EEF2FF;
+  --navy: #0A2540;
+  --gray-50:  #F8FAFC;
+  --gray-100: #F1F4F8;
+  --gray-200: #E5EAF0;
+  --gray-500: #4A5568;
+  --gray-700: #2A3441;
+}
+
+/* ─── GLOBAL: light background, dark text ─── */
+body {
+  background: #FFFFFF !important;
+  color: var(--navy) !important;
+}
+
+/* ─── NAVIGATION: white with subtle shadow when scrolled ─── */
+nav {
+  background: rgba(255,255,255,.0) !important;
+}
+nav.scrolled {
+  background: rgba(255,255,255,.96) !important;
+  box-shadow: 0 1px 0 var(--gray-200), 0 4px 24px rgba(10,37,64,.06) !important;
+  backdrop-filter: blur(16px) saturate(1.5);
+}
+.nav-brand, .nav-brand span {
+  color: var(--navy) !important;
+}
+.nav-brand span { color: var(--tech-blue) !important; }
+.nav-center a {
+  color: var(--gray-500) !important;
+}
+.nav-center a:hover { color: var(--navy) !important; }
+.nav-cta {
+  background: var(--tech-blue) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(27,91,255,.3) !important;
+  border-radius: 8px !important;
+}
+.nav-cta:hover {
+  background: var(--tech-blue-deep) !important;
+  box-shadow: 0 8px 24px rgba(27,91,255,.45) !important;
+}
+.zone-toggle, #lang-toggle {
+  background: var(--gray-100) !important;
+  border-color: var(--gray-200) !important;
+}
+.zone-btn { color: var(--gray-500) !important; }
+.zone-btn.active { background: var(--tech-blue) !important; color: #FFFFFF !important; }
+#theme-toggle { background: var(--gray-100) !important; border-color: var(--gray-200) !important; }
+
+/* ─── HERO: video kept but with strong WHITE overlay (subtle bg) ─── */
+.hero-bg {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+}
+.hero-video {
+  opacity: .35 !important;
+  filter: saturate(.85) brightness(1.1) contrast(.95) !important;
+}
+.hero-video-overlay {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.6) 0%, rgba(255,255,255,.4) 50%, rgba(248,250,252,.85) 100%),
+    linear-gradient(135deg, rgba(255,255,255,.3), rgba(238,242,255,.5)) !important;
+}
+.hero-vignette {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(255,255,255,.6) 85%, rgba(255,255,255,.9) 100%) !important;
+}
+.hero-ambient-glow {
+  background: radial-gradient(circle, rgba(27,91,255,.08) 0%, rgba(77,123,255,.04) 30%, transparent 70%) !important;
+}
+.hero-watermark-mask {
+  background: radial-gradient(ellipse at bottom right, rgba(255,255,255,.95) 0%, rgba(255,255,255,.7) 50%, transparent 100%) !important;
+}
+.hero-map {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='none' stroke='%231B5BFF' stroke-width='.5'/%3E%3C/svg%3E") !important;
+  opacity: .04 !important;
+}
+
+/* Hero text: dark navy on light bg */
+.hero-h1 { color: var(--navy) !important; }
+.hero-h1 em { color: var(--tech-blue) !important; text-shadow: none !important; }
+.hero-h1 .stroke { -webkit-text-stroke: 1px var(--navy) !important; color: transparent !important; }
+.hero-sub { color: var(--gray-500) !important; }
+.hero-pre {
+  background: var(--tech-blue-soft) !important;
+  border-color: rgba(27,91,255,.2) !important;
+  color: var(--navy) !important;
+}
+.kpi-n { color: var(--navy) !important; }
+.kpi-l { color: var(--gray-500) !important; }
+.fc-label { color: var(--gray-500) !important; }
+.fc-val { color: var(--navy) !important; }
+.fc-val.red { color: var(--tech-blue) !important; }
+.fc-val.or { color: var(--tech-blue-deep) !important; }
+.fc-sub { color: var(--gray-500) !important; }
+
+/* Hero floating cards — white minimal */
+.hero-video-background .floating-card,
+.floating-card {
+  background: rgba(255,255,255,.85) !important;
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--gray-200) !important;
+  box-shadow: 0 8px 24px rgba(10,37,64,.06), inset 0 1px 0 rgba(255,255,255,.8) !important;
+}
+
+/* ─── BUTTONS: tech blue everywhere ─── */
+.btn-red, .btn-order, .g-btn-primary, .sf-submit, .m-submit, .nl-btn {
+  background: var(--tech-blue) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(27,91,255,.3) !important;
+  border-radius: 8px !important;
+}
+.btn-red:hover, .btn-order:hover, .g-btn-primary:hover {
+  background: var(--tech-blue-deep) !important;
+  box-shadow: 0 12px 32px rgba(27,91,255,.45) !important;
+}
+.btn-ghost {
+  border-color: var(--gray-200) !important;
+  color: var(--navy) !important;
+  background: #FFFFFF !important;
+}
+.btn-ghost:hover { border-color: var(--tech-blue) !important; color: var(--tech-blue) !important; }
+.sf-submit, .m-submit {
+  background: linear-gradient(135deg, var(--tech-blue), var(--tech-blue-deep)) !important;
+}
+
+/* ─── RIBBON & accent strips: tech blue gradient ─── */
+.ribbon {
+  background: linear-gradient(90deg, var(--tech-blue) 0%, var(--tech-blue-deep) 100%) !important;
+}
+
+/* ─── SCORE BLOCK: tech blue ─── */
+.score-block {
+  background: linear-gradient(135deg, var(--tech-blue) 0%, var(--tech-blue-deep) 100%) !important;
+}
+
+/* ─── NEWSLETTER section: tech blue ─── */
+.nl-sec {
+  background: linear-gradient(135deg, var(--tech-blue) 0%, var(--tech-blue-deep) 100%) !important;
+}
+.nl-sec::before { opacity: .05 !important; }
+
+/* ─── MODAL ─── */
+.modal-head {
+  background: linear-gradient(135deg, var(--tech-blue), var(--tech-blue-deep)) !important;
+}
+
+/* ─── SECTION TAGS (badges above titles) ─── */
+.sec-tag {
+  background: var(--tech-blue-soft) !important;
+  border-color: rgba(27,91,255,.2) !important;
+  color: var(--tech-blue-deep) !important;
+}
+
+/* ─── HEADINGS ─── */
+.sec-h, .ghero-title, .g-feat-title, .nl-title { color: var(--navy) !important; }
+.sec-h em, .hero-h1 em, .ghero-title em, .nl-title em {
+  color: var(--tech-blue) !important;
+  font-style: italic;
+}
+
+/* ─── CARDS: clean white with subtle borders ─── */
+.srv-card, .g-feat-card, .g-price-card, .rev-card, .cert-card, .cred-glass,
+.stripe-wrap, .map-feat, .contact-card, .faq-it, .review-card-3d {
+  background: #FFFFFF !important;
+  border: 1px solid var(--gray-200) !important;
+  box-shadow: 0 1px 2px rgba(10,37,64,.04) !important;
+  border-radius: 12px !important;
+}
+.srv-card:hover, .g-feat-card:hover, .g-price-card:hover, .rev-card:hover,
+.cert-card:hover, .cred-glass:hover, .map-feat:hover, .contact-card:hover, .faq-it:hover {
+  border-color: var(--tech-blue) !important;
+  box-shadow: 0 20px 40px rgba(27,91,255,.10), 0 0 0 1px var(--tech-blue) !important;
+  transform: translateY(-4px);
+}
+.srv-name, .g-feat-name, .g-price-title, .rev-name, .cert-name, .cred-head,
+.map-feat-h, .contact-h, .faq-qt, .sw-title, .szh-title {
+  color: var(--navy) !important;
+}
+.srv-desc, .g-feat-desc, .rev-text, .cert-desc, .map-feat-d, .contact-d,
+.sec-sub, .ghero-sub, .g-feat-sub, .g-step-desc {
+  color: var(--gray-500) !important;
+}
+
+/* ─── SECTIONS: alternating white / very subtle gray ─── */
+.zone-section, .services-panel, .services-panel-inner,
+.certs-sec, .pay-sec, .seo-sec, .google-sec,
+.ghero, .g-features, .g-pricing, .maps-sec, .contact-block,
+.cred-sec {
+  background: #FFFFFF !important;
+  color: var(--navy);
+}
+.faq-sec, .reviews-sec, .g-process {
+  background: var(--gray-50) !important;
+}
+
+/* ─── INPUTS: clean with blue focus ─── */
+.m-inp, .sf-inp, .nl-inp {
+  background: #FFFFFF !important;
+  border: 1.5px solid var(--gray-200) !important;
+  color: var(--navy) !important;
+}
+.m-inp:focus, .sf-inp:focus, .nl-inp:focus {
+  border-color: var(--tech-blue) !important;
+  box-shadow: 0 0 0 4px rgba(27,91,255,.15), 0 0 20px rgba(27,91,255,.10) !important;
+}
+
+/* ─── FOOTER: navy on light ─── */
+footer { background: var(--navy) !important; }
+.ft-brand-name { color: var(--tech-blue-light) !important; }
+.ft-brand-sub { color: rgba(255,255,255,.45) !important; }
+.ft-desc { color: rgba(255,255,255,.6) !important; }
+.fc h5 { color: rgba(255,255,255,.7) !important; }
+.fc a { color: rgba(255,255,255,.55) !important; }
+.fc a:hover { color: var(--tech-blue-light) !important; }
+.foot-bot { border-top-color: rgba(255,255,255,.08) !important; }
+.foot-bot p, .foot-legal a { color: rgba(255,255,255,.4) !important; }
+.foot-legal a:hover { color: var(--tech-blue-light) !important; }
+
+/* ─── LOADER ─── */
+#loader { background: #FFFFFF !important; }
+.ld-name { color: var(--navy) !important; }
+.ld-name span { color: var(--tech-blue) !important; }
+.ld-fill { background: linear-gradient(90deg, var(--tech-blue), var(--tech-blue-deep)) !important; }
+.ld-sub { color: var(--gray-500) !important; }
+
+/* ─── PARTICLES & sparkles: subtle blue (very transparent) ─── */
+#bg-particles span {
+  background: rgba(27,91,255,.35) !important;
+  box-shadow: 0 0 6px rgba(77,123,255,.45) !important;
+}
+#bg-particles span:nth-child(odd) {
+  background: rgba(77,123,255,.4) !important;
+}
+.mouse-trail {
+  background: radial-gradient(circle, rgba(27,91,255,.5), rgba(77,123,255,.25) 70%, transparent) !important;
+  box-shadow: 0 0 12px rgba(27,91,255,.4) !important;
+}
+
+/* Pulse glow on CTAs */
+@keyframes pulseGlow {
+  0%,100% { box-shadow: 0 4px 14px rgba(27,91,255,.3); }
+  50%     { box-shadow: 0 4px 14px rgba(27,91,255,.3), 0 0 0 12px rgba(27,91,255,0); }
+}
+
+/* ─── REVIEW elements ─── */
+.rev-stars { color: #FFB400 !important; }
+.score-stars { color: #FFD56B !important; }
+.bar-f { background: #FFD56B !important; }
+.rev-tag {
+  background: var(--tech-blue-soft) !important;
+  color: var(--tech-blue-deep) !important;
+}
+
+/* ─── FAQ ─── */
+.faq-qt { color: var(--navy) !important; }
+.faq-ic { color: var(--tech-blue) !important; }
+.faq-ans-in { color: var(--gray-500) !important; }
+.faq-ans-in strong { color: var(--tech-blue) !important; }
+
+/* ─── Service feature checkmarks ─── */
+.srv-feats li::before, .g-price-feats li::before, .g-feat-list li .dot {
+  color: var(--tech-blue) !important;
+}
+
+/* ─── Map pins ─── */
+.map-pin.pin-1 { border-color: var(--tech-blue) !important; box-shadow: 0 12px 32px rgba(27,91,255,.25) !important; }
+.map-pin.pin-2 { border-color: var(--tech-blue-deep) !important; }
+.map-pin.pin-3 { border-color: #00C49A !important; box-shadow: 0 12px 32px rgba(0,196,154,.25) !important; }
+
+/* ─── Trust ribbon items ─── */
+.rib-item { color: #FFFFFF !important; }
+
+/* ─── Cinematic indicator hidden in this clean theme ─── */
+#sceneIndicator { display: none !important; }
+
+/* Theme-dark override: when user clicks dark mode, switch to actual dark with same accents */
+body.theme-dark {
+  background: #0A1828 !important;
+  color: #E6EDF7 !important;
+}
+body.theme-dark nav.scrolled { background: rgba(10,24,40,.96) !important; }
+body.theme-dark .nav-brand, body.theme-dark .nav-center a { color: rgba(230,237,247,.75) !important; }
+body.theme-dark .nav-brand span { color: var(--tech-blue-light) !important; }
+body.theme-dark .srv-card, body.theme-dark .g-feat-card, body.theme-dark .rev-card,
+body.theme-dark .cert-card, body.theme-dark .cred-glass, body.theme-dark .map-feat,
+body.theme-dark .contact-card, body.theme-dark .faq-it {
+  background: #122537 !important;
+  border-color: rgba(255,255,255,.08) !important;
+}
+body.theme-dark .zone-section, body.theme-dark .services-panel-inner,
+body.theme-dark .certs-sec, body.theme-dark .pay-sec, body.theme-dark .seo-sec,
+body.theme-dark .google-sec, body.theme-dark .ghero, body.theme-dark .g-features,
+body.theme-dark .g-pricing, body.theme-dark .maps-sec, body.theme-dark .contact-block,
+body.theme-dark .cred-sec, body.theme-dark .reviews-sec, body.theme-dark .faq-sec {
+  background: #0A1828 !important;
+}
+body.theme-dark .sec-h, body.theme-dark .ghero-title, body.theme-dark .srv-name,
+body.theme-dark .g-feat-name, body.theme-dark .rev-name, body.theme-dark .map-feat-h,
+body.theme-dark .contact-h, body.theme-dark .faq-qt {
+  color: #E6EDF7 !important;
+}
+body.theme-dark .srv-desc, body.theme-dark .rev-text, body.theme-dark .sec-sub {
+  color: rgba(230,237,247,.65) !important;
+}
