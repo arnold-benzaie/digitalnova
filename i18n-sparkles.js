@@ -4,7 +4,7 @@
 
 /* ─── SPARKLE / STAR CURSOR EFFECT ─── */
 (function sparkleCursor(){
-  const colors = ['#D52B1E','#E8B84B','#FAFAF8','#C8922A','#FFD700'];
+  const colors = ['#B87333','#D4A95C','#E5C078','#EFE5D0','#F5C97E'];
   const sparkles = [];
   const MAX = 60;
   let lastSpawn = 0;

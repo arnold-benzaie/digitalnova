@@ -266,12 +266,12 @@
       rate: 0.6,
       tint: 'rgba(0,0,30,.18)'
     },
-    { // 7. Warm reds — DIGITALNOVA brand mood
-      name: 'brand-red',
-      filter: 'saturate(1.40) contrast(1.10) brightness(.92) hue-rotate(-15deg)',
+    { // 7. Warm copper — DIGITALNOVA brand mood
+      name: 'brand-copper',
+      filter: 'saturate(1.30) contrast(1.10) brightness(.92) hue-rotate(-5deg)',
       transform: 'scale(1.09) translate(0, 0)',
       rate: 0.7,
-      tint: 'rgba(213,43,30,.10)'
+      tint: 'rgba(184,115,51,.10)'
     },
     { // 8. Slow dolly-in — anticipation
       name: 'dolly-in',

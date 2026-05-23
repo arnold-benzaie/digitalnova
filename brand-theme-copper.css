@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════
+   DIGITALNOVA — Brand theme: Bleu Nuit & Cuivre
+   International premium palette (Apple/Tesla feel)
+   Marine #1B2845 · Cuivre #B87333 · Or doux #D4A95C · Crème #EFE5D0
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* PRIMARY palette */
+  --rouge:   #B87333;   /* was bright red → now warm copper */
+  --rouge2:  #8B5523;   /* darker copper for hover/gradient end */
+  --or:      #D4A95C;   /* soft warm gold for accents */
+  --or2:     #E5C078;   /* lighter warm gold for highlights */
+
+  /* NEUTRALS */
+  --noir:    #0D1729;   /* deep navy instead of pure black (still very dark) */
+  --noir2:   #1B2845;   /* main marine blue */
+  --blanc:   #EFE5D0;   /* warm cream instead of cold white */
+  --gris:    #5A6478;   /* slate gray with navy tint */
+  --gris2:   #D8D4CB;   /* warm light gray */
+  --bleu-eu: #1B2845;   /* harmonized with brand marine */
+
+  /* DROP SHADOWS */
+  --sh-red:  0 12px 40px rgba(184,115,51,.28);   /* copper glow */
+  --sh-dark: 0 24px 60px rgba(13,23,41,.30);
+
+  /* New brand-specific colors */
+  --marine: #1B2845;
+  --marine-deep: #0D1729;
+  --copper: #B87333;
+  --copper-light: #D4A95C;
+  --copper-warm: #E5C078;
+  --cream: #EFE5D0;
+  --cream-pale: #F8F3E8;
+  --charcoal: #2A2A2A;
+}
+
+/* HERO BACKGROUND — replace red gradient with navy/copper */
+.hero-bg {
+  background: linear-gradient(140deg,
+    #0D1729 0%,
+    #1B2845 45%,
+    #0F1A33 100%) !important;
+}
+
+/* Hero ambient glow → warm copper instead of red/orange */
+.hero-ambient-glow {
+  background: radial-gradient(circle,
+    rgba(184,115,51,.12) 0%,
+    rgba(212,169,92,.08) 30%,
+    transparent 70%) !important;
+}
+
+/* Hero overlay tone → navy + warm copper instead of red */
+.hero-video-overlay {
+  background:
+    linear-gradient(180deg,rgba(13,23,41,.85) 0%,rgba(13,23,41,.25) 18%,rgba(13,23,41,.25) 70%,rgba(13,23,41,.85) 100%),
+    linear-gradient(135deg,rgba(13,23,41,.4) 0%,rgba(40,20,5,.35) 50%,rgba(13,23,41,.55) 100%) !important;
+}
+
+/* Hero map pattern stroke → copper */
+.hero-map {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='none' stroke='%23B87333' stroke-width='.5'/%3E%3C/svg%3E") !important;
+}
+
+/* RIBBON — copper gradient instead of pure red */
+.ribbon {
+  background: linear-gradient(135deg, #B87333 0%, #8B5523 50%, #B87333 100%) !important;
+}
+
+/* SCORE BLOCK — copper gradient */
+.score-block {
+  background: linear-gradient(135deg, #B87333 0%, #8B5523 100%) !important;
+}
+
+/* NEWSLETTER section — copper */
+.nl-sec {
+  background: linear-gradient(135deg, #B87333 0%, #8B5523 100%) !important;
+}
+.nl-sec::before {
+  /* keep maple leaf decoration but tone down */
+  opacity: .08 !important;
+}
+
+/* MODAL header — copper */
+.modal-head {
+  background: linear-gradient(135deg, #B87333, #8B5523) !important;
+}
+.modal-head.eu-head {
+  background: linear-gradient(135deg, #1B2845, #0D1729) !important;
+}
+
+/* NAV CTA + BUTTONS — copper with warm shadow */
+.nav-cta, .btn-red, .btn-order, .g-btn-primary {
+  background: var(--copper) !important;
+}
+.nav-cta:hover, .btn-red:hover, .btn-order:hover {
+  background: var(--rouge2) !important;
+  box-shadow: 0 18px 50px rgba(184,115,51,.45) !important;
+}
+
+/* Stripe submit gradient */
+.sf-submit, .m-submit {
+  background: linear-gradient(135deg, var(--copper), var(--rouge2)) !important;
+}
+
+/* TITLES — em accents in gold */
+.sec-h em, .hero-h1 em, .ghero-title em, .nl-title em {
+  color: var(--copper-light) !important;
+}
+
+/* Map pin shadow updates */
+.map-pin.pin-1 {
+  border-color: var(--copper) !important;
+  box-shadow: 0 12px 32px rgba(184,115,51,.25) !important;
+}
+
+/* Floating particles — use copper tones */
+#bg-particles span {
+  background: rgba(212,169,92,.45) !important;
+  box-shadow: 0 0 6px rgba(229,192,120,.55) !important;
+}
+#bg-particles span:nth-child(odd) {
+  background: rgba(184,115,51,.5) !important;
+  box-shadow: 0 0 6px rgba(184,115,51,.6) !important;
+}
+
+/* Loader gradient */
+.ld-fill {
+  background: linear-gradient(90deg, var(--copper), var(--copper-light)) !important;
+}
+.ld-name span {
+  color: var(--copper-light) !important;
+}
+
+/* Brand name in nav + footer */
+.nav-brand span, .ft-brand-name {
+  color: var(--copper-light) !important;
+}
+
+/* Mouse trail — copper */
+.mouse-trail {
+  background: radial-gradient(circle, rgba(184,115,51,.7), rgba(212,169,92,.4) 70%, transparent) !important;
+  box-shadow: 0 0 12px rgba(184,115,51,.6) !important;
+}
+
+/* Sparkle cursor color override is in JS — handled separately */
+
+/* Review card hover border */
+.rev-card:hover {
+  border-color: rgba(184,115,51,.3) !important;
+}
+
+/* sec-tag (small badges above titles) */
+.sec-tag {
+  background: rgba(184,115,51,.10) !important;
+  border-color: rgba(184,115,51,.22) !important;
+  color: var(--copper) !important;
+}
+
+/* FAQ hover */
+.faq-it:hover {
+  border-color: rgba(184,115,51,.30) !important;
+}
+.faq-ans-in strong, .faq-ic {
+  color: var(--copper) !important;
+}
+
+/* Cinematic scene director tints — update brand red scene */
+/* (handled via JS override below) */
+
+/* EU zone (Europe button) — uses bleu-eu, kept but harmonized */
+.zone-btn.active.eu, body.eu-active .nav-cta, body.eu-active .btn-red,
+.modal-head.eu-head, .m-submit.eu-btn {
+  background: linear-gradient(135deg, #1B2845, #0D1729) !important;
+}
+
+/* Theme TOGGLE styling preserved — handled by theme-extra-anims.js */
+
+/* Pulse glow on CTAs — copper */
+@keyframes pulseGlow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(184,115,51,.5); }
+  50%     { box-shadow: 0 0 0 14px rgba(184,115,51,0); }
+}
+
+/* Hero h1 italic accent stronger */
+.hero-h1 em {
+  color: var(--copper-light) !important;
+  text-shadow: 0 2px 12px rgba(184,115,51,.3);
+}
+
+/* Footer brand */
+.ft-brand-name {
+  color: var(--copper-light) !important;
+}
+.foot-legal a:hover, .fc a:hover {
+  color: var(--copper-light) !important;
+}
