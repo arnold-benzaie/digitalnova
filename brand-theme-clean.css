@@ -75,23 +75,32 @@ nav.scrolled {
 .zone-btn.active { background: var(--tech-blue) !important; color: #FFFFFF !important; }
 #theme-toggle { background: var(--gray-100) !important; border-color: var(--gray-200) !important; }
 
-/* ─── HERO: cinematic dark — video crystal clear ─── */
+/* ─── HERO: cinematic — VIDEO AT MAXIMUM CLARITY ─── */
 .hero-bg {
-  background: linear-gradient(140deg, #050D18 0%, #0A1828 45%, #050D18 100%) !important;
+  background: #000000 !important;
 }
 .hero-video {
-  opacity: .95 !important;
-  filter: saturate(1.30) brightness(1.0) contrast(1.12) !important;
+  opacity: 1 !important;
+  filter: saturate(1.50) brightness(1.05) contrast(1.20) !important;
 }
 .hero-video-overlay {
   background:
-    /* Top + bottom: subtle darkening for nav + KPI areas only */
-    linear-gradient(180deg, rgba(5,13,24,.55) 0%, rgba(5,13,24,0) 22%, rgba(5,13,24,0) 75%, rgba(5,13,24,.55) 100%),
-    /* Left: stronger darkening behind text, fully transparent on the right */
-    linear-gradient(90deg, rgba(5,13,24,.70) 0%, rgba(5,13,24,.45) 30%, rgba(5,13,24,0) 65%) !important;
+    /* Top: just enough to make nav readable */
+    linear-gradient(180deg, rgba(0,0,0,.50) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 80%, rgba(0,0,0,.50) 100%),
+    /* Left only: gradient behind text — right side 100% clear so video shines */
+    linear-gradient(90deg, rgba(0,0,0,.65) 0%, rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 60%) !important;
 }
 .hero-vignette {
-  background: radial-gradient(ellipse at center, transparent 50%, rgba(5,13,24,.30) 90%, rgba(5,13,24,.55) 100%) !important;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.20) 92%, rgba(0,0,0,.35) 100%) !important;
+}
+/* Stop the cinematic scene tints from washing out the video */
+#sceneTint {
+  display: none !important;
+}
+/* Reduce the camera dolly zoom intensity for sharper feel */
+.hero-video-stack video.cam-anim {
+  transform: scale(1.04) !important;
+  animation: none !important;
 }
 .hero-ambient-glow {
   background: radial-gradient(circle, rgba(27,91,255,.12) 0%, rgba(77,123,255,.06) 30%, transparent 70%) !important;

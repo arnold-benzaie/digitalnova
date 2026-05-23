@@ -18,7 +18,7 @@
       transition: opacity 1.4s ease-in-out;
     }
     .hero-video-stack video.fading-out { opacity: 0; }
-    .hero-video-stack video.fading-in { opacity: .82; }
+    .hero-video-stack video.fading-in { opacity: 1; }
 
     /* Camera dolly — slow drift + zoom (gives 30s perceived cycle on a 10s video) */
     @keyframes camDolly {
@@ -215,78 +215,20 @@
    Each scene runs ~30s — total 5 min cycle from a single 10s clip
    ═══════════════════════════════════════════════════════ */
 (function cinematicDirector(){
-  // 10 unique scenes — each feels like a different shot in a film
+  // All scenes now use HIGH CLARITY settings — video stays sharp throughout
+  // Only subtle variation in zoom/saturation to keep "scene change" feel without washing out
+  const BASE_FILTER = 'saturate(1.50) contrast(1.20) brightness(1.05)';
   const SCENES = [
-    { // 0. Golden hour — warm intro
-      name: 'golden-hour',
-      filter: 'saturate(1.25) contrast(1.10) brightness(.95) sepia(.08) hue-rotate(-8deg)',
-      transform: 'scale(1.06) translate(0, 0)',
-      rate: 0.75,
-      tint: 'rgba(255,180,80,.08)'
-    },
-    { // 1. Tight close-up — high contrast
-      name: 'close-up',
-      filter: 'saturate(1.20) contrast(1.20) brightness(.85)',
-      transform: 'scale(1.22) translate(-3%, 2%)',
-      rate: 0.55,
-      tint: 'rgba(0,0,0,.15)'
-    },
-    { // 2. Cool blue — Paris dusk
-      name: 'blue-hour',
-      filter: 'saturate(1.15) contrast(1.08) brightness(.90) hue-rotate(8deg)',
-      transform: 'scale(1.10) translate(2%, -1%)',
-      rate: 0.7,
-      tint: 'rgba(60,90,160,.10)'
-    },
-    { // 3. Wide pan — establishing shot
-      name: 'wide-pan',
-      filter: 'saturate(1.10) contrast(1.05) brightness(.92)',
-      transform: 'scale(1.04) translate(-2%, 0)',
-      rate: 0.65,
-      tint: 'rgba(20,20,20,.08)'
-    },
-    { // 4. Vintage film grain feel
-      name: 'vintage',
-      filter: 'saturate(.85) contrast(1.15) brightness(.88) sepia(.20)',
-      transform: 'scale(1.08) translate(1%, 1%)',
-      rate: 0.6,
-      tint: 'rgba(180,140,80,.10)'
-    },
-    { // 5. Bright corporate — daytime energy
-      name: 'corporate',
-      filter: 'saturate(1.30) contrast(1.06) brightness(1.02)',
-      transform: 'scale(1.07) translate(0, -1%)',
-      rate: 0.8,
-      tint: 'rgba(255,255,255,.04)'
-    },
-    { // 6. Cinematic noir — dramatic shadow
-      name: 'noir',
-      filter: 'saturate(.65) contrast(1.30) brightness(.78)',
-      transform: 'scale(1.14) translate(-1%, -2%)',
-      rate: 0.6,
-      tint: 'rgba(0,0,30,.18)'
-    },
-    { // 7. Warm copper — DIGITALNOVA brand mood
-      name: 'brand-copper',
-      filter: 'saturate(1.30) contrast(1.10) brightness(.92) hue-rotate(-5deg)',
-      transform: 'scale(1.09) translate(0, 0)',
-      rate: 0.7,
-      tint: 'rgba(184,115,51,.10)'
-    },
-    { // 8. Slow dolly-in — anticipation
-      name: 'dolly-in',
-      filter: 'saturate(1.15) contrast(1.12) brightness(.90)',
-      transform: 'scale(1.18) translate(0, 1%)',
-      rate: 0.5,
-      tint: 'rgba(40,20,10,.10)'
-    },
-    { // 9. Final hero — full bright cinematic
-      name: 'hero-finale',
-      filter: 'saturate(1.20) contrast(1.10) brightness(.95)',
-      transform: 'scale(1.06) translate(0, 0)',
-      rate: 0.75,
-      tint: 'rgba(232,140,75,.08)'
-    }
+    { name: 'clear-wide',  filter: BASE_FILTER,                                                  transform: 'scale(1.04) translate(0, 0)',     rate: 0.85, tint: 'transparent' },
+    { name: 'clear-zoom',  filter: 'saturate(1.55) contrast(1.22) brightness(1.06)',             transform: 'scale(1.12) translate(-2%, 1%)',  rate: 0.75, tint: 'transparent' },
+    { name: 'crisp-pan',   filter: 'saturate(1.50) contrast(1.20) brightness(1.05)',             transform: 'scale(1.06) translate(2%, 0)',    rate: 0.80, tint: 'transparent' },
+    { name: 'vivid',       filter: 'saturate(1.60) contrast(1.18) brightness(1.07)',             transform: 'scale(1.05) translate(0, -1%)',   rate: 0.85, tint: 'transparent' },
+    { name: 'crisp-close', filter: 'saturate(1.55) contrast(1.25) brightness(1.04)',             transform: 'scale(1.15) translate(-1%, 2%)',  rate: 0.70, tint: 'transparent' },
+    { name: 'bright',      filter: 'saturate(1.65) contrast(1.18) brightness(1.10)',             transform: 'scale(1.05) translate(1%, 0)',    rate: 0.85, tint: 'transparent' },
+    { name: 'rich',        filter: 'saturate(1.70) contrast(1.22) brightness(1.05)',             transform: 'scale(1.08) translate(0, 0)',     rate: 0.80, tint: 'transparent' },
+    { name: 'sharp',       filter: 'saturate(1.55) contrast(1.28) brightness(1.05)',             transform: 'scale(1.06) translate(-1%, -1%)', rate: 0.78, tint: 'transparent' },
+    { name: 'dolly',       filter: 'saturate(1.50) contrast(1.20) brightness(1.06)',             transform: 'scale(1.18) translate(0, 1%)',    rate: 0.65, tint: 'transparent' },
+    { name: 'finale',      filter: 'saturate(1.55) contrast(1.22) brightness(1.08)',             transform: 'scale(1.04) translate(0, 0)',     rate: 0.85, tint: 'transparent' }
   ];
 
   const SCENE_DURATION = 30; // seconds per scene → 10 scenes × 30s = 5 minutes
@@ -335,7 +277,7 @@
 
     const vA = mkVid('heroVidA');
     const vB = mkVid('heroVidB');
-    vA.style.cssText += 'opacity:.82;';
+    vA.style.cssText += 'opacity:1;';
     vB.style.opacity = '0';
 
     stack.appendChild(vA);
@@ -388,7 +330,7 @@
       if(isFinite(dur) && active.currentTime >= dur - CROSSFADE){
         idle.currentTime = 0;
         idle.play().catch(()=>{});
-        idle.style.opacity = '.82';
+        idle.style.opacity = '1';
         active.style.opacity = '0';
         [active, idle] = [idle, active];
       }
