@@ -585,13 +585,105 @@ footer{background:#050505;}
 /* Badge hover effect */
 .cert-badge-wrap:hover svg{filter:drop-shadow(0 12px 28px rgba(0,0,0,.18));}
 
-/* ─── HERO BACKGROUND VIDEO ─── */
-.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.55;filter:saturate(1.1) contrast(1.05);}
-.hero-video-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(140deg,rgba(8,8,8,.65) 0%,rgba(19,5,5,.55) 45%,rgba(13,13,13,.7) 100%);pointer-events:none;}
-.hero-bg{z-index:0;}
-.hero-map,.hero-glow{z-index:1;}
-.hero-content{z-index:3;}
-@media(max-width:768px){.hero-video{opacity:.35;}}
+/* ─── HERO BACKGROUND VIDEO — Ultra Premium Cinematic ─── */
+.hero-video-background{position:relative;}
+.hero-bg{z-index:0;background:#000;}
+
+.hero-video{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;z-index:1;
+  opacity:.78;
+  filter:saturate(1.18) contrast(1.08) brightness(.92);
+  /* Slight zoom to crop watermarks at edges + cinematic feel */
+  transform:scale(1.06);
+  transform-origin:center center;
+  animation:heroVideoBreath 20s ease-in-out infinite;
+  will-change:transform,opacity;
+}
+@keyframes heroVideoBreath{
+  0%,100%{transform:scale(1.06);}
+  50%{transform:scale(1.10);}
+}
+
+/* Watermark mask — covers bottom-right corner where Gemini watermark sits */
+.hero-watermark-mask{
+  position:absolute;
+  bottom:0;right:0;
+  width:280px;height:140px;
+  z-index:2;
+  background:radial-gradient(ellipse at bottom right,
+    rgba(0,0,0,.95) 0%,
+    rgba(0,0,0,.85) 40%,
+    rgba(0,0,0,.5) 70%,
+    transparent 100%);
+  pointer-events:none;
+}
+
+/* Premium gradient overlay — black to deep red */
+.hero-video-overlay{
+  position:absolute;inset:0;z-index:2;
+  background:
+    linear-gradient(180deg,rgba(8,8,8,.85) 0%,rgba(8,8,8,.25) 18%,rgba(8,8,8,.25) 70%,rgba(8,8,8,.85) 100%),
+    linear-gradient(135deg,rgba(8,8,8,.4) 0%,rgba(40,8,8,.35) 50%,rgba(8,8,8,.55) 100%);
+  pointer-events:none;
+}
+
+/* Cinematic vignette — darkens corners */
+.hero-vignette{
+  position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.5) 85%,rgba(0,0,0,.85) 100%);
+}
+
+/* Ambient pulsing glow — warm orange/red, very subtle */
+.hero-ambient-glow{
+  position:absolute;
+  width:1200px;height:1200px;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:3;pointer-events:none;
+  background:radial-gradient(circle,
+    rgba(232,140,75,.10) 0%,
+    rgba(213,43,30,.06) 30%,
+    transparent 70%);
+  animation:ambientPulse 8s ease-in-out infinite;
+  filter:blur(40px);
+  mix-blend-mode:screen;
+}
+@keyframes ambientPulse{
+  0%,100%{opacity:.7;transform:translate(-50%,-50%) scale(1);}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+}
+
+.hero-map,.hero-glow{z-index:3;}
+.hero-content{z-index:5;}
+
+/* Smooth navbar→hero transition with backdrop blur */
+.hero-video-background::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:120px;z-index:4;
+  background:linear-gradient(180deg,rgba(8,8,8,.85) 0%,transparent 100%);
+  pointer-events:none;
+}
+
+/* Floating cards: subtle backdrop for video lisibility */
+.hero-video-background .floating-card{
+  background:rgba(12,12,12,.6)!important;
+  backdrop-filter:blur(24px) saturate(1.3);
+  -webkit-backdrop-filter:blur(24px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 12px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* Mobile: lower video opacity + simpler effects */
+@media(max-width:768px){
+  .hero-video{opacity:.55;animation:none;transform:scale(1.08);}
+  .hero-ambient-glow{display:none;}
+  .hero-watermark-mask{width:180px;height:90px;}
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .hero-video,.hero-ambient-glow{animation:none!important;}
+}
 
 /* ─── GOOGLE MAPS PRESENCE SECTION ─── */
 .maps-sec{background:linear-gradient(180deg,#fff 0%,#F8FAFE 100%);padding:100px 56px 60px;position:relative;overflow:hidden;}
@@ -686,16 +778,25 @@ footer{background:#050505;}
   </div>
 </nav>
 
-<!-- ═══ HERO ═══ -->
-<section class="hero">
+<!-- ═══ HERO — Cinematic Premium ═══ -->
+<section class="hero hero-video-background">
   <div class="hero-bg"></div>
-  <!-- Cinematic background video — 4K stock footage -->
-  <video class="hero-video" autoplay muted loop playsinline preload="auto"
-         poster="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=85">
+  <!-- Local cinematic 4K video — DIGITALNOVA premium agency -->
+  <video class="hero-video" id="heroVideo" autoplay muted loop playsinline preload="auto"
+         poster="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=85"
+         aria-hidden="true">
+    <source src="public/videos/cinematic-hero.mp4" type="video/mp4"/>
+    <!-- Fallback to remote CDN if local fails -->
     <source src="https://cdn.pixabay.com/video/2023/10/04/183201-873441757_large.mp4" type="video/mp4"/>
-    <source src="https://cdn.pixabay.com/video/2020/11/24/56773-485524833_large.mp4" type="video/mp4"/>
   </video>
+  <!-- Watermark mask (bottom-right corner where Gemini badge usually appears) -->
+  <div class="hero-watermark-mask"></div>
+  <!-- Premium gradient overlay: deep black + warm red tones -->
   <div class="hero-video-overlay"></div>
+  <!-- Vignette for cinematic depth -->
+  <div class="hero-vignette"></div>
+  <!-- Ambient pulsing glow -->
+  <div class="hero-ambient-glow"></div>
   <div class="hero-map"></div>
   <div class="hero-glow"></div>
   <div class="hero-content">
@@ -2949,5 +3050,15 @@ function doPayment(){
 <script src="3d-effects.js"></script>
 <script src="animations-pack.js"></script>
 <script src="theme-extra-anims.js"></script>
+<script>
+/* Cinematic hero video: slow down + ensure autoplay */
+(function(){
+  const v=document.getElementById("heroVideo");
+  if(!v) return;
+  v.playbackRate=0.85;
+  v.addEventListener("loadeddata",()=>{v.play().catch(()=>{});});
+  document.addEventListener("click",()=>v.play().catch(()=>{}),{once:true});
+})();
+</script>
 </body>
 </html>
