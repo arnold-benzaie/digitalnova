@@ -1,0 +1,366 @@
+/* ═══════════════════════════════════════════════════════
+   DIGITALNOVA — Premium pricing card style
+   Gradient backgrounds · Large hero price · Bottom CTA with cart
+   ═══════════════════════════════════════════════════════ */
+
+/* Rebuild srv-card layout: gradient body + big price + bottom CTA */
+.services-panel .srv-grid { gap: 18px !important; }
+
+.srv-card {
+  border-radius: 22px !important;
+  overflow: hidden !important;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(10, 37, 64, 0.08) !important;
+  border: none !important;
+  transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease !important;
+  background: #FFFFFF !important;
+  min-height: 540px;
+  display: flex !important;
+  flex-direction: column;
+}
+.srv-card:hover {
+  transform: translateY(-10px) !important;
+  box-shadow: 0 30px 60px rgba(10, 37, 64, 0.15) !important;
+}
+
+/* Decorative blob shapes in corners (subtle, like the reference design) */
+.srv-card::before {
+  content: ""; position: absolute;
+  top: -40px; left: -40px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  z-index: 0;
+}
+.srv-card::after {
+  content: ""; position: absolute;
+  bottom: -50px; right: -30px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── 3 alternating color themes (per card position) ─── */
+/* Card 1, 4 → White with pink accent */
+.srv-grid > .srv-card:nth-child(3n+1) {
+  background: #FFFFFF !important;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-name,
+.srv-grid > .srv-card:nth-child(3n+1) .srv-desc,
+.srv-grid > .srv-card:nth-child(3n+1) .srv-cat {
+  color: #0A2540 !important;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-feats li { color: #4A5568 !important; }
+
+/* Card 2, 5 → Blue gradient */
+.srv-grid > .srv-card:nth-child(3n+2) {
+  background: linear-gradient(135deg, #1B5BFF 0%, #00B8FF 100%) !important;
+}
+/* Card 3, 6 → Pink/coral gradient */
+.srv-grid > .srv-card:nth-child(3n+3) {
+  background: linear-gradient(135deg, #FF1B6B 0%, #FF5C8D 100%) !important;
+}
+
+/* For all gradient cards (blue + pink) — white text */
+.srv-grid > .srv-card:nth-child(3n+2) *,
+.srv-grid > .srv-card:nth-child(3n+3) * {
+  color: #FFFFFF !important;
+}
+.srv-grid > .srv-card:nth-child(3n+2) .srv-price-period,
+.srv-grid > .srv-card:nth-child(3n+3) .srv-price-period {
+  color: rgba(255,255,255,.75) !important;
+}
+.srv-grid > .srv-card:nth-child(3n+2) .srv-cat,
+.srv-grid > .srv-card:nth-child(3n+3) .srv-cat {
+  color: rgba(255,255,255,.85) !important;
+}
+
+/* Top section — give it real breathing room */
+.srv-card .srv-top {
+  background: transparent !important;
+  position: relative; z-index: 1;
+  padding: 36px 28px 16px !important;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Icon at top */
+.srv-card .srv-icon-wrap {
+  width: 64px !important; height: 64px !important;
+  border-radius: 16px !important;
+  background: rgba(255,255,255,.95) !important;
+  margin-bottom: 18px !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15);
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-icon-wrap {
+  background: linear-gradient(135deg, #FF1B6B, #FF5C8D) !important;
+  color: #fff !important;
+}
+
+/* Category label — uppercase pill style */
+.srv-card .srv-cat {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .18em !important;
+  text-transform: uppercase;
+  margin-bottom: 8px !important;
+}
+
+/* Service name */
+.srv-card .srv-name {
+  font-family: 'Cormorant Garamond', serif !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin-bottom: 12px !important;
+}
+
+/* Description */
+.srv-card .srv-desc {
+  font-size: 13px !important;
+  line-height: 1.7 !important;
+  margin-bottom: 16px !important;
+  font-weight: 300;
+  opacity: .95;
+}
+
+/* Feature list — compact bullets */
+.srv-card .srv-feats {
+  display: flex; flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.srv-card .srv-feats li {
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+  position: relative;
+  padding-left: 18px !important;
+  display: block !important;
+}
+.srv-card .srv-feats li::before {
+  content: "✓" !important;
+  position: absolute;
+  left: 0; top: 0;
+  font-weight: 900;
+  margin: 0 !important;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-feats li::before { color: #FF1B6B !important; }
+.srv-grid > .srv-card:nth-child(3n+2) .srv-feats li::before { color: #FFE066 !important; }
+.srv-grid > .srv-card:nth-child(3n+3) .srv-feats li::before { color: #FFE066 !important; }
+
+/* Badge (Populaire, Nouveau, Best-Seller) */
+.srv-card .srv-badge {
+  position: absolute !important;
+  top: 18px !important; right: 18px !important;
+  z-index: 2;
+  padding: 5px 12px !important;
+  border-radius: 14px !important;
+  font-size: 9px !important;
+  letter-spacing: .12em;
+}
+.srv-grid > .srv-card:nth-child(3n+2) .srv-badge,
+.srv-grid > .srv-card:nth-child(3n+3) .srv-badge {
+  background: rgba(255,255,255,.95) !important;
+  color: #0A2540 !important;
+}
+
+/* ─── BOTTOM section: BIG PRICE + Sélectionner button ─── */
+.srv-card .srv-bottom {
+  background: transparent !important;
+  border-top: 1px solid rgba(255,255,255,.18) !important;
+  padding: 22px 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px;
+  position: relative; z-index: 1;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-bottom {
+  border-top-color: rgba(10,37,64,.08) !important;
+}
+
+/* Price area */
+.srv-card .srv-price-main {
+  font-family: 'Cormorant Garamond', serif !important;
+  font-size: 38px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  display: block !important;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .srv-price-main {
+  color: #FF1B6B !important;
+}
+.srv-card .srv-price-period {
+  font-size: 11px !important;
+  margin-top: 6px !important;
+  line-height: 1.4;
+}
+
+/* CTA Button — "Sélectionner" style with cart icon */
+.srv-card .btn-order {
+  background: rgba(255,255,255,.95) !important;
+  color: #FF1B6B !important;
+  border: none !important;
+  border-radius: 24px !important;
+  padding: 11px 20px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  text-transform: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18) !important;
+  cursor: pointer;
+  transition: all .25s ease !important;
+  white-space: nowrap;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .btn-order {
+  background: linear-gradient(135deg, #FF1B6B, #FF5C8D) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 22px rgba(255,27,107,.35) !important;
+}
+.srv-grid > .srv-card:nth-child(3n+2) .btn-order {
+  background: #FFFFFF !important;
+  color: #1B5BFF !important;
+}
+.srv-grid > .srv-card:nth-child(3n+3) .btn-order {
+  background: #FFFFFF !important;
+  color: #FF1B6B !important;
+}
+.srv-card .btn-order::before {
+  content: "🛒";
+  font-size: 14px;
+  margin-right: 2px;
+}
+.srv-card .btn-order .arrow { display: none !important; }
+.srv-card .btn-order:hover {
+  transform: translateY(-2px) scale(1.05) !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.25) !important;
+}
+
+/* "Cart" mini-button (from cart.js) — restyled to fit the new design */
+.srv-card .btn-cart {
+  border-radius: 24px !important;
+  background: transparent !important;
+  border: 1.5px solid currentColor !important;
+  padding: 10px 18px !important;
+  font-size: 11px !important;
+  margin-left: 6px;
+}
+.srv-grid > .srv-card:nth-child(3n+1) .btn-cart {
+  color: #0A2540 !important;
+  border-color: rgba(10,37,64,.15) !important;
+}
+.srv-grid > .srv-card:nth-child(3n+2) .btn-cart,
+.srv-grid > .srv-card:nth-child(3n+3) .btn-cart {
+  color: #FFFFFF !important;
+  border-color: rgba(255,255,255,.5) !important;
+}
+.srv-card .btn-cart:hover {
+  background: rgba(255,255,255,.15) !important;
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════
+   Same treatment for Google Business cards (g-price-card)
+═══════════════════════════════════════════ */
+.g-price-card {
+  border-radius: 22px !important;
+  overflow: hidden !important;
+  border: none !important;
+  box-shadow: 0 12px 40px rgba(10,37,64,.08) !important;
+  position: relative;
+  background: #FFFFFF !important;
+}
+.g-price-card:hover {
+  transform: translateY(-10px) !important;
+  box-shadow: 0 30px 60px rgba(10,37,64,.15) !important;
+}
+.g-price-card.popular {
+  outline: 3px solid #FFD700;
+  outline-offset: -3px;
+}
+
+/* The 3 cards get pink/blue/coral gradients respectively for variety */
+.g-price-grid > .g-price-card:nth-child(1) {
+  background: linear-gradient(135deg, #1B5BFF 0%, #00B8FF 100%) !important;
+}
+.g-price-grid > .g-price-card:nth-child(2) {
+  background: linear-gradient(135deg, #FF1B6B 0%, #FF5C8D 100%) !important;
+}
+.g-price-grid > .g-price-card:nth-child(3) {
+  background: #FFFFFF !important;
+}
+/* Card 3 (white) keeps the original colorful icon */
+.g-price-grid > .g-price-card:nth-child(3) .g-price-icon { background: linear-gradient(135deg, #34A853, #1B5BFF) !important; }
+
+/* For colored g-price cards, all text → white */
+.g-price-grid > .g-price-card:nth-child(1) *,
+.g-price-grid > .g-price-card:nth-child(2) * {
+  color: #FFFFFF !important;
+}
+.g-price-grid > .g-price-card:nth-child(1) .g-price-period,
+.g-price-grid > .g-price-card:nth-child(2) .g-price-period {
+  color: rgba(255,255,255,.75) !important;
+}
+
+/* Top header of g-price-card (the colored band) — remove the original colored band */
+.g-price-card .g-price-top {
+  background: transparent !important;
+}
+
+/* Pricing amount giant in middle */
+.g-price-card .g-price-amount {
+  font-size: 54px !important;
+  text-align: center;
+  padding: 16px 26px 0 !important;
+  font-weight: 700 !important;
+}
+.g-price-card .g-price-period { text-align: center; }
+.g-price-card .g-price-feats { padding: 12px 26px 18px !important; }
+
+.g-price-card .g-price-btn {
+  background: rgba(255,255,255,.96) !important;
+  color: #1B5BFF !important;
+  border-radius: 24px !important;
+  padding: 14px 18px !important;
+  font-weight: 700 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 26px 26px !important;
+  box-shadow: 0 8px 20px rgba(0,0,0,.18) !important;
+}
+.g-price-card .g-price-btn::before { content: "🛒"; font-size: 14px; }
+.g-price-grid > .g-price-card:nth-child(2) .g-price-btn { color: #FF1B6B !important; }
+.g-price-grid > .g-price-card:nth-child(3) .g-price-btn {
+  background: linear-gradient(135deg, #1B5BFF, #00B8FF) !important;
+  color: #FFFFFF !important;
+}
+
+/* Cart secondary button on g-price-card */
+.g-price-card .btn-cart {
+  border-radius: 24px !important;
+  padding: 12px 16px !important;
+  margin: -12px 26px 22px !important;
+  background: transparent !important;
+  border: 1.5px solid !important;
+}
+.g-price-grid > .g-price-card:nth-child(1) .btn-cart,
+.g-price-grid > .g-price-card:nth-child(2) .btn-cart {
+  color: #fff !important;
+  border-color: rgba(255,255,255,.5) !important;
+}
+.g-price-grid > .g-price-card:nth-child(3) .btn-cart {
+  color: #1B5BFF !important;
+  border-color: rgba(27,91,255,.3) !important;
+}
+
+/* Hide the original colored top-band on g-price-card (the colored line was redundant) */
+/* (already transparent now) */
