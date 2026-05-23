@@ -75,23 +75,23 @@ nav.scrolled {
 .zone-btn.active { background: var(--tech-blue) !important; color: #FFFFFF !important; }
 #theme-toggle { background: var(--gray-100) !important; border-color: var(--gray-200) !important; }
 
-/* ─── HERO: cinematic dark — video clearly visible ─── */
+/* ─── HERO: cinematic dark — video crystal clear ─── */
 .hero-bg {
-  background: linear-gradient(140deg, #0A1828 0%, #0A2540 45%, #061425 100%) !important;
+  background: linear-gradient(140deg, #050D18 0%, #0A1828 45%, #050D18 100%) !important;
 }
 .hero-video {
-  opacity: .82 !important;
-  filter: saturate(1.15) brightness(.95) contrast(1.08) !important;
+  opacity: .95 !important;
+  filter: saturate(1.30) brightness(1.0) contrast(1.12) !important;
 }
 .hero-video-overlay {
   background:
-    /* Vertical: darken top (for nav) + bottom (for KPIs), keep middle clear so video reads */
-    linear-gradient(180deg, rgba(10,24,40,.55) 0%, rgba(10,24,40,.15) 25%, rgba(10,24,40,.15) 70%, rgba(10,24,40,.65) 100%),
-    /* Left tint: ensure text readability without darkening the right side where video subject is */
-    linear-gradient(90deg, rgba(10,24,40,.55) 0%, rgba(10,24,40,.20) 45%, rgba(10,24,40,0) 80%) !important;
+    /* Top + bottom: subtle darkening for nav + KPI areas only */
+    linear-gradient(180deg, rgba(5,13,24,.55) 0%, rgba(5,13,24,0) 22%, rgba(5,13,24,0) 75%, rgba(5,13,24,.55) 100%),
+    /* Left: stronger darkening behind text, fully transparent on the right */
+    linear-gradient(90deg, rgba(5,13,24,.70) 0%, rgba(5,13,24,.45) 30%, rgba(5,13,24,0) 65%) !important;
 }
 .hero-vignette {
-  background: radial-gradient(ellipse at center, transparent 35%, rgba(10,24,40,.4) 85%, rgba(10,24,40,.7) 100%) !important;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(5,13,24,.30) 90%, rgba(5,13,24,.55) 100%) !important;
 }
 .hero-ambient-glow {
   background: radial-gradient(circle, rgba(27,91,255,.12) 0%, rgba(77,123,255,.06) 30%, transparent 70%) !important;
