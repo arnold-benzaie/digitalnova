@@ -2150,7 +2150,12 @@ footer{background:#050505;}
     ══════════════════════════════════ -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:20px;" class="rv" style="transition-delay:.05s">
       <div style="position:relative;width:220px;height:220px;transition:transform .4s;filter:drop-shadow(0 8px 18px rgba(0,0,0,.15));" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
-        <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" width="220" height="220">
+        <!-- Image badge fournie par le client — déposer le fichier dans assets/images/google-certification.png -->
+        <img src="assets/images/google-certification.png" alt="Google Certification"
+             style="width:100%;height:100%;object-fit:contain;display:block;"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
+        <!-- Fallback SVG si l'image n'est pas trouvée -->
+        <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" width="220" height="220" style="display:none;">
           <defs>
             <radialGradient id="stampGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stop-color="#FFE4E1" stop-opacity=".5"/>
