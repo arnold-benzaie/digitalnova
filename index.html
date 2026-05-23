@@ -2150,10 +2150,10 @@ footer{background:#050505;}
          Reproduit fidèlement depuis l'image
     ══════════════════════════════════ -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:20px;" class="rv" style="transition-delay:.05s">
-      <div style="position:relative;width:220px;height:220px;transition:transform .4s;filter:drop-shadow(0 8px 18px rgba(0,0,0,.15));" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
-        <!-- Image badge fournie par le client — déposer le fichier dans assets/images/google-certification.png -->
+      <div style="position:relative;width:240px;height:240px;transition:transform .4s;overflow:hidden;border-radius:50%;" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
+        <!-- Image badge fournie par le client — assets/images/google-certification.png -->
         <img src="assets/images/google-certification.png" alt="Google Certification"
-             style="width:100%;height:100%;object-fit:contain;display:block;"
+             style="width:180%;height:180%;object-fit:cover;display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);filter:drop-shadow(0 8px 16px rgba(0,0,0,.2));mix-blend-mode:multiply;"
              onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
         <!-- Fallback SVG si l'image n'est pas trouvée -->
         <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" width="220" height="220" style="display:none;">
