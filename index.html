@@ -1388,14 +1388,21 @@ footer{background:#050505;}
       <div class="g-price-grid">
 
         <!-- Pack 1 : Starter GMB -->
-        <div class="g-price-card rv" style="transition-delay:.05s">
+        <div class="g-price-card rv dyn-price-card"
+             data-ca-amount="299" data-ca-currency="CAD" data-ca-period="activation unique · Accès à vie inclus"
+             data-eu-amount="219" data-eu-currency="€ HT" data-eu-period="activation unique · TVA selon pays UE"
+             data-ca-title="Dominez Google Canada"  data-eu-title="Dominez Google Europe"
+             data-ca-modal="Pack Starter Google Business 🇨🇦" data-eu-modal="Pack Starter Google Business 🇪🇺"
+             data-ca-feat-bonus="Hébergement Canada · Support EST/PST"
+             data-eu-feat-bonus="Conformité RGPD · Bureau Paris CET"
+             style="transition-delay:.05s">
           <div class="g-price-top gpt-blue">
             <div class="g-price-icon gpi-b">🏢</div>
             <div class="g-price-name gpn-b">Pack Starter</div>
             <div class="g-price-title">Google Business Profile</div>
             <div class="g-price-desc">Idéal pour démarrer rapidement</div>
           </div>
-          <div class="g-price-amount">$299 <span style="font-size:18px;color:#999;">CAD</span></div>
+          <div class="g-price-amount"><span class="amount-num">$299</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
           <div class="g-price-period">activation unique · Accès à vie inclus</div>
           <ul class="g-price-feats gf-b">
             <li>Création + vérification fiche GMB</li>
@@ -1403,13 +1410,19 @@ footer{background:#050505;}
             <li>20 citations annuaires locales</li>
             <li>Campagne de collecte d'avis (email/SMS)</li>
             <li>Tableau de bord réputation</li>
+            <li class="feat-region-bonus">Hébergement Canada · Support EST/PST</li>
             <li>Support email 48h</li>
           </ul>
-          <button class="g-price-btn gpb-b" onclick="openModal('Pack Starter Google Business 🇨🇦','299','219','ca')">Commander $299 CAD →</button>
+          <button class="g-price-btn gpb-b" onclick="openDynModal(this)">Commander $299 CAD →</button>
         </div>
 
         <!-- Pack 2 : Pro SEO Local (populaire) -->
-        <div class="g-price-card popular rv" style="transition-delay:.1s">
+        <div class="g-price-card popular rv dyn-price-card"
+             data-ca-amount="499" data-ca-currency="CAD" data-ca-period="activation unique · Accès à vie inclus"
+             data-eu-amount="369" data-eu-currency="€ HT" data-eu-period="activation unique · TVA selon pays UE"
+             data-ca-modal="Pack Pro SEO Local + Avis IA 🇨🇦" data-eu-modal="Pack Pro SEO Local + Avis IA 🇪🇺"
+             data-ca-feat-bonus="Annuaires Canada (Yelp, Pages Jaunes)" data-eu-feat-bonus="Annuaires EU (TripAdvisor, PagesJaunes.fr, Gelbe Seiten)"
+             style="transition-delay:.1s">
           <div class="g-pop-badge">⭐ POPULAIRE</div>
           <div class="g-price-top gpt-yellow">
             <div class="g-price-icon gpi-y">📍</div>
@@ -1417,7 +1430,7 @@ footer{background:#050505;}
             <div class="g-price-title">SEO Local + Avis IA</div>
             <div class="g-price-desc">Le plus choisi par nos clients</div>
           </div>
-          <div class="g-price-amount">$499 <span style="font-size:18px;color:#999;">CAD</span></div>
+          <div class="g-price-amount"><span class="amount-num">$499</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
           <div class="g-price-period">activation unique · Accès à vie inclus</div>
           <ul class="g-price-feats gf-y">
             <li>Tout le Pack Starter +</li>
@@ -1425,47 +1438,54 @@ footer{background:#050505;}
             <li>40 mots-clés géolocalisés</li>
             <li>Réponses IA aux avis (positifs/négatifs)</li>
             <li>Posts Google hebdomadaires</li>
+            <li class="feat-region-bonus">Annuaires Canada (Yelp, Pages Jaunes)</li>
             <li>Rapport mensuel + support 1 an</li>
           </ul>
-          <button class="g-price-btn gpb-y" onclick="openModal('Pack Pro SEO Local + Avis IA 🇨🇦','499','369','ca')">Commander $499 CAD →</button>
+          <button class="g-price-btn gpb-y" onclick="openDynModal(this)">Commander $499 CAD →</button>
         </div>
 
         <!-- Pack 3 : SEO National -->
-        <div class="g-price-card rv" style="transition-delay:.15s">
+        <div class="g-price-card rv dyn-price-card"
+             data-ca-amount="590" data-ca-currency="CAD/an" data-ca-period="paiement annuel · Renouvellement libre"
+             data-eu-amount="439" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · TVA selon pays UE"
+             data-ca-title="Dominez Google Canada" data-eu-title="Dominez Google Europe"
+             data-ca-modal="SEO National Canada 🇨🇦" data-eu-modal="SEO National Europe 🇪🇺"
+             data-ca-feat-bonus="Netlinking Premium DA50+ Canada" data-eu-feat-bonus="Netlinking Premium DA50+ Europe (FR/BE/CH)"
+             data-ca-feat-articles="8 articles SEO FR/EN · inclus 1 an" data-eu-feat-articles="8 articles SEO FR/EN/DE · inclus 1 an"
+             style="transition-delay:.15s">
           <div class="g-price-top gpt-green">
             <div class="g-price-icon gpi-g">🚀</div>
             <div class="g-price-name gpn-g">SEO National</div>
             <div class="g-price-title">Dominez Google Canada</div>
             <div class="g-price-desc">Référencement national complet</div>
           </div>
-          <div class="g-price-amount">$590 <span style="font-size:18px;color:#999;">CAD/an</span></div>
+          <div class="g-price-amount"><span class="amount-num">$590</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
           <div class="g-price-period">paiement annuel · Renouvellement libre</div>
           <ul class="g-price-feats gf-g">
             <li>Audit SEO complet (200+ points)</li>
             <li>60 mots-clés ciblés national</li>
-            <li>Netlinking Premium DA50+ Canada</li>
-            <li>8 articles SEO optimisés · inclus 1 an</li>
+            <li class="feat-region-bonus">Netlinking Premium DA50+ Canada</li>
+            <li class="feat-region-articles">8 articles SEO FR/EN · inclus 1 an</li>
             <li>Pack Google Business inclus</li>
             <li>Dashboard positions en temps réel</li>
           </ul>
-          <button class="g-price-btn gpb-g" onclick="openModal('SEO National Canada 🇨🇦','590','439','ca')">Commander $590 CAD/an →</button>
+          <button class="g-price-btn gpb-g" onclick="openDynModal(this)">Commander $590 CAD/an →</button>
         </div>
 
       </div>
 
-      <!-- Zone EU -->
-      <div style="background:#F8FAFE;border-radius:14px;padding:22px 28px;margin-top:22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;" class="rv">
+      <!-- Zone Switcher (dynamic) -->
+      <div id="price-zone-switcher" style="background:#F8FAFE;border-radius:14px;padding:22px 28px;margin-top:22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;" class="rv">
         <div style="display:flex;align-items:center;gap:14px;">
-          <img src="https://flagcdn.com/w40/eu.png" style="width:36px;height:23px;border-radius:4px;border:1px solid #ddd;"/>
+          <div id="price-zone-flag" style="font-size:32px;line-height:1;">🇨🇦</div>
           <div>
-            <div style="font-size:13px;font-weight:700;color:#003399;">🇪🇺 Zone Europe — Prix en Euro HT</div>
-            <div style="font-size:12px;color:#666;margin-top:2px;">Starter : 219 € · Pro : 369 € · SEO National : 439 €/an · Conformité RGPD · Bureau Paris</div>
+            <div id="price-zone-title" style="font-size:14px;font-weight:700;color:#1B5BFF;">Affichage en Dollar Canadien (CAD)</div>
+            <div id="price-zone-sub" style="font-size:12px;color:#666;margin-top:2px;">Cliquez sur Europe en haut pour basculer en Euro HT · Bureau Paris CET disponible</div>
           </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button style="background:#003399;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onclick="openModal('Pack Starter Google Business 🇪🇺','430','219','eu')">Starter 219 €</button>
-          <button style="background:#003399;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onclick="openModal('Pack Pro SEO Local + Avis IA 🇪🇺','680','369','eu')">Pro 369 €</button>
-          <button style="background:#003399;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;" onclick="openModal('SEO National Europe 🇪🇺','800','439','eu')">SEO 439 €/an</button>
+          <button class="zone-quick-btn" id="qb-ca" onclick="setZone('ca')" style="background:#1B5BFF;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;">🇨🇦 Voir prix CAD</button>
+          <button class="zone-quick-btn" id="qb-eu" onclick="setZone('eu')" style="background:#fff;color:#003399;border:1.5px solid #003399;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;">🇪🇺 Voir prix EUR</button>
         </div>
       </div>
     </div>
@@ -2806,5 +2826,6 @@ function doPayment(){
 </script>
 <script src="hero-cinematic.js"></script>
 <script src="cart.js"></script>
+<script src="dynamic-pricing.js"></script>
 </body>
 </html>
