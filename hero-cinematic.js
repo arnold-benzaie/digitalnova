@@ -209,8 +209,88 @@
   document.head.appendChild(s);
 })();
 
-/* ─── 1. SEAMLESS LOOP — dual video crossfade ─── */
-(function dualVideoLoop(){
+/* ═══════════════════════════════════════════════════════
+   1. SEAMLESS LOOP + 5-MINUTE CINEMATIC SCENE DIRECTOR
+   10 distinct "scenes" with unique filter + framing + grading
+   Each scene runs ~30s — total 5 min cycle from a single 10s clip
+   ═══════════════════════════════════════════════════════ */
+(function cinematicDirector(){
+  // 10 unique scenes — each feels like a different shot in a film
+  const SCENES = [
+    { // 0. Golden hour — warm intro
+      name: 'golden-hour',
+      filter: 'saturate(1.25) contrast(1.10) brightness(.95) sepia(.08) hue-rotate(-8deg)',
+      transform: 'scale(1.06) translate(0, 0)',
+      rate: 0.75,
+      tint: 'rgba(255,180,80,.08)'
+    },
+    { // 1. Tight close-up — high contrast
+      name: 'close-up',
+      filter: 'saturate(1.20) contrast(1.20) brightness(.85)',
+      transform: 'scale(1.22) translate(-3%, 2%)',
+      rate: 0.55,
+      tint: 'rgba(0,0,0,.15)'
+    },
+    { // 2. Cool blue — Paris dusk
+      name: 'blue-hour',
+      filter: 'saturate(1.15) contrast(1.08) brightness(.90) hue-rotate(8deg)',
+      transform: 'scale(1.10) translate(2%, -1%)',
+      rate: 0.7,
+      tint: 'rgba(60,90,160,.10)'
+    },
+    { // 3. Wide pan — establishing shot
+      name: 'wide-pan',
+      filter: 'saturate(1.10) contrast(1.05) brightness(.92)',
+      transform: 'scale(1.04) translate(-2%, 0)',
+      rate: 0.65,
+      tint: 'rgba(20,20,20,.08)'
+    },
+    { // 4. Vintage film grain feel
+      name: 'vintage',
+      filter: 'saturate(.85) contrast(1.15) brightness(.88) sepia(.20)',
+      transform: 'scale(1.08) translate(1%, 1%)',
+      rate: 0.6,
+      tint: 'rgba(180,140,80,.10)'
+    },
+    { // 5. Bright corporate — daytime energy
+      name: 'corporate',
+      filter: 'saturate(1.30) contrast(1.06) brightness(1.02)',
+      transform: 'scale(1.07) translate(0, -1%)',
+      rate: 0.8,
+      tint: 'rgba(255,255,255,.04)'
+    },
+    { // 6. Cinematic noir — dramatic shadow
+      name: 'noir',
+      filter: 'saturate(.65) contrast(1.30) brightness(.78)',
+      transform: 'scale(1.14) translate(-1%, -2%)',
+      rate: 0.6,
+      tint: 'rgba(0,0,30,.18)'
+    },
+    { // 7. Warm reds — DIGITALNOVA brand mood
+      name: 'brand-red',
+      filter: 'saturate(1.40) contrast(1.10) brightness(.92) hue-rotate(-15deg)',
+      transform: 'scale(1.09) translate(0, 0)',
+      rate: 0.7,
+      tint: 'rgba(213,43,30,.10)'
+    },
+    { // 8. Slow dolly-in — anticipation
+      name: 'dolly-in',
+      filter: 'saturate(1.15) contrast(1.12) brightness(.90)',
+      transform: 'scale(1.18) translate(0, 1%)',
+      rate: 0.5,
+      tint: 'rgba(40,20,10,.10)'
+    },
+    { // 9. Final hero — full bright cinematic
+      name: 'hero-finale',
+      filter: 'saturate(1.20) contrast(1.10) brightness(.95)',
+      transform: 'scale(1.06) translate(0, 0)',
+      rate: 0.75,
+      tint: 'rgba(232,140,75,.08)'
+    }
+  ];
+
+  const SCENE_DURATION = 30; // seconds per scene → 10 scenes × 30s = 5 minutes
+
   function init(){
     const oldVideo = document.getElementById('heroVideo');
     if(!oldVideo) return;
@@ -223,7 +303,24 @@
     const stack = document.createElement('div');
     stack.className = 'hero-video-stack';
 
-    // Create two videos
+    // Color-grade tint overlay (changes per scene)
+    const tintLayer = document.createElement('div');
+    tintLayer.id = 'sceneTint';
+    tintLayer.style.cssText = `position:absolute;inset:0;z-index:2;pointer-events:none;transition:background 2.5s ease;mix-blend-mode:multiply;`;
+    heroBg.appendChild(tintLayer);
+
+    // Scene indicator (subtle film-style chapter marker, bottom-left)
+    const indicator = document.createElement('div');
+    indicator.id = 'sceneIndicator';
+    indicator.style.cssText = `position:absolute;bottom:30px;left:56px;z-index:6;pointer-events:none;
+      font-family:'Courier New',monospace;font-size:10px;letter-spacing:.3em;
+      color:rgba(255,200,150,.45);text-transform:uppercase;
+      transition:opacity 1.2s ease, color 1.5s ease;
+      mix-blend-mode:screen;`;
+    indicator.textContent = '';
+    heroBg.appendChild(indicator);
+
+    // Create two videos for crossfade
     const mkVid = (id) => {
       const v = document.createElement('video');
       v.id = id;
@@ -233,40 +330,66 @@
       const s = document.createElement('source');
       s.src = src; s.type = 'video/mp4';
       v.appendChild(s);
-      v.classList.add('cam-anim');
-      v.playbackRate = 0.75;
       return v;
     };
 
     const vA = mkVid('heroVidA');
     const vB = mkVid('heroVidB');
-    vA.classList.add('fading-in');
+    vA.style.cssText += 'opacity:.82;';
     vB.style.opacity = '0';
 
     stack.appendChild(vA);
     stack.appendChild(vB);
-    // insert after hero-bg
     heroBg.insertBefore(stack, heroBg.children[1]);
-
-    // Hide old video
     oldVideo.style.display = 'none';
 
-    // Crossfade logic: when current video is ~1.4s before end, fade in next
+    // Apply scene look to a video element
+    function applyScene(vid, scene){
+      vid.style.transition = 'filter 2.5s ease, transform 30s ease-in-out, opacity 1.4s ease-in-out';
+      vid.style.filter = scene.filter;
+      vid.style.transform = scene.transform;
+      vid.playbackRate = scene.rate;
+    }
+
+    // Director: change scene every SCENE_DURATION seconds
+    let sceneIdx = 0;
+    let startTime = performance.now();
+    function setScene(idx){
+      const scene = SCENES[idx % SCENES.length];
+      applyScene(vA, scene);
+      applyScene(vB, scene);
+      tintLayer.style.background = scene.tint;
+      // Subtle chapter indicator
+      indicator.style.opacity = '0';
+      setTimeout(() => {
+        const num = String(idx + 1).padStart(2, '0');
+        indicator.textContent = `Scene ${num} / 10 · ${scene.name}`;
+        indicator.style.opacity = '.7';
+      }, 400);
+      setTimeout(() => { indicator.style.opacity = '0'; }, 5000);
+    }
+    setScene(0);
+
+    // Crossfade loop (every video iteration) + scene change tracker
     const CROSSFADE = 1.4;
     let active = vA, idle = vB;
+    let lastSceneChange = startTime;
 
     function loop(){
+      const now = performance.now();
+      // Scene change check
+      if((now - lastSceneChange) / 1000 >= SCENE_DURATION){
+        sceneIdx = (sceneIdx + 1) % SCENES.length;
+        setScene(sceneIdx);
+        lastSceneChange = now;
+      }
+      // Video crossfade check
       const dur = active.duration;
       if(isFinite(dur) && active.currentTime >= dur - CROSSFADE){
-        // start idle from 0, fade
         idle.currentTime = 0;
         idle.play().catch(()=>{});
-        idle.classList.remove('fading-out');
-        idle.classList.add('fading-in');
-        idle.style.opacity = '';
-        active.classList.remove('fading-in');
-        active.classList.add('fading-out');
-        // swap
+        idle.style.opacity = '.82';
+        active.style.opacity = '0';
         [active, idle] = [idle, active];
       }
       requestAnimationFrame(loop);
@@ -275,6 +398,13 @@
     vA.addEventListener('loadeddata', () => {
       vA.play().catch(()=>{});
       requestAnimationFrame(loop);
+    });
+
+    // Hover on hero → pause scene rotation (user is reading)
+    let hovering = false;
+    heroBg.addEventListener('mouseenter', () => { hovering = true; });
+    heroBg.addEventListener('mouseleave', () => {
+      if(hovering){ lastSceneChange = performance.now(); hovering = false; }
     });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
