@@ -309,59 +309,14 @@
   else init();
 })();
 
-/* ─── 3. WORLD NETWORK SVG (Montreal · Paris · London · Brussels) ─── */
-(function worldNetwork(){
-  function init(){
-    const heroBg = document.querySelector('.hero-video-background');
-    if(!heroBg) return;
-    const layer = document.createElement('div');
-    layer.className = 'hero-network';
-    // City coordinates as % of viewport (carefully placed on dark zones)
-    const cities = [
-      { name:'MTL', x:18, y:55 },
-      { name:'NYC', x:24, y:62 },
-      { name:'PAR', x:54, y:48 },
-      { name:'LON', x:48, y:42 },
-      { name:'BRX', x:52, y:44 }
-    ];
-    const lines = [
-      ['MTL','PAR'], ['MTL','LON'], ['MTL','BRX'],
-      ['PAR','LON'], ['LON','BRX'], ['PAR','BRX'], ['NYC','PAR']
-    ];
-    const cityMap = Object.fromEntries(cities.map(c=>[c.name,c]));
-
-    let svg = `<svg viewBox="0 0 100 100" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="netGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#FFD580" stop-opacity="0"/>
-          <stop offset="50%" stop-color="#FFE066" stop-opacity=".9"/>
-          <stop offset="100%" stop-color="#FF8C42" stop-opacity="0"/>
-        </linearGradient>
-      </defs>`;
-
-    lines.forEach((pair,i) => {
-      const a = cityMap[pair[0]], b = cityMap[pair[1]];
-      // curved path via quadratic — bulge between points
-      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 8 - i*2;
-      const path = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
-      svg += `<path class="net-line" d="${path}"/>`;
-      // traveling pulse along path
-      svg += `<circle class="net-pulse" r="0.6" fill="#FFE066">
-        <animateMotion dur="${5+i}s" repeatCount="indefinite" path="${path}"/>
-      </circle>`;
-    });
-
-    cities.forEach(c => {
-      svg += `<circle class="net-dot" cx="${c.x}" cy="${c.y}" r="0.7"/>`;
-      svg += `<text class="net-label" x="${c.x+1.5}" y="${c.y-1}" font-size="2">${c.name}</text>`;
-    });
-
-    svg += `</svg>`;
-    layer.innerHTML = svg;
-    heroBg.appendChild(layer);
+/* ─── 3. WORLD NETWORK — REMOVED (user feedback: too distracting) ─── */
+/* Cleanup any existing network overlay from previous load */
+(function removeWorldNetwork(){
+  function cleanup(){
+    document.querySelectorAll('.hero-network').forEach(el => el.remove());
   }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cleanup);
+  else cleanup();
 })();
 
 /* ─── 4. AMBIENT DUST PARTICLES ─── */
