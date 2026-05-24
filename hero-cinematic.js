@@ -262,13 +262,24 @@
     indicator.textContent = '';
     heroBg.appendChild(indicator);
 
-    // Create two videos for crossfade
+    // Create two videos for crossfade — iOS-safe autoplay
     const mkVid = (id) => {
       const v = document.createElement('video');
       v.id = id;
-      v.muted = true; v.playsInline = true; v.preload = 'auto';
-      v.setAttribute('playsinline','');
-      v.setAttribute('webkit-playsinline','');
+      // CRITICAL for iOS Safari autoplay: muted + playsinline + autoplay MUST be attributes
+      v.setAttribute('muted', '');
+      v.setAttribute('autoplay', '');
+      v.setAttribute('loop', '');
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.setAttribute('preload', 'auto');
+      v.setAttribute('disableremoteplayback', '');
+      v.setAttribute('x-webkit-airplay', 'deny');
+      v.muted = true;
+      v.playsInline = true;
+      v.defaultMuted = true;
+      v.controls = false;
+      v.loop = false; // we handle loop via crossfade
       const s = document.createElement('source');
       s.src = src; s.type = 'video/mp4';
       v.appendChild(s);
@@ -284,6 +295,23 @@
     stack.appendChild(vB);
     heroBg.insertBefore(stack, heroBg.children[1]);
     oldVideo.style.display = 'none';
+
+    // Force load (some iOS versions need this)
+    vA.load();
+    vB.load();
+
+    // iOS Safari fallback: play on first user interaction
+    const tryPlay = () => {
+      vA.muted = true;
+      vA.play().catch(()=>{});
+    };
+    ['touchstart', 'touchend', 'click', 'scroll'].forEach(evt => {
+      document.addEventListener(evt, tryPlay, { once: true, passive: true });
+    });
+    // Visibility change: try again when tab/page becomes visible
+    document.addEventListener('visibilitychange', () => {
+      if(!document.hidden && vA.paused) vA.play().catch(()=>{});
+    });
 
     // Apply scene look to a video element
     function applyScene(vid, scene){
