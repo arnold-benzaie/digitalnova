@@ -19,6 +19,74 @@
 }
 
 /* ════════════════════════════════════════════
+   1b. COMPACT STATIC CERTIFICATIONS GRID (below the animated carousel)
+   Premium minimal · auto-wrap · horizontally aligned
+   ════════════════════════════════════════════ */
+.cert-static-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 24px 8px 8px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.cert-static-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #fff;
+  border: 1.5px solid var(--bd, #E0EAF8);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c, #0A2540);
+  box-shadow: 0 2px 8px rgba(10, 37, 64, .04);
+  transition: transform .25s cubic-bezier(.2,.8,.2,1),
+              box-shadow .25s ease,
+              border-color .25s ease;
+  white-space: nowrap;
+  cursor: default;
+  line-height: 1;
+}
+.cert-static-badge:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(10, 37, 64, .10);
+  border-color: var(--c, #1B5BFF);
+}
+.cert-static-badge .csb-icon {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+.cert-static-badge .csb-name {
+  letter-spacing: .01em;
+  font-weight: 700;
+}
+.cert-static-badge .csb-check {
+  color: #34A853;
+  font-weight: 900;
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+/* Mobile: even more compact */
+@media (max-width: 768px) {
+  .cert-static-grid {
+    gap: 7px;
+    padding: 18px 4px 4px;
+  }
+  .cert-static-badge {
+    padding: 7px 11px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  .cert-static-badge .csb-icon { font-size: 14px; }
+}
+
+/* ════════════════════════════════════════════
    1. KEEP MARQUEE chips defiling — hide ONLY the 4-stats grid below them
    ════════════════════════════════════════════ */
 /* The card stays visible — it hosts the marquee */
