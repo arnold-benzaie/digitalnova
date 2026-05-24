@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Final polish
+   1. Hide entire certs chip bar (save vertical space)
+   2. Newsletter + Footer fused as ONE big rounded blue dome
+   3. Hero brand text shimmer (visible animated shine)
+   ═══════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════
+   1. HIDE THE FULL CERTIFICATIONS CHIP BAR
+   The 11 chip pills + 4 stats grid section
+   The 3 main badges (Google/Local SEO/SEO Expert) STAY
+   ════════════════════════════════════════════ */
+.cert-accred-card {
+  display: none !important;
+}
+.cert-marquee {
+  display: none !important;
+}
+/* Remove residual whitespace */
+#certifications {
+  padding-bottom: 40px !important;
+}
+
+/* ════════════════════════════════════════════
+   2. FUSE NEWSLETTER + FOOTER INTO ONE ROUNDED DOME
+   ════════════════════════════════════════════ */
+/* Newsletter section: flatten bottom, keep blue */
+.nl-sec {
+  background: linear-gradient(135deg, #1B5BFF 0%, #0E3FD8 50%, #003399 100%) !important;
+  border-radius: 50% 50% 0 0 / 140px 140px 0 0 !important;  /* rounded TOP, square bottom */
+  margin-top: 60px;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  position: relative;
+  overflow: visible;
+  z-index: 1;
+}
+/* Newsletter highlight for premium feel */
+.nl-sec::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 200px;
+  background: radial-gradient(ellipse at top, rgba(255,255,255,.18), transparent 70%);
+  pointer-events: none;
+  border-radius: 50% 50% 0 0 / 140px 140px 0 0;
+}
+
+/* Footer: now continuous with newsletter — flat top, same blue gradient */
+footer.foot-bar-rounded {
+  background: linear-gradient(180deg, #003399 0%, #0E3FD8 100%) !important;
+  border-radius: 0 !important;  /* No top rounding — already inherited from newsletter */
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  position: relative;
+  z-index: 1;
+}
+footer.foot-bar-rounded::before {
+  display: none !important;  /* No extra highlight on footer — newsletter has it */
+}
+
+/* Ensure no white gap between sections */
+.nl-sec + footer,
+footer.foot-bar-rounded {
+  margin-top: -1px !important;  /* tiny pull-up to eliminate sub-pixel gap */
+}
+
+/* Mobile: smaller curve */
+@media (max-width: 768px) {
+  .nl-sec {
+    border-radius: 30% 30% 0 0 / 70px 70px 0 0 !important;
+  }
+  .nl-sec::after {
+    border-radius: 30% 30% 0 0 / 70px 70px 0 0 !important;
+    height: 100px;
+  }
+}
+
+/* ════════════════════════════════════════════
+   3. HERO TITLE — VISIBLE SHIMMER on "Global Visibility"
+   ════════════════════════════════════════════ */
+/* Strong, NOTICEABLE shimmer for the brand-ish lines */
+.hero-h1-premium .hero-line-1,
+.hero-h1-premium .hero-line-2 {
+  background-size: 200% auto !important;
+  animation:
+    heroLineReveal 1.4s cubic-bezier(.16, 1, .3, 1) .5s forwards,
+    heroShimmerStrong 4.5s linear infinite 2s !important;
+}
+@keyframes heroShimmerStrong {
+  0%   { background-position: -100% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Boost the gradient to make shimmer obvious */
+.hero-h1-premium .hero-line-1 {
+  background: linear-gradient(
+    100deg,
+    #FFFFFF 0%,
+    #FFFFFF 30%,
+    #FFD700 45%,
+    #FFFFFF 60%,
+    #FFFFFF 100%
+  ) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+.hero-h1-premium .hero-line-2 {
+  background: linear-gradient(
+    100deg,
+    #6B95FF 0%,
+    #4D7BFF 30%,
+    #FFE0A0 45%,
+    #4D7BFF 60%,
+    #1B5BFF 100%
+  ) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* Also shimmer on the brand name in nav + footer */
+.nav-brand span,
+.ft-brand-name {
+  background: linear-gradient(
+    100deg,
+    currentColor 0%,
+    currentColor 35%,
+    #FFE066 50%,
+    currentColor 65%,
+    currentColor 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: heroShimmerStrong 6s linear infinite;
+}
