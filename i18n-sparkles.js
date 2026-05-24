@@ -71,6 +71,8 @@ const T = {
   "Le Marketing":"Marketing",
   "Digital":"Digital",
   "Sans Limites":"Without Limits",
+  "Votre Visibilité":"Your Visibility",
+  "Globale":"Global",
   "🌍 Global Visibility CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 Global Visibility CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
   "🚀 Commander Maintenant":"🚀 Order Now",
   "Voir les témoignages →":"See testimonials →",

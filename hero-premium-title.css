@@ -1,0 +1,205 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Premium Hero Title
+   Cinematic · Elegant · Luxury Tech Agency feel
+   ═══════════════════════════════════════════════════════ */
+
+/* Hero h1 — completely re-styled for the new branding */
+.hero-h1-premium {
+  font-family: 'Cormorant Garamond', serif !important;
+  font-weight: 700 !important;
+  line-height: 0.95 !important;
+  letter-spacing: -0.01em !important;
+  color: #FFFFFF !important;
+  position: relative;
+  margin-bottom: 20px;
+  /* Premium multi-layered shadow for max depth + readability */
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 20px 60px rgba(0, 0, 0, 0.25) !important;
+  /* Smooth animation reveal */
+  opacity: 0;
+  animation: heroTitleReveal 1.6s cubic-bezier(.16, 1, .3, 1) .4s forwards;
+}
+
+/* Each line gets its own treatment */
+.hero-h1-premium .hero-line-1 {
+  display: block;
+  font-size: clamp(48px, 7vw, 96px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  background: linear-gradient(180deg,
+    #FFFFFF 0%,
+    #F0F4FF 60%,
+    #C8DCFF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 30px rgba(255, 255, 255, 0.12));
+  opacity: 0;
+  transform: translateY(30px);
+  animation: heroLineReveal 1.4s cubic-bezier(.16, 1, .3, 1) .5s forwards;
+}
+
+.hero-h1-premium .hero-line-2 {
+  display: block;
+  font-size: clamp(60px, 9vw, 130px);
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+  /* Premium blue gradient with subtle gold accent */
+  background: linear-gradient(120deg,
+    #6B95FF 0%,
+    #4D7BFF 25%,
+    #1B5BFF 50%,
+    #4D7BFF 75%,
+    #6B95FF 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 16px rgba(27, 91, 255, 0.45))
+          drop-shadow(0 0 40px rgba(107, 149, 255, 0.30));
+  opacity: 0;
+  transform: translateY(40px) scale(.95);
+  animation:
+    heroLineReveal 1.6s cubic-bezier(.16, 1, .3, 1) .8s forwards,
+    heroLineShimmer 8s ease-in-out 3s infinite;
+}
+
+@keyframes heroTitleReveal {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes heroLineReveal {
+  to { opacity: 1; transform: none; }
+}
+@keyframes heroLineShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 200% 50%; }
+}
+
+/* ─── REDUCE VISUAL CLUTTER BEHIND HERO TEXT ─── */
+/* Slight spotlight on the left side where the text lives */
+.hero-video-background::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 60%;
+  background: radial-gradient(
+    ellipse at 25% 50%,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.25) 40%,
+    transparent 70%
+  );
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* Dim the matrix rain so it doesn't compete with the title */
+.hero-matrix {
+  opacity: 0.12 !important;
+}
+.hero-dust {
+  opacity: 0.5 !important;
+}
+.hero-steam,
+.hero-flare {
+  opacity: 0.6 !important;
+}
+.hero-scan {
+  opacity: 0.5 !important;
+}
+
+/* Subtle ambient glow behind the text — gives the title presence */
+.hero-content > div:first-child::before {
+  content: "";
+  position: absolute;
+  top: 40%;
+  left: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(
+    circle,
+    rgba(27, 91, 255, 0.18) 0%,
+    rgba(27, 91, 255, 0.05) 40%,
+    transparent 70%
+  );
+  filter: blur(50px);
+  z-index: -1;
+  pointer-events: none;
+  animation: heroAmbientPulse 6s ease-in-out infinite;
+}
+@keyframes heroAmbientPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.12); }
+}
+
+/* Hero subtitle — match the new premium feel */
+.hero-sub {
+  font-size: 16px !important;
+  font-weight: 300 !important;
+  line-height: 1.75 !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  letter-spacing: 0.01em !important;
+  margin: 28px 0 40px !important;
+  max-width: 540px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5) !important;
+  opacity: 0;
+  animation: heroLineReveal 1.2s cubic-bezier(.16, 1, .3, 1) 1.2s forwards;
+}
+
+/* ─── MOBILE OPTIMIZATIONS ─── */
+@media (max-width: 768px) {
+  .hero-h1-premium {
+    margin-bottom: 16px;
+  }
+  .hero-h1-premium .hero-line-1 {
+    font-size: clamp(34px, 11vw, 52px);
+  }
+  .hero-h1-premium .hero-line-2 {
+    font-size: clamp(44px, 14vw, 64px);
+    margin-top: 2px;
+  }
+  .hero-video-background::after {
+    width: 100%;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.55) 0%,
+      rgba(0, 0, 0, 0.25) 40%,
+      rgba(0, 0, 0, 0.4) 100%
+    );
+  }
+  .hero-content > div:first-child::before {
+    width: 320px;
+    height: 320px;
+    filter: blur(40px);
+  }
+  .hero-sub {
+    font-size: 14px !important;
+    margin: 20px 0 30px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-h1-premium .hero-line-1 {
+    font-size: clamp(30px, 10vw, 42px);
+  }
+  .hero-h1-premium .hero-line-2 {
+    font-size: clamp(38px, 13vw, 56px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-h1-premium,
+  .hero-h1-premium .hero-line-1,
+  .hero-h1-premium .hero-line-2,
+  .hero-sub,
+  .hero-content > div:first-child::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
