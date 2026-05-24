@@ -1,0 +1,294 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Certifications Marquee + Blue Contact
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── HORIZONTAL MARQUEE FOR CERTIFICATION CHIPS ─── */
+.cert-marquee {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  padding: 20px 0;
+  /* Fade edges */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+.cert-marquee-track {
+  display: flex;
+  gap: 18px;
+  width: max-content;
+  animation: certMarquee 38s linear infinite;
+  will-change: transform;
+}
+.cert-marquee:hover .cert-marquee-track {
+  animation-play-state: paused;
+}
+@keyframes certMarquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Re-style each chip inside marquee (keep premium effects, but adjust flex) */
+.cert-marquee .cert-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  background: #fff;
+  border: 2px solid #C8DCFF;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(27,91,255,.10);
+  transition: transform .4s cubic-bezier(.2,.8,.2,1),
+              box-shadow .4s ease,
+              border-color .4s ease;
+  cursor: pointer;
+  position: relative;
+  isolation: isolate;
+  white-space: nowrap;
+}
+.cert-marquee .cert-chip:hover {
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 18px 36px rgba(27,91,255,.18),
+              0 4px 12px rgba(27,91,255,.15),
+              inset 0 1px 0 rgba(255,255,255,1);
+  border-color: #1B5BFF;
+  z-index: 5;
+}
+.cert-marquee .cert-chip > span:first-child {
+  font-size: 22px;
+  transition: transform .4s cubic-bezier(.2,2,.4,1);
+  display: inline-block;
+}
+.cert-marquee .cert-chip:hover > span:first-child {
+  transform: scale(1.25) rotate(-10deg);
+}
+.cert-marquee .cert-chip .chip-name {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  display: block;
+}
+.cert-marquee .cert-chip .chip-sub {
+  font-size: 10px;
+  color: #888;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Mobile: faster marquee, simpler hover */
+@media (max-width: 768px) {
+  .cert-marquee-track { animation-duration: 24s; gap: 12px; }
+  .cert-marquee .cert-chip { padding: 9px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cert-marquee-track { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   BLUE CONTACT SECTION (curved gradient · 3 columns)
+═══════════════════════════════════════════════════════ */
+.contact-block {
+  /* Replace previous white card with the new blue design */
+  max-width: 100% !important;
+  margin: 100px 0 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+}
+
+.contact-block-blue {
+  background: linear-gradient(135deg, #1B5BFF 0%, #0E3FD8 50%, #003399 100%);
+  border-radius: 60% 60% 0 0 / 80px 80px 0 0;
+  padding: 90px 56px 60px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+/* Decorative wave glow inside the blue zone */
+.contact-block-blue::before {
+  content: "";
+  position: absolute;
+  top: 30%; right: -15%;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(255,255,255,.08), transparent 65%);
+  border-radius: 50%;
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: -1;
+}
+.contact-block-blue::after {
+  content: "";
+  position: absolute;
+  bottom: -20%; left: -10%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(77,123,255,.18), transparent 70%);
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: -1;
+  animation: blueAura 9s ease-in-out infinite;
+}
+@keyframes blueAura {
+  0%, 100% { opacity: .6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Brand header inside the blue zone */
+.contact-blue-brand {
+  text-align: center;
+  margin-bottom: 56px;
+}
+.contact-blue-brand-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 38px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+.contact-blue-brand-name span {
+  color: #6B95FF;
+  font-style: italic;
+}
+.contact-blue-brand-name .brand-icon {
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 36px;
+  vertical-align: middle;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.3));
+}
+.contact-blue-brand-tagline {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .35em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.6);
+}
+
+/* 3 columns */
+.contact-blue-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 32px;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.contact-blue-col {
+  text-align: center;
+  padding: 0 12px;
+}
+.contact-blue-icon {
+  width: 56px; height: 56px;
+  margin: 0 auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.18);
+  font-size: 26px;
+  backdrop-filter: blur(8px);
+  transition: transform .5s cubic-bezier(.2,.8,.2,1),
+              background .4s ease,
+              box-shadow .4s ease;
+}
+.contact-blue-col:hover .contact-blue-icon {
+  transform: translateY(-6px) scale(1.08);
+  background: rgba(255,255,255,.18);
+  box-shadow: 0 10px 30px rgba(255,255,255,.18);
+}
+.contact-blue-text {
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.7;
+  font-weight: 500;
+}
+.contact-blue-text a {
+  color: #fff;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color .25s ease;
+}
+.contact-blue-text a:hover { border-bottom-color: rgba(255,255,255,.6); }
+.contact-blue-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.55);
+  margin-top: 8px;
+}
+
+/* Divider lines between columns */
+.contact-blue-divider {
+  width: 1px;
+  height: 90px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,.25), transparent);
+}
+
+/* Hours + copyright */
+.contact-blue-hours {
+  text-align: center;
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,.85);
+  letter-spacing: .02em;
+}
+.contact-blue-copyright {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 12px;
+  color: rgba(255,255,255,.45);
+}
+
+/* Scroll-to-top button (floating, sits over the corner) */
+.scroll-top-btn {
+  position: fixed;
+  bottom: 30px; right: 30px;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1B5BFF, #0E3FD8);
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(27,91,255,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity .4s ease, transform .4s ease, box-shadow .3s ease;
+}
+.scroll-top-btn.visible {
+  opacity: 1; transform: translateY(0);
+}
+.scroll-top-btn:hover {
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 20px 50px rgba(27,91,255,.6);
+}
+
+/* Hide the OLD contact-grid since we're using the blue layout now */
+.contact-block .sec-h,
+.contact-block > .sec-sub,
+.contact-block .contact-grid {
+  display: none !important;
+}
+
+/* Responsive blue contact */
+@media (max-width: 900px) {
+  .contact-blue-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .contact-blue-divider { display: none; }
+  .contact-block-blue {
+    border-radius: 40% 40% 0 0 / 60px 60px 0 0;
+    padding: 70px 24px 50px;
+  }
+}
