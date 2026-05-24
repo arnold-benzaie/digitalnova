@@ -6,6 +6,19 @@
    ═══════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════
+   0. FIX STRIPE MODAL VISIBILITY
+   The popUp animation ends at opacity:1 but with fill-mode:none
+   the box returns to opacity:0. Force opacity:1 and forwards fill.
+   ════════════════════════════════════════════ */
+#modal .modal-box {
+  opacity: 1 !important;
+  animation-fill-mode: forwards !important;
+}
+#modal {
+  z-index: 9500 !important;   /* above everything (cart drawer is 8800) */
+}
+
+/* ════════════════════════════════════════════
    1. KEEP MARQUEE chips defiling — hide ONLY the 4-stats grid below them
    ════════════════════════════════════════════ */
 /* The card stays visible — it hosts the marquee */
