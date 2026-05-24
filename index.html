@@ -51,6 +51,15 @@ nav.scrolled{background:rgba(8,8,8,.97);backdrop-filter:blur(16px);box-shadow:0 
 .zone-btn.active.eu{background:var(--bleu-eu);}
 .nav-cta{background:var(--rouge);color:var(--blanc);padding:9px 22px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:.04em;transition:all .25s;border:none;cursor:pointer;}
 .nav-cta:hover{background:var(--rouge2);transform:translateY(-1px);}
+/* Mobile nav toggle */
+.nav-toggle{display:none;flex-direction:column;justify-content:center;align-items:center;gap:5px;width:44px;height:44px;padding:10px;border:none;background:rgba(255,255,255,.1);border-radius:8px;cursor:pointer;flex-shrink:0;z-index:710;-webkit-tap-highlight-color:transparent;}
+.nav-toggle-bar{display:block;width:22px;height:2px;background:var(--blanc);border-radius:2px;transition:transform .25s ease,opacity .25s ease;}
+nav.nav-open .nav-toggle-bar:nth-child(1){transform:translateY(7px) rotate(45deg);}
+nav.nav-open .nav-toggle-bar:nth-child(2){opacity:0;}
+nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+@media(min-width:901px){
+  .nav-mobile-panel{display:contents;}
+}
 
 /* ─── HERO ─── */
 .hero{height:100vh;min-height:700px;position:relative;overflow:hidden;display:flex;align-items:center;}
@@ -546,13 +555,86 @@ footer{background:#050505;}
   .zone-tabs{flex-direction:column;}
   .zone-tab{padding:20px 28px;}
 }
+@media(max-width:900px){
+  .nav-toggle{display:flex;}
+  .nav-mobile-panel{
+    display:none;position:fixed;inset:64px 0 0 0;z-index:690;
+    flex-direction:column;align-items:stretch;gap:0;
+    padding:20px 20px 32px;padding-bottom:max(32px,env(safe-area-inset-bottom));
+    background:rgba(8,8,8,.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+  nav.nav-open .nav-mobile-panel{display:flex;}
+  body.nav-open{overflow:hidden;}
+  .nav-center{display:flex!important;flex-direction:column;gap:0;width:100%;margin-bottom:20px;}
+  .nav-center a{font-size:17px;color:rgba(255,255,255,.88);padding:16px 12px;border-bottom:1px solid rgba(255,255,255,.08);}
+  .nav-right{flex-direction:column;align-items:stretch;gap:14px;width:100%;}
+  .zone-toggle{justify-content:center;width:100%;}
+  .zone-btn{flex:1;justify-content:center;padding:10px 12px;}
+  .nav-cta{display:flex;justify-content:center;padding:14px 22px;font-size:14px;}
+  .nav-brand{font-size:21px;letter-spacing:.06em;}
+  nav{padding:0 16px;height:64px;}
+  .hero-content{padding:88px 20px 48px;gap:32px;}
+  .hero{min-height:100svh;height:auto;}
+  .hero-kpis{flex-wrap:wrap;gap:20px 24px;margin-top:36px;}
+  .kpi-n{font-size:34px;}
+  .ribbon{gap:16px 24px;padding:12px 20px;}
+  .rib-item{font-size:10px;letter-spacing:.08em;}
+  .services-panel-inner{padding:48px 20px 64px;}
+  .services-zone-header{flex-wrap:wrap;gap:14px;}
+  .szh-badge{margin-left:0;}
+  .szh-title{font-size:26px;}
+  .zone-tab{padding:18px 20px;flex-wrap:wrap;}
+  .zt-currency{margin-left:0;width:100%;margin-top:6px;}
+  .zt-name{font-size:19px;}
+  .cred-sec,.pay-sec{padding:70px 20px;}
+  .nl-sec{padding:70px 20px;}
+  .g-cert-strip{padding:14px 16px!important;}
+  .g-hero-wrap{padding:48px 20px 0!important;}
+  .g-hero-badges{grid-template-columns:1fr!important;max-width:100%!important;}
+  .cards-wrap{grid-template-columns:repeat(2,1fr);}
+  .score-sep{display:none;}
+  .score-block{flex-direction:column;align-items:flex-start;padding:28px 24px;}
+  .score-big{font-size:56px;}
+  .score-bars{width:100%;}
+}
 @media(max-width:600px){
   .srv-grid{grid-template-columns:1fr;}
-  .certs-grid{grid-template-columns:1fr 1fr;}
-  .foot-top{grid-template-columns:1fr;}
-  nav .nav-center{display:none;}
-  .hero-btns{flex-direction:column;}
-  .score-block{gap:24px;}
+  .certs-grid{grid-template-columns:1fr;}
+  .foot-top{grid-template-columns:1fr;padding:50px 20px 40px;}
+  .foot-bot{padding:20px;flex-direction:column;text-align:center;}
+  .foot-legal{flex-wrap:wrap;justify-content:center;gap:12px 18px;}
+  .hero-btns{flex-direction:column;width:100%;}
+  .hero-btns .btn-red,.hero-btns .btn-ghost{width:100%;justify-content:center;}
+  .hero-h1{font-size:clamp(34px,9.5vw,48px);}
+  .hero-sub{font-size:15px;margin:20px 0 28px;}
+  .sec{padding:60px 20px;}
+  .sec-row{margin-bottom:40px;}
+  .sec-h{font-size:clamp(28px,7vw,40px);}
+  .srv-bottom{flex-direction:column;align-items:stretch;gap:14px;}
+  .btn-order{width:100%;justify-content:center;white-space:normal;text-align:center;}
+  .score-block{gap:20px;}
+  .nl-form{flex-direction:column;border-radius:12px;max-width:100%;}
+  .nl-inp{border-radius:12px 12px 0 0;padding:14px 18px;}
+  .nl-btn{border-radius:0 0 12px 12px;padding:14px 20px;}
+  .cards-wrap{grid-template-columns:1fr 1fr;}
+  .m-row,.sf-row{grid-template-columns:1fr;}
+  .modal-box{width:96%;max-height:92vh;overflow-y:auto;}
+  .modal-body{padding:20px;}
+  .ld-name{font-size:36px;letter-spacing:.08em;}
+  .g-btns,.g-hero-ctas{flex-direction:column!important;}
+  .g-btns .g-btn-primary,.g-btns .g-btn-ghost,.g-hero-ctas .g-btn-primary,.g-hero-ctas .g-btn-ghost{width:100%;justify-content:center;}
+  .g-price-card .g-price-amount{font-size:40px!important;}
+}
+@media(max-width:400px){
+  .cards-wrap{grid-template-columns:1fr;}
+  .certs-grid{grid-template-columns:1fr;}
+  .zone-btn span:not(.zone-btn img){font-size:11px;}
+  .nav-brand{font-size:18px;}
+}
+@media(hover:none),(pointer:coarse){
+  #cur,#cur2{display:none!important;}
+  .srv-card:hover,.rev-card:hover,.cert-card:hover{transform:none;}
 }
 
 /* ─── SEO NATIONAL responsive ─── */
@@ -741,9 +823,21 @@ footer{background:#050505;}
 
 /* Responsive maps section */
 @media(max-width:760px){.maps-sec{padding:70px 24px 40px;}}
+
+/* Certifications badge — scale down on small screens */
+@media(max-width:600px){
+  #certifications{padding:60px 20px!important;}
+  #certifications .cert-badges-grid img{
+    width:min(200px,72vw)!important;
+    max-width:100%!important;
+    transform:scale(1)!important;
+  }
+  #certifications .cert-badges-grid > div{width:100%;}
+}
 </style>
 <link rel="stylesheet" href="brand-theme-clean.css"/>
 <link rel="stylesheet" href="pricing-cards-premium.css"/>
+<link rel="stylesheet" href="premium-certifications.css"/>
 </head>
 <body>
 
@@ -761,22 +855,28 @@ footer{background:#050505;}
 <!-- ═══ NAVIGATION ═══ -->
 <nav id="navbar">
   <a href="#" class="nav-brand">DIGITAL<span>NOVA</span></a>
-  <ul class="nav-center">
-    <li><a href="#services">Services</a></li>
-    
-    <li><a href="#avis">Avis Clients</a></li>
-    <li><a href="#contact">Contact</a></li>
-  </ul>
-  <div class="nav-right">
-    <div class="zone-toggle">
-      <button class="zone-btn active" id="nb-ca" onclick="setZone('ca')">
-        <img src="https://flagcdn.com/w40/ca.png" alt="🇨🇦"/> Canada
-      </button>
-      <button class="zone-btn" id="nb-eu" onclick="setZone('eu')">
-        <img src="https://flagcdn.com/w40/eu.png" alt="🇪🇺"/> Europe
-      </button>
+  <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-mobile-panel">
+    <span class="nav-toggle-bar"></span>
+    <span class="nav-toggle-bar"></span>
+    <span class="nav-toggle-bar"></span>
+  </button>
+  <div class="nav-mobile-panel" id="nav-mobile-panel">
+    <ul class="nav-center">
+      <li><a href="#services">Services</a></li>
+      <li><a href="#avis">Avis Clients</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+    <div class="nav-right">
+      <div class="zone-toggle">
+        <button class="zone-btn active" id="nb-ca" onclick="setZone('ca')">
+          <img src="https://flagcdn.com/w40/ca.png" alt="🇨🇦"/> Canada
+        </button>
+        <button class="zone-btn" id="nb-eu" onclick="setZone('eu')">
+          <img src="https://flagcdn.com/w40/eu.png" alt="🇪🇺"/> Europe
+        </button>
+      </div>
+      <a href="#services" class="nav-cta">Commander →</a>
     </div>
-    <a href="#services" class="nav-cta">Commander →</a>
   </div>
 </nav>
 
@@ -865,7 +965,7 @@ footer{background:#050505;}
      ╚══════════════════════════════════════════════════════╝ -->
 
 <!-- Barre certifications Google — ligne de badges -->
-<div style="background:#fff;border-bottom:2px solid #F0F0F0;padding:18px 56px;">
+<div class="g-cert-strip" style="background:#fff;border-bottom:2px solid #F0F0F0;padding:18px 56px;">
   <div style="max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;">
     <span style="font-size:10px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:#999;flex-shrink:0;">CERTIFIÉ PAR</span>
 
@@ -915,7 +1015,7 @@ footer{background:#050505;}
 </div>
 
 <!-- Hero principal : texte + illustration équipe -->
-<div style="background:#fff;padding:80px 56px 0;">
+<div class="g-hero-wrap" style="background:#fff;padding:80px 56px 0;">
   <div style="max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;padding-bottom:80px;" class="g-hero-grid">
 
     <!-- GAUCHE : Texte + CTA -->
@@ -946,13 +1046,13 @@ footer{background:#050505;}
       </div>
 
       <!-- CTA -->
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;">
+      <div class="g-btns g-hero-ctas" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;">
         <button class="g-btn-primary" onclick="openModal('Pack Starter Google Business 🇨🇦','299','219','ca')">🚀 Commander — $299 CAD</button>
         <button class="g-btn-ghost" onclick="openModal('Pack Starter Google Business 🇪🇺','430','219','eu')">🇪🇺 Europe — 219 € HT</button>
       </div>
 
       <!-- 4 badges certifs visuels (goprofilesads style) -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:440px;">
+      <div class="g-hero-badges" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:440px;">
         <div style="display:flex;align-items:center;gap:10px;background:#F8FAFE;border:1.5px solid #E0EAFF;border-radius:12px;padding:12px 14px;">
           <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#4285F4 0%,#34A853 33%,#FBBC05 66%,#EA4335 100%);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0;font-family:'Outfit',sans-serif;">G</div>
           <div><div style="font-size:11px;font-weight:700;color:#1A1A1A;">Google Premier</div><div style="font-size:10px;color:#4285F4;">Partner ✓ 2025</div></div>
@@ -2150,10 +2250,10 @@ footer{background:#050505;}
          Reproduit fidèlement depuis l'image
     ══════════════════════════════════ -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:20px;" class="rv" style="transition-delay:.05s">
-      <div style="position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center;transition:transform .4s;" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
+      <div style="position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;transition:transform .4s;" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
         <!-- Image badge fournie par le client — assets/images/google-certification.png -->
         <img src="assets/images/google-certification.png" alt="Google Certification"
-             style="max-width:100%;max-height:100%;width:auto;height:auto;display:block;"
+             style="width:240px;height:auto;max-width:none;display:block;transform:scale(1.6);transform-origin:center;"
              onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
         <!-- Fallback SVG si l'image n'est pas trouvée -->
         <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" width="220" height="220" style="display:none;">
@@ -2710,6 +2810,30 @@ window.addEventListener('scroll',()=>{
   document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>40);
 });
 
+/* ── MOBILE NAV ── */
+(function(){
+  const nav=document.getElementById('navbar');
+  const btn=document.getElementById('nav-toggle');
+  const panel=document.getElementById('nav-mobile-panel');
+  if(!nav||!btn||!panel)return;
+  const close=()=>{
+    nav.classList.remove('nav-open');
+    document.body.classList.remove('nav-open');
+    btn.setAttribute('aria-expanded','false');
+    btn.setAttribute('aria-label','Ouvrir le menu');
+  };
+  btn.addEventListener('click',()=>{
+    const open=!nav.classList.contains('nav-open');
+    nav.classList.toggle('nav-open',open);
+    document.body.classList.toggle('nav-open',open);
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    btn.setAttribute('aria-label',open?'Fermer le menu':'Ouvrir le menu');
+  });
+  panel.querySelectorAll('a,button.zone-btn').forEach(el=>el.addEventListener('click',close));
+  window.addEventListener('resize',()=>{if(window.innerWidth>900)close();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+})();
+
 /* ── SCROLL REVEAL ── */
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('on');}),{threshold:.1});
 document.querySelectorAll('.rv,.rv-l,.rv-r').forEach(el=>io.observe(el));
@@ -2833,5 +2957,6 @@ function doPayment(){
 <script src="hero-cinematic.js"></script>
 <script src="cart.js"></script>
 <script src="dynamic-pricing.js"></script>
+<script src="premium-certifications.js"></script>
 </body>
 </html>

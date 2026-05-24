@@ -364,3 +364,42 @@
 
 /* Hide the original colored top-band on g-price-card (the colored line was redundant) */
 /* (already transparent now) */
+
+/* ─── Mobile responsiveness ─── */
+@media (max-width: 900px) {
+  .services-panel .srv-grid { gap: 14px !important; }
+  .srv-card {
+    min-height: auto !important;
+  }
+  .srv-card:hover {
+    transform: none !important;
+  }
+  .srv-bottom {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .srv-bottom .btn-order {
+    width: 100% !important;
+    justify-content: center !important;
+    white-space: normal !important;
+  }
+  .g-price-card .g-price-amount {
+    font-size: 44px !important;
+  }
+  .g-price-card .g-price-btn,
+  .g-price-card .btn-cart {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .srv-top { padding: 24px 20px 18px !important; }
+  .srv-bottom { padding: 16px 20px 22px !important; }
+  .srv-name { font-size: 20px !important; }
+  .srv-price-main { font-size: 24px !important; }
+  .g-price-card .g-price-amount {
+    font-size: 38px !important;
+  }
+}

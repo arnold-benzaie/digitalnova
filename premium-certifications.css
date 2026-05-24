@@ -1,0 +1,383 @@
+/* ═══════════════════════════════════════════════════════
+   DIGITALNOVA — Premium Certifications Animation System
+   Apple/Tesla/Stripe-tier cinematic motion
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── SECTION AMBIENT LIGHTING ─── */
+#certifications {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Animated background aura — soft rotating orb */
+#certifications::before {
+  content: "";
+  position: absolute;
+  top: 10%; left: 50%;
+  width: 1200px; height: 1200px;
+  transform: translateX(-50%);
+  background: conic-gradient(
+    from 0deg,
+    rgba(66,133,244,.04) 0deg,
+    rgba(27,91,255,.06) 90deg,
+    rgba(52,168,83,.04) 180deg,
+    rgba(234,67,53,.04) 270deg,
+    rgba(66,133,244,.04) 360deg
+  );
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  animation: certAura 40s linear infinite;
+  pointer-events: none;
+  opacity: .85;
+}
+#certifications::after {
+  content: "";
+  position: absolute;
+  bottom: -200px; left: 10%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(27,91,255,.08) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(60px);
+  z-index: -1;
+  animation: certPulse 7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes certAura {
+  to { transform: translateX(-50%) rotate(360deg); }
+}
+@keyframes certPulse {
+  0%, 100% { opacity: .5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ─── 3 MAIN BADGE WRAPPERS ─── */
+.cert-badge-wrap {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+  --glow-color: rgba(27,91,255,.4);
+}
+.cert-badges-grid > div {
+  position: relative;
+  animation: badgeFloat 6s ease-in-out infinite;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+.cert-badges-grid > div:nth-child(1) { animation-delay: 0s; --glow-color: rgba(217,50,47,.40); }
+.cert-badges-grid > div:nth-child(2) { animation-delay: -2s; --glow-color: rgba(27,91,255,.40); }
+.cert-badges-grid > div:nth-child(3) { animation-delay: -4s; --glow-color: rgba(46,157,176,.40); }
+
+@keyframes badgeFloat {
+  0%, 100% { transform: translateY(0) translateZ(0); }
+  50%      { transform: translateY(-12px) translateZ(20px); }
+}
+
+/* Ambient glow behind each main badge */
+.cert-badges-grid > div::before {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, var(--glow-color), transparent 65%);
+  filter: blur(40px);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity .8s ease;
+  pointer-events: none;
+}
+.cert-badges-grid > div:hover::before {
+  opacity: 1;
+  animation: glowPulse 3s ease-in-out infinite;
+}
+@keyframes glowPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.2); }
+}
+
+/* Animated gradient border for the main badge container */
+.cert-badge-wrap-shell {
+  position: relative;
+  border-radius: 28px;
+  padding: 14px;
+  background: transparent;
+  transition: transform .6s cubic-bezier(.2, .8, .2, 1);
+}
+.cert-badge-wrap-shell::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: 28px;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--angle, 0deg),
+    transparent 0deg,
+    var(--glow-color) 90deg,
+    transparent 180deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .5s ease;
+  animation: borderSpin 6s linear infinite;
+}
+.cert-badge-wrap-shell:hover::before { opacity: 1; }
+
+@property --angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes borderSpin {
+  to { --angle: 360deg; }
+}
+
+/* Hover lift + light sweep on the inner badge */
+.cert-badge-wrap {
+  transition: transform .6s cubic-bezier(.2, .8, .2, 1), filter .6s ease;
+  cursor: pointer;
+}
+.cert-badge-wrap:hover {
+  transform: translateY(-8px) scale(1.05) !important;
+  filter: drop-shadow(0 24px 50px var(--glow-color, rgba(0,0,0,.25))) !important;
+}
+
+/* Light sweep across the badge on hover */
+.cert-badges-grid > div > div:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255,255,255,.45) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  z-index: 5;
+  mix-blend-mode: overlay;
+}
+.cert-badges-grid > div:hover > div:first-child::after {
+  opacity: 1;
+  animation: lightSweep 1.4s ease-out;
+}
+@keyframes lightSweep {
+  from { background-position: 200% 0; }
+  to   { background-position: -150% 0; }
+}
+
+/* Title under each badge — premium reveal on hover */
+.cert-badges-grid > div > div:last-child {
+  transition: transform .4s cubic-bezier(.2, .8, .2, 1);
+}
+.cert-badges-grid > div:hover > div:last-child {
+  transform: translateY(-4px);
+}
+
+/* ─── ACCREDITATION CHIPS ─── */
+/* Target the row of 11 small certification pills */
+.cert-section-chip-grid > div {
+  position: relative;
+  transition: transform .5s cubic-bezier(.2, .8, .2, 1),
+              box-shadow .5s ease,
+              border-color .5s ease;
+  will-change: transform;
+  transform-style: preserve-3d;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Floating animation — different phases for each chip */
+.cert-section-chip-grid > div { animation: chipFloat 7s ease-in-out infinite; }
+.cert-section-chip-grid > div:nth-child(odd)  { animation-delay: -1.5s; }
+.cert-section-chip-grid > div:nth-child(3n)   { animation-delay: -3s; }
+.cert-section-chip-grid > div:nth-child(5n)   { animation-delay: -4.5s; }
+
+@keyframes chipFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+/* Glassmorphism upgrade + conic border on hover */
+.cert-section-chip-grid > div::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--chip-angle, 0deg),
+    transparent 270deg,
+    rgba(255,255,255,.6) 320deg,
+    rgba(255,255,255,.9) 340deg,
+    rgba(255,255,255,.6) 360deg,
+    transparent 360deg
+  );
+  opacity: 0;
+  transition: opacity .4s ease;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  z-index: 0;
+}
+.cert-section-chip-grid > div:hover::before {
+  opacity: 1;
+  animation: chipBorderSpin 3s linear infinite;
+}
+
+@property --chip-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes chipBorderSpin {
+  to { --chip-angle: 360deg; }
+}
+
+/* Ensure inner content sits above pseudo */
+.cert-section-chip-grid > div > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover lift + premium shadow */
+.cert-section-chip-grid > div:hover {
+  transform: translateY(-6px) scale(1.04) !important;
+  box-shadow:
+    0 18px 40px rgba(10,37,64,.12),
+    0 4px 12px rgba(27,91,255,.18),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
+  border-color: rgba(27,91,255,.5) !important;
+}
+
+/* Soft neon glow ring at hover */
+.cert-section-chip-grid > div::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 100%,
+    rgba(27,91,255,.35), transparent 70%);
+  filter: blur(16px);
+  opacity: 0;
+  transition: opacity .5s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+.cert-section-chip-grid > div:hover::after { opacity: 1; }
+
+/* Icon micro-animation in chip */
+.cert-section-chip-grid > div > span:first-child {
+  transition: transform .5s cubic-bezier(.2, 2, .4, 1);
+  display: inline-block;
+}
+.cert-section-chip-grid > div:hover > span:first-child {
+  transform: scale(1.25) rotate(-8deg);
+}
+
+/* ─── PARTICLES around badges (created via JS) ─── */
+.cert-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+.cert-particles .spark {
+  position: absolute;
+  width: 4px; height: 4px;
+  background: radial-gradient(circle, rgba(255,215,100,1), rgba(255,180,80,.4) 50%, transparent);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 6px rgba(255,200,120,.9));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── SCROLL REVEAL — staggered cinematic entrance ─── */
+.cert-reveal {
+  opacity: 0;
+  transform: translateY(40px) scale(.92);
+  filter: blur(8px);
+  transition:
+    opacity 1s cubic-bezier(.2, .8, .2, 1),
+    transform 1s cubic-bezier(.2, .8, .2, 1),
+    filter 1s ease;
+  will-change: opacity, transform, filter;
+}
+.cert-reveal.in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+/* Title cinematic reveal */
+.cert-title-reveal {
+  background: linear-gradient(120deg,
+    #0A2540 0%,
+    #0A2540 45%,
+    #1B5BFF 50%,
+    #0A2540 55%,
+    #0A2540 100%);
+  background-size: 300% 100%;
+  background-position: -100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: titleShine 6s ease-in-out infinite;
+}
+@keyframes titleShine {
+  0%, 100% { background-position: -100% 0; }
+  50%      { background-position: 200% 0; }
+}
+
+/* ─── ACCREDITATIONS WRAPPER — premium glow ─── */
+.cert-accred-card {
+  position: relative;
+  isolation: isolate;
+}
+.cert-accred-card::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px; right: -1px; bottom: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    rgba(66,133,244,.3),
+    rgba(52,168,83,.3),
+    rgba(251,188,5,.3),
+    rgba(234,67,53,.3));
+  z-index: -1;
+  filter: blur(2px);
+  opacity: .5;
+  animation: accredGlow 8s ease-in-out infinite;
+}
+@keyframes accredGlow {
+  0%, 100% { opacity: .5; }
+  50%      { opacity: .85; }
+}
+
+/* ─── RESPONSIVE + ACCESSIBILITY ─── */
+@media (max-width: 768px) {
+  #certifications::before { width: 800px; height: 800px; }
+  .cert-badges-grid > div { animation-duration: 8s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cert-badges-grid > div,
+  .cert-section-chip-grid > div,
+  #certifications::before,
+  #certifications::after,
+  .cert-title-reveal,
+  .cert-accred-card::before {
+    animation: none !important;
+  }
+  .cert-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
