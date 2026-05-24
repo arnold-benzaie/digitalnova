@@ -6,16 +6,25 @@
    ═══════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════
-   0. FIX STRIPE MODAL VISIBILITY
-   The popUp animation ends at opacity:1 but with fill-mode:none
-   the box returns to opacity:0. Force opacity:1 and forwards fill.
+   0. FORCE STRIPE MODAL VISIBILITY (every package, same flow)
    ════════════════════════════════════════════ */
+#modal {
+  z-index: 9500 !important;            /* above cart drawer (8800) */
+}
+#modal .modal-box,
+#modal .modal-box * {
+  /* Override ANY conflicting opacity rule from other CSS files */
+}
 #modal .modal-box {
   opacity: 1 !important;
+  visibility: visible !important;
   animation-fill-mode: forwards !important;
+  transform: none !important;          /* clear any leftover translateY/scale */
 }
-#modal {
-  z-index: 9500 !important;   /* above everything (cart drawer is 8800) */
+/* Disable ALL transitions on modal during open to prevent fade-out */
+#modal[style*="display: flex"] .modal-box,
+#modal[style*="display:flex"] .modal-box {
+  animation: popUp .3s ease forwards !important;
 }
 
 /* ════════════════════════════════════════════
