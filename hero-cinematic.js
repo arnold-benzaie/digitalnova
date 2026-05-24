@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   DIGITALNOVA — Hero cinematic immersion layer
+   🌍 Global Visibility — Hero cinematic immersion layer
    Seamless loop · Matrix code · World connections · Ambient particles
    Apple/Tesla-tier feel
    ═══════════════════════════════════════════════════════ */

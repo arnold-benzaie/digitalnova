@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   DIGITALNOVA — Sparkle cursor + FR/EN translation
+   🌍 Global Visibility — Sparkle cursor + FR/EN translation
    ═══════════════════════════════════════════════ */
 
 /* ─── SPARKLE / STAR CURSOR EFFECT ─── */
@@ -54,7 +54,7 @@
 /* ─── FR/EN TRANSLATION SYSTEM ─── */
 const T = {
   // Meta / title
-  "DIGITALNOVA CANADA INC. — La Référence du Marketing Digital":"DIGITALNOVA CANADA INC. — The Reference in Digital Marketing",
+  "🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital":"🌍 Global Visibility CANADA INC. — The Reference in Digital Marketing",
   "Chargement de la plateforme…":"Loading the platform…",
 
   // Navigation
@@ -71,7 +71,7 @@ const T = {
   "Le Marketing":"Marketing",
   "Digital":"Digital",
   "Sans Limites":"Without Limits",
-  "DIGITALNOVA CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"DIGITALNOVA CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
+  "🌍 Global Visibility CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 Global Visibility CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
   "🚀 Commander Maintenant":"🚀 Order Now",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",
@@ -118,7 +118,7 @@ const T = {
   "Google Ads":"Google Ads",
 
   // Dashboard
-  "DIGITALNOVA — Dashboard Marketing Canada & Europe":"DIGITALNOVA — Marketing Dashboard Canada & Europe",
+  "🌍 Global Visibility — Dashboard Marketing Canada & Europe":"🌍 Global Visibility — Marketing Dashboard Canada & Europe",
   "SEO Traffic":"SEO Traffic",
   "×4.8 ROI":"×4.8 ROI",
   "Retour invest.":"ROI",
@@ -131,7 +131,7 @@ const T = {
   "Ads":"Ads",
   "Analytics":"Analytics",
   "Ads Expert":"Ads Expert",
-  "DIGITALNOVA Dashboard":"DIGITALNOVA Dashboard",
+  "🌍 Global Visibility Dashboard":"🌍 Global Visibility Dashboard",
   "SEO Rankings":"SEO Rankings",
   "#1 Google.ca":"#1 Google.ca",
   "#2 Québec":"#2 Quebec",
@@ -141,7 +141,7 @@ const T = {
   "+280% de trafic !":"+280% traffic!",
   "SEO National Canada":"National SEO Canada",
   "En seulement 3 mois 🚀":"In just 3 months 🚀",
-  "Partner Team — DIGITALNOVA CANADA INC.":"Partner Team — DIGITALNOVA CANADA INC.",
+  "Partner Team — 🌍 Global Visibility CANADA INC.":"Partner Team — 🌍 Global Visibility CANADA INC.",
   "✓ Certifié 2025":"✓ Certified 2025",
 
   // Service intro
@@ -424,7 +424,7 @@ const T = {
   ". Livraison sous 5 jours ouvrables.":". Delivery within 5 business days.",
   "Review us on":"Review us on",
   "Reviews":"Reviews",
-  "DIGITALNOVA.CA · Google Reviews":"DIGITALNOVA.CA · Google Reviews",
+  "🌍 Global Visibility.CA · Google Reviews":"🌍 Global Visibility.CA · Google Reviews",
   "VOTRE LOGO":"YOUR LOGO",
   "1 Scan = 1 Avis":"1 Scan = 1 Review",
   "Le client scanne le QR Code avec son iPhone ou Android — redirigé vers votre fiche Google Reviews en 2 secondes.":"Customer scans the QR Code with iPhone or Android — redirected to your Google Reviews page in 2 seconds.",
@@ -447,7 +447,7 @@ const T = {
   "\"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada et en Europe.\"":"\"The most transparent and effective agency I've worked with in Canada and Europe.\"",
   "Marie-Claude Tremblay":"Marie-Claude Tremblay",
   "Montréal, Québec 🇨🇦":"Montreal, Quebec 🇨🇦",
-  "DIGITALNOVA a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"DIGITALNOVA transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
+  "🌍 Global Visibility a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"🌍 Global Visibility transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
   "Il y a 2 semaines · Avis vérifié Google ✓":"2 weeks ago · Google verified review ✓",
   "Jean-François Bouchard":"Jean-François Bouchard",
   "Québec City 🇨🇦":"Quebec City 🇨🇦",
@@ -456,20 +456,20 @@ const T = {
   "Il y a 1 mois · Avis vérifié Google ✓":"1 month ago · Google verified review ✓",
   "Sophie Larivière":"Sophie Larivière",
   "Toronto, Ontario 🇨🇦":"Toronto, Ontario 🇨🇦",
-  "J'ai testé 4 agences avant DIGITALNOVA — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before DIGITALNOVA — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
+  "J'ai testé 4 agences avant 🌍 Global Visibility — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before 🌍 Global Visibility — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
   "Google Ads Pro Canada":"Google Ads Pro Canada",
   "Il y a 3 semaines · Avis vérifié Google ✓":"3 weeks ago · Google verified review ✓",
   "Pierre-Antoine Moreau":"Pierre-Antoine Moreau",
   "Paris, France 🇫🇷":"Paris, France 🇫🇷",
-  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau DIGITALNOVA France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The DIGITALNOVA France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
+  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 Global Visibility France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The 🌍 Global Visibility France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
   "Il y a 6 semaines · Avis vérifié Google ✓":"6 weeks ago · Google verified review ✓",
   "Lucie Gagnon":"Lucie Gagnon",
   "Vancouver, C.-B. 🇨🇦":"Vancouver, B.C. 🇨🇦",
-  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. DIGITALNOVA est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. DIGITALNOVA is the ideal partner for any SME that wants to grow fast and sustainably.",
+  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 Global Visibility est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 Global Visibility is the ideal partner for any SME that wants to grow fast and sustainably.",
   "Il y a 2 mois · Avis vérifié Google ✓":"2 months ago · Google verified review ✓",
   "Nicolas Blanchard":"Nicolas Blanchard",
   "Bruxelles, Belgique 🇧🇪":"Brussels, Belgium 🇧🇪",
-  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci DIGITALNOVA !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks DIGITALNOVA!",
+  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 Global Visibility !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks 🌍 Global Visibility!",
   "Site Web Europe + SEO":"Website Europe + SEO",
   "Il y a 5 semaines · Avis vérifié Google ✓":"5 weeks ago · Google verified review ✓",
 
@@ -477,7 +477,7 @@ const T = {
   "Certifications Officielles":"Official Certifications",
   "Notre expertise,":"Our expertise,",
   "certifiée et reconnue":"certified and recognized",
-  "DIGITALNOVA CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"DIGITALNOVA CANADA INC. holds official certifications issued by Google and the world's leading SEO authorities. Each certification is the result of rigorous exams and proven field expertise.",
+  "🌍 Global Visibility CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 Global Visibility CANADA INC. holds official certifications issued by Google and the world's leading SEO authorities. Each certification is the result of rigorous exams and proven field expertise.",
   "CERTIFIED":"CERTIFIED",
   "oogle":"oogle",
   "Certification":"Certification",
@@ -517,7 +517,7 @@ const T = {
   "Pays":"Countries",
 
   // Credibility
-  "DIGITALNOVA CANADA INC.":"DIGITALNOVA CANADA INC.",
+  "🌍 Global Visibility CANADA INC.":"🌍 Global Visibility CANADA INC.",
   "Société Officiellement Enregistrée":"Officially Registered Company",
   "Corporations Canada":"Corporations Canada",
   "Registre fédéral canadien · Numéro sur demande":"Canadian federal register · Number on request",
@@ -536,7 +536,7 @@ const T = {
   "Transparence Totale":"Total Transparency",
   "Votre sécurité,":"Your security,",
   "notre priorité":"our priority",
-  "DIGITALNOVA CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"DIGITALNOVA CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
+  "🌍 Global Visibility CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 Global Visibility CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
   "🔒 PCI-DSS Niveau 1":"🔒 PCI-DSS Level 1",
   "🛡️ ISO 27001":"🛡️ ISO 27001",
   "📋 RGPD Compliant":"📋 GDPR Compliant",
@@ -552,7 +552,7 @@ const T = {
   "Questions fréquentes —":"FAQ —",
   "Toutes les réponses":"All the answers",
   "Nous répondons à chaque doute avec transparence et précision.":"We answer every doubt with transparency and precision.",
-  "🤔 DIGITALNOVA est-elle une vraie entreprise enregistrée ?":"🤔 Is DIGITALNOVA a real registered company?",
+  "🤔 🌍 Global Visibility est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 Global Visibility a real registered company?",
   "Oui, à 100%.":"Yes, 100%.",
   "Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.":"Searchable on corporations.canada.ca (Canada) and via INPI in France. Our business number is provided on simple request. Zero opacity.",
   "💳 Mes paiements par carte sont-ils sécurisés ?":"💳 Are my card payments secure?",
@@ -575,7 +575,7 @@ const T = {
   "Réseaux Sociaux :":"Social Networks:",
   "croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.":"measurable growth from week 2. Real-time dashboard included.",
   "🏆 Comment vérifier vos certifications Google ?":"🏆 How to verify your Google certifications?",
-  "Recherchez \"DIGITALNOVA CANADA\" sur":"Search \"DIGITALNOVA CANADA\" on",
+  "Recherchez \"🌍 Global Visibility CANADA\" sur":"Search \"🌍 Global Visibility CANADA\" on",
   ". Badges Meta, HubSpot et TikTok vérifiables sur leurs portails. Liens envoyés sur demande sous 10 minutes.":". Meta, HubSpot and TikTok badges verifiable on their portals. Links sent on request within 10 minutes.",
   "📞 Qui sera mon interlocuteur dédié ?":"📞 Who will be my dedicated contact?",
   "Un Chef de Projet dédié":"A dedicated Project Manager",
@@ -718,8 +718,8 @@ function walkAndTranslate(targetLang){
   });
 
   // Update <title>
-  if(targetLang === 'en') document.title = T["DIGITALNOVA CANADA INC. — La Référence du Marketing Digital"] || document.title;
-  else document.title = "DIGITALNOVA CANADA INC. — La Référence du Marketing Digital";
+  if(targetLang === 'en') document.title = T["🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital"] || document.title;
+  else document.title = "🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital";
 
   document.documentElement.lang = targetLang;
   CURRENT_LANG = targetLang;

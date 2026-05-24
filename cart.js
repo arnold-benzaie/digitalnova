@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   DIGITALNOVA — Panier (Shopping Cart) système
+   🌍 Global Visibility — Panier (Shopping Cart) système
    - Détecte chaque carte service et ajoute un bouton "Panier"
    - Drawer latéral droit avec liste, quantités, total
    - Persistance localStorage (survit aux rechargements)
@@ -537,7 +537,7 @@ function renderCart(){
       const displayPrice = zone === 'eu' ? totalEU : totalCA;
       if(typeof window.openModal === 'function'){
         window.openModal(
-          t('Panier DIGITALNOVA','DIGITALNOVA Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
+          t('Panier 🌍 Global Visibility','🌍 Global Visibility Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
           displayPrice,
           displayPrice,
           zone

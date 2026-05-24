@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   DIGITALNOVA — Full Animation Pack
+   🌍 Global Visibility — Full Animation Pack
    Additive animations on every section / element
    ═══════════════════════════════════════════════════════ */
 
