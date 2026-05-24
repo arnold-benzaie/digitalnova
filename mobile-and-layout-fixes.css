@@ -1,0 +1,155 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Mobile fixes + Layout polish
+   1. Hero video MUST display on mobile (iOS/Android)
+   2. Marquee chips: compact horizontal scroll on mobile (no wrap)
+   3. Blue contact section: pronounced rounded/curved top edge
+   ═══════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════
+   1. MOBILE HERO VIDEO — force display
+   ════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Force the video stack to be visible */
+  .hero-video-background .hero-video-stack {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1 !important;
+    pointer-events: none;
+  }
+  .hero-video-background .hero-video-stack video {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    transform: scale(1.10) !important;
+    animation: none !important;
+  }
+  /* Ensure original fallback video also shows if dual stack fails */
+  .hero-video-background > video.hero-video:not([style*="display:none"]) {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    opacity: 1 !important;
+    z-index: 1 !important;
+  }
+  /* Don't hide the original video if the JS hasn't replaced it yet */
+  .hero-video-background > #heroVideo {
+    pointer-events: none;
+  }
+  /* Make sure hero bg is properly layered */
+  .hero-bg { z-index: 0 !important; }
+  .hero-content { z-index: 5 !important; position: relative; }
+}
+
+/* ════════════════════════════════════════════
+   2. MARQUEE — compact horizontal scroll always
+   ════════════════════════════════════════════ */
+.cert-marquee-track {
+  flex-wrap: nowrap !important;
+  flex-direction: row !important;
+}
+.cert-marquee .cert-chip {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+/* Mobile: smaller chips for compactness, no full-width stretching */
+@media (max-width: 768px) {
+  .cert-marquee {
+    padding: 16px 0 !important;
+  }
+  .cert-marquee-track {
+    gap: 14px !important;
+    animation-duration: 28s !important;
+  }
+  .cert-marquee .cert-chip {
+    padding: 8px 14px !important;
+    font-size: 11px;
+    flex-shrink: 0 !important;
+    transform: none !important;
+    border-radius: 10px !important;
+  }
+  .cert-marquee .cert-chip > span:first-child {
+    font-size: 16px !important;
+  }
+  .cert-marquee .cert-chip .chip-name {
+    font-size: 11px !important;
+  }
+  .cert-marquee .cert-chip .chip-sub {
+    font-size: 9px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .cert-marquee-track {
+    gap: 10px !important;
+    animation-duration: 22s !important;
+  }
+  .cert-marquee .cert-chip {
+    padding: 7px 12px !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   3. BLUE CONTACT SECTION — pronounced rounded/ball shape
+   ════════════════════════════════════════════ */
+.contact-block-blue {
+  /* Way more pronounced curve at the top — like a half-dome */
+  border-radius: 50% 50% 0 0 / 180px 180px 0 0 !important;
+  padding-top: 130px !important;
+  margin-top: 60px !important;
+  position: relative;
+}
+
+/* Add a curved "lip" highlight at the top edge for premium feel */
+.contact-block-blue::before {
+  background: radial-gradient(
+    ellipse at top,
+    rgba(255,255,255,.18) 0%,
+    rgba(255,255,255,.06) 30%,
+    transparent 70%
+  ) !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 240px !important;
+  border-radius: 50% 50% 0 0 / 180px 180px 0 0 !important;
+  z-index: 0 !important;
+  filter: none !important;
+}
+
+/* Subtle decorative arc behind content */
+.contact-block-blue .contact-blue-brand {
+  position: relative;
+  z-index: 2;
+}
+.contact-block-blue .contact-blue-grid,
+.contact-block-blue .contact-blue-hours,
+.contact-block-blue .contact-blue-copyright {
+  position: relative;
+  z-index: 2;
+}
+
+/* Mobile: smaller curve so it doesn't waste too much vertical space */
+@media (max-width: 900px) {
+  .contact-block-blue {
+    border-radius: 40% 40% 0 0 / 100px 100px 0 0 !important;
+    padding-top: 80px !important;
+    margin-top: 40px !important;
+  }
+  .contact-block-blue::before {
+    height: 140px !important;
+    border-radius: 40% 40% 0 0 / 100px 100px 0 0 !important;
+  }
+}
+@media (max-width: 600px) {
+  .contact-block-blue {
+    border-radius: 30% 30% 0 0 / 70px 70px 0 0 !important;
+    padding-top: 60px !important;
+  }
+}
