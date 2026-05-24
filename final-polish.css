@@ -6,19 +6,24 @@
    ═══════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════
-   1. HIDE THE FULL CERTIFICATIONS CHIP BAR
-   The 11 chip pills + 4 stats grid section
-   The 3 main badges (Google/Local SEO/SEO Expert) STAY
+   1. KEEP MARQUEE chips defiling — hide ONLY the 4-stats grid below them
    ════════════════════════════════════════════ */
+/* The card stays visible — it hosts the marquee */
 .cert-accred-card {
-  display: none !important;
+  display: block !important;
+  padding-bottom: 16px !important;  /* tighter since stats are gone */
 }
+/* Marquee stays visible (defiling chips) */
 .cert-marquee {
+  display: block !important;
+}
+/* Hide ONLY the 4-stats grid (last child of cert-accred-card) */
+.cert-accred-card > div:last-child {
   display: none !important;
 }
-/* Remove residual whitespace */
+/* Smaller padding around section since stats are gone */
 #certifications {
-  padding-bottom: 40px !important;
+  padding-bottom: 50px !important;
 }
 
 /* ════════════════════════════════════════════
