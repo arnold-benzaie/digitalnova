@@ -1,0 +1,180 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Round cert bubbles + Footer-style blue + Badge clip
+   ═══════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════
+   1. CERTIFICATION CHIPS → ROUND ANIMATED BUBBLES
+   ════════════════════════════════════════════ */
+.cert-marquee .cert-chip {
+  /* Transform pill chip into perfect circle */
+  width: 100px !important;
+  height: 100px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  border-width: 3px !important;
+  box-shadow: 0 6px 18px rgba(10, 37, 64, .10), inset 0 -3px 8px rgba(0, 0, 0, .04);
+  /* Subtle floating animation, staggered per chip */
+  animation: bubbleFloat 4s ease-in-out infinite;
+  position: relative;
+  isolation: isolate;
+  white-space: normal !important;
+}
+.cert-marquee .cert-chip:nth-child(2n)  { animation-delay: -.6s; }
+.cert-marquee .cert-chip:nth-child(3n)  { animation-delay: -1.2s; }
+.cert-marquee .cert-chip:nth-child(5n)  { animation-delay: -1.8s; }
+.cert-marquee .cert-chip:nth-child(7n)  { animation-delay: -2.5s; }
+
+@keyframes bubbleFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* Icon inside the bubble */
+.cert-marquee .cert-chip > span:first-child {
+  font-size: 26px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+
+/* Text label below icon (the name) — shrink to fit circle */
+.cert-marquee .cert-chip > div {
+  text-align: center;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cert-marquee .cert-chip .chip-name {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0;
+  text-align: center;
+  display: block !important;
+}
+.cert-marquee .cert-chip .chip-sub {
+  display: none !important;   /* Hide the "Certified ✓" subtext for compactness */
+}
+
+/* Hover: lift + scale + radial glow */
+.cert-marquee .cert-chip {
+  transition: transform .4s cubic-bezier(.2,.8,.2,1),
+              box-shadow .4s ease,
+              border-color .4s ease;
+}
+.cert-marquee .cert-chip:hover {
+  transform: translateY(-10px) scale(1.15) !important;
+  box-shadow: 0 18px 38px rgba(27, 91, 255, .25),
+              inset 0 -3px 8px rgba(0, 0, 0, .06) !important;
+  z-index: 5;
+  animation-play-state: paused;
+}
+
+/* Speed up + larger gap when chips are bubbles */
+.cert-marquee-track {
+  gap: 22px !important;
+  animation-duration: 45s !important;
+}
+
+@media (max-width: 768px) {
+  .cert-marquee .cert-chip {
+    width: 86px !important;
+    height: 86px !important;
+  }
+  .cert-marquee .cert-chip > span:first-child {
+    font-size: 22px !important;
+  }
+  .cert-marquee .cert-chip .chip-name {
+    font-size: 8px !important;
+  }
+  .cert-marquee-track {
+    gap: 16px !important;
+    animation-duration: 32s !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   2. MOVE BLUE CONTACT TO FOOTER POSITION + integrate as actual footer
+   ════════════════════════════════════════════ */
+/* The contact-block-blue is currently nested inside maps-sec.
+   We can't easily move HTML, but we can style it to feel like a footer
+   by removing all interior margins/spacing so it sits at section bottom flush. */
+
+.contact-block-blue {
+  /* Remove the curved top — flat top so it flows into the rest of the page */
+  border-radius: 0 !important;
+  margin-top: 0 !important;
+  padding: 80px 56px 50px !important;
+}
+.contact-block-blue::before {
+  border-radius: 0 !important;
+}
+
+/* Restore visible curve ONLY at the actual page footer */
+footer.foot-bar-rounded {
+  background: linear-gradient(135deg, #1B5BFF 0%, #0E3FD8 50%, #003399 100%) !important;
+  border-radius: 50% 50% 0 0 / 140px 140px 0 0 !important;
+  padding-top: 100px !important;
+  margin-top: 60px !important;
+  position: relative;
+  overflow: hidden;
+}
+footer.foot-bar-rounded::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 200px;
+  background: radial-gradient(ellipse at top, rgba(255,255,255,.15), transparent 65%);
+  pointer-events: none;
+  border-radius: 50% 50% 0 0 / 140px 140px 0 0;
+}
+
+/* Hide the contact-block-blue since the new footer will host it instead */
+.contact-block-blue { display: none !important; }
+
+/* The real footer becomes the rounded blue zone */
+footer { color: #fff !important; }
+footer .foot-top { padding-top: 60px !important; padding-bottom: 50px !important; }
+footer .ft-brand-name { color: #fff !important; }
+footer .ft-brand-sub  { color: rgba(255,255,255,.6) !important; }
+footer .ft-desc       { color: rgba(255,255,255,.75) !important; }
+footer .fc h5         { color: rgba(255,255,255,.85) !important; letter-spacing: .2em; }
+footer .fc a          { color: rgba(255,255,255,.7) !important; }
+footer .fc a:hover    { color: #fff !important; }
+footer .ft-flags img  { border-color: rgba(255,255,255,.25) !important; }
+footer .ft-flags span { color: rgba(255,255,255,.6) !important; }
+footer .foot-bot      { border-top-color: rgba(255,255,255,.18) !important; padding-top: 22px; padding-bottom: 22px; }
+footer .foot-bot p,
+footer .foot-bot a    { color: rgba(255,255,255,.55) !important; }
+footer .foot-bot a:hover { color: #fff !important; }
+
+@media (max-width: 768px) {
+  footer.foot-bar-rounded {
+    border-radius: 30% 30% 0 0 / 70px 70px 0 0 !important;
+    padding-top: 60px !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   3. GOOGLE CERTIFICATION BADGE — natural display (image now has transparent bg)
+   ════════════════════════════════════════════ */
+img[alt="Google Certification"] {
+  width: 220px !important;
+  height: auto !important;
+  max-width: 220px !important;
+  display: block !important;
+  margin: 0 auto !important;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.15));
+  clip-path: none !important;
+  -webkit-clip-path: none !important;
+  object-fit: contain !important;
+  transform: none !important;
+}
+/* Hide SVG fallback always */
+img[alt="Google Certification"] + svg {
+  display: none !important;
+}
