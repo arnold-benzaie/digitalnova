@@ -42,17 +42,25 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--c, #0A2540);
-  box-shadow: 0 2px 8px rgba(10, 37, 64, .04);
-  transition: transform .25s cubic-bezier(.2,.8,.2,1),
-              box-shadow .25s ease,
-              border-color .25s ease;
+  /* subtle premium glow — outer + inner */
+  box-shadow:
+    0 2px 8px rgba(10, 37, 64, .04),
+    0 0 0 0 var(--c, #1B5BFF),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
+  transition: transform .3s cubic-bezier(.2,.8,.2,1),
+              box-shadow .3s ease,
+              border-color .3s ease;
   white-space: nowrap;
   cursor: default;
   line-height: 1;
+  position: relative;
 }
 .cert-static-badge:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 22px rgba(10, 37, 64, .10);
+  box-shadow:
+    0 10px 24px rgba(10, 37, 64, .10),
+    0 0 0 4px color-mix(in srgb, var(--c, #1B5BFF) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
   border-color: var(--c, #1B5BFF);
 }
 .cert-static-badge .csb-icon {
@@ -98,8 +106,10 @@
 .cert-marquee {
   display: block !important;
 }
-/* Hide ONLY the 4-stats grid (last child of cert-accred-card) */
-.cert-accred-card > div:last-child {
+/* Hide ONLY the 4-stats grid (target by inline-style pattern, NOT :last-child
+   because the new .cert-static-grid is now last child and must stay visible) */
+.cert-accred-card > div[style*="grid-template-columns:repeat(4,1fr)"],
+.cert-accred-card > div[style*="grid-template-columns: repeat(4, 1fr)"] {
   display: none !important;
 }
 /* Smaller padding around section since stats are gone */
