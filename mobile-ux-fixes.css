@@ -1,0 +1,202 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Mobile UX polish
+   1. FR/EN lang switcher visible OUTSIDE hamburger on mobile
+   2. Premium animated hamburger menu (pulse + glow)
+   3. Hero mobile spacing / readability
+   ═══════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════
+   1. LANG SWITCHER — always visible on mobile
+   (was hidden inside the hamburger panel, now floats next to it)
+   ════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Take lang-toggle OUT of nav-right and pin it next to hamburger */
+  #lang-toggle {
+    position: fixed !important;
+    top: 13px !important;
+    right: 68px !important;
+    z-index: 720 !important;
+    margin: 0 !important;
+    background: rgba(8, 8, 8, .85) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, .18) !important;
+    border-radius: 24px !important;
+    padding: 4px !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+  }
+  #lang-toggle .lang-btn {
+    padding: 6px 11px !important;
+    font-size: 11px !important;
+    min-width: 36px;
+    min-height: 32px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* Ensure touch responsiveness */
+  #lang-toggle .lang-btn:active {
+    transform: scale(0.92);
+  }
+}
+
+@media (max-width: 380px) {
+  #lang-toggle {
+    right: 60px !important;
+  }
+  #lang-toggle .lang-btn {
+    padding: 5px 9px !important;
+    font-size: 10px !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   2. HAMBURGER MENU — premium animated attention
+   ════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .nav-toggle {
+    position: relative;
+    background: rgba(27, 91, 255, .15) !important;
+    border: 1px solid rgba(27, 91, 255, .35) !important;
+    box-shadow:
+      0 4px 14px rgba(27, 91, 255, .25),
+      inset 0 1px 0 rgba(255, 255, 255, .08);
+    animation: hamburgerPulse 3s ease-in-out infinite;
+    transition: transform .25s cubic-bezier(.2, .8, .2, 1),
+                box-shadow .3s ease,
+                background .3s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Subtle radial pulse around the button */
+  .nav-toggle::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 12px;
+    background: radial-gradient(circle, rgba(27, 91, 255, .35), transparent 65%);
+    z-index: -1;
+    opacity: 0;
+    animation: hamburgerGlow 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Color bars premium */
+  .nav-toggle-bar {
+    background: linear-gradient(90deg, #FFFFFF 0%, #6B95FF 100%) !important;
+    box-shadow: 0 0 4px rgba(107, 149, 255, .6);
+  }
+
+  /* Touch feedback */
+  .nav-toggle:active {
+    transform: scale(0.93);
+    box-shadow: 0 2px 8px rgba(27, 91, 255, .4);
+  }
+
+  /* When open: stop the attention pulse */
+  nav.nav-open .nav-toggle,
+  nav.nav-open .nav-toggle::before {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  nav.nav-open .nav-toggle {
+    background: rgba(27, 91, 255, .35) !important;
+    border-color: rgba(27, 91, 255, .6) !important;
+  }
+}
+
+/* Soft pulse keyframes — premium, NOT aggressive */
+@keyframes hamburgerPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      0 4px 14px rgba(27, 91, 255, .25),
+      0 0 0 0 rgba(27, 91, 255, .35),
+      inset 0 1px 0 rgba(255, 255, 255, .08);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow:
+      0 6px 22px rgba(27, 91, 255, .45),
+      0 0 0 8px rgba(27, 91, 255, 0),
+      inset 0 1px 0 rgba(255, 255, 255, .15);
+  }
+}
+@keyframes hamburgerGlow {
+  0%, 100% { opacity: 0; transform: scale(.95); }
+  50%      { opacity: 1; transform: scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-toggle,
+  .nav-toggle::before {
+    animation: none !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   3. HERO MOBILE — better spacing & readability
+   ════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .hero-content {
+    padding: 110px 22px 56px !important;
+    gap: 24px !important;
+  }
+  .hero-pre {
+    font-size: 10px !important;
+    padding: 8px 14px !important;
+    line-height: 1.5;
+    margin-bottom: 18px !important;
+  }
+  .hero-h1-premium {
+    margin-bottom: 14px !important;
+  }
+  .hero-h1-premium .hero-line-1 {
+    font-size: clamp(36px, 11vw, 50px) !important;
+    line-height: 1.05 !important;
+  }
+  .hero-h1-premium .hero-line-2 {
+    font-size: clamp(46px, 14vw, 64px) !important;
+    line-height: 1 !important;
+    margin-top: 4px !important;
+  }
+  .hero-sub {
+    font-size: 14px !important;
+    line-height: 1.65 !important;
+    margin: 18px 0 26px !important;
+    max-width: 100% !important;
+  }
+  .hero-btns {
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100%;
+  }
+  .hero-btns .btn-red,
+  .hero-btns .btn-ghost {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 14px 22px !important;
+    font-size: 14px !important;
+    min-height: 50px;       /* easy touch target */
+  }
+  .hero-kpis {
+    margin-top: 32px !important;
+    gap: 18px 28px !important;
+  }
+  .kpi-n {
+    font-size: 34px !important;
+  }
+  .kpi-l {
+    font-size: 10px !important;
+    letter-spacing: .12em !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content { padding: 100px 18px 48px !important; }
+  .hero-h1-premium .hero-line-1 { font-size: clamp(32px, 10vw, 42px) !important; }
+  .hero-h1-premium .hero-line-2 { font-size: clamp(40px, 13vw, 54px) !important; }
+  .hero-sub { font-size: 13px !important; }
+  .kpi-n { font-size: 30px !important; }
+}

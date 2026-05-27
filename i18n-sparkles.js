@@ -734,6 +734,8 @@ function setLang(lang){
     b.classList.toggle('active', b.dataset.lang === lang);
   });
 }
+// EXPOSE globally for inline onclick to work on all devices (mobile included)
+window.setLang = setLang;
 
 // Inject language toggle into nav
 window.addEventListener('DOMContentLoaded', () => {
