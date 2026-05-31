@@ -16,32 +16,64 @@
   display: none !important;
 }
 
-/* ─── PREMIUM BACKGROUND IMAGE (fast-loading, replaces video) ─── */
+/* ─── CROSSFADING IMAGE SLIDESHOW (map-prime style — no video) ─── */
 .hero-novideo {
   position: relative;
   overflow: hidden;
   background: #050B18;
 }
-.hero-novideo .hero-bg {
+.hero-slideshow {
   position: absolute;
   inset: 0;
   z-index: 0;
-  /* Dark gradient overlay + workspace photo (royalty-free Unsplash, ~120KB) */
-  background:
-    linear-gradient(105deg, rgba(5,11,24,.97) 0%, rgba(6,13,28,.88) 38%, rgba(8,20,40,.62) 70%, rgba(10,26,51,.5) 100%),
-    radial-gradient(ellipse 90% 80% at 15% 10%, rgba(27, 91, 255, .20) 0%, transparent 55%),
-    url("https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=70");
-  background-size: cover, cover, cover;
-  background-position: center, center, center right;
+  overflow: hidden;
+}
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center right;
   background-repeat: no-repeat;
+  opacity: 0;
+  /* Each slide fades in/out over a 21s cycle (3 slides × 7s each) */
+  animation: heroSlideFade 21s linear infinite, heroKenBurns 21s ease-in-out infinite;
+  will-change: opacity, transform;
 }
-/* Subtle zoom-in for cinematic feel without the video weight */
-.hero-novideo .hero-bg {
-  animation: heroBgZoom 24s ease-in-out infinite alternate;
+/* 3 royalty-free workspace / business photos (Unsplash, optimized q70) */
+.hero-slide-1 {
+  background-image: url("https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=70");
+  animation-delay: 0s;
 }
-@keyframes heroBgZoom {
-  from { background-size: cover, cover, 118%; }
-  to   { background-size: cover, cover, 128%; }
+.hero-slide-2 {
+  background-image: url("https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=1600&q=70");
+  animation-delay: -7s;
+}
+.hero-slide-3 {
+  background-image: url("https://images.unsplash.com/photo-1531973576160-7125cd663d86?auto=format&fit=crop&w=1600&q=70");
+  animation-delay: -14s;
+}
+@keyframes heroSlideFade {
+  0%    { opacity: 0; }
+  4%    { opacity: 1; }
+  29%   { opacity: 1; }
+  38%   { opacity: 0; }
+  100%  { opacity: 0; }
+}
+@keyframes heroKenBurns {
+  0%   { transform: scale(1.04); }
+  38%  { transform: scale(1.12); }
+  100% { transform: scale(1.04); }
+}
+
+/* map-prime style dark gradient overlay (dark left → clear right) */
+.hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(100deg, rgba(5,11,24,.96) 0%, rgba(6,13,28,.85) 36%, rgba(8,20,40,.55) 68%, rgba(10,26,51,.42) 100%),
+    radial-gradient(ellipse 90% 80% at 15% 10%, rgba(27, 91, 255, .18) 0%, transparent 55%);
+  pointer-events: none;
 }
 
 /* Aurora flowing light — soft, premium, never aggressive */
@@ -148,7 +180,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hero-novideo .hero-aurora,
-  .hero-novideo .hero-aurora-2 {
+  .hero-slide {
     animation: none !important;
   }
+  /* Keep the first slide visible when motion is reduced */
+  .hero-slide-1 { opacity: 1 !important; }
+  .hero-slide-2, .hero-slide-3 { opacity: 0 !important; }
 }
