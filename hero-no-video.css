@@ -16,7 +16,7 @@
   display: none !important;
 }
 
-/* ─── PREMIUM BASE BACKGROUND ─── */
+/* ─── PREMIUM BACKGROUND IMAGE (fast-loading, replaces video) ─── */
 .hero-novideo {
   position: relative;
   overflow: hidden;
@@ -26,10 +26,22 @@
   position: absolute;
   inset: 0;
   z-index: 0;
+  /* Dark gradient overlay + workspace photo (royalty-free Unsplash, ~120KB) */
   background:
-    radial-gradient(ellipse 120% 80% at 20% 0%, rgba(27, 91, 255, .22) 0%, transparent 55%),
-    radial-gradient(ellipse 100% 90% at 90% 100%, rgba(13, 63, 216, .25) 0%, transparent 55%),
-    linear-gradient(160deg, #060D1C 0%, #0A1A33 45%, #050B18 100%);
+    linear-gradient(105deg, rgba(5,11,24,.97) 0%, rgba(6,13,28,.88) 38%, rgba(8,20,40,.62) 70%, rgba(10,26,51,.5) 100%),
+    radial-gradient(ellipse 90% 80% at 15% 10%, rgba(27, 91, 255, .20) 0%, transparent 55%),
+    url("https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=70");
+  background-size: cover, cover, cover;
+  background-position: center, center, center right;
+  background-repeat: no-repeat;
+}
+/* Subtle zoom-in for cinematic feel without the video weight */
+.hero-novideo .hero-bg {
+  animation: heroBgZoom 24s ease-in-out infinite alternate;
+}
+@keyframes heroBgZoom {
+  from { background-size: cover, cover, 118%; }
+  to   { background-size: cover, cover, 128%; }
 }
 
 /* Aurora flowing light — soft, premium, never aggressive */
@@ -91,53 +103,47 @@
 .hero-novideo .hero-glow { z-index: 2; }
 .hero-novideo .hero-content { z-index: 5; position: relative; }
 
-/* ─── TRUST BADGES (map-prime style) ─── */
+/* ─── TRUST BADGES (map-prime style, clean SVG icons) ─── */
 .hero-trust {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px 22px;
-  margin-top: 28px;
+  align-items: center;
+  gap: 14px 28px;
+  margin-top: 30px;
 }
+.hero-novideo .hero-trust-item,
 .hero-trust-item {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 9px;
+  font-size: 14px;
   font-weight: 600;
-  color: rgba(255, 255, 255, .82);
-  letter-spacing: .01em;
-  padding: 9px 16px;
-  background: rgba(255, 255, 255, .06);
-  border: 1px solid rgba(255, 255, 255, .12);
-  border-radius: 24px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: transform .3s cubic-bezier(.2,.8,.2,1),
-              background .3s ease,
-              border-color .3s ease;
+  color: #FFFFFF !important;
+  letter-spacing: .005em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .5);
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s ease;
 }
-.hero-trust-item .ht-ic {
-  font-size: 15px;
-  line-height: 1;
+.hero-trust-item .ht-svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .35));
 }
 .hero-trust-item:hover {
-  transform: translateY(-3px);
-  background: rgba(27, 91, 255, .14);
-  border-color: rgba(107, 149, 255, .5);
+  transform: translateY(-2px);
 }
 
 /* Mobile */
 @media (max-width: 768px) {
   .hero-trust {
-    gap: 10px;
+    gap: 12px 18px;
     margin-top: 22px;
   }
   .hero-trust-item {
-    font-size: 11px;
-    padding: 8px 13px;
-    gap: 6px;
+    font-size: 12px;
+    gap: 7px;
   }
-  .hero-trust-item .ht-ic { font-size: 13px; }
+  .hero-trust-item .ht-svg { width: 19px; height: 19px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
