@@ -39,17 +39,17 @@
   animation: heroSlideFade 21s linear infinite, heroKenBurns 21s ease-in-out infinite;
   will-change: opacity, transform;
 }
-/* 3 royalty-free workspace / business photos (Unsplash, optimized q70) */
+/* 3 local hero images from the Map Prime carousel */
 .hero-slide-1 {
-  background-image: url("https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=70");
+  background-image: url("assets/images/map-prime-hero/hero_bg_1.jpg");
   animation-delay: 0s;
 }
 .hero-slide-2 {
-  background-image: url("https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=1600&q=70");
+  background-image: url("assets/images/map-prime-hero/hero_bg_2.jpg");
   animation-delay: -7s;
 }
 .hero-slide-3 {
-  background-image: url("https://images.unsplash.com/photo-1531973576160-7125cd663d86?auto=format&fit=crop&w=1600&q=70");
+  background-image: url("assets/images/map-prime-hero/hero_bg_3.jpg");
   animation-delay: -14s;
 }
 @keyframes heroSlideFade {

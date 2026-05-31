@@ -1,51 +1,11 @@
 /* ═══════════════════════════════════════════════════════
    🌍 Global Visibility — Mobile fixes + Layout polish
-   1. Hero video MUST display on mobile (iOS/Android)
-   2. Marquee chips: compact horizontal scroll on mobile (no wrap)
-   3. Blue contact section: pronounced rounded/curved top edge
+   1. Marquee chips: compact horizontal scroll on mobile (no wrap)
+   2. Blue contact section: pronounced rounded/curved top edge
    ═══════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════
-   1. MOBILE HERO VIDEO — force display
-   ════════════════════════════════════════════ */
-@media (max-width: 900px) {
-  /* Force the video stack to be visible */
-  .hero-video-background .hero-video-stack {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 1 !important;
-    pointer-events: none;
-  }
-  .hero-video-background .hero-video-stack video {
-    display: block !important;
-    visibility: visible !important;
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    transform: scale(1.10) !important;
-    animation: none !important;
-  }
-  /* Ensure original fallback video also shows if dual stack fails */
-  .hero-video-background > video.hero-video:not([style*="display:none"]) {
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    opacity: 1 !important;
-    z-index: 1 !important;
-  }
-  /* Don't hide the original video if the JS hasn't replaced it yet */
-  .hero-video-background > #heroVideo {
-    pointer-events: none;
-  }
-  /* Make sure hero bg is properly layered */
-  .hero-bg { z-index: 0 !important; }
-  .hero-content { z-index: 5 !important; position: relative; }
-}
-
-/* ════════════════════════════════════════════
-   2. MARQUEE — compact horizontal scroll always
+   1. MARQUEE — compact horizontal scroll always
    ════════════════════════════════════════════ */
 .cert-marquee-track {
   flex-wrap: nowrap !important;
@@ -96,7 +56,7 @@
 }
 
 /* ════════════════════════════════════════════
-   3. BLUE CONTACT SECTION — pronounced rounded/ball shape
+   2. BLUE CONTACT SECTION — pronounced rounded/ball shape
    ════════════════════════════════════════════ */
 .contact-block-blue {
   /* Way more pronounced curve at the top — like a half-dome */

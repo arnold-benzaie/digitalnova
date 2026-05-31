@@ -847,9 +847,9 @@ footer{background:#050505;}
 <link rel="stylesheet" href="mobile-and-layout-fixes.css?v=1780234851"/>
 <link rel="stylesheet" href="hero-premium-title.css?v=1780234851"/>
 <link rel="stylesheet" href="round-certs-and-footer.css?v=1780234851"/>
-<link rel="stylesheet" href="final-polish.css?v=PLACEHOLDER1779632675"
-<link rel="stylesheet" href="mobile-ux-fixes.css?v=1780234851"
-<link rel="stylesheet" href="hero-no-video.css?v=1780234851">>/>
+<link rel="stylesheet" href="final-polish.css?v=1779632675"/>
+<link rel="stylesheet" href="mobile-ux-fixes.css?v=1780234851"/>
+<link rel="stylesheet" href="hero-no-video.css?v=1780235630"/>
 </head>
 <body>
 
@@ -2972,17 +2972,6 @@ function doPayment(){
 <script src="3d-effects.js?v=1780234851"></script>
 <script src="animations-pack.js?v=1780234851"></script>
 <script src="theme-extra-anims.js?v=1780234851"></script>
-<script>
-/* Cinematic hero video: slow down + ensure autoplay */
-(function(){
-  const v=document.getElementById("heroVideo");
-  if(!v) return;
-  v.playbackRate=0.85;
-  v.addEventListener("loadeddata",()=>{v.play().catch(()=>{});});
-  document.addEventListener("click",()=>v.play().catch(()=>{}),{once:true});
-})();
-</script>
-<script src="hero-cinematic.js?v=1780234851"></script>
 <script src="cart.js?v=1780234851"></script>
 <script src="dynamic-pricing.js?v=1780234851"></script>
 <script src="premium-certifications.js?v=1780234851"></script>
