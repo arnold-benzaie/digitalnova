@@ -1,0 +1,148 @@
+/* ═══════════════════════════════════════════════════════
+   🌍 Global Visibility — Hero WITHOUT video
+   Premium static animated background (map-prime inspired clean look)
+   ═══════════════════════════════════════════════════════ */
+
+/* Kill any leftover video layers (JS-injected dual stack, overlays, etc.) */
+.hero-video,
+.hero-video-stack,
+.hero-video-overlay,
+.hero-watermark-mask,
+.hero-vignette,
+#heroVideo, #heroVidA, #heroVidB,
+.hero-matrix, .hero-dust, .hero-steam,
+.hero-scan, .hero-flare, .hero-network,
+#sceneTint, #sceneIndicator {
+  display: none !important;
+}
+
+/* ─── PREMIUM BASE BACKGROUND ─── */
+.hero-novideo {
+  position: relative;
+  overflow: hidden;
+  background: #050B18;
+}
+.hero-novideo .hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 0%, rgba(27, 91, 255, .22) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 90% at 90% 100%, rgba(13, 63, 216, .25) 0%, transparent 55%),
+    linear-gradient(160deg, #060D1C 0%, #0A1A33 45%, #050B18 100%);
+}
+
+/* Aurora flowing light — soft, premium, never aggressive */
+.hero-novideo .hero-aurora {
+  position: absolute;
+  z-index: 1;
+  top: -20%;
+  left: -10%;
+  width: 70%;
+  height: 90%;
+  background: radial-gradient(ellipse at center,
+    rgba(27, 91, 255, .28) 0%,
+    rgba(77, 123, 255, .12) 35%,
+    transparent 70%);
+  filter: blur(60px);
+  border-radius: 50%;
+  animation: heroAuroraFloat 16s ease-in-out infinite;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.hero-novideo .hero-aurora-2 {
+  top: auto;
+  bottom: -25%;
+  left: auto;
+  right: -10%;
+  width: 65%;
+  height: 85%;
+  background: radial-gradient(ellipse at center,
+    rgba(0, 184, 255, .20) 0%,
+    rgba(27, 91, 255, .10) 40%,
+    transparent 70%);
+  animation: heroAuroraFloat2 20s ease-in-out infinite;
+}
+@keyframes heroAuroraFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: .85; }
+  50%      { transform: translate(8%, 6%) scale(1.12); opacity: 1; }
+}
+@keyframes heroAuroraFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: .7; }
+  50%      { transform: translate(-7%, -5%) scale(1.15); opacity: 1; }
+}
+
+/* Subtle tech grid overlay */
+.hero-novideo .hero-grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(27, 91, 255, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(27, 91, 255, .045) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+
+.hero-novideo .hero-ambient-glow,
+.hero-novideo .hero-map,
+.hero-novideo .hero-glow { z-index: 2; }
+.hero-novideo .hero-content { z-index: 5; position: relative; }
+
+/* ─── TRUST BADGES (map-prime style) ─── */
+.hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  margin-top: 28px;
+}
+.hero-trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .82);
+  letter-spacing: .01em;
+  padding: 9px 16px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 24px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform .3s cubic-bezier(.2,.8,.2,1),
+              background .3s ease,
+              border-color .3s ease;
+}
+.hero-trust-item .ht-ic {
+  font-size: 15px;
+  line-height: 1;
+}
+.hero-trust-item:hover {
+  transform: translateY(-3px);
+  background: rgba(27, 91, 255, .14);
+  border-color: rgba(107, 149, 255, .5);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .hero-trust {
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .hero-trust-item {
+    font-size: 11px;
+    padding: 8px 13px;
+    gap: 6px;
+  }
+  .hero-trust-item .ht-ic { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-novideo .hero-aurora,
+  .hero-novideo .hero-aurora-2 {
+    animation: none !important;
+  }
+}

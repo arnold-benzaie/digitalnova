@@ -840,15 +840,16 @@ footer{background:#050505;}
   #certifications .cert-badges-grid > div{width:100%;}
 }
 </style>
-<link rel="stylesheet" href="brand-theme-clean.css?v=1779900124"/>
-<link rel="stylesheet" href="pricing-cards-premium.css?v=1779900124"/>
-<link rel="stylesheet" href="premium-certifications.css?v=1779900124"/>
-<link rel="stylesheet" href="marquee-and-contact.css?v=1779900124"/>
-<link rel="stylesheet" href="mobile-and-layout-fixes.css?v=1779900124"/>
-<link rel="stylesheet" href="hero-premium-title.css?v=1779900124"/>
-<link rel="stylesheet" href="round-certs-and-footer.css?v=1779900124"/>
+<link rel="stylesheet" href="brand-theme-clean.css?v=1780233355"/>
+<link rel="stylesheet" href="pricing-cards-premium.css?v=1780233355"/>
+<link rel="stylesheet" href="premium-certifications.css?v=1780233355"/>
+<link rel="stylesheet" href="marquee-and-contact.css?v=1780233355"/>
+<link rel="stylesheet" href="mobile-and-layout-fixes.css?v=1780233355"/>
+<link rel="stylesheet" href="hero-premium-title.css?v=1780233355"/>
+<link rel="stylesheet" href="round-certs-and-footer.css?v=1780233355"/>
 <link rel="stylesheet" href="final-polish.css?v=PLACEHOLDER1779632675"
-<link rel="stylesheet" href="mobile-ux-fixes.css?v=1779900124">/>
+<link rel="stylesheet" href="mobile-ux-fixes.css?v=1780233355"
+<link rel="stylesheet" href="hero-no-video.css?v=1780233355">>/>
 </head>
 <body>
 
@@ -892,23 +893,12 @@ footer{background:#050505;}
 </nav>
 
 <!-- ═══ HERO — Cinematic Premium ═══ -->
-<section class="hero hero-video-background">
+<section class="hero hero-novideo">
+  <!-- Premium static background (video removed) -->
   <div class="hero-bg"></div>
-  <!-- Local cinematic 4K video — 🌍 Global Visibility premium agency -->
-  <video class="hero-video" id="heroVideo" autoplay muted loop playsinline preload="auto"
-         poster="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=85"
-         aria-hidden="true">
-    <source src="assets/videos/cinematic-hero.mp4" type="video/mp4"/>
-    <!-- Fallback to remote CDN if local fails -->
-    <source src="https://cdn.pixabay.com/video/2023/10/04/183201-873441757_large.mp4" type="video/mp4"/>
-  </video>
-  <!-- Watermark mask (bottom-right corner where Gemini badge usually appears) -->
-  <div class="hero-watermark-mask"></div>
-  <!-- Premium gradient overlay: deep black + warm red tones -->
-  <div class="hero-video-overlay"></div>
-  <!-- Vignette for cinematic depth -->
-  <div class="hero-vignette"></div>
-  <!-- Ambient pulsing glow -->
+  <div class="hero-aurora"></div>
+  <div class="hero-aurora hero-aurora-2"></div>
+  <div class="hero-grid-overlay"></div>
   <div class="hero-ambient-glow"></div>
   <div class="hero-map"></div>
   <div class="hero-glow"></div>
@@ -925,8 +915,13 @@ footer{background:#050505;}
       </h1>
       <p class="hero-sub">🌍 Global Visibility CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.</p>
       <div class="hero-btns">
-        <a href="#services" class="btn-red">🚀 Commander Maintenant</a>
-        <a href="#avis" class="btn-ghost">Voir les témoignages →</a>
+        <a href="#services" class="btn-red">Découvrez nos services</a>
+        <a href="#contact" class="btn-ghost">Nous contacter →</a>
+      </div>
+      <div class="hero-trust">
+        <div class="hero-trust-item"><span class="ht-ic">🛡️</span> Professionnels Certifiés</div>
+        <div class="hero-trust-item"><span class="ht-ic">⭐</span> Service 5 Étoiles</div>
+        <div class="hero-trust-item"><span class="ht-ic">🕑</span> Support 24/7</div>
       </div>
       <div class="hero-kpis">
         <div class="kpi"><span class="kpi-n" data-count="850">0</span><span class="kpi-l">Clients actifs</span></div>
@@ -2960,10 +2955,10 @@ function doPayment(){
   },1800);
 }
 </script>
-<script src="i18n-sparkles.js?v=1779900124"></script>
-<script src="3d-effects.js?v=1779900124"></script>
-<script src="animations-pack.js?v=1779900124"></script>
-<script src="theme-extra-anims.js?v=1779900124"></script>
+<script src="i18n-sparkles.js?v=1780233355"></script>
+<script src="3d-effects.js?v=1780233355"></script>
+<script src="animations-pack.js?v=1780233355"></script>
+<script src="theme-extra-anims.js?v=1780233355"></script>
 <script>
 /* Cinematic hero video: slow down + ensure autoplay */
 (function(){
@@ -2974,10 +2969,10 @@ function doPayment(){
   document.addEventListener("click",()=>v.play().catch(()=>{}),{once:true});
 })();
 </script>
-<script src="hero-cinematic.js?v=1779900124"></script>
-<script src="cart.js?v=1779900124"></script>
-<script src="dynamic-pricing.js?v=1779900124"></script>
-<script src="premium-certifications.js?v=1779900124"></script>
+<script src="hero-cinematic.js?v=1780233355"></script>
+<script src="cart.js?v=1780233355"></script>
+<script src="dynamic-pricing.js?v=1780233355"></script>
+<script src="premium-certifications.js?v=1780233355"></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script>
 (function(){
