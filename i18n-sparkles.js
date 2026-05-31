@@ -63,7 +63,7 @@ const T = {
   "Contact":"Contact",
   "Canada":"Canada",
   "Europe":"Europe",
-  "Commander →":"Order →",
+  "Demander un devis →":"Request a quote →",
   "FR":"FR","EN":"EN",
 
   // Hero
@@ -79,7 +79,7 @@ const T = {
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
   "🌍 Global Visibility CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 Global Visibility CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
-  "🚀 Commander Maintenant":"🚀 Order Now",
+  "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",
   "Ans d'expérience":"Years of experience",
@@ -98,7 +98,7 @@ const T = {
   "🏆 Google Premier Partner":"🏆 Google Premier Partner",
   "⭐ 4.9/5 · 527 Avis Google":"⭐ 4.9/5 · 527 Google Reviews",
   "📲 QR Code + NFC":"📲 QR Code + NFC",
-  "💳 Stripe Sécurisé":"💳 Secure Stripe",
+  "📋 Devis personnalisé":"📋 Personalized quote",
 
   // Google section
   "CERTIFIÉ PAR":"CERTIFIED BY",
@@ -117,7 +117,7 @@ const T = {
   "10 secondes":"10 seconds",
   "— 1 scan ou 1 tapotement NFC. Plus d'avis = 1ère position = plus de clients.":"— 1 scan or 1 NFC tap. More reviews = #1 position = more customers.",
   "· 527 avis Google vérifiés":"· 527 verified Google reviews",
-  "📲 Commander — $299 CAD":"📲 Order — $299 CAD",
+  "🚀 Demander un devis — $1 000 CAD":"🚀 Request a quote — $1,000 CAD",
   "🇪🇺 Europe — 219 € HT":"🇪🇺 Europe — €219 excl. tax",
   "Google Premier":"Google Premier",
   "Local SEO":"Local SEO",
@@ -149,7 +149,7 @@ const T = {
   "SEO National Canada":"National SEO Canada",
   "En seulement 3 mois 🚀":"In just 3 months 🚀",
   "Partner Team — 🌍 Global Visibility CANADA INC.":"Partner Team — 🌍 Global Visibility CANADA INC.",
-  "✓ Certifié 2025":"✓ Certified 2025",
+  "✓ Certifié":"✓ Certified",
 
   // Service intro
   "Ce que comprend notre service":"What our service includes",
@@ -185,7 +185,7 @@ const T = {
   "et efficace":"process",
   "Opérationnel en moins de 48h":"Operational in less than 48h",
   "Vous commandez":"You order",
-  "Choisissez votre pack Canada ou Europe, remplissez le formulaire sécurisé Stripe en 2 minutes.":"Choose your Canada or Europe pack, fill out the secure Stripe form in 2 minutes.",
+  "Choisissez votre pack Canada ou Europe et préparez votre demande de devis en 2 minutes.":"Choose your Canada or Europe pack and prepare your quote request in 2 minutes.",
   "Nous configurons":"We configure",
   "Votre QR Code unique est créé et la puce NFC est programmée avec votre fiche Google sous 24h.":"Your unique QR Code is created and the NFC chip is programmed with your Google listing within 24h.",
   "Vous recevez":"You receive",
@@ -209,7 +209,7 @@ const T = {
   "Création fiche Google Business":"Google Business listing creation",
   "Tableau de bord suivi des avis":"Review tracking dashboard",
   "Support email 48h":"Email support 48h",
-  "Commander $299 CAD →":"Order $299 CAD →",
+  "Demander un devis — $1 000 CAD →":"Request a quote — $1,000 CAD →",
   "⭐ POPULAIRE":"⭐ POPULAR",
   "Pack Pro":"Pro Pack",
   "QR + NFC + GMB Optimisé":"QR + NFC + Optimized GMB",
@@ -220,7 +220,7 @@ const T = {
   "Réponses IA aux avis (positifs/négatifs)":"AI replies to reviews (positive/negative)",
   "Posts Google hebdomadaires":"Weekly Google posts",
   "Rapport annuel + support 1 an":"Annual report + 1-year support",
-  "Commander $499 CAD →":"Order $499 CAD →",
+  "Demander un devis — $1 500 CAD →":"Request a quote — $1,500 CAD →",
   "SEO National":"National SEO",
   "Dominez Google Canada":"Dominate Google Canada",
   "Référencement national complet":"Complete national SEO",
@@ -232,7 +232,7 @@ const T = {
   "8 articles SEO optimisés · inclus 1 an":"8 optimized SEO articles · 1 year included",
   "Pack QR Code + NFC inclus":"QR Code + NFC pack included",
   "Dashboard positions en temps réel":"Real-time position dashboard",
-  "Commander $590 CAD/an →":"Order $590 CAD/yr →",
+  "Demander un devis — $2 500 CAD/an →":"Request a quote — $2,500 CAD/yr →",
   "🇪🇺 Zone Europe — Prix en Euro HT":"🇪🇺 Europe Zone — Prices in Euros excl. tax",
   "Starter : 219 € · Pro : 369 € · SEO National : 439 €/an · Conformité RGPD · Bureau Paris":"Starter: €219 · Pro: €369 · National SEO: €439/yr · GDPR compliant · Paris office",
   "Starter 219 €":"Starter €219",
@@ -317,7 +317,7 @@ const T = {
   "Rapport de performance trimestriel":"Quarterly performance report",
   "Support dédié 7j/7 — Réponse sous 2h":"Dedicated 7-day support — Response in 2h",
   "paiement unique · À vie":"one-time payment · Lifetime",
-  "Commander":"Order",
+  "Demander un devis":"Request a quote",
   "✨ Nouveau":"✨ New",
   "Réseaux Sociaux":"Social Networks",
   "Gestion Médias Sociaux Élite":"Elite Social Media Management",
@@ -442,7 +442,7 @@ const T = {
   "📦 INCLUS DANS CHAQUE PACK GOOGLE":"📦 INCLUDED IN EVERY GOOGLE PACK",
   "Carte Google Reviews QR Code + NFC":"Google Reviews QR Code + NFC card",
   "Personnalisée avec votre logo · Fond noir mat · Anneau Google 4 couleurs · Canada & Europe":"Personalized with your logo · Matte black · 4-color Google ring · Canada & Europe",
-  "🇨🇦 Commander — $299 CAD":"🇨🇦 Order — $299 CAD",
+  "🇨🇦 Demander un devis — $1 000 CAD":"🇨🇦 Request a quote — $1,000 CAD",
 
   // Reviews
   "⭐ Témoignages Vérifiés":"⭐ Verified Testimonials",
@@ -504,7 +504,7 @@ const T = {
   "Expert — Certified Professional":"Expert — Certified Professional",
   "Toutes nos accréditations":"All our accreditations",
   "8 certifications · 3 partenariats officiels":"8 certifications · 3 official partnerships",
-  "Certifié ✓ 2025":"Certified ✓ 2025",
+  "Certifié ✓":"Certified ✓",
   "Certified ✓":"Certified ✓",
   "Individual ✓":"Individual ✓",
   "SEO Expert Cert.":"SEO Expert Cert.",
@@ -514,7 +514,7 @@ const T = {
   "Shopify Partner":"Shopify Partner",
   "WordPress VIP":"WordPress VIP",
   "Expert ✓":"Expert ✓",
-  "Stripe Verified":"Stripe Verified",
+  "Devis transparent":"Transparent quote",
   "Certifications":"Certifications",
   "Officielles":"Official",
   "Années":"Years",
@@ -544,14 +544,14 @@ const T = {
   "Votre sécurité,":"Your security,",
   "notre priorité":"our priority",
   "🌍 Global Visibility CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 Global Visibility CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
-  "🔒 PCI-DSS Niveau 1":"🔒 PCI-DSS Level 1",
+  "🔒 Aucune donnée bancaire":"🔒 No banking data",
   "🛡️ ISO 27001":"🛡️ ISO 27001",
   "📋 RGPD Compliant":"📋 GDPR Compliant",
-  "💳 Stripe Certified":"💳 Stripe Certified",
+  "📋 Devis détaillé":"📋 Detailed quote",
   "⭐ 4.9/5 Google":"⭐ 4.9/5 Google",
   "✅ Société Vérifiable":"✅ Verifiable Company",
   "🌍 18 Pays Desservis":"🌍 18 Countries Served",
-  "Commander Maintenant →":"Order Now →",
+  "Demander un devis →":"Request a quote →",
   "Vérifiez notre enregistrement sur corporations.canada.ca":"Verify our registration on corporations.canada.ca",
 
   // FAQ
@@ -562,9 +562,9 @@ const T = {
   "🤔 🌍 Global Visibility est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 Global Visibility a real registered company?",
   "Oui, à 100%.":"Yes, 100%.",
   "Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.":"Searchable on corporations.canada.ca (Canada) and via INPI in France. Our business number is provided on simple request. Zero opacity.",
-  "💳 Mes paiements par carte sont-ils sécurisés ?":"💳 Are my card payments secure?",
-  "Vos données ne nous parviennent jamais.":"Your data never reaches us.",
-  "Traitement exclusif via Stripe (PCI-DSS Niveau 1), chiffrement SSL 256 bits et 3D Secure. Nous ne stockons aucune donnée de carte bancaire.":"Exclusive processing via Stripe (PCI-DSS Level 1), 256-bit SSL encryption and 3D Secure. We store no card data.",
+  "📋 Comment recevoir mon devis ?":"📋 How do I receive my quote?",
+  "Aucune donnée bancaire n'est demandée.":"No banking data is requested.",
+  "Choisissez votre service, préparez votre courriel et envoyez votre demande depuis votre propre messagerie. Notre équipe vous recontacte pour confirmer le périmètre et les modalités.":"Choose your service, prepare your email and send your request from your own mailbox. Our team will contact you to confirm scope and terms.",
   "📈 Quelle garantie si je ne vois pas de résultats ?":"📈 What guarantee if I see no results?",
   "Garantie résultats 90 jours":"90-day results guarantee",
   "sur le Pack SEO. Objectifs non atteints = remboursement intégral, sans question. Rapport de performance trimestriel transparent pour chaque service.":"on the SEO Pack. Targets not met = full refund, no questions. Transparent quarterly performance report for every service.",
@@ -588,26 +588,25 @@ const T = {
   "Un Chef de Projet dédié":"A dedicated Project Manager",
   "— joignable par email, téléphone et WhatsApp 7j/7. Réponse garantie sous 2h. Pas de centre d'appels, pas de robot.":"— reachable by email, phone and WhatsApp 7 days a week. Response guaranteed within 2h. No call center, no bot.",
 
-  // Stripe payment
-  "💳 Paiement Sécurisé":"💳 Secure Payment",
-  "Payez en toute":"Pay with full",
-  "confiance":"confidence",
-  "Toutes les cartes acceptées. Powered by Stripe — le leader mondial du paiement sécurisé. Aucun frais caché.":"All cards accepted. Powered by Stripe — the world leader in secure payment. No hidden fees.",
-  "Visa":"Visa","Mastercard":"Mastercard","Amex":"Amex","Discover":"Discover",
-  "Apple Pay":"Apple Pay","Google Pay":"Google Pay",
-  "SSL 256-bit":"SSL 256-bit",
-  "PCI-DSS Niv.1":"PCI-DSS Lvl 1",
-  "3D Secure":"3D Secure",
-  "Chiffrement E2E":"E2E Encryption",
-  "💳 Paiement Stripe":"💳 Stripe Payment",
-  "stripe":"stripe",
+  // Quote request
+  "Parlons de votre":"Let's discuss your",
+  "projet":"project",
+  "Choisissez votre service et préparez votre demande. Aucun numéro de carte bancaire n'est demandé sur ce site.":"Choose your service and prepare your request. No bank card number is requested on this site.",
+  "Site Web":"Website",
+  "Réseaux Sociaux":"Social Media",
+  "Aucune donnée bancaire":"No banking data",
+  "Échange humain":"Human support",
+  "Réponse sous 2h":"Reply within 2h",
+  "📋 Préparer votre demande":"📋 Prepare your request",
+  "DEVIS":"QUOTE",
   "Votre courriel":"Your email",
-  "Nom sur la carte":"Cardholder name",
-  "Numéro de carte":"Card number",
-  "Expiration":"Expiry",
-  "CVV":"CVV",
-  "Payer — Clé Stripe à configurer":"Pay — Stripe key to configure",
-  "PCI-DSS":"PCI-DSS",
+  "Votre nom":"Your name",
+  "Entreprise":"Company",
+  "Téléphone":"Phone",
+  "Préparer mon courriel →":"Prepare my email →",
+  "Ouvrir mon courriel →":"Open my email →",
+  "🔒 Aucun paiement en ligne":"🔒 No online payment",
+  "Vous gardez le contrôle de l'envoi":"You remain in control of sending",
 
   // Newsletter
   "Rejoignez 8 000+":"Join 8,000+",
@@ -635,7 +634,7 @@ const T = {
   "Politique RGPD":"GDPR Policy",
   "Cookies":"Cookies",
   "Remboursements":"Refunds",
-  "© 2025":"© 2025",
+  "© 2026":"© 2026",
   "— Tous droits réservés · Enregistrée au Canada · Présence Europe":"— All rights reserved · Registered in Canada · Europe presence",
   "Confidentialité":"Privacy",
   "CGV":"Terms",
@@ -668,14 +667,14 @@ const T = {
   "Réponse sous 2h · 7j/7":"Response within 2h · 7 days/week",
 
   // Modal
-  "Traitement Stripe…":"Processing Stripe…",
-  "Paiement Confirmé !":"Payment Confirmed!",
-  "Confirmation envoyée par courriel. Votre projet démarre sous 24h.":"Confirmation sent by email. Your project starts within 24h.",
-  "Parfait !":"Perfect!",
+  "Votre demande est prête":"Your request is ready",
+  "Ouvrez votre messagerie pour envoyer votre demande de devis. Aucun paiement ne sera effectué sur ce site.":"Open your mailbox to send your quote request. No payment will be made on this site.",
+  "Fermer":"Close",
   "Service":"Service",
   "Zone Canada 🇨🇦":"Canada Zone 🇨🇦",
-  "Courriel de confirmation":"Confirmation email",
-  "Payer Maintenant":"Pay Now"
+  "Préparer ma demande":"Prepare my request",
+  "🔒 Aucune donnée bancaire demandée":"🔒 No banking data requested",
+  "Devis sans engagement":"No-obligation quote"
 };
 
 let CURRENT_LANG = 'fr';
@@ -738,6 +737,7 @@ function setLang(lang){
   document.querySelectorAll('.lang-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
+  document.dispatchEvent(new CustomEvent('digitalnova:language-updated'));
 }
 // EXPOSE globally for inline onclick to work on all devices (mobile included)
 window.setLang = setLang;

@@ -9,11 +9,13 @@
   }
 
   function fmtAmount(amount, currency){
-    // CAD: "$299 CAD" · EU: "299 € HT"
+    const locale = document.documentElement.lang === 'en' ? 'en-CA' : 'fr-CA';
+    const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
+    // CAD: "$1 000 CAD" · EU: "219 € HT"
     if(currency.startsWith('€') || currency === 'EUR' || currency.includes('€')){
-      return { num: amount + ' €', cur: currency.replace('€','').trim() || 'HT' };
+      return { num: formatted + ' €', cur: currency.replace('€','').trim() || 'HT' };
     }
-    return { num: '$' + amount, cur: currency };
+    return { num: '$' + formatted, cur: currency };
   }
 
   function syncCard(card, zone){
@@ -44,7 +46,12 @@
 
     // Update button label
     if(btn){
-      const label = zone === 'eu' ? `Commander ${amount} € HT →` : `Commander $${amount} CAD →`;
+      const isEnglish = document.documentElement.lang === 'en';
+      const locale = isEnglish ? 'en-CA' : 'fr-CA';
+      const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
+      const action = isEnglish ? 'Request a quote' : 'Demander un devis';
+      const tax = isEnglish ? 'excl. tax' : 'HT';
+      const label = zone === 'eu' ? `${action} — ${formatted} € ${tax} →` : `${action} — $${formatted} CAD →`;
       btn.textContent = label;
     }
 
@@ -99,9 +106,10 @@
     const zone = getZone();
     document.querySelectorAll('.dyn-price-card').forEach(card => syncCard(card, zone));
     syncSwitcherBanner(zone);
+    document.dispatchEvent(new CustomEvent('digitalnova:pricing-updated'));
   }
 
-  // Open Stripe modal with current-zone values pulled from the card
+  // Open the quote modal with current-zone values pulled from the card
   window.openDynModal = function(btn){
     const card = btn.closest('.dyn-price-card');
     if(!card) return;
@@ -122,6 +130,7 @@
 
   function init(){
     observer.observe(document.body, { attributes: true });
+    document.addEventListener('digitalnova:language-updated', syncAll);
     syncAll();
   }
 

@@ -200,7 +200,7 @@
   line-height: 1.4;
 }
 
-/* CTA Button — "Sélectionner" style with cart icon */
+/* CTA Button — quote request style */
 .srv-card .btn-order {
   background: rgba(255,255,255,.95) !important;
   color: #FF1B6B !important;
@@ -233,7 +233,7 @@
   color: #FF1B6B !important;
 }
 .srv-card .btn-order::before {
-  content: "🛒";
+  content: "📩";
   font-size: 14px;
   margin-right: 2px;
 }
@@ -337,7 +337,8 @@
   margin: 0 26px 26px !important;
   box-shadow: 0 8px 20px rgba(0,0,0,.18) !important;
 }
-.g-price-card .g-price-btn::before { content: "🛒"; font-size: 14px; }
+.g-price-card .g-price-btn::before { content: "📩"; font-size: 14px; }
+.g-price-grid > .g-price-card:nth-child(1) .g-price-btn { color: #1B5BFF !important; }
 .g-price-grid > .g-price-card:nth-child(2) .g-price-btn { color: #FF1B6B !important; }
 .g-price-grid > .g-price-card:nth-child(3) .g-price-btn {
   background: linear-gradient(135deg, #1B5BFF, #00B8FF) !important;

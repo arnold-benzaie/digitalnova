@@ -6,7 +6,7 @@
    - Multi-devise (CAD/EUR selon zone active)
    - Bilingue FR/EN
    - Animation "fly to cart" au clic
-   - Checkout → ouvre le modal Stripe existant avec le total
+   - Checkout → ouvre la demande de devis avec le total
    ═══════════════════════════════════════════════════════ */
 
 (function injectCartStyles(){
@@ -364,35 +364,55 @@ function parsePrice(card){
   return isFinite(num) ? num : null;
 }
 
+function getCardZone(card){
+  if(card.classList.contains('dyn-price-card')){
+    return document.body.classList.contains('eu-active') ? 'eu' : 'ca';
+  }
+  return card.closest('.services-panel')?.id === 'panel-eu' ? 'eu' : 'ca';
+}
+
+function syncCartButton(card, cartBtn, idx){
+  const price = parsePrice(card);
+  if(price == null) return false;
+  const nameEl = card.querySelector('.srv-name, .g-price-title');
+  const name = nameEl ? nameEl.textContent.trim() : `Service ${idx+1}`;
+  const iconEl = card.querySelector('.srv-icon-wrap, .g-price-icon');
+  const icon = iconEl ? iconEl.textContent.trim() : '📦';
+  const zone = getCardZone(card);
+  const id = `${zone}-${name.replace(/\s+/g,'-').toLowerCase().slice(0,40)}`;
+  cartBtn.dataset.id = id;
+  cartBtn.dataset.name = name;
+  cartBtn.dataset.icon = icon;
+  cartBtn.dataset.price = price;
+  cartBtn.dataset.zone = zone;
+  return true;
+}
+
 /* ─── Inject "Add to cart" button on every service card ─── */
 function injectCartButtons(){
   // Service cards (.srv-card) and Google price cards (.g-price-card)
   document.querySelectorAll('.srv-card, .g-price-card').forEach((card, idx) => {
-    if(card.dataset.cartReady) return;
-    card.dataset.cartReady = '1';
     const orderBtn = card.querySelector('.btn-order, .g-price-btn');
     if(!orderBtn) return;
-    const price = parsePrice(card);
-    if(price == null) return;
-    const nameEl = card.querySelector('.srv-name, .g-price-title');
-    const name = nameEl ? nameEl.textContent.trim() : `Service ${idx+1}`;
-    const iconEl = card.querySelector('.srv-icon-wrap, .g-price-icon');
-    const icon = iconEl ? iconEl.textContent.trim() : '📦';
-    const zone = card.closest('.services-panel')?.id === 'panel-eu' ? 'eu' : 'ca';
-    const id = `${zone}-${name.replace(/\s+/g,'-').toLowerCase().slice(0,40)}`;
-
-    const cartBtn = document.createElement('button');
+    let cartBtn = card.querySelector('.btn-cart');
+    if(cartBtn){
+      syncCartButton(card, cartBtn, idx);
+      return;
+    }
+    cartBtn = document.createElement('button');
     cartBtn.type = 'button';
     cartBtn.className = 'btn-cart';
     cartBtn.innerHTML = `🛒 <span>${t('Panier','Cart')}</span>`;
-    cartBtn.dataset.id = id;
-    cartBtn.dataset.name = name;
-    cartBtn.dataset.icon = icon;
-    cartBtn.dataset.price = price;
-    cartBtn.dataset.zone = zone;
+    if(!syncCartButton(card, cartBtn, idx)) return;
+    card.dataset.cartReady = '1';
 
     cartBtn.addEventListener('click', (e) => {
       e.preventDefault();
+      const id = cartBtn.dataset.id;
+      const name = cartBtn.dataset.name;
+      const icon = cartBtn.dataset.icon;
+      const price = Number(cartBtn.dataset.price);
+      const zone = cartBtn.dataset.zone;
       CART.add({ id, name, icon, price, zone });
       renderCart();
       flyToCart(cartBtn);
@@ -497,16 +517,16 @@ function renderCart(){
     <div class="cart-totals">
       ${totalCA ? `<div class="cart-line"><span>${t('Sous-total Canada','Canada subtotal')}</span><strong>$${totalCA.toLocaleString()} CAD</strong></div>` : ''}
       ${totalEU ? `<div class="cart-line"><span>${t('Sous-total Europe','Europe subtotal')}</span><strong>${totalEU.toLocaleString()} €</strong></div>` : ''}
-      <div class="cart-line"><span>${t('TPS/TVH estimée','Tax estimated')}</span><span>${t('Calculée au paiement','Calculated at checkout')}</span></div>
+      <div class="cart-line"><span>${t('Taxes applicables','Applicable taxes')}</span><span>${t('Précisées dans le devis','Detailed in the quote')}</span></div>
       <div class="cart-line total">
         <span>${t('Total','Total')}</span>
         <span class="amount">${totalCA && totalEU ? '$'+totalCA.toLocaleString()+' + '+totalEU.toLocaleString()+'€' : totalCA ? '$'+totalCA.toLocaleString()+' CAD' : totalEU.toLocaleString()+' €'}</span>
       </div>
     </div>
     <button class="cart-checkout" id="cart-checkout">
-      🔒 ${t('Passer au paiement','Proceed to checkout')} →
+      📋 ${t('Demander un devis','Request a quote')} →
     </button>
-    <div class="cart-secure">${t('Paiement sécurisé Stripe · SSL 256-bit','Secure Stripe payment · 256-bit SSL')}</div>
+    <div class="cart-secure">${t('Devis personnalisé · Aucun paiement en ligne','Personalized quote · No online payment')}</div>
   `;
   footer.innerHTML = totalsHtml;
 
@@ -530,7 +550,7 @@ function renderCart(){
   const checkoutBtn = document.getElementById('cart-checkout');
   if(checkoutBtn){
     checkoutBtn.addEventListener('click', () => {
-      // Open existing Stripe modal with total
+      // Open the quote modal with the current cart total
       const grandTotal = totalCA + totalEU;
       const summary = CART.items.map(i => `${i.qty}× ${i.name}`).join(', ');
       const zone = totalEU > totalCA ? 'eu' : 'ca';
@@ -607,6 +627,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Inject buttons on service cards (also re-inject after language toggle)
   setTimeout(injectCartButtons, 300);
+  document.addEventListener('digitalnova:pricing-updated', injectCartButtons);
   const observer = new MutationObserver(() => injectCartButtons());
   observer.observe(document.body, {childList: true, subtree: true});
 
