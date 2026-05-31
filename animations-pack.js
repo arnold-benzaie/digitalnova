@@ -86,13 +86,24 @@
       0%,100% { background-position: 0% 50%; }
       50%     { background-position: 100% 50%; }
     }
-    .ribbon, .nl-sec {
+    .nl-sec {
       background-size: 200% 200% !important;
       animation: gradShift 8s ease infinite;
     }
+    /* Trust ribbon stays intentionally calm and readable. */
+    .ribbon,
+    .ribbon * {
+      animation: none !important;
+      transition: none !important;
+      transform: none !important;
+    }
+    .ribbon {
+      background-size: 100% 100% !important;
+      background-position: 50% 50% !important;
+    }
 
     /* ─── HOVER LIFT ON CARDS / BUTTONS (floating-card kept calm) ─── */
-    .reg-row, .c-badge, .tchip, .s-chip, .kpi, .rib-item,
+    .reg-row, .c-badge, .tchip, .s-chip, .kpi,
     .fc a, .foot-legal a, .nav-center a, .zone-tab, .lang-btn, .zone-btn {
       transition: transform .3s cubic-bezier(.2,.8,.2,1), color .3s ease, background .3s ease, border-color .3s ease, box-shadow .3s ease;
     }
@@ -102,7 +113,6 @@
     .reg-row:hover { transform: translateX(4px); }
     .c-badge:hover, .tchip:hover { transform: translateY(-3px) scale(1.06); }
     .kpi:hover { transform: translateY(-4px); }
-    .rib-item:hover { transform: scale(1.1); color: #fff !important; }
     .fc a:hover, .foot-legal a:hover { transform: translateX(3px); }
 
     /* Animated underline on nav + footer links */
@@ -252,7 +262,7 @@
       ['.sec-sub, .ghero-sub, .g-feat-sub, .nl-sub, .ft-desc', 'anim anim-up'],
       ['.srv-card, .g-price-card, .rev-card, .cert-card, .g-feat-card, .reg-row, .c-badge, .tchip, .kpi, .faq-it, .g-step', 'anim anim-zoom'],
       ['.cred-glass, .stripe-wrap, .review-card-3d, .seo-explain', 'anim anim-flip'],
-      ['.score-block, .ribbon', 'anim anim-blur'],
+      ['.score-block', 'anim anim-blur'],
       ['.hero-pre, .hero-h1, .hero-sub, .hero-btns, .hero-kpis', 'anim anim-up'],
       ['.srv-grid, .g-feat-grid, .g-price-grid, .rev-grid, .certs-grid, .faq-list, .cards-wrap, .seo-kw-cards, .g-steps, .foot-top', 'stagger']
     ];
