@@ -4,8 +4,7 @@
 
 (function inject3DStyles(){
   const css = `
-    /* Global perspective for 3D children */
-    body { perspective: 1400px; perspective-origin: 50% 30%; }
+    /* Fixed UI must stay pinned to the viewport. Cards define their own 3D context. */
 
     /* 3D tilt cards */
     .tilt-3d {
