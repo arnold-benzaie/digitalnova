@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   🌍 Global Visibility — Sparkle cursor + FR/EN translation
+   🌍 PUBLI-MAP — Sparkle cursor + FR/EN translation
    ═══════════════════════════════════════════════ */
 
 /* ─── SPARKLE / STAR CURSOR EFFECT ─── */
@@ -54,7 +54,7 @@
 /* ─── FR/EN TRANSLATION SYSTEM ─── */
 const T = {
   // Meta / title
-  "🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital":"🌍 Global Visibility CANADA INC. — The Reference in Digital Marketing",
+  "🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital":"🌍 PUBLI-MAP CANADA INC. — The Reference in Digital Marketing",
   "Chargement de la plateforme…":"Loading the platform…",
 
   // Navigation
@@ -78,7 +78,7 @@ const T = {
   "Professionnels Certifiés":"Certified Professionals",
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
-  "🌍 Global Visibility CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 Global Visibility CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
+  "🌍 PUBLI-MAP CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 PUBLI-MAP CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
   "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",
@@ -125,7 +125,7 @@ const T = {
   "Google Ads":"Google Ads",
 
   // Dashboard
-  "🌍 Global Visibility — Dashboard Marketing Canada & Europe":"🌍 Global Visibility — Marketing Dashboard Canada & Europe",
+  "🌍 PUBLI-MAP — Dashboard Marketing Canada & Europe":"🌍 PUBLI-MAP — Marketing Dashboard Canada & Europe",
   "SEO Traffic":"SEO Traffic",
   "×4.8 ROI":"×4.8 ROI",
   "Retour invest.":"ROI",
@@ -138,7 +138,7 @@ const T = {
   "Ads":"Ads",
   "Analytics":"Analytics",
   "Ads Expert":"Ads Expert",
-  "🌍 Global Visibility Dashboard":"🌍 Global Visibility Dashboard",
+  "🌍 PUBLI-MAP Dashboard":"🌍 PUBLI-MAP Dashboard",
   "SEO Rankings":"SEO Rankings",
   "#1 Google.ca":"#1 Google.ca",
   "#2 Québec":"#2 Quebec",
@@ -148,7 +148,7 @@ const T = {
   "+280% de trafic !":"+280% traffic!",
   "SEO National Canada":"National SEO Canada",
   "En seulement 3 mois 🚀":"In just 3 months 🚀",
-  "Partner Team — 🌍 Global Visibility CANADA INC.":"Partner Team — 🌍 Global Visibility CANADA INC.",
+  "Partner Team — 🌍 PUBLI-MAP CANADA INC.":"Partner Team — 🌍 PUBLI-MAP CANADA INC.",
   "✓ Certifié":"✓ Certified",
 
   // Service intro
@@ -431,7 +431,7 @@ const T = {
   ". Livraison sous 5 jours ouvrables.":". Delivery within 5 business days.",
   "Review us on":"Review us on",
   "Reviews":"Reviews",
-  "🌍 Global Visibility.CA · Google Reviews":"🌍 Global Visibility.CA · Google Reviews",
+  "🌍 PUBLI-MAP.CA · Google Reviews":"🌍 PUBLI-MAP.CA · Google Reviews",
   "VOTRE LOGO":"YOUR LOGO",
   "1 Scan = 1 Avis":"1 Scan = 1 Review",
   "Le client scanne le QR Code avec son iPhone ou Android — redirigé vers votre fiche Google Reviews en 2 secondes.":"Customer scans the QR Code with iPhone or Android — redirected to your Google Reviews page in 2 seconds.",
@@ -454,7 +454,7 @@ const T = {
   "\"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada et en Europe.\"":"\"The most transparent and effective agency I've worked with in Canada and Europe.\"",
   "Marie-Claude Tremblay":"Marie-Claude Tremblay",
   "Montréal, Québec 🇨🇦":"Montreal, Quebec 🇨🇦",
-  "🌍 Global Visibility a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"🌍 Global Visibility transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
+  "🌍 PUBLI-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"🌍 PUBLI-MAP transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
   "Il y a 2 semaines · Avis vérifié Google ✓":"2 weeks ago · Google verified review ✓",
   "Jean-François Bouchard":"Jean-François Bouchard",
   "Québec City 🇨🇦":"Quebec City 🇨🇦",
@@ -463,20 +463,20 @@ const T = {
   "Il y a 1 mois · Avis vérifié Google ✓":"1 month ago · Google verified review ✓",
   "Sophie Larivière":"Sophie Larivière",
   "Toronto, Ontario 🇨🇦":"Toronto, Ontario 🇨🇦",
-  "J'ai testé 4 agences avant 🌍 Global Visibility — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before 🌍 Global Visibility — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
+  "J'ai testé 4 agences avant 🌍 PUBLI-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before 🌍 PUBLI-MAP — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
   "Google Ads Pro Canada":"Google Ads Pro Canada",
   "Il y a 3 semaines · Avis vérifié Google ✓":"3 weeks ago · Google verified review ✓",
   "Pierre-Antoine Moreau":"Pierre-Antoine Moreau",
   "Paris, France 🇫🇷":"Paris, France 🇫🇷",
-  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 Global Visibility France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The 🌍 Global Visibility France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
+  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLI-MAP France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The 🌍 PUBLI-MAP France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
   "Il y a 6 semaines · Avis vérifié Google ✓":"6 weeks ago · Google verified review ✓",
   "Lucie Gagnon":"Lucie Gagnon",
   "Vancouver, C.-B. 🇨🇦":"Vancouver, B.C. 🇨🇦",
-  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 Global Visibility est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 Global Visibility is the ideal partner for any SME that wants to grow fast and sustainably.",
+  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLI-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 PUBLI-MAP is the ideal partner for any SME that wants to grow fast and sustainably.",
   "Il y a 2 mois · Avis vérifié Google ✓":"2 months ago · Google verified review ✓",
   "Nicolas Blanchard":"Nicolas Blanchard",
   "Bruxelles, Belgique 🇧🇪":"Brussels, Belgium 🇧🇪",
-  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 Global Visibility !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks 🌍 Global Visibility!",
+  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 PUBLI-MAP !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks 🌍 PUBLI-MAP!",
   "Site Web Europe + SEO":"Website Europe + SEO",
   "Il y a 5 semaines · Avis vérifié Google ✓":"5 weeks ago · Google verified review ✓",
 
@@ -484,7 +484,7 @@ const T = {
   "Certifications Officielles":"Official Certifications",
   "Notre expertise,":"Our expertise,",
   "certifiée et reconnue":"certified and recognized",
-  "🌍 Global Visibility CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 Global Visibility CANADA INC. holds official certifications issued by Google and the world's leading SEO authorities. Each certification is the result of rigorous exams and proven field expertise.",
+  "🌍 PUBLI-MAP CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 PUBLI-MAP CANADA INC. holds official certifications issued by Google and the world's leading SEO authorities. Each certification is the result of rigorous exams and proven field expertise.",
   "CERTIFIED":"CERTIFIED",
   "oogle":"oogle",
   "Certification":"Certification",
@@ -502,8 +502,15 @@ const T = {
   "SEO Expert Certification":"SEO Expert Certification",
   "Search Engine Optimization":"Search Engine Optimization",
   "Expert — Certified Professional":"Expert — Certified Professional",
+  "Nos Certifications":"Our Certifications",
+  "Meta Certified Community Manager":"Meta Certified Community Manager",
+  "Digital Marketing Master Licensed":"Digital Marketing Master Licensed",
+  "CSS3 Developer Certification":"CSS3 Developer Certification",
+  "HTML5 Developer Certification":"HTML5 Developer Certification",
+  "SEO for Growth Certified Consultant":"SEO for Growth Certified Consultant",
+  "Meta Certified Marketing Science Professional":"Meta Certified Marketing Science Professional",
   "Toutes nos accréditations":"All our accreditations",
-  "8 certifications · 3 partenariats officiels":"8 certifications · 3 official partnerships",
+  "14 certifications · 3 partenariats officiels":"14 certifications · 3 official partnerships",
   "Certifié ✓":"Certified ✓",
   "Certified ✓":"Certified ✓",
   "Individual ✓":"Individual ✓",
@@ -524,7 +531,7 @@ const T = {
   "Pays":"Countries",
 
   // Credibility
-  "🌍 Global Visibility CANADA INC.":"🌍 Global Visibility CANADA INC.",
+  "🌍 PUBLI-MAP CANADA INC.":"🌍 PUBLI-MAP CANADA INC.",
   "Société Officiellement Enregistrée":"Officially Registered Company",
   "Corporations Canada":"Corporations Canada",
   "Registre fédéral canadien · Numéro sur demande":"Canadian federal register · Number on request",
@@ -543,7 +550,7 @@ const T = {
   "Transparence Totale":"Total Transparency",
   "Votre sécurité,":"Your security,",
   "notre priorité":"our priority",
-  "🌍 Global Visibility CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 Global Visibility CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
+  "🌍 PUBLI-MAP CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 PUBLI-MAP CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
   "🔒 Aucune donnée bancaire":"🔒 No banking data",
   "🛡️ ISO 27001":"🛡️ ISO 27001",
   "📋 RGPD Compliant":"📋 GDPR Compliant",
@@ -559,7 +566,7 @@ const T = {
   "Questions fréquentes —":"FAQ —",
   "Toutes les réponses":"All the answers",
   "Nous répondons à chaque doute avec transparence et précision.":"We answer every doubt with transparency and precision.",
-  "🤔 🌍 Global Visibility est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 Global Visibility a real registered company?",
+  "🤔 🌍 PUBLI-MAP est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 PUBLI-MAP a real registered company?",
   "Oui, à 100%.":"Yes, 100%.",
   "Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.":"Searchable on corporations.canada.ca (Canada) and via INPI in France. Our business number is provided on simple request. Zero opacity.",
   "📋 Comment recevoir mon devis ?":"📋 How do I receive my quote?",
@@ -582,7 +589,7 @@ const T = {
   "Réseaux Sociaux :":"Social Networks:",
   "croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.":"measurable growth from week 2. Real-time dashboard included.",
   "🏆 Comment vérifier vos certifications Google ?":"🏆 How to verify your Google certifications?",
-  "Recherchez \"🌍 Global Visibility CANADA\" sur":"Search \"🌍 Global Visibility CANADA\" on",
+  "Recherchez \"🌍 PUBLI-MAP CANADA\" sur":"Search \"🌍 PUBLI-MAP CANADA\" on",
   ". Badges Meta, HubSpot et TikTok vérifiables sur leurs portails. Liens envoyés sur demande sous 10 minutes.":". Meta, HubSpot and TikTok badges verifiable on their portals. Links sent on request within 10 minutes.",
   "📞 Qui sera mon interlocuteur dédié ?":"📞 Who will be my dedicated contact?",
   "Un Chef de Projet dédié":"A dedicated Project Manager",
@@ -724,8 +731,8 @@ function walkAndTranslate(targetLang){
   });
 
   // Update <title>
-  if(targetLang === 'en') document.title = T["🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital"] || document.title;
-  else document.title = "🌍 Global Visibility CANADA INC. — La Référence du Marketing Digital";
+  if(targetLang === 'en') document.title = T["🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital"] || document.title;
+  else document.title = "🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital";
 
   document.documentElement.lang = targetLang;
   CURRENT_LANG = targetLang;

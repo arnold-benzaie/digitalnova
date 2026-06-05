@@ -246,24 +246,32 @@
 /* "Cart" mini-button (from cart.js) — restyled to fit the new design */
 .srv-card .btn-cart {
   border-radius: 24px !important;
-  background: transparent !important;
-  border: 1.5px solid currentColor !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 1.5px solid transparent !important;
   padding: 10px 18px !important;
   font-size: 11px !important;
   margin-left: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.14) !important;
 }
 .srv-grid > .srv-card:nth-child(3n+1) .btn-cart {
-  color: #0A2540 !important;
-  border-color: rgba(10,37,64,.15) !important;
+  color: #1B5BFF !important;
+  border-color: rgba(27,91,255,.18) !important;
 }
-.srv-grid > .srv-card:nth-child(3n+2) .btn-cart,
+.srv-grid > .srv-card:nth-child(3n+2) .btn-cart {
+  color: #1B5BFF !important;
+}
 .srv-grid > .srv-card:nth-child(3n+3) .btn-cart {
-  color: #FFFFFF !important;
-  border-color: rgba(255,255,255,.5) !important;
+  color: #FF1B6B !important;
+}
+.srv-card .btn-cart .cart-ico,
+.g-price-card .btn-cart .cart-ico {
+  background: #EEF4FF !important;
+  color: inherit !important;
 }
 .srv-card .btn-cart:hover {
-  background: rgba(255,255,255,.15) !important;
+  background: #FFFFFF !important;
   transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.2) !important;
 }
 
 /* ═══════════════════════════════════════════
@@ -350,17 +358,20 @@
   border-radius: 24px !important;
   padding: 12px 16px !important;
   margin: -12px 26px 22px !important;
-  background: transparent !important;
-  border: 1.5px solid !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 1.5px solid transparent !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.14) !important;
 }
 .g-price-grid > .g-price-card:nth-child(1) .btn-cart,
 .g-price-grid > .g-price-card:nth-child(2) .btn-cart {
-  color: #fff !important;
-  border-color: rgba(255,255,255,.5) !important;
+  color: #1B5BFF !important;
 }
 .g-price-grid > .g-price-card:nth-child(3) .btn-cart {
   color: #1B5BFF !important;
-  border-color: rgba(27,91,255,.3) !important;
+  border-color: rgba(27,91,255,.18) !important;
+}
+.g-price-grid > .g-price-card .btn-cart .cart-ico {
+  color: #1B5BFF !important;
 }
 
 /* Hide the original colored top-band on g-price-card (the colored line was redundant) */

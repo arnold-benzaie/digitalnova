@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 Global Visibility — Panier (Shopping Cart) système
+   🌍 PUBLI-MAP — Panier (Shopping Cart) système
    - Détecte chaque carte service et ajoute un bouton "Panier"
    - Drawer latéral droit avec liste, quantités, total
    - Persistance localStorage (survit aux rechargements)
@@ -225,7 +225,7 @@
 
     /* "ADD TO CART" mini-button injected on service cards */
     .btn-cart {
-      display: inline-flex; align-items: center; gap: 6px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
       background: #FFFFFF;
       color: var(--navy, #0A2540);
       border: 1.5px solid var(--gray-200, #E5EAF0);
@@ -235,6 +235,16 @@
       transition: all .25s ease;
       white-space: nowrap;
     }
+    .btn-cart .cart-ico {
+      width: 22px; height: 22px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      background: var(--tech-blue-soft, #EEF2FF);
+      box-shadow: inset 0 0 0 1px rgba(27,91,255,.14);
+      font-size: 13px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
     .btn-cart:hover {
       border-color: var(--tech-blue, #1B5BFF);
       color: var(--tech-blue, #1B5BFF);
@@ -243,6 +253,10 @@
     }
     .btn-cart.added {
       background: #10B981; color: #fff; border-color: #10B981;
+    }
+    .btn-cart.added .cart-ico {
+      background: rgba(255,255,255,.18);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
     }
 
     /* FLY-TO-CART animation */
@@ -402,7 +416,7 @@ function injectCartButtons(){
     cartBtn = document.createElement('button');
     cartBtn.type = 'button';
     cartBtn.className = 'btn-cart';
-    cartBtn.innerHTML = `🛒 <span>${t('Panier','Cart')}</span>`;
+    cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">🛒</span><span>${t('Panier','Cart')}</span>`;
     if(!syncCartButton(card, cartBtn, idx)) return;
     card.dataset.cartReady = '1';
 
@@ -417,10 +431,10 @@ function injectCartButtons(){
       renderCart();
       flyToCart(cartBtn);
       cartBtn.classList.add('added');
-      cartBtn.innerHTML = `✓ <span>${t('Ajouté','Added')}</span>`;
+      cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">✓</span><span>${t('Ajouté','Added')}</span>`;
       setTimeout(() => {
         cartBtn.classList.remove('added');
-        cartBtn.innerHTML = `🛒 <span>${t('Panier','Cart')}</span>`;
+        cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">🛒</span><span>${t('Panier','Cart')}</span>`;
       }, 1500);
       showToast(`✓ ${name} ${t('ajouté au panier','added to cart')}`);
     });
@@ -557,7 +571,7 @@ function renderCart(){
       const displayPrice = zone === 'eu' ? totalEU : totalCA;
       if(typeof window.openModal === 'function'){
         window.openModal(
-          t('Panier 🌍 Global Visibility','🌍 Global Visibility Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
+          t('Panier 🌍 PUBLI-MAP','🌍 PUBLI-MAP Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
           displayPrice,
           displayPrice,
           zone

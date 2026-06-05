@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 Global Visibility — Full Animation Pack
+   🌍 PUBLI-MAP — Full Animation Pack
    Additive animations on every section / element
    ═══════════════════════════════════════════════════════ */
 
