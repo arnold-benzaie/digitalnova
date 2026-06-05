@@ -4,6 +4,10 @@
 
 /* ─── SPARKLE / STAR CURSOR EFFECT ─── */
 (function sparkleCursor(){
+  const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(window.innerWidth <= 900 || !finePointer || reducedMotion) return;
+
   const colors = ['#B87333','#D4A95C','#E5C078','#EFE5D0','#F5C97E'];
   const sparkles = [];
   const MAX = 60;
@@ -78,7 +82,7 @@ const T = {
   "Professionnels Certifiés":"Certified Professionals",
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
-  "🌍 PUBLI-MAP CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 PUBLI-MAP CANADA INC. — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
+  "🌍 PUBLI-MAP — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 PUBLI-MAP — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
   "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",

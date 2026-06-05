@@ -868,6 +868,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="final-polish.css?v=1779632675"/>
 <link rel="stylesheet" href="mobile-ux-fixes.css?v=2026053101"/>
 <link rel="stylesheet" href="hero-no-video.css?v=1780235630"/>
+<link rel="stylesheet" href="mobile-performance.css?v=2026060501"/>
 </head>
 <body>
 
@@ -935,7 +936,7 @@ footer{background:#050505;}
         <span class="hero-line-1">Votre Visibilité</span>
         <em class="hero-line-2">Globale</em>
       </h1>
-      <p class="hero-sub">🌍 PUBLI-MAP CANADA INC. — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.</p>
+      <p class="hero-sub">🌍 PUBLI-MAP — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.</p>
       <div class="hero-btns">
         <a href="#services" class="btn-red">Découvrez nos services</a>
         <a href="#contact" class="btn-ghost">Nous contacter →</a>
@@ -2886,13 +2887,19 @@ window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loade
 
 /* ── CURSOR ── */
 const c1=document.getElementById('cur'),c2=document.getElementById('cur2');
-let mx=0,my=0,t2x=0,t2y=0;
-document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;c1.style.left=mx+'px';c1.style.top=my+'px';});
-(function loop(){t2x+=(mx-t2x)*.14;t2y+=(my-t2y)*.14;c2.style.left=t2x+'px';c2.style.top=t2y+'px';requestAnimationFrame(loop);})();
-document.querySelectorAll('a,button,.srv-card,.rev-card,.cert-card').forEach(el=>{
-  el.addEventListener('mouseenter',()=>{c1.style.width='18px';c1.style.height='18px';c2.style.width='52px';c2.style.height='52px';});
-  el.addEventListener('mouseleave',()=>{c1.style.width='10px';c1.style.height='10px';c2.style.width='32px';c2.style.height='32px';});
-});
+const fineCursor=window.innerWidth>900&&window.matchMedia&&window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+if(fineCursor&&c1&&c2){
+  let mx=0,my=0,t2x=0,t2y=0;
+  document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;c1.style.left=mx+'px';c1.style.top=my+'px';});
+  (function loop(){t2x+=(mx-t2x)*.14;t2y+=(my-t2y)*.14;c2.style.left=t2x+'px';c2.style.top=t2y+'px';requestAnimationFrame(loop);})();
+  document.querySelectorAll('a,button,.srv-card,.rev-card,.cert-card').forEach(el=>{
+    el.addEventListener('mouseenter',()=>{c1.style.width='18px';c1.style.height='18px';c2.style.width='52px';c2.style.height='52px';});
+    el.addEventListener('mouseleave',()=>{c1.style.width='10px';c1.style.height='10px';c2.style.width='32px';c2.style.height='32px';});
+  });
+}else{
+  if(c1)c1.remove();
+  if(c2)c2.remove();
+}
 
 /* ── NAVBAR SCROLL ── */
 window.addEventListener('scroll',()=>{
@@ -3046,9 +3053,9 @@ function submitQuote(){
   document.getElementById('m-ok').classList.add('show');
 }
 </script>
-<script src="i18n-sparkles.js?v=2026053101"></script>
+<script src="i18n-sparkles.js?v=2026060501"></script>
 <script src="3d-effects.js?v=2026053102"></script>
-<script src="animations-pack.js?v=2026053103"></script>
+<script src="animations-pack.js?v=2026060501"></script>
 <script src="theme-extra-anims.js?v=2026053101"></script>
 <script src="cart.js?v=2026053101"></script>
 <script src="dynamic-pricing.js?v=2026053101"></script>

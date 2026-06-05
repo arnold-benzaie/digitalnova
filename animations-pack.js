@@ -3,6 +3,11 @@
    Additive animations on every section / element
    ═══════════════════════════════════════════════════════ */
 
+function publiMapMobilePerfMode(){
+  return (window.matchMedia && window.matchMedia('(max-width: 900px), (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)').matches)
+    || window.innerWidth <= 900;
+}
+
 (function injectGlobalAnimStyles(){
   const css = `
     /* ─── REVEAL ANIMATIONS ─── */
@@ -246,6 +251,29 @@
         transition-duration: .01ms !important;
       }
     }
+
+    @media (max-width: 900px), (hover: none), (pointer: coarse) {
+      .anim, .anim.in,
+      .stagger > *, .stagger.in > *,
+      .rv, .rv-l, .rv-r {
+        opacity: 1 !important;
+        transform: none !important;
+        animation: none !important;
+        transition: none !important;
+        will-change: auto !important;
+      }
+      .nav-toggle,
+      .nav-toggle::before,
+      .nav-cta, .btn-red, .g-btn-primary, .btn-order, .sf-submit, .m-submit,
+      .srv-badge, .g-pop-badge, .badge-hot, .badge-new, .badge-best,
+      .sec-h em, .hero-h1 em, .ghero-title em, .nav-brand span, .ft-brand-name,
+      .nl-sec, .foot-bot::before, .cert-marquee-track {
+        animation: none !important;
+      }
+      #bg-particles {
+        display: none !important;
+      }
+    }
   `;
   const s = document.createElement('style');
   s.id = 'anim-pack-style';
@@ -271,6 +299,13 @@
         cls.split(' ').forEach(c => el.classList.add(c));
       });
     });
+
+    if(publiMapMobilePerfMode()){
+      document.querySelectorAll('.anim, .stagger, .rv, .rv-l, .rv-r').forEach(el => {
+        el.classList.add('in', 'on');
+      });
+      return;
+    }
 
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
@@ -298,6 +333,13 @@
 (function counters(){
   const init = () => {
     const els = document.querySelectorAll('[data-count]');
+    if(publiMapMobilePerfMode()){
+      els.forEach(el => {
+        const target = parseInt(el.dataset.count, 10);
+        if(!isNaN(target)) el.textContent = `${target}${target === 98 ? '%' : target === 850 ? '+' : ''}`;
+      });
+      return;
+    }
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => {
         if(!e.isIntersecting) return;
@@ -329,6 +371,7 @@
 (function magnetic(){
   const SEL = '.btn-red, .nav-cta, .g-btn-primary, .btn-order, .sf-submit, .m-submit, .nl-btn';
   const init = () => {
+    if(publiMapMobilePerfMode()) return;
     document.querySelectorAll(SEL).forEach(btn => {
       btn.classList.add('magnetic');
       btn.addEventListener('mousemove', e => {
@@ -349,6 +392,7 @@
 /* ─── BACKGROUND FLOATING PARTICLES ─── */
 (function bgParticles(){
   const init = () => {
+    if(publiMapMobilePerfMode()) return;
     const wrap = document.createElement('div');
     wrap.id = 'bg-particles';
     document.body.appendChild(wrap);
@@ -374,6 +418,7 @@
 /* ─── TYPEWRITER on hero pre-title (one-shot) ─── */
 (function typewriter(){
   const init = () => {
+    if(publiMapMobilePerfMode()) return;
     const target = document.querySelector('.hero-pre');
     if(!target) return;
     const txt = target.innerText;
