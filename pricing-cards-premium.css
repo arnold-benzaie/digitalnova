@@ -172,12 +172,19 @@
 .srv-card .srv-bottom {
   background: transparent !important;
   border-top: 1px solid rgba(255,255,255,.18) !important;
-  padding: 22px 28px !important;
-  display: flex !important;
+  padding: 22px 24px 26px !important;
+  display: grid !important;
+  grid-template-columns: auto auto !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 16px;
+  justify-content: center !important;
+  justify-items: center !important;
+  gap: 14px 12px;
   position: relative; z-index: 1;
+}
+.srv-card .srv-bottom > div:first-child {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
 }
 .srv-grid > .srv-card:nth-child(3n+1) .srv-bottom {
   border-top-color: rgba(10,37,64,.08) !important;
@@ -213,6 +220,7 @@
   text-transform: none !important;
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 8px !important;
   box-shadow: 0 6px 18px rgba(0,0,0,.18) !important;
   cursor: pointer;
@@ -250,7 +258,7 @@
   border: 1.5px solid transparent !important;
   padding: 10px 18px !important;
   font-size: 11px !important;
-  margin-left: 6px;
+  margin-left: 0 !important;
   box-shadow: 0 6px 18px rgba(0,0,0,.14) !important;
 }
 .srv-grid > .srv-card:nth-child(3n+1) .btn-cart {
@@ -387,6 +395,7 @@
     transform: none !important;
   }
   .srv-bottom {
+    display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 12px !important;
@@ -395,6 +404,9 @@
     width: 100% !important;
     justify-content: center !important;
     white-space: normal !important;
+  }
+  .srv-bottom .btn-cart {
+    width: 100% !important;
   }
   .g-price-card .g-price-amount {
     font-size: 44px !important;
