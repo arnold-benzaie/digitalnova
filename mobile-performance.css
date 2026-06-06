@@ -336,3 +336,93 @@
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+
+/* Compact mobile journey: keep the commercial content, remove long secondary reading. */
+@media (max-width: 768px) {
+  .g-process,
+  .seo-sec,
+  .maps-sec {
+    display: none !important;
+  }
+
+  .g-features,
+  .g-pricing,
+  .services-panel-inner,
+  #avis,
+  #certifications,
+  .cred-sec,
+  .pay-sec,
+  .nl-sec {
+    padding-top: 40px !important;
+    padding-bottom: 44px !important;
+  }
+
+  .g-feat-grid,
+  .g-price-grid,
+  .srv-grid,
+  .rev-grid,
+  .cert-badges-grid {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 16px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 4px 16px !important;
+    margin-left: -4px;
+    margin-right: -4px;
+  }
+
+  .g-feat-grid::-webkit-scrollbar,
+  .g-price-grid::-webkit-scrollbar,
+  .srv-grid::-webkit-scrollbar,
+  .rev-grid::-webkit-scrollbar,
+  .cert-badges-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .g-feat-card,
+  .g-price-card,
+  .srv-card,
+  .rev-card,
+  .cert-badges-grid > div {
+    flex: 0 0 min(84vw, 340px) !important;
+    width: min(84vw, 340px) !important;
+    max-width: min(84vw, 340px) !important;
+    scroll-snap-align: start;
+  }
+
+  .srv-card,
+  .rev-card,
+  .g-feat-card {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .srv-card {
+    padding: 24px !important;
+  }
+
+  .rev-card {
+    padding: 22px !important;
+  }
+
+  #certifications .cert-badges-grid {
+    margin-bottom: 28px !important;
+  }
+
+  #certifications .cert-badges-grid svg {
+    width: 150px !important;
+    height: 150px !important;
+  }
+
+  #certifications .cert-badges-grid > div {
+    gap: 12px !important;
+  }
+
+  .cert-static-grid {
+    display: none !important;
+  }
+}
