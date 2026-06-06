@@ -2768,7 +2768,7 @@ footer{background:#050505;}
       <div class="faq-it rv" style="transition-delay:.05s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🤔 🌍 PUBLI-MAP est-elle une vraie entreprise enregistrée ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Oui, à 100%.</strong> Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.1s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">📋 Comment recevoir mon devis ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Aucune donnée bancaire n'est demandée.</strong> Choisissez votre service, préparez votre courriel et envoyez votre demande depuis votre propre messagerie. Notre équipe vous recontacte pour confirmer le périmètre et les modalités.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.15s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">📈 Quelle garantie si je ne vois pas de résultats ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Garantie résultats 90 jours</strong> sur le Pack SEO. Objectifs non atteints = remboursement intégral, sans question. Rapport de performance trimestriel transparent pour chaque service.</div></div></div>
-      <div class="faq-it rv" style="transition-delay:.2s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🇪🇺 Je suis en Europe — comment ça fonctionne ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Notre bureau Paris</strong> assure le suivi en heure européenne. Facturation en euros, contrats conformes RGPD, équipe francophone dédiée. Identique à une agence locale parisienne.</div></div></div>
+      <div class="faq-it rv" style="transition-delay:.2s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt" id="region-faq-title">🇨🇦 Je suis au Canada — comment ça fonctionne ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in" id="region-faq-answer"><strong>Notre bureau Montréal</strong> assure le suivi en heure canadienne EST/PST. Facturation en dollars canadiens, accompagnement bilingue FR/EN et stratégie adaptée au marché canadien.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.25s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🔒 Puis-je annuler à tout moment ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Oui, 30 jours de préavis suffit.</strong> Aucun engagement longue durée, aucune pénalité. Pour les projets uniques : 30% d'acompte au démarrage, solde à la livraison validée.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.3s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">⏱️ En combien de temps verrai-je des résultats ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>SEO :</strong> 4-8 semaines premiers signaux, 3-6 mois résultats majeurs. <strong>Google Ads :</strong> dès 72h. <strong>Réseaux Sociaux :</strong> croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.35s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🏆 Comment vérifier vos certifications Google ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in">Recherchez "🌍 PUBLI-MAP CANADA" sur <strong>google.com/partners</strong>. Badges Meta, HubSpot et TikTok vérifiables sur leurs portails. Liens envoyés sur demande sous 10 minutes.</div></div></div>
@@ -2960,6 +2960,11 @@ const reviewRegions={
     score:"4.9",
     scoreInfo:{fr:"Basé sur 527 avis Google vérifiés au Canada",en:"Based on 527 verified Google reviews in Canada"},
     quote:{fr:"\"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada.\"",en:"\"The most transparent and effective agency I have worked with in Canada.\""},
+    faq:{
+      title:{fr:"🇨🇦 Je suis au Canada — comment ça fonctionne ?",en:"🇨🇦 I am in Canada — how does it work?"},
+      lead:{fr:"Notre bureau Montréal",en:"Our Montreal office"},
+      body:{fr:" assure le suivi en heure canadienne EST/PST. Facturation en dollars canadiens, accompagnement bilingue FR/EN et stratégie adaptée au marché canadien : Québec, Ontario, Alberta, Colombie-Britannique et toutes les provinces.",en:" handles follow-up in Canadian EST/PST time. Billing is in Canadian dollars, with bilingual FR/EN support and strategy adapted to the Canadian market: Quebec, Ontario, Alberta, British Columbia, and all provinces."}
+    },
     reviews:[
       {
         name:"Marie-Claude Tremblay",
@@ -3023,6 +3028,11 @@ const reviewRegions={
     score:"4.8",
     scoreInfo:{fr:"Basé sur 318 avis Google vérifiés en Europe & francophonie",en:"Based on 318 verified Google reviews across Europe & French-speaking markets"},
     quote:{fr:"\"Une équipe capable de comprendre les marchés européens, francophones et internationaux sans compliquer le projet.\"",en:"\"A team that understands European, French-speaking, and international markets without complicating the project.\""},
+    faq:{
+      title:{fr:"🇪🇺 Je suis en Europe — comment ça fonctionne ?",en:"🇪🇺 I am in Europe — how does it work?"},
+      lead:{fr:"Notre bureau Paris",en:"Our Paris office"},
+      body:{fr:" assure le suivi en heure européenne. Facturation en euros, contrats conformes RGPD, équipe francophone dédiée. Identique à une agence locale parisienne.",en:" handles follow-up in European time. Billing is in euros, contracts are GDPR-compliant, and a dedicated French-speaking team supports you like a local Paris agency."}
+    },
     reviews:[
       {
         name:"Pierre-Antoine Moreau",
@@ -3096,6 +3106,7 @@ function switchPanel(z){
   document.getElementById('nb-ca').classList.toggle('active',z==='ca');
   document.getElementById('nb-eu').classList.toggle('active',z==='eu');
   renderRegionReviews(z);
+  renderRegionFaq(z);
 }
 
 function reviewLang(){return document.documentElement.lang==='en'?'en':'fr';}
@@ -3161,7 +3172,23 @@ function renderRegionReviews(zone,instant=false){
   });
 }
 renderRegionReviews(activeZone,true);
-document.addEventListener('digitalnova:language-updated',()=>renderRegionReviews(activeZone,true));
+function renderRegionFaq(zone){
+  const region=reviewRegions[zone]||reviewRegions.ca;
+  const faq=region.faq;
+  const title=document.getElementById('region-faq-title');
+  const answer=document.getElementById('region-faq-answer');
+  if(title)title.textContent=reviewText(faq.title);
+  if(answer){
+    const strong=document.createElement('strong');
+    strong.textContent=reviewText(faq.lead);
+    answer.replaceChildren(strong,document.createTextNode(reviewText(faq.body)));
+  }
+}
+renderRegionFaq(activeZone);
+document.addEventListener('digitalnova:language-updated',()=>{
+  renderRegionReviews(activeZone,true);
+  renderRegionFaq(activeZone);
+});
 
 /* ── FAQ ── */
 function toggleFaq(btn){
