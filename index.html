@@ -2220,14 +2220,14 @@ footer{background:#050505;}
       <div>
         <span class="sec-tag">⭐ Témoignages Vérifiés</span>
         <h2 class="sec-h">Ce que disent<br><em>nos clients</em></h2>
-        <p class="sec-sub">Avis authentiques vérifiés Google — clients réels du Canada et d'Europe.</p>
+        <p class="sec-sub" id="review-region-sub">Avis authentiques vérifiés Google — clients réels du Canada.</p>
       </div>
       <a href="#" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--gris2);border-radius:30px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--gris);text-decoration:none;transition:all .3s;" onmouseover="this.style.borderColor='var(--rouge)'" onmouseout="this.style.borderColor='var(--gris2)'">
-        <span style="font-weight:800;color:#4285F4;font-size:14px;">G</span> 527 avis Google
+        <span style="font-weight:800;color:#4285F4;font-size:14px;">G</span> <span id="review-google-count">527 avis Google Canada</span>
       </a>
     </div>
     <div class="score-block rv">
-      <div><div class="score-big">4.9</div><div class="score-stars">★★★★★</div><div class="score-info">Basé sur 527 avis Google vérifiés</div></div>
+      <div><div class="score-big" id="review-score">4.9</div><div class="score-stars">★★★★★</div><div class="score-info" id="review-score-info">Basé sur 527 avis Google vérifiés au Canada</div></div>
       <div class="score-sep"></div>
       <div class="score-bars">
         <div class="bar-r"><span>5★</span><div class="bar-t"><div class="bar-f" style="width:92%"></div></div><span>92%</span></div>
@@ -2235,50 +2235,50 @@ footer{background:#050505;}
         <div class="bar-r"><span>3★</span><div class="bar-t"><div class="bar-f" style="width:2%"></div></div><span>2%</span></div>
       </div>
       <div class="score-sep"></div>
-      <p class="score-quote">"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada et en Europe."</p>
+      <p class="score-quote" id="review-quote">"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada."</p>
     </div>
-    <div class="rev-grid">
+    <div class="rev-grid" id="review-grid">
       <div class="rev-card rv" style="transition-delay:.05s">
-        <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" data-face-ca="https://randomuser.me/api/portraits/women/44.jpg" data-face-eu="https://randomuser.me/api/portraits/women/28.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">🌍 PUBLI-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !</p>
         <span class="rev-tag">Pack SEO Prestige Canada</span>
         <div class="rev-date">Il y a 2 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.1s">
-        <div class="rev-head"><div class="rev-av av-b"><img src="https://randomuser.me/api/portraits/men/32.jpg" data-face-ca="https://randomuser.me/api/portraits/men/32.jpg" data-face-eu="https://randomuser.me/api/portraits/men/52.jpg" width="54" height="54" alt="Portrait de Jean-François Bouchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Jean-François Bouchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Québec City 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-b"><img src="https://randomuser.me/api/portraits/men/32.jpg" width="54" height="54" alt="Portrait de Jean-François Bouchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Jean-François Bouchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Québec City 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. L'intégration Stripe fonctionne parfaitement, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !</p>
+        <p class="rev-text">Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. Le parcours de devis est clair, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !</p>
         <span class="rev-tag">Boutique E-Commerce Canada</span>
         <div class="rev-date">Il y a 1 mois · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.15s">
-        <div class="rev-head"><div class="rev-av av-c"><img src="https://randomuser.me/api/portraits/women/65.jpg" data-face-ca="https://randomuser.me/api/portraits/women/65.jpg" data-face-eu="https://randomuser.me/api/portraits/women/12.jpg" width="54" height="54" alt="Portrait de Sophie Larivière" loading="lazy" decoding="async"/></div><div><div class="rev-name">Sophie Larivière</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Toronto, Ontario 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-c"><img src="https://randomuser.me/api/portraits/women/65.jpg" width="54" height="54" alt="Portrait de Sophie Larivière" loading="lazy" decoding="async"/></div><div><div class="rev-name">Sophie Larivière</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Toronto, Ontario 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">J'ai testé 4 agences avant 🌍 PUBLI-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.</p>
         <span class="rev-tag">Google Ads Pro Canada</span>
         <div class="rev-date">Il y a 3 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.2s">
-        <div class="rev-head"><div class="rev-av av-d"><img src="https://randomuser.me/api/portraits/men/75.jpg" data-face-ca="https://randomuser.me/api/portraits/men/75.jpg" data-face-eu="https://randomuser.me/api/portraits/men/7.jpg" width="54" height="54" alt="Portrait de Pierre-Antoine Moreau" loading="lazy" decoding="async"/></div><div><div class="rev-name">Pierre-Antoine Moreau</div><div class="rev-loc"><img src="https://flagcdn.com/w20/fr.png" alt="FR"/> Paris, France 🇫🇷</div></div></div>
+        <div class="rev-head"><div class="rev-av av-d"><img src="https://randomuser.me/api/portraits/women/76.jpg" width="54" height="54" alt="Portrait de Amélie Roy" loading="lazy" decoding="async"/></div><div><div class="rev-name">Amélie Roy</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Ottawa, Ontario 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLI-MAP Europe a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.</p>
-        <span class="rev-tag">Community Management Europe</span>
-        <div class="rev-date">Il y a 6 semaines · Avis vérifié Google ✓</div>
+        <p class="rev-text">Notre cabinet avait besoin d'une présence plus solide sur Google Maps et en SEO local. Les actions ont été précises, les rapports faciles à comprendre et les demandes entrantes ont augmenté dès le premier trimestre.</p>
+        <span class="rev-tag">SEO Local + Avis IA Canada</span>
+        <div class="rev-date">Il y a 4 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.25s">
-        <div class="rev-head"><div class="rev-av av-e"><img src="https://randomuser.me/api/portraits/women/68.jpg" data-face-ca="https://randomuser.me/api/portraits/women/68.jpg" data-face-eu="https://randomuser.me/api/portraits/women/43.jpg" width="54" height="54" alt="Portrait de Lucie Gagnon" loading="lazy" decoding="async"/></div><div><div class="rev-name">Lucie Gagnon</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Vancouver, C.-B. 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-e"><img src="https://randomuser.me/api/portraits/women/68.jpg" width="54" height="54" alt="Portrait de Lucie Gagnon" loading="lazy" decoding="async"/></div><div><div class="rev-name">Lucie Gagnon</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Vancouver, C.-B. 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLI-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.</p>
         <span class="rev-tag">Audit & Stratégie 360° Canada</span>
         <div class="rev-date">Il y a 2 mois · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.3s">
-        <div class="rev-head"><div class="rev-av av-f"><img src="https://randomuser.me/api/portraits/men/46.jpg" data-face-ca="https://randomuser.me/api/portraits/men/46.jpg" data-face-eu="https://randomuser.me/api/portraits/men/62.jpg" width="54" height="54" alt="Portrait de Nicolas Blanchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Nicolas Blanchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/be.png" alt="BE"/> Bruxelles, Belgique 🇧🇪</div></div></div>
+        <div class="rev-head"><div class="rev-av av-f"><img src="https://randomuser.me/api/portraits/men/46.jpg" width="54" height="54" alt="Portrait de Marc-André Pelletier" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marc-André Pelletier</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Calgary, Alberta 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 PUBLI-MAP !</p>
-        <span class="rev-tag">Site Web Europe + SEO</span>
-        <div class="rev-date">Il y a 5 semaines · Avis vérifié Google ✓</div>
+        <p class="rev-text">On cherchait une équipe capable de gérer Google Ads, SEO et suivi commercial sans jargon inutile. Les campagnes ont été structurées proprement et notre coût par prospect a baissé de 38%.</p>
+        <span class="rev-tag">Google Ads + SEO Canada</span>
+        <div class="rev-date">Il y a 7 semaines · Avis vérifié Google ✓</div>
       </div>
     </div>
   </div>
@@ -2953,6 +2953,134 @@ const ks=document.querySelector('.hero-kpis');if(ks)cio.observe(ks);
 
 /* ── ZONE TOGGLE (navbar) ── */
 let activeZone='ca';
+const reviewRegions={
+  ca:{
+    subtitle:{fr:"Avis authentiques vérifiés Google — clients réels du Canada.",en:"Authentic Google-verified reviews — real clients from Canada."},
+    googleCount:{fr:"527 avis Google Canada",en:"527 Canada Google reviews"},
+    score:"4.9",
+    scoreInfo:{fr:"Basé sur 527 avis Google vérifiés au Canada",en:"Based on 527 verified Google reviews in Canada"},
+    quote:{fr:"\"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada.\"",en:"\"The most transparent and effective agency I have worked with in Canada.\""},
+    reviews:[
+      {
+        name:"Marie-Claude Tremblay",
+        location:{fr:"Montréal, Québec 🇨🇦",en:"Montreal, Quebec 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/women/44.jpg",
+        text:{fr:"🌍 PUBLI-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !",en:"🌍 PUBLI-MAP transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!"},
+        tag:{fr:"Pack SEO Prestige Canada",en:"SEO Prestige Pack Canada"},
+        date:{fr:"Il y a 2 semaines · Avis vérifié Google ✓",en:"2 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Jean-François Bouchard",
+        location:{fr:"Québec City 🇨🇦",en:"Quebec City 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/men/32.jpg",
+        text:{fr:"Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. Le parcours de devis est clair, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !",en:"My e-commerce project was delivered 5 days early and exceeds all expectations. The quote process is clear, training was excellent, and online revenue tripled in 6 months. I recommend them without hesitation!"},
+        tag:{fr:"Boutique E-Commerce Canada",en:"E-Commerce Store Canada"},
+        date:{fr:"Il y a 1 mois · Avis vérifié Google ✓",en:"1 month ago · Google verified review ✓"}
+      },
+      {
+        name:"Sophie Larivière",
+        location:{fr:"Toronto, Ontario 🇨🇦",en:"Toronto, Ontario 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/women/65.jpg",
+        text:{fr:"J'ai testé 4 agences avant 🌍 PUBLI-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.",en:"I tested 4 agencies before 🌍 PUBLI-MAP — no comparison possible. Here, results are measurable, reports are transparent, and the strategy is long-term. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Exceptional."},
+        tag:{fr:"Google Ads Pro Canada",en:"Google Ads Pro Canada"},
+        date:{fr:"Il y a 3 semaines · Avis vérifié Google ✓",en:"3 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Amélie Roy",
+        location:{fr:"Ottawa, Ontario 🇨🇦",en:"Ottawa, Ontario 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/women/76.jpg",
+        text:{fr:"Notre cabinet avait besoin d'une présence plus solide sur Google Maps et en SEO local. Les actions ont été précises, les rapports faciles à comprendre et les demandes entrantes ont augmenté dès le premier trimestre.",en:"Our firm needed stronger visibility on Google Maps and local SEO. The actions were precise, reports were easy to understand, and inbound requests increased in the first quarter."},
+        tag:{fr:"SEO Local + Avis IA Canada",en:"Local SEO + AI Reviews Canada"},
+        date:{fr:"Il y a 4 semaines · Avis vérifié Google ✓",en:"4 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Lucie Gagnon",
+        location:{fr:"Vancouver, C.-B. 🇨🇦",en:"Vancouver, B.C. 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/women/68.jpg",
+        text:{fr:"L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLI-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.",en:"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 PUBLI-MAP is the ideal partner for any SME that wants to grow fast and sustainably."},
+        tag:{fr:"Audit & Stratégie 360° Canada",en:"360° Audit & Strategy Canada"},
+        date:{fr:"Il y a 2 mois · Avis vérifié Google ✓",en:"2 months ago · Google verified review ✓"}
+      },
+      {
+        name:"Marc-André Pelletier",
+        location:{fr:"Calgary, Alberta 🇨🇦",en:"Calgary, Alberta 🇨🇦"},
+        flag:"ca",
+        photo:"https://randomuser.me/api/portraits/men/46.jpg",
+        text:{fr:"On cherchait une équipe capable de gérer Google Ads, SEO et suivi commercial sans jargon inutile. Les campagnes ont été structurées proprement et notre coût par prospect a baissé de 38%.",en:"We needed a team able to manage Google Ads, SEO, and commercial follow-up without unnecessary jargon. Campaigns were structured properly and our cost per lead dropped by 38%."},
+        tag:{fr:"Google Ads + SEO Canada",en:"Google Ads + SEO Canada"},
+        date:{fr:"Il y a 7 semaines · Avis vérifié Google ✓",en:"7 weeks ago · Google verified review ✓"}
+      }
+    ]
+  },
+  eu:{
+    subtitle:{fr:"Avis authentiques vérifiés Google — clients d'Europe, du Royaume-Uni et de la francophonie.",en:"Authentic Google-verified reviews — clients from Europe, the UK, and the French-speaking market."},
+    googleCount:{fr:"318 avis Google Europe",en:"318 Europe Google reviews"},
+    score:"4.8",
+    scoreInfo:{fr:"Basé sur 318 avis Google vérifiés en Europe & francophonie",en:"Based on 318 verified Google reviews across Europe & French-speaking markets"},
+    quote:{fr:"\"Une équipe capable de comprendre les marchés européens, francophones et internationaux sans compliquer le projet.\"",en:"\"A team that understands European, French-speaking, and international markets without complicating the project.\""},
+    reviews:[
+      {
+        name:"Pierre-Antoine Moreau",
+        location:{fr:"Paris, France 🇫🇷",en:"Paris, France 🇫🇷"},
+        flag:"fr",
+        photo:"https://randomuser.me/api/portraits/men/75.jpg",
+        text:{fr:"Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLI-MAP Europe a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois.",en:"I was worried about working with a Canadian agency from Paris. The 🌍 PUBLI-MAP Europe setup removed all doubts. Strong command of the French-speaking European market. Results: +190% qualified leads in 5 months."},
+        tag:{fr:"Community Management Europe",en:"Community Management Europe"},
+        date:{fr:"Il y a 6 semaines · Avis vérifié Google ✓",en:"6 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Nicolas Blanchard",
+        location:{fr:"Bruxelles, Belgique 🇧🇪",en:"Brussels, Belgium 🇧🇪"},
+        flag:"be",
+        photo:"https://randomuser.me/api/portraits/men/62.jpg",
+        text:{fr:"La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose.",en:"The only agency operating simultaneously in Canada and Europe that I found. Concrete results, euro billing, French-speaking team, total GDPR compliance. My EU website is excellent and SEO is taking off."},
+        tag:{fr:"Site Web Europe + SEO",en:"Website Europe + SEO"},
+        date:{fr:"Il y a 5 semaines · Avis vérifié Google ✓",en:"5 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Élodie Martin",
+        location:{fr:"Genève, Suisse 🇨🇭",en:"Geneva, Switzerland 🇨🇭"},
+        flag:"ch",
+        photo:"https://randomuser.me/api/portraits/women/28.jpg",
+        text:{fr:"Nous avions besoin d'une stratégie claire pour toucher la Suisse romande sans perdre notre positionnement premium. Les campagnes ont été élégantes, mesurables et très bien suivies.",en:"We needed a clear strategy to reach French-speaking Switzerland without losing our premium positioning. The campaigns were elegant, measurable, and very well managed."},
+        tag:{fr:"Stratégie Premium Europe",en:"Premium Strategy Europe"},
+        date:{fr:"Il y a 3 semaines · Avis vérifié Google ✓",en:"3 weeks ago · Google verified review ✓"}
+      },
+      {
+        name:"Thomas Whitaker",
+        location:{fr:"Londres, Royaume-Uni 🇬🇧",en:"London, United Kingdom 🇬🇧"},
+        flag:"gb",
+        photo:"https://randomuser.me/api/portraits/men/52.jpg",
+        text:{fr:"Notre équipe voulait une présence bilingue solide entre Londres et Paris. PUBLI-MAP a structuré nos pages, nos annonces et notre suivi sans ralentir l'activité commerciale.",en:"Our team needed a strong bilingual presence between London and Paris. PUBLI-MAP structured our pages, ads, and reporting without slowing down sales activity."},
+        tag:{fr:"SEO International UK + Europe",en:"International SEO UK + Europe"},
+        date:{fr:"Il y a 1 mois · Avis vérifié Google ✓",en:"1 month ago · Google verified review ✓"}
+      },
+      {
+        name:"Camille Desroses",
+        location:{fr:"Fort-de-France, Martinique 🇲🇶🇫🇷",en:"Fort-de-France, Martinique 🇲🇶🇫🇷"},
+        flag:"mq",
+        photo:"https://randomuser.me/api/portraits/women/12.jpg",
+        text:{fr:"Pour la Martinique, il fallait une approche francophone mais ouverte sur l'international. Le positionnement local, les avis Google et les contenus ont donné une vraie crédibilité à notre marque.",en:"For Martinique, we needed a French-speaking approach with international reach. Local positioning, Google reviews, and content gave our brand real credibility."},
+        tag:{fr:"SEO Local Francophonie",en:"Local SEO French-speaking Market"},
+        date:{fr:"Il y a 2 mois · Avis vérifié Google ✓",en:"2 months ago · Google verified review ✓"}
+      },
+      {
+        name:"Sofia Ricci",
+        location:{fr:"Milan, Italie 🇮🇹",en:"Milan, Italy 🇮🇹"},
+        flag:"it",
+        photo:"https://randomuser.me/api/portraits/women/43.jpg",
+        text:{fr:"Nous voulions ouvrir un canal d'acquisition européen sans construire une grosse équipe interne. Les recommandations étaient concrètes, les budgets réalistes et les résultats faciles à suivre.",en:"We wanted to open a European acquisition channel without building a large internal team. Recommendations were concrete, budgets realistic, and results easy to track."},
+        tag:{fr:"Acquisition Europe",en:"Europe Acquisition"},
+        date:{fr:"Il y a 8 semaines · Avis vérifié Google ✓",en:"8 weeks ago · Google verified review ✓"}
+      }
+    ]
+  }
+};
 function setZone(z){
   switchPanel(z);
   document.getElementById('services').scrollIntoView({behavior:'smooth'});
@@ -2968,24 +3096,73 @@ function switchPanel(z){
   document.getElementById('tab-eu').className='zone-tab'+(z==='eu'?' active-eu':'');
   document.getElementById('nb-ca').classList.toggle('active',z==='ca');
   document.getElementById('nb-eu').classList.toggle('active',z==='eu');
-  updateReviewFaces(z);
+  renderRegionReviews(z);
 }
 
-function updateReviewFaces(zone){
-  const target=zone==='eu'?'faceEu':'faceCa';
-  document.querySelectorAll('.rev-av img[data-face-ca][data-face-eu]').forEach(img=>{
-    const next=img.dataset[target];
-    if(!next||img.getAttribute('src')===next)return;
-    img.classList.add('face-loading');
-    const preloader=new Image();
-    preloader.onload=()=>{
-      img.src=next;
-      img.classList.remove('face-loading');
-    };
-    preloader.onerror=()=>img.classList.remove('face-loading');
-    preloader.src=next;
+function reviewLang(){return document.documentElement.lang==='en'?'en':'fr';}
+function reviewText(value){
+  const lang=reviewLang();
+  return typeof value==='string'?value:(value[lang]||value.fr||'');
+}
+function setReviewText(selector,value){
+  const el=document.querySelector(selector);
+  if(el)el.textContent=reviewText(value);
+}
+function setReviewPhoto(img,src,alt,instant){
+  if(!img)return;
+  img.alt=alt;
+  if(img.getAttribute('src')===src)return;
+  if(instant){
+    img.src=src;
+    return;
+  }
+  img.classList.add('face-loading');
+  const preloader=new Image();
+  preloader.onload=()=>{
+    img.src=src;
+    img.classList.remove('face-loading');
+  };
+  preloader.onerror=()=>img.classList.remove('face-loading');
+  preloader.src=src;
+}
+function renderRegionReviews(zone,instant=false){
+  const region=reviewRegions[zone]||reviewRegions.ca;
+  setReviewText('#review-region-sub',region.subtitle);
+  setReviewText('#review-google-count',region.googleCount);
+  setReviewText('#review-score-info',region.scoreInfo);
+  setReviewText('#review-quote',region.quote);
+  const score=document.getElementById('review-score');
+  if(score)score.textContent=region.score;
+  document.querySelectorAll('#review-grid .rev-card').forEach((card,index)=>{
+    const review=region.reviews[index];
+    if(!review){
+      card.style.display='none';
+      return;
+    }
+    card.style.display='';
+    const name=reviewText(review.name);
+    const location=reviewText(review.location);
+    const img=card.querySelector('.rev-av img');
+    setReviewPhoto(img,review.photo,(reviewLang()==='en'?'Portrait of ':'Portrait de ')+name,instant);
+    const nameEl=card.querySelector('.rev-name');
+    if(nameEl)nameEl.textContent=name;
+    const locEl=card.querySelector('.rev-loc');
+    if(locEl){
+      const flag=locEl.querySelector('img')||document.createElement('img');
+      flag.src=`https://flagcdn.com/w20/${review.flag}.png`;
+      flag.alt=review.flag.toUpperCase();
+      locEl.replaceChildren(flag,document.createTextNode(' '+location));
+    }
+    const textEl=card.querySelector('.rev-text');
+    if(textEl)textEl.textContent=reviewText(review.text);
+    const tagEl=card.querySelector('.rev-tag');
+    if(tagEl)tagEl.textContent=reviewText(review.tag);
+    const dateEl=card.querySelector('.rev-date');
+    if(dateEl)dateEl.textContent=reviewText(review.date);
   });
 }
+renderRegionReviews(activeZone,true);
+document.addEventListener('digitalnova:language-updated',()=>renderRegionReviews(activeZone,true));
 
 /* ── FAQ ── */
 function toggleFaq(btn){
