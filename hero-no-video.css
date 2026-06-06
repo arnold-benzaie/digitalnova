@@ -45,19 +45,15 @@
   will-change: opacity, transform;
   transform-origin: center;
 }
-/* 3 local hero images from the Map Prime carousel */
-.hero-slide-1 {
-  background-image: url("assets/images/map-prime-hero/hero_bg_1.jpg");
-  animation-delay: 0s;
-}
-.hero-slide-2 {
-  background-image: url("assets/images/map-prime-hero/hero_bg_2.jpg");
-  animation-delay: -7s;
-}
+/* PUBLI-MAP hero — personnage localisation (image unique) */
+.hero-slide-1,
+.hero-slide-2,
 .hero-slide-3 {
-  background-image: url("assets/images/map-prime-hero/hero_bg_3.jpg");
-  animation-delay: -14s;
+  background-image: url("assets/images/map-prime-hero/hero_team.jpg");
 }
+.hero-slide-1 { animation-delay: 0s; }
+.hero-slide-2 { animation-delay: -7s; }
+.hero-slide-3 { animation-delay: -14s; }
 @keyframes heroSlideFade {
   0%    { opacity: 0; }
   4%    { opacity: 1; }
