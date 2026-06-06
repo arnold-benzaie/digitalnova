@@ -82,7 +82,7 @@ const T = {
   "Professionnels Certifiés":"Certified Professionals",
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
-  "🌍 PUBLI-MAP — Agence certifiée Google Premier Partner. Nous propulsons votre entreprise au sommet, de Montréal à Paris.":"🌍 PUBLI-MAP — Google Premier Partner certified agency. We propel your business to the top, from Montreal to Paris.",
+  "🌍 PUBLI-MAP — Google Business Profile, SEO local et avis Google pour attirer plus de clients au Canada et en Europe.":"🌍 PUBLI-MAP — Google Business Profile, local SEO and Google reviews to attract more customers in Canada and Europe.",
   "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",

@@ -48,10 +48,13 @@ function publiMapMobilePerfMode(){
       50%     { box-shadow: 0 0 0 14px rgba(213,43,30,0); }
     }
     .nav-cta, .btn-red, .g-btn-primary, .btn-order, .sf-submit, .m-submit {
-      animation: pulseGlow 3.5s ease-in-out infinite;
+      animation: none;
     }
-    body.eu-active .nav-cta, body.eu-active .btn-red {
-      animation: pulseGlowEU 3.5s ease-in-out infinite;
+    .hero-btns .btn-red, .nav-cta {
+      animation: pulseGlow 5.5s ease-in-out infinite;
+    }
+    body.eu-active .hero-btns .btn-red, body.eu-active .nav-cta {
+      animation: pulseGlowEU 5.5s ease-in-out infinite;
     }
     @keyframes pulseGlowEU {
       0%,100% { box-shadow: 0 0 0 0 rgba(0,51,153,.5); }
@@ -64,7 +67,7 @@ function publiMapMobilePerfMode(){
       75% { transform: rotate(3deg); }
     }
     .srv-badge, .g-pop-badge, .badge-hot, .badge-new, .badge-best {
-      animation: wiggle 2.4s ease-in-out infinite;
+      animation: none;
       transform-origin: center;
     }
 
@@ -93,7 +96,7 @@ function publiMapMobilePerfMode(){
     }
     .nl-sec {
       background-size: 200% 200% !important;
-      animation: gradShift 8s ease infinite;
+      animation: none;
     }
     /* Trust ribbon stays intentionally calm and readable. */
     .ribbon,
@@ -228,7 +231,7 @@ function publiMapMobilePerfMode(){
       content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
       background: linear-gradient(90deg, transparent, var(--rouge), var(--or2), var(--rouge), transparent);
       background-size: 200% auto;
-      animation: footerLine 4s linear infinite;
+      animation: none;
     }
 
     /* ─── Smooth color cycle on certif rainbow ─── */

@@ -19,18 +19,23 @@
 /* ─── CROSSFADING IMAGE SLIDESHOW (map-prime style — no video) ─── */
 .hero-novideo {
   position: relative;
-  overflow: hidden;
+  overflow: clip;
   background: #050B18;
+  max-width: 100vw;
+  contain: paint;
 }
 .hero-slideshow {
   position: absolute;
   inset: 0;
   z-index: 0;
-  overflow: hidden;
+  overflow: clip;
+  max-width: 100vw;
+  contain: paint;
 }
 .hero-slide {
   position: absolute;
   inset: 0;
+  width: 100%;
   background-size: cover;
   background-position: center right;
   background-repeat: no-repeat;
@@ -38,6 +43,7 @@
   /* Each slide fades in/out over a 21s cycle (3 slides × 7s each) */
   animation: heroSlideFade 21s linear infinite, heroKenBurns 21s ease-in-out infinite;
   will-change: opacity, transform;
+  transform-origin: center;
 }
 /* 3 local hero images from the Map Prime carousel */
 .hero-slide-1 {

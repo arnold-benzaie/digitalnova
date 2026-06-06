@@ -2,6 +2,15 @@
    DIGITALNOVA — Ultra-realistic 3D animations
    ═══════════════════════════════════════════════════════ */
 
+const PUBLI_MAP_RICH_3D = (() => {
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const saveData = navigator.connection && navigator.connection.saveData;
+  return window.innerWidth >= 1180 && finePointer && !reducedMotion && !saveData;
+})();
+
+if (PUBLI_MAP_RICH_3D) {
+
 (function inject3DStyles(){
   const css = `
     /* Fixed UI must stay pinned to the viewport. Cards define their own 3D context. */
@@ -10,9 +19,10 @@
     .tilt-3d {
       transform-style: preserve-3d;
       transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .3s ease;
-      will-change: transform;
+      will-change: auto;
       position: relative;
     }
+    .tilt-3d:hover { will-change: transform; }
     .tilt-3d::after{
       content:"";
       position:absolute;inset:0;border-radius:inherit;pointer-events:none;
@@ -122,8 +132,8 @@
 
 /* ─── TILT 3D ON CARDS — excludes .floating-card to preserve original float anim ─── */
 (function tilt3D(){
-  const SELECTOR = '.srv-card, .g-price-card, .rev-card, .cred-glass, .stripe-wrap, .review-card-3d, .g-feat-card, .cert-card';
-  const MAX_TILT = 12;
+  const SELECTOR = '.srv-card, .g-price-card, .rev-card';
+  const MAX_TILT = 7;
 
   function attach(el){
     if(el.dataset.tilt3d) return;
@@ -249,3 +259,5 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+}

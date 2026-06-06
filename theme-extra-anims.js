@@ -51,8 +51,24 @@
       --t-input-border: rgba(255,255,255,.1);
     }
 
-    /* SMOOTH theme transition */
-    body, body * {
+    /* SMOOTH theme transition — scoped so the whole DOM does not animate forever */
+    body,
+    nav,
+    footer,
+    section,
+    .srv-card,
+    .g-feat-card,
+    .g-price-card,
+    .rev-card,
+    .cert-card,
+    .cred-glass,
+    .faq-it,
+    .contact-card,
+    .floating-card,
+    .nav-center a,
+    .zone-btn,
+    .lang-btn,
+    .nav-cta {
       transition: background-color .5s ease, color .4s ease, border-color .4s ease, box-shadow .4s ease;
     }
 
@@ -349,8 +365,14 @@
 
 /* ─── MOUSE TRAIL (subtle) ─── */
 (function mouseTrail(){
+  const enabled = document.documentElement.classList.contains('enable-mouse-trail');
+  const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const saveData = navigator.connection && navigator.connection.saveData;
+  if(!enabled || !finePointer || reducedMotion || saveData || window.innerWidth < 1280) return;
+
   const dots = [];
-  const N = 12;
+  const N = 6;
   for(let i=0;i<N;i++){
     const d = document.createElement('div');
     d.className = 'mouse-trail';

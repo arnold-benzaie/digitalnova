@@ -8,6 +8,18 @@
 /* ════════════════════════════════════════════
    0. FORCE STRIPE MODAL VISIBILITY (every package, same flow)
    ════════════════════════════════════════════ */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip !important;
+}
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden !important;
+  }
+}
+
 #modal {
   z-index: 9500 !important;            /* above cart drawer (8800) */
 }
@@ -114,6 +126,11 @@
 /* Marquee stays visible (defiling chips) */
 .cert-marquee {
   display: block !important;
+  max-width: 100vw !important;
+  contain: paint;
+}
+.cert-marquee-track {
+  max-width: none !important;
 }
 /* Hide ONLY the 4-stats grid (target by inline-style pattern, NOT :last-child
    because the new .cert-static-grid is now last child and must stay visible) */

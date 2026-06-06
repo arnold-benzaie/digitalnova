@@ -18,6 +18,8 @@
   #cur,
   #cur2,
   .spark,
+  .mouse-trail,
+  .burst-3d,
   #bg-particles,
   .hero-novideo .hero-aurora,
   .hero-novideo .hero-aurora-2,
@@ -224,6 +226,16 @@
   .rv,
   .rv-l,
   .rv-r,
+  .tilt-3d,
+  .depth-3d,
+  .srv-card,
+  .g-price-card,
+  .rev-card,
+  .cred-glass,
+  .stripe-wrap,
+  .review-card-3d,
+  .g-feat-card,
+  .cert-card,
   .anim,
   .anim.in,
   .stagger > *,
@@ -252,6 +264,8 @@
 
   .cert-marquee,
   .cert-accred-card,
+  .hero-novideo,
+  .hero-slideshow,
   .maps-sec,
   .google-sec,
   .seo-sec,
@@ -263,6 +277,8 @@
   .nl-sec,
   footer {
     overflow-x: hidden !important;
+    max-width: 100vw !important;
+    contain: paint;
   }
 
   .cert-marquee-track {
