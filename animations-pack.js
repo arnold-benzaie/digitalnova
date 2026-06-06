@@ -4,8 +4,12 @@
    ═══════════════════════════════════════════════════════ */
 
 function publiMapMobilePerfMode(){
-  return (window.matchMedia && window.matchMedia('(max-width: 900px), (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)').matches)
-    || window.innerWidth <= 900;
+  const saveData = navigator.connection && navigator.connection.saveData;
+  const lowMemory = navigator.deviceMemory && navigator.deviceMemory <= 4;
+  return (window.matchMedia && window.matchMedia('(max-width: 1180px), (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)').matches)
+    || window.innerWidth <= 1180
+    || saveData
+    || lowMemory;
 }
 
 (function injectGlobalAnimStyles(){
@@ -395,7 +399,8 @@ function publiMapMobilePerfMode(){
 /* ─── BACKGROUND FLOATING PARTICLES ─── */
 (function bgParticles(){
   const init = () => {
-    if(publiMapMobilePerfMode()) return;
+    const enableDecorativeParticles = document.documentElement.dataset.particles === 'on';
+    if(!enableDecorativeParticles || publiMapMobilePerfMode()) return;
     const wrap = document.createElement('div');
     wrap.id = 'bg-particles';
     document.body.appendChild(wrap);

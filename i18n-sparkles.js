@@ -6,7 +6,8 @@
 (function sparkleCursor(){
   const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(window.innerWidth <= 900 || !finePointer || reducedMotion) return;
+  const enableDecorativeSparkles = document.documentElement.dataset.sparkles === 'on';
+  if(!enableDecorativeSparkles || window.innerWidth <= 1180 || !finePointer || reducedMotion) return;
 
   const colors = ['#B87333','#D4A95C','#E5C078','#EFE5D0','#F5C97E'];
   const sparkles = [];
