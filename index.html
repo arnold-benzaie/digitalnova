@@ -187,7 +187,6 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 .ci-ads{background:linear-gradient(135deg,#4285F4,#0D47A1);}
 .ci-ga{background:linear-gradient(135deg,#FF6D00,#FBBC05);}
 .ci-yt{background:linear-gradient(135deg,#FF0000,#B71C1C);}
-.ci-meta{background:linear-gradient(135deg,#0668E1,#1877F2);}
 .ci-tik{background:linear-gradient(135deg,#010101,#ff0050);}
 .ci-hub{background:linear-gradient(135deg,#FF7A59,#FF5733);}
 .ci-pci{background:linear-gradient(135deg,#00A86B,#007A4D);}
@@ -196,21 +195,19 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 .cert-check{display:inline-flex;align-items:center;gap:5px;background:rgba(52,168,83,.12);border:1px solid rgba(52,168,83,.25);border-radius:10px;padding:4px 10px;font-size:10px;font-weight:700;color:#4CAF50;}
 .user-cert-panel{background:#F4F6FA;border:1.5px solid #E2E8F4;border-radius:22px;padding:36px 34px;margin:0 auto 64px;box-shadow:0 14px 36px rgba(10,37,64,.06);}
 .user-cert-title{font-family:'Outfit',sans-serif;font-size:clamp(34px,4.8vw,58px);font-weight:900;text-align:center;color:#050505;letter-spacing:.02em;margin-bottom:32px;}
-.user-cert-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:22px;align-items:start;}
+.user-cert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;align-items:start;}
 .user-cert-badge{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;min-width:0;}
 .user-cert-medal{width:112px;height:112px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 12px 28px rgba(10,37,64,.12),inset 0 0 0 5px rgba(255,255,255,.42);font-family:'Outfit',sans-serif;color:#fff;overflow:hidden;}
 .user-cert-medal::after{content:"";position:absolute;inset:10px;border-radius:50%;border:2px solid rgba(255,255,255,.42);}
-.user-cert-medal.meta-gold{background:linear-gradient(180deg,#FFF5C4 0%,#E7A900 45%,#D99400 100%);}
 .user-cert-medal.digital{background:radial-gradient(circle at 50% 38%,#172554 0%,#0F172A 58%,#06101E 100%);}
 .user-cert-medal.css{background:linear-gradient(180deg,#5CB7C8,#2B90A3);}
 .user-cert-medal.html{background:linear-gradient(180deg,#5CB7C8,#2B90A3);}
 .user-cert-medal.seo{background:#fff;color:#133C68;border:5px solid #133C68;box-shadow:0 12px 28px rgba(10,37,64,.12);}
-.user-cert-medal.meta-teal{background:linear-gradient(180deg,#F8FFFF 0%,#0E8F8F 52%,#006C6D 100%);border:4px solid #087E80;}
 .user-cert-logo{position:relative;z-index:1;font-weight:900;font-size:32px;line-height:1;}
 .user-cert-logo.small{font-size:24px;}
 .user-cert-sub{position:relative;z-index:1;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;line-height:1.25;}
 .user-cert-name{font-size:12px;font-weight:800;color:#1A1A1A;line-height:1.35;max-width:140px;}
-@media(max-width:980px){.user-cert-grid{grid-template-columns:repeat(3,1fr);}.user-cert-medal{width:104px;height:104px;}}
+@media(max-width:980px){.user-cert-grid{grid-template-columns:repeat(2,1fr);}.user-cert-medal{width:104px;height:104px;}}
 @media(max-width:560px){.user-cert-panel{padding:28px 16px}.user-cert-grid{grid-template-columns:repeat(2,1fr);gap:20px 14px}.user-cert-medal{width:96px;height:96px}.user-cert-title{font-size:34px;}}
 
 /* ─── AVIS ─── */
@@ -1827,15 +1824,6 @@ footer{background:#050505;}
     <h3 class="user-cert-title">Nos Certifications</h3>
     <div class="user-cert-grid">
       <div class="user-cert-badge">
-        <div class="user-cert-medal meta-gold">
-          <div>
-            <div class="user-cert-logo small">∞ Meta</div>
-            <div class="user-cert-sub">Certified<br>Community<br>Manager</div>
-          </div>
-        </div>
-        <div class="user-cert-name">Meta Certified Community Manager</div>
-      </div>
-      <div class="user-cert-badge">
         <div class="user-cert-medal digital">
           <div>
             <div class="user-cert-logo small">DM</div>
@@ -1870,15 +1858,6 @@ footer{background:#050505;}
           </div>
         </div>
         <div class="user-cert-name">SEO for Growth Certified Consultant</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal meta-teal">
-          <div>
-            <div class="user-cert-logo small">∞ Meta</div>
-            <div class="user-cert-sub">Marketing Science<br>Professional</div>
-          </div>
-        </div>
-        <div class="user-cert-name">Meta Certified Marketing Science Professional</div>
       </div>
     </div>
   </div>
@@ -2153,11 +2132,11 @@ footer{background:#050505;}
   <div style="background:#F8FAFE;border-radius:18px;padding:36px 44px;border:1.5px solid #E0EAFF;" class="rv">
     <div style="text-align:center;margin-bottom:32px;">
       <div style="font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:#999;margin-bottom:10px;">Toutes nos accréditations</div>
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#1A1A1A;">14 certifications · 3 partenariats officiels</h3>
+      <h3 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#1A1A1A;">12 certifications · 2 partenariats officiels</h3>
     </div>
     <div class="cert-marquee">
       <div class="cert-marquee-track">
-        <div class="cert-chip" style="border-color:#C8DCFF;"><span style="font-size:16px;font-weight:900;font-family:'Outfit',sans-serif;"><span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span></span><div><div class="chip-name" style="color:#4285F4;">Premier Partner</div><div class="chip-sub">Certifié ✓</div></div></div><div class="cert-chip" style="border-color:#FFCCCC;"><span>🎯</span><div><div class="chip-name" style="color:#EA4335;">Google Ads</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE082;"><span>📊</span><div><div class="chip-name" style="color:#E65100;">Google Analytics 4</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#B8EDCC;"><span>📍</span><div><div class="chip-name" style="color:#2E7D32;">Local SEO Certified</div><div class="chip-sub">Individual ✓</div></div></div><div class="cert-chip" style="border-color:#B2EBF2;"><span>🏆</span><div><div class="chip-name" style="color:#2E9DB0;">SEO Expert Cert.</div><div class="chip-sub">Professional ✓</div></div></div><div class="cert-chip" style="border-color:#A8D5B5;"><span>🌿</span><div><div class="chip-name" style="color:#1B5E20;">Organic SEO</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE199;"><span>📈</span><div><div class="chip-name" style="color:#8B6500;">SEO for Growth</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#C8DCFF;"><span>📱</span><div><div class="chip-name" style="color:#1877F2;">Meta Business</div><div class="chip-sub">Partner ✓</div></div></div><div class="cert-chip" style="border-color:#C3E6CB;"><span>🛒</span><div><div class="chip-name" style="color:#96BF48;">Shopify Partner</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#D5CCFF;"><span>⚡</span><div><div class="chip-name" style="color:#21759B;">WordPress VIP</div><div class="chip-sub">Expert ✓</div></div></div><div class="cert-chip" style="border-color:#D8D0FF;"><span style="color:#635BFF;font-weight:900;font-family:sans-serif;">S</span><div><div class="chip-name" style="color:#635BFF;">Devis transparent</div><div class="chip-sub">Partner ✓</div></div></div><div class="cert-chip" style="border-color:#C8DCFF;"><span style="font-size:16px;font-weight:900;font-family:'Outfit',sans-serif;"><span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span></span><div><div class="chip-name" style="color:#4285F4;">Premier Partner</div><div class="chip-sub">Certifié ✓</div></div></div><div class="cert-chip" style="border-color:#FFCCCC;"><span>🎯</span><div><div class="chip-name" style="color:#EA4335;">Google Ads</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE082;"><span>📊</span><div><div class="chip-name" style="color:#E65100;">Google Analytics 4</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#B8EDCC;"><span>📍</span><div><div class="chip-name" style="color:#2E7D32;">Local SEO Certified</div><div class="chip-sub">Individual ✓</div></div></div><div class="cert-chip" style="border-color:#B2EBF2;"><span>🏆</span><div><div class="chip-name" style="color:#2E9DB0;">SEO Expert Cert.</div><div class="chip-sub">Professional ✓</div></div></div><div class="cert-chip" style="border-color:#A8D5B5;"><span>🌿</span><div><div class="chip-name" style="color:#1B5E20;">Organic SEO</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE199;"><span>📈</span><div><div class="chip-name" style="color:#8B6500;">SEO for Growth</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#C8DCFF;"><span>📱</span><div><div class="chip-name" style="color:#1877F2;">Meta Business</div><div class="chip-sub">Partner ✓</div></div></div><div class="cert-chip" style="border-color:#C3E6CB;"><span>🛒</span><div><div class="chip-name" style="color:#96BF48;">Shopify Partner</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#D5CCFF;"><span>⚡</span><div><div class="chip-name" style="color:#21759B;">WordPress VIP</div><div class="chip-sub">Expert ✓</div></div></div><div class="cert-chip" style="border-color:#D8D0FF;"><span style="color:#635BFF;font-weight:900;font-family:sans-serif;">S</span><div><div class="chip-name" style="color:#635BFF;">Devis transparent</div><div class="chip-sub">Partner ✓</div></div></div>
+        <div class="cert-chip" style="border-color:#C8DCFF;"><span style="font-size:16px;font-weight:900;font-family:'Outfit',sans-serif;"><span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span></span><div><div class="chip-name" style="color:#4285F4;">Premier Partner</div><div class="chip-sub">Certifié ✓</div></div></div><div class="cert-chip" style="border-color:#FFCCCC;"><span>🎯</span><div><div class="chip-name" style="color:#EA4335;">Google Ads</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE082;"><span>📊</span><div><div class="chip-name" style="color:#E65100;">Google Analytics 4</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#B8EDCC;"><span>📍</span><div><div class="chip-name" style="color:#2E7D32;">Local SEO Certified</div><div class="chip-sub">Individual ✓</div></div></div><div class="cert-chip" style="border-color:#B2EBF2;"><span>🏆</span><div><div class="chip-name" style="color:#2E9DB0;">SEO Expert Cert.</div><div class="chip-sub">Professional ✓</div></div></div><div class="cert-chip" style="border-color:#A8D5B5;"><span>🌿</span><div><div class="chip-name" style="color:#1B5E20;">Organic SEO</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE199;"><span>📈</span><div><div class="chip-name" style="color:#8B6500;">SEO for Growth</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#C3E6CB;"><span>🛒</span><div><div class="chip-name" style="color:#96BF48;">Shopify Partner</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#D5CCFF;"><span>⚡</span><div><div class="chip-name" style="color:#21759B;">WordPress VIP</div><div class="chip-sub">Expert ✓</div></div></div><div class="cert-chip" style="border-color:#D8D0FF;"><span style="color:#635BFF;font-weight:900;font-family:sans-serif;">S</span><div><div class="chip-name" style="color:#635BFF;">Devis transparent</div><div class="chip-sub">Partner ✓</div></div></div><div class="cert-chip" style="border-color:#C8DCFF;"><span style="font-size:16px;font-weight:900;font-family:'Outfit',sans-serif;"><span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span></span><div><div class="chip-name" style="color:#4285F4;">Premier Partner</div><div class="chip-sub">Certifié ✓</div></div></div><div class="cert-chip" style="border-color:#FFCCCC;"><span>🎯</span><div><div class="chip-name" style="color:#EA4335;">Google Ads</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE082;"><span>📊</span><div><div class="chip-name" style="color:#E65100;">Google Analytics 4</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#B8EDCC;"><span>📍</span><div><div class="chip-name" style="color:#2E7D32;">Local SEO Certified</div><div class="chip-sub">Individual ✓</div></div></div><div class="cert-chip" style="border-color:#B2EBF2;"><span>🏆</span><div><div class="chip-name" style="color:#2E9DB0;">SEO Expert Cert.</div><div class="chip-sub">Professional ✓</div></div></div><div class="cert-chip" style="border-color:#A8D5B5;"><span>🌿</span><div><div class="chip-name" style="color:#1B5E20;">Organic SEO</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#FFE199;"><span>📈</span><div><div class="chip-name" style="color:#8B6500;">SEO for Growth</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#C3E6CB;"><span>🛒</span><div><div class="chip-name" style="color:#96BF48;">Shopify Partner</div><div class="chip-sub">Certified ✓</div></div></div><div class="cert-chip" style="border-color:#D5CCFF;"><span>⚡</span><div><div class="chip-name" style="color:#21759B;">WordPress VIP</div><div class="chip-sub">Expert ✓</div></div></div><div class="cert-chip" style="border-color:#D8D0FF;"><span style="color:#635BFF;font-weight:900;font-family:sans-serif;">S</span><div><div class="chip-name" style="color:#635BFF;">Devis transparent</div><div class="chip-sub">Partner ✓</div></div></div>
       </div>
     </div>
 
@@ -2185,9 +2164,6 @@ footer{background:#050505;}
         </div>
         <div class="cert-static-badge" style="--bd:#FFE199;--c:#8B6500;">
           <span class="csb-icon">📈</span><span class="csb-name">SEO Growth</span><span class="csb-check">✓</span>
-        </div>
-        <div class="cert-static-badge" style="--bd:#C8DCFF;--c:#1877F2;">
-          <span class="csb-icon">📱</span><span class="csb-name">Meta Business</span><span class="csb-check">✓</span>
         </div>
         <div class="cert-static-badge" style="--bd:#C3E6CB;--c:#96BF48;">
           <span class="csb-icon">🛒</span><span class="csb-name">Shopify</span><span class="csb-check">✓</span>
@@ -2278,7 +2254,7 @@ footer{background:#050505;}
       <div class="faq-it rv" style="transition-delay:.2s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt" id="region-faq-title">🇨🇦 Je suis au Canada — comment ça fonctionne ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in" id="region-faq-answer"><strong>Notre bureau Montréal</strong> assure le suivi en heure canadienne EST/PST. Facturation en dollars canadiens, accompagnement bilingue FR/EN et stratégie adaptée au marché canadien.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.25s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🔒 Puis-je annuler à tout moment ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Oui, 30 jours de préavis suffit.</strong> Aucun engagement longue durée, aucune pénalité. Pour les projets uniques : 30% d'acompte au démarrage, solde à la livraison validée.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.3s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">⏱️ En combien de temps verrai-je des résultats ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>SEO :</strong> 4-8 semaines premiers signaux, 3-6 mois résultats majeurs. <strong>Google Ads :</strong> dès 72h. <strong>Réseaux Sociaux :</strong> croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.</div></div></div>
-      <div class="faq-it rv" style="transition-delay:.35s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🏆 Comment vérifier vos certifications Google ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in">Recherchez "🌍 PUBLI-MAP CANADA" sur <strong>google.com/partners</strong>. Badges Meta, HubSpot et TikTok vérifiables sur leurs portails. Liens envoyés sur demande sous 10 minutes.</div></div></div>
+      <div class="faq-it rv" style="transition-delay:.35s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🏆 Comment vérifier vos certifications Google ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in">Recherchez "🌍 PUBLI-MAP CANADA" sur <strong>google.com/partners</strong>. Les autres accréditations techniques sont vérifiables sur demande. Liens envoyés sous 10 minutes.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.4s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">📞 Qui sera mon interlocuteur dédié ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Un Chef de Projet dédié</strong> — joignable par email, téléphone et WhatsApp 7j/7. Réponse garantie sous 2h. Pas de centre d'appels, pas de robot.</div></div></div>
     </div>
   </div>
@@ -2777,7 +2753,7 @@ function submitQuote(){
   document.getElementById('m-ok').classList.add('show');
 }
 </script>
-<script src="i18n-sparkles.js?v=2026060601"></script>
+<script src="i18n-sparkles.js?v=2026060602"></script>
 <script src="3d-effects.js?v=2026060601"></script>
 <script src="animations-pack.js?v=2026060601"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
