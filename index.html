@@ -230,8 +230,10 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 .rev-card::before{content:'\201C';position:absolute;top:-8px;right:18px;font-family:'Cormorant Garamond',serif;font-size:90px;color:rgba(213,43,30,.05);line-height:1;}
 .rev-card:hover{transform:translateY(-6px);box-shadow:var(--sh-dark);border-color:rgba(213,43,30,.18);}
 .rev-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
-.rev-av{width:54px;height:54px;border-radius:50%;border:3px solid var(--rouge);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--blanc);flex-shrink:0;overflow:hidden;background:#EEF3FF;box-shadow:0 10px 24px rgba(27,91,255,.12);}
-.rev-av img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;}
+.rev-av{width:54px;height:54px;border-radius:50%;border:3px solid var(--rouge);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--blanc);flex-shrink:0;overflow:hidden;background:#EEF3FF;box-shadow:0 10px 24px rgba(27,91,255,.12);transition:border-color .25s ease,box-shadow .25s ease;}
+body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0,51,153,.16);}
+.rev-av img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;transition:opacity .22s ease,transform .22s ease;}
+.rev-av img.face-loading{opacity:.25;transform:scale(.96);}
 .av-a{background:linear-gradient(135deg,#c0392b,#e74c3c);}
 .av-b{background:linear-gradient(135deg,#1565C0,#1976D2);}
 .av-c{background:linear-gradient(135deg,#2E7D32,#43A047);}
@@ -2237,42 +2239,42 @@ footer{background:#050505;}
     </div>
     <div class="rev-grid">
       <div class="rev-card rv" style="transition-delay:.05s">
-        <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" data-face-ca="https://randomuser.me/api/portraits/women/44.jpg" data-face-eu="https://randomuser.me/api/portraits/women/28.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">🌍 PUBLI-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !</p>
         <span class="rev-tag">Pack SEO Prestige Canada</span>
         <div class="rev-date">Il y a 2 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.1s">
-        <div class="rev-head"><div class="rev-av av-b"><img src="https://randomuser.me/api/portraits/men/32.jpg" width="54" height="54" alt="Portrait de Jean-François Bouchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Jean-François Bouchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Québec City 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-b"><img src="https://randomuser.me/api/portraits/men/32.jpg" data-face-ca="https://randomuser.me/api/portraits/men/32.jpg" data-face-eu="https://randomuser.me/api/portraits/men/52.jpg" width="54" height="54" alt="Portrait de Jean-François Bouchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Jean-François Bouchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Québec City 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. L'intégration Stripe fonctionne parfaitement, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !</p>
         <span class="rev-tag">Boutique E-Commerce Canada</span>
         <div class="rev-date">Il y a 1 mois · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.15s">
-        <div class="rev-head"><div class="rev-av av-c"><img src="https://randomuser.me/api/portraits/women/65.jpg" width="54" height="54" alt="Portrait de Sophie Larivière" loading="lazy" decoding="async"/></div><div><div class="rev-name">Sophie Larivière</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Toronto, Ontario 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-c"><img src="https://randomuser.me/api/portraits/women/65.jpg" data-face-ca="https://randomuser.me/api/portraits/women/65.jpg" data-face-eu="https://randomuser.me/api/portraits/women/12.jpg" width="54" height="54" alt="Portrait de Sophie Larivière" loading="lazy" decoding="async"/></div><div><div class="rev-name">Sophie Larivière</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Toronto, Ontario 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">J'ai testé 4 agences avant 🌍 PUBLI-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.</p>
         <span class="rev-tag">Google Ads Pro Canada</span>
         <div class="rev-date">Il y a 3 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.2s">
-        <div class="rev-head"><div class="rev-av av-d"><img src="https://randomuser.me/api/portraits/men/75.jpg" width="54" height="54" alt="Portrait de Pierre-Antoine Moreau" loading="lazy" decoding="async"/></div><div><div class="rev-name">Pierre-Antoine Moreau</div><div class="rev-loc"><img src="https://flagcdn.com/w20/fr.png" alt="FR"/> Paris, France 🇫🇷</div></div></div>
+        <div class="rev-head"><div class="rev-av av-d"><img src="https://randomuser.me/api/portraits/men/75.jpg" data-face-ca="https://randomuser.me/api/portraits/men/75.jpg" data-face-eu="https://randomuser.me/api/portraits/men/7.jpg" width="54" height="54" alt="Portrait de Pierre-Antoine Moreau" loading="lazy" decoding="async"/></div><div><div class="rev-name">Pierre-Antoine Moreau</div><div class="rev-loc"><img src="https://flagcdn.com/w20/fr.png" alt="FR"/> Paris, France 🇫🇷</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLI-MAP Europe a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.</p>
         <span class="rev-tag">Community Management Europe</span>
         <div class="rev-date">Il y a 6 semaines · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.25s">
-        <div class="rev-head"><div class="rev-av av-e"><img src="https://randomuser.me/api/portraits/women/68.jpg" width="54" height="54" alt="Portrait de Lucie Gagnon" loading="lazy" decoding="async"/></div><div><div class="rev-name">Lucie Gagnon</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Vancouver, C.-B. 🇨🇦</div></div></div>
+        <div class="rev-head"><div class="rev-av av-e"><img src="https://randomuser.me/api/portraits/women/68.jpg" data-face-ca="https://randomuser.me/api/portraits/women/68.jpg" data-face-eu="https://randomuser.me/api/portraits/women/43.jpg" width="54" height="54" alt="Portrait de Lucie Gagnon" loading="lazy" decoding="async"/></div><div><div class="rev-name">Lucie Gagnon</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Vancouver, C.-B. 🇨🇦</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLI-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.</p>
         <span class="rev-tag">Audit & Stratégie 360° Canada</span>
         <div class="rev-date">Il y a 2 mois · Avis vérifié Google ✓</div>
       </div>
       <div class="rev-card rv" style="transition-delay:.3s">
-        <div class="rev-head"><div class="rev-av av-f"><img src="https://randomuser.me/api/portraits/men/46.jpg" width="54" height="54" alt="Portrait de Nicolas Blanchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Nicolas Blanchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/be.png" alt="BE"/> Bruxelles, Belgique 🇧🇪</div></div></div>
+        <div class="rev-head"><div class="rev-av av-f"><img src="https://randomuser.me/api/portraits/men/46.jpg" data-face-ca="https://randomuser.me/api/portraits/men/46.jpg" data-face-eu="https://randomuser.me/api/portraits/men/62.jpg" width="54" height="54" alt="Portrait de Nicolas Blanchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Nicolas Blanchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/be.png" alt="BE"/> Bruxelles, Belgique 🇧🇪</div></div></div>
         <div class="rev-stars">★★★★★</div>
         <p class="rev-text">La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 PUBLI-MAP !</p>
         <span class="rev-tag">Site Web Europe + SEO</span>
@@ -2966,6 +2968,23 @@ function switchPanel(z){
   document.getElementById('tab-eu').className='zone-tab'+(z==='eu'?' active-eu':'');
   document.getElementById('nb-ca').classList.toggle('active',z==='ca');
   document.getElementById('nb-eu').classList.toggle('active',z==='eu');
+  updateReviewFaces(z);
+}
+
+function updateReviewFaces(zone){
+  const target=zone==='eu'?'faceEu':'faceCa';
+  document.querySelectorAll('.rev-av img[data-face-ca][data-face-eu]').forEach(img=>{
+    const next=img.dataset[target];
+    if(!next||img.getAttribute('src')===next)return;
+    img.classList.add('face-loading');
+    const preloader=new Image();
+    preloader.onload=()=>{
+      img.src=next;
+      img.classList.remove('face-loading');
+    };
+    preloader.onerror=()=>img.classList.remove('face-loading');
+    preloader.src=next;
+  });
 }
 
 /* ── FAQ ── */
