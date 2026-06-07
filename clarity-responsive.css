@@ -277,32 +277,89 @@ nav.scrolled {
   }
 }
 
+/* Restore the useful certificates, while keeping the removed accreditation frame out. */
+#certifications {
+  padding: 72px 24px 64px !important;
+}
+
+#certifications > div {
+  max-width: 1180px !important;
+}
+
+#certifications .user-cert-panel {
+  margin-bottom: 48px !important;
+}
+
+#certifications .cert-badges-grid {
+  margin-bottom: 0 !important;
+}
+
 /* Footer inspired by the clean Mapidea-style blue wave. */
 .nl-sec {
-  background: linear-gradient(135deg, #0947ef 0%, #0731bf 48%, #12b9ef 100%) !important;
-  border-radius: 52% 52% 0 0 / 118px 118px 0 0 !important;
-  margin-top: 46px !important;
-  padding: 76px 24px 54px !important;
+  background: #ffffff !important;
+  border-top: 1px solid rgba(27, 91, 255, .10) !important;
+  border-radius: 0 !important;
+  margin-top: 28px !important;
+  padding: 54px 24px 72px !important;
+}
+
+.nl-title {
+  color: #0a2540 !important;
+}
+
+.nl-title em {
+  color: #1B5BFF !important;
+}
+
+.nl-sub,
+.nl-sec p[style] {
+  color: rgba(74, 85, 104, .72) !important;
+}
+
+.nl-form {
+  border: 1px solid #e5eaf0 !important;
+  box-shadow: 0 16px 36px rgba(10, 37, 64, .08) !important;
+}
+
+.nl-btn {
+  background: linear-gradient(135deg, #1B5BFF, #0838d8) !important;
 }
 
 footer.foot-bar-rounded {
+  position: relative !important;
+  isolation: isolate;
   background:
-    radial-gradient(circle at 96% 8%, rgba(255,255,255,.22) 0 70px, transparent 72px),
-    linear-gradient(135deg, #062fb9 0%, #0736cb 42%, #00b5e8 100%) !important;
+    radial-gradient(circle at 102% 8%, rgba(255,255,255,.18) 0 76px, transparent 78px),
+    linear-gradient(135deg, #052cbd 0%, #073bd4 48%, #08bde8 100%) !important;
   color: #fff !important;
   border-radius: 0 !important;
-  margin-top: -1px !important;
-  padding: 0 20px 48px !important;
+  margin-top: 0 !important;
+  padding: 118px 20px 48px !important;
   overflow: hidden !important;
+}
+
+footer.foot-bar-rounded::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: -178px;
+  width: 128vw;
+  height: 255px;
+  transform: translateX(-50%);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  background: #ffffff;
+  pointer-events: none;
 }
 
 footer.foot-bar-rounded::after {
   content: "";
   position: absolute;
-  right: -120px;
-  top: -105px;
-  width: 360px;
-  height: 220px;
+  z-index: 0;
+  right: -125px;
+  top: 18px;
+  width: 330px;
+  height: 205px;
   border-radius: 999px;
   background: rgba(255,255,255,.10);
   transform: rotate(-28deg);
@@ -415,17 +472,29 @@ footer.foot-bar-rounded .foot-legal {
 }
 
 @media (max-width: 760px) {
+  #certifications {
+    padding: 54px 18px 46px !important;
+  }
+
+  #certifications .user-cert-panel {
+    margin-bottom: 34px !important;
+  }
+
   .nl-sec {
-    border-radius: 34% 34% 0 0 / 70px 70px 0 0 !important;
-    padding: 62px 20px 44px !important;
+    padding: 44px 20px 58px !important;
   }
 
   footer.foot-bar-rounded {
-    padding-bottom: 38px !important;
+    padding: 92px 20px 38px !important;
+  }
+
+  footer.foot-bar-rounded::before {
+    top: -122px;
+    width: 148vw;
+    height: 178px;
   }
 
   .footer-wave-brand {
-    padding-top: 18px;
     margin-bottom: 24px;
   }
 

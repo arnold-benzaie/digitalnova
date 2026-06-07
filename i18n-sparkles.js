@@ -523,6 +523,26 @@ const T = {
   "Demander un devis →":"Request a quote →",
   "Vérifiez notre enregistrement sur corporations.canada.ca":"Verify our registration on corporations.canada.ca",
 
+  // Certifications
+  "Certifications Officielles":"Official Certifications",
+  "Notre expertise,":"Our expertise,",
+  "certifiée et reconnue":"certified and recognized",
+  "🌍 PUBLI-MAP CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 PUBLI-MAP CANADA INC. holds official certifications issued by Google and leading global SEO authorities. Every certification reflects rigorous exams and proven field expertise.",
+  "Nos Certifications":"Our Certifications",
+  "Digital Marketing Master Licensed":"Digital Marketing Master Licensed",
+  "CSS3 Developer Certification":"CSS3 Developer Certification",
+  "HTML5 Developer Certification":"HTML5 Developer Certification",
+  "SEO for Growth Certified Consultant":"SEO for Growth Certified Consultant",
+  "Google Certification":"Google Certification",
+  "Certification officielle Google":"Official Google Certification",
+  "Marketing Platform":"Marketing Platform",
+  "Local SEO Certified":"Local SEO Certified",
+  "Certification individuelle":"Individual certification",
+  "SEO Local — Expert vérifié":"Local SEO — Verified Expert",
+  "SEO Expert Certification":"SEO Expert Certification",
+  "Search Engine Optimization":"Search Engine Optimization",
+  "Expert — Certified Professional":"Expert — Certified Professional",
+
   // FAQ
   "🛡️ Confiance & Transparence":"🛡️ Trust & Transparency",
   "Questions fréquentes —":"FAQ —",
