@@ -276,3 +276,173 @@ nav.scrolled {
     transition-duration: .01ms !important;
   }
 }
+
+/* Footer inspired by the clean Mapidea-style blue wave. */
+.nl-sec {
+  background: linear-gradient(135deg, #0947ef 0%, #0731bf 48%, #12b9ef 100%) !important;
+  border-radius: 52% 52% 0 0 / 118px 118px 0 0 !important;
+  margin-top: 46px !important;
+  padding: 76px 24px 54px !important;
+}
+
+footer.foot-bar-rounded {
+  background:
+    radial-gradient(circle at 96% 8%, rgba(255,255,255,.22) 0 70px, transparent 72px),
+    linear-gradient(135deg, #062fb9 0%, #0736cb 42%, #00b5e8 100%) !important;
+  color: #fff !important;
+  border-radius: 0 !important;
+  margin-top: -1px !important;
+  padding: 0 20px 48px !important;
+  overflow: hidden !important;
+}
+
+footer.foot-bar-rounded::after {
+  content: "";
+  position: absolute;
+  right: -120px;
+  top: -105px;
+  width: 360px;
+  height: 220px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  transform: rotate(-28deg);
+  pointer-events: none;
+}
+
+.footer-wave-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.footer-wave-brand {
+  padding-top: 28px;
+  margin-bottom: 34px;
+}
+
+footer.foot-bar-rounded .ft-brand-name {
+  color: #ffffff !important;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: 0 10px 26px rgba(0,0,0,.18);
+}
+
+footer.foot-bar-rounded .ft-brand-name span {
+  color: #7ddfff !important;
+}
+
+footer.foot-bar-rounded .ft-brand-sub {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255,255,255,.72) !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+
+.footer-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 auto 48px;
+  max-width: 980px;
+}
+
+.footer-contact-item {
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 8px 28px;
+  border-right: 1px solid rgba(255,255,255,.22);
+}
+
+.footer-contact-item:last-child {
+  border-right: 0;
+}
+
+.footer-contact-icon {
+  font-size: 34px;
+  line-height: 1;
+  filter: drop-shadow(0 8px 20px rgba(0,0,0,.18));
+}
+
+.footer-contact-item p,
+.footer-contact-item a {
+  margin: 0;
+  color: rgba(255,255,255,.92) !important;
+  font-size: clamp(17px, 2vw, 23px);
+  line-height: 1.28;
+  text-decoration: none;
+}
+
+.footer-contact-item span,
+.footer-hours {
+  color: rgba(255,255,255,.70) !important;
+  font-size: 14px;
+}
+
+.footer-hours {
+  margin-bottom: 34px;
+}
+
+footer.foot-bar-rounded .foot-bot {
+  max-width: 980px;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  border-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+}
+
+footer.foot-bar-rounded .foot-bot p,
+footer.foot-bar-rounded .foot-legal a {
+  color: rgba(255,255,255,.66) !important;
+}
+
+footer.foot-bar-rounded .foot-legal {
+  justify-content: center;
+}
+
+@media (max-width: 760px) {
+  .nl-sec {
+    border-radius: 34% 34% 0 0 / 70px 70px 0 0 !important;
+    padding: 62px 20px 44px !important;
+  }
+
+  footer.foot-bar-rounded {
+    padding-bottom: 38px !important;
+  }
+
+  .footer-wave-brand {
+    padding-top: 18px;
+    margin-bottom: 24px;
+  }
+
+  .footer-contact-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-bottom: 34px;
+  }
+
+  .footer-contact-item {
+    min-height: auto;
+    padding: 0 18px 20px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255,255,255,.18);
+  }
+
+  .footer-contact-item:last-child {
+    border-bottom: 0;
+  }
+}
