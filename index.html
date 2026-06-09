@@ -245,6 +245,39 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .rev-tag{display:inline-block;background:rgba(213,43,30,.07);color:var(--rouge);font-size:10px;font-weight:600;padding:3px 10px;border-radius:10px;margin-top:12px;letter-spacing:.05em;}
 .rev-date{font-size:11px;color:#BCBCBC;margin-top:6px;font-style:italic;}
 
+/* ─── LAISSER UN AVIS ─── */
+.review-submit-sec{background:#fff;padding-top:80px;}
+.review-submit-wrap{max-width:1180px;margin:0 auto;background:linear-gradient(135deg,#F8FAFE 0%,#FFFFFF 58%,#EEF5FF 100%);border:1.5px solid #E0EAFF;border-radius:28px;padding:44px;display:grid;grid-template-columns:.92fr 1.08fr;gap:34px;align-items:stretch;box-shadow:0 24px 70px rgba(10,37,64,.08);position:relative;overflow:hidden;}
+.review-submit-wrap::before{content:"";position:absolute;right:-120px;top:-140px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(27,91,255,.16),transparent 68%);pointer-events:none;}
+.review-submit-copy,.review-submit-form{position:relative;z-index:1;}
+.review-submit-kicker{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #D8E6FF;border-radius:999px;padding:7px 14px;color:#1B5BFF;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:18px;}
+.review-submit-title{font-family:'Cormorant Garamond',serif;font-size:clamp(30px,3.8vw,48px);font-weight:800;line-height:1.05;color:#0A2540;margin-bottom:14px;}
+.review-submit-title em{color:#1B5BFF;font-style:italic;}
+.review-submit-desc{font-size:14px;color:#4A5568;line-height:1.85;margin-bottom:24px;}
+.review-benefits{display:grid;gap:12px;}
+.review-benefit{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid #E5EAF0;border-radius:16px;padding:14px 16px;box-shadow:0 10px 26px rgba(10,37,64,.04);}
+.review-benefit strong{display:block;font-size:13px;color:#0A2540;margin-bottom:3px;}
+.review-benefit span{font-size:12px;color:#667085;line-height:1.55;}
+.review-form-card{background:#fff;border:1.5px solid #E5EAF0;border-radius:22px;padding:26px;box-shadow:0 18px 44px rgba(10,37,64,.08);}
+.review-form-title{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:800;color:#0A2540;margin-bottom:6px;}
+.review-form-sub{font-size:12px;color:#667085;line-height:1.65;margin-bottom:18px;}
+.review-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.review-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+.review-field.full{grid-column:1/-1;}
+.review-field label{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#667085;}
+.review-field input,.review-field select,.review-field textarea{width:100%;border:1.5px solid #DDE5F2;border-radius:12px;background:#FAFCFF;padding:12px 14px;font-family:'Outfit',sans-serif;font-size:14px;color:#0A2540;outline:none;transition:border-color .2s,box-shadow .2s;}
+.review-field textarea{min-height:118px;resize:vertical;line-height:1.6;}
+.review-field input:focus,.review-field select:focus,.review-field textarea:focus{border-color:#1B5BFF;box-shadow:0 0 0 4px rgba(27,91,255,.10);}
+.review-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+.review-primary,.review-secondary{border:none;border-radius:999px;padding:13px 18px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .25s,box-shadow .25s;}
+.review-primary{background:linear-gradient(135deg,#1B5BFF,#073BD4);color:#fff;box-shadow:0 14px 34px rgba(27,91,255,.24);}
+.review-secondary{background:#fff;color:#1B5BFF;border:1.5px solid #D8E6FF;}
+.review-primary:hover,.review-secondary:hover{transform:translateY(-2px);}
+.review-form-msg{display:none;margin-top:12px;border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.55;}
+.review-form-msg.ok{display:block;background:#F0FFF4;border:1px solid #B7E4C7;color:#1B7F3B;}
+.review-form-msg.err{display:block;background:#FFF5F5;border:1px solid #FFCDD2;color:#C0392B;}
+.review-google-note{margin-top:12px;font-size:11px;color:#8A94A6;line-height:1.55;text-align:center;}
+
 /* ─── CRÉDIBILITÉ ─── */
 .cred-sec{background:#F8FAFE;padding:100px 56px;}
 .cred-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;}
@@ -506,6 +539,7 @@ footer{background:#050505;}
   .srv-grid{grid-template-columns:repeat(2,1fr);}
   .certs-grid{grid-template-columns:repeat(2,1fr);}
   .rev-grid{grid-template-columns:1fr;}
+  .review-submit-wrap{grid-template-columns:1fr;padding:32px 26px;}
   .cred-inner,.pay-inner{grid-template-columns:1fr;gap:50px;}
   .foot-top{grid-template-columns:1fr 1fr;gap:40px;}
   .faq-list{grid-template-columns:1fr;}
@@ -547,6 +581,8 @@ footer{background:#050505;}
   .cred-sec,.pay-sec{padding:70px 20px;}
   .nl-sec{padding:70px 20px;}
   .cards-wrap{grid-template-columns:repeat(2,1fr);}
+  .review-submit-sec{padding:64px 20px 20px;}
+  .review-form-grid,.review-actions{grid-template-columns:1fr;}
   .score-sep{display:none;}
   .score-block{flex-direction:column;align-items:flex-start;padding:28px 24px;}
   .score-big{font-size:56px;}
@@ -555,6 +591,8 @@ footer{background:#050505;}
 @media(max-width:600px){
   .srv-grid{grid-template-columns:1fr;}
   .certs-grid{grid-template-columns:1fr;}
+  .review-submit-wrap{padding:26px 18px;border-radius:22px;}
+  .review-form-card{padding:20px 16px;}
   .foot-top{grid-template-columns:1fr;padding:50px 20px 40px;}
   .foot-bot{padding:20px;flex-direction:column;text-align:center;}
   .foot-legal{flex-wrap:wrap;justify-content:center;gap:12px 18px;}
@@ -1737,7 +1775,7 @@ footer{background:#050505;}
         <h2 class="sec-h">Ce que disent<br><em>nos clients</em></h2>
         <p class="sec-sub" id="review-region-sub">Avis authentiques vérifiés Google — clients réels du Canada.</p>
       </div>
-      <a href="#" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--gris2);border-radius:30px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--gris);text-decoration:none;transition:all .3s;" onmouseover="this.style.borderColor='var(--rouge)'" onmouseout="this.style.borderColor='var(--gris2)'">
+      <a href="#laisser-avis" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--gris2);border-radius:30px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--gris);text-decoration:none;transition:all .3s;" onmouseover="this.style.borderColor='var(--rouge)'" onmouseout="this.style.borderColor='var(--gris2)'">
         <span style="font-weight:800;color:#4285F4;font-size:14px;">G</span> <span id="review-google-count">527 avis Google Canada</span>
       </a>
     </div>
@@ -1794,6 +1832,71 @@ footer{background:#050505;}
         <p class="rev-text">On cherchait une équipe capable de gérer Google Ads, SEO et suivi commercial sans jargon inutile. Les campagnes ont été structurées proprement et notre coût par prospect a baissé de 38%.</p>
         <span class="rev-tag">Google Ads + SEO Canada</span>
         <div class="rev-date">Il y a 7 semaines · Avis vérifié Google ✓</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ LAISSER UN AVIS ═══ -->
+<section class="sec review-submit-sec" id="laisser-avis">
+  <div class="review-submit-wrap rv">
+    <div class="review-submit-copy">
+      <span class="review-submit-kicker">⭐ Visibilité Google</span>
+      <h2 class="review-submit-title">Aidez-nous à gagner<br><em>plus de visibilité</em></h2>
+      <p class="review-submit-desc">Un avis client réel aide PUBLI-MAP à renforcer sa crédibilité sur Google, rassure les futurs clients et améliore la confiance autour de nos services Canada & Europe.</p>
+      <div class="review-benefits">
+        <div class="review-benefit"><span>📍</span><div><strong>Meilleur référencement local</strong><span>Les avis réguliers aident une fiche Google Business à paraître plus active et plus fiable.</span></div></div>
+        <div class="review-benefit"><span>🤝</span><div><strong>Preuve sociale plus forte</strong><span>Un commentaire concret rassure mieux qu'une simple note étoilée.</span></div></div>
+        <div class="review-benefit"><span>⚡</span><div><strong>Processus simple</strong><span>Le client prépare son avis ici, puis l'envoie par courriel ou le publie sur Google.</span></div></div>
+      </div>
+    </div>
+
+    <div class="review-submit-form">
+      <div class="review-form-card">
+        <div class="review-form-title">Laisser un commentaire</div>
+        <p class="review-form-sub">Votre avis nous aide à améliorer nos services et à développer notre présence sur Google.</p>
+        <div class="review-form-grid">
+          <div class="review-field">
+            <label for="review-name">Votre nom</label>
+            <input id="review-name" type="text" placeholder="Prénom Nom"/>
+          </div>
+          <div class="review-field">
+            <label for="review-company">Entreprise</label>
+            <input id="review-company" type="text" placeholder="Nom de votre entreprise"/>
+          </div>
+          <div class="review-field">
+            <label for="review-service">Service utilisé</label>
+            <select id="review-service">
+              <option>Google Business Profile</option>
+              <option>SEO Local</option>
+              <option>Site Web</option>
+              <option>E-Commerce</option>
+              <option>Google Ads</option>
+              <option>Stratégie 360°</option>
+            </select>
+          </div>
+          <div class="review-field">
+            <label for="review-rating">Note</label>
+            <select id="review-rating">
+              <option value="5">★★★★★ 5 étoiles</option>
+              <option value="4">★★★★☆ 4 étoiles</option>
+              <option value="3">★★★☆☆ 3 étoiles</option>
+              <option value="2">★★☆☆☆ 2 étoiles</option>
+              <option value="1">★☆☆☆☆ 1 étoile</option>
+            </select>
+          </div>
+          <div class="review-field full">
+            <label for="review-comment">Votre commentaire</label>
+            <textarea id="review-comment" placeholder="Expliquez votre expérience, le service reçu, le résultat obtenu et ce que vous avez apprécié."></textarea>
+          </div>
+        </div>
+        <div class="review-actions">
+          <button class="review-primary" type="button" onclick="prepareReviewComment()">📩 Préparer mon avis</button>
+          <a class="review-secondary" href="https://www.google.com/search?q=PUBLI-MAP+CANADA+INC+avis+Google" target="_blank" rel="noopener">🌍 Publier sur Google</a>
+        </div>
+        <a class="review-primary" id="review-mailto" href="mailto:contact@publi-map.com" style="display:none;margin-top:12px;">Envoyer mon commentaire →</a>
+        <div class="review-form-msg" id="review-form-msg"></div>
+        <div class="review-google-note">Conseil : pour booster la visibilité, l'avis le plus puissant est celui publié directement sur la fiche Google Business Profile.</div>
       </div>
     </div>
   </div>
@@ -2602,6 +2705,59 @@ document.addEventListener('digitalnova:language-updated',()=>{
   renderRegionFaq(activeZone);
 });
 
+/* ── LAISSER UN AVIS ── */
+function prepareReviewComment(){
+  const name=document.getElementById('review-name').value.trim();
+  const company=document.getElementById('review-company').value.trim();
+  const service=document.getElementById('review-service').value;
+  const rating=document.getElementById('review-rating').value;
+  const comment=document.getElementById('review-comment').value.trim();
+  const msg=document.getElementById('review-form-msg');
+  const link=document.getElementById('review-mailto');
+  const isEn=reviewLang()==='en';
+
+  msg.className='review-form-msg';
+  msg.style.display='none';
+  link.style.display='none';
+
+  if(name.length<2){
+    msg.textContent=isEn?'Please enter your name.':'Veuillez entrer votre nom.';
+    msg.className='review-form-msg err';
+    return;
+  }
+  if(comment.length<30){
+    msg.textContent=isEn?'Please write a more detailed comment, at least 30 characters.':'Veuillez écrire un commentaire un peu plus détaillé, au moins 30 caractères.';
+    msg.className='review-form-msg err';
+    return;
+  }
+
+  const stars='★★★★★'.slice(0,Number(rating))+'☆☆☆☆☆'.slice(0,5-Number(rating));
+  const subject=`Avis client PUBLI-MAP — ${rating}/5`;
+  const body=[
+    'Bonjour PUBLI-MAP,',
+    '',
+    'Voici mon avis client :',
+    '',
+    `Nom : ${name}`,
+    `Entreprise : ${company||'Non précisée'}`,
+    `Service utilisé : ${service}`,
+    `Note : ${stars} (${rating}/5)`,
+    '',
+    'Commentaire :',
+    comment,
+    '',
+    'Vous pouvez me recontacter si vous souhaitez vérifier ou publier ce témoignage.',
+    '',
+    'Merci.'
+  ].join('\n');
+
+  link.href=`mailto:contact@publi-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  link.style.display='inline-flex';
+  msg.textContent=isEn?'Your review is ready. Click the email button or publish it directly on Google.':'Votre avis est prêt. Cliquez sur le bouton courriel ou publiez-le directement sur Google.';
+  msg.className='review-form-msg ok';
+}
+window.prepareReviewComment=prepareReviewComment;
+
 /* ── FAQ ── */
 function toggleFaq(btn){
   const it=btn.parentElement;
@@ -2688,7 +2844,7 @@ function submitQuote(){
   document.getElementById('m-ok').classList.add('show');
 }
 </script>
-<script src="i18n-sparkles.js?v=2026060702"></script>
+<script src="i18n-sparkles.js?v=2026060901"></script>
 <script src="3d-effects.js?v=2026060601"></script>
 <script src="animations-pack.js?v=2026060603"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
