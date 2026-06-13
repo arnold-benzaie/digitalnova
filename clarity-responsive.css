@@ -301,6 +301,26 @@ nav.scrolled {
   border-radius: 0 !important;
   margin-top: 28px !important;
   padding: 54px 24px 72px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate;
+}
+
+.nl-sec::before {
+  z-index: 0 !important;
+}
+
+.nl-eu-symbol {
+  position: absolute;
+  left: clamp(-96px, -4vw, -36px);
+  top: 50%;
+  z-index: 0;
+  pointer-events: none;
+  transform: translateY(-50%) rotate(-8deg);
+  font-size: clamp(150px, 20vw, 330px);
+  line-height: 1;
+  opacity: .055;
+  filter: saturate(.92);
 }
 
 .nl-title {
@@ -482,6 +502,20 @@ footer.foot-bar-rounded .foot-legal {
 
   .nl-sec {
     padding: 44px 20px 58px !important;
+  }
+
+  .nl-eu-symbol {
+    left: -70px;
+    top: 30%;
+    font-size: 160px;
+    opacity: .04;
+  }
+
+  .nl-sec::before {
+    right: -110px !important;
+    top: 72% !important;
+    font-size: 260px !important;
+    opacity: .035 !important;
   }
 
   footer.foot-bar-rounded {
