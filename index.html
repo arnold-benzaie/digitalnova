@@ -354,6 +354,9 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .sf-inp{background:#FAFAFA;border:1.5px solid #E0E0E0;border-radius:8px;padding:12px 14px;font-family:'Outfit',sans-serif;font-size:14px;color:#1A1A1A;width:100%;outline:none;transition:border-color .2s;}
 .sf-inp:focus{border-color:var(--g-blue);}
 .sf-inp::placeholder{color:#AAA;}
+.phone-code-wrap{display:grid;grid-template-columns:minmax(148px,.42fr) minmax(0,1fr);gap:8px;align-items:center;}
+.phone-code-select{background:#FAFAFA;border:1.5px solid #E0E0E0;border-radius:8px;padding:12px 10px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;width:100%;outline:none;transition:border-color .2s;cursor:pointer;}
+.phone-code-select:focus{border-color:var(--g-blue);}
 .sf-stripe-el{background:#F8FAFE;border:1.5px solid #E0E0E0;border-radius:8px;padding:13px 14px;}
 .sf-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .sf-submit{background:linear-gradient(135deg,var(--rouge),var(--rouge2));color:var(--blanc);border:none;padding:15px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:6px;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--sh-red);letter-spacing:.05em;}
@@ -376,8 +379,10 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .m-label{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--gris);margin-bottom:4px;}
 .m-inp{border:1.5px solid var(--gris2);border-radius:8px;padding:12px 14px;font-family:'Outfit',sans-serif;font-size:14px;color:var(--noir);width:100%;outline:none;background:var(--blanc);transition:border-color .2s;}
 .m-inp:focus{border-color:var(--rouge);}
+.m-form .phone-code-select{background:var(--blanc);border-color:var(--gris2);color:var(--noir);}
+.m-form .phone-code-select:focus{border-color:var(--rouge);}
 .m-stripe-el{border:1.5px solid var(--gris2);border-radius:8px;padding:13px 14px;background:#FAFAFA;}
-.m-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.m-row{display:grid;grid-template-columns:1fr;gap:12px;}
 .m-cards-row{display:flex;gap:5px;margin-bottom:5px;}
 .m-ci{background:#F3F0EB;border:1px solid var(--gris2);border-radius:4px;padding:3px 7px;font-size:10px;font-weight:700;color:var(--gris);}
 .m-submit{background:linear-gradient(135deg,var(--rouge),var(--rouge2));color:var(--blanc);border:none;padding:15px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:var(--sh-red);transition:all .3s;letter-spacing:.05em;}
@@ -385,14 +390,6 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .m-submit.eu-btn{background:linear-gradient(135deg,var(--bleu-eu),#001B66);box-shadow:0 8px 30px rgba(0,51,153,.4);}
 .m-err{color:#c0392b;font-size:12px;background:#FFF5F5;border:1px solid #FFCDD2;border-radius:6px;padding:8px 12px;display:none;}
 .m-foot{text-align:center;font-size:10px;color:var(--gris);margin-top:10px;display:flex;align-items:center;justify-content:center;gap:10px;}
-/* Overlays */
-.m-overlay{display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:rgba(255,255,255,.97);z-index:10;border-radius:22px;}
-.m-overlay.show{display:flex;}
-.spin{width:40px;height:40px;border:3px solid var(--gris2);border-top-color:var(--rouge);border-radius:50%;animation:sp .8s linear infinite;}
-@keyframes sp{to{transform:rotate(360deg)}}
-.ok-circle{width:64px;height:64px;background:#4CAF50;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--blanc);animation:popIn .4s ease;}
-@keyframes popIn{from{transform:scale(0)}to{transform:scale(1)}}
-
 /* ─── GOOGLE BUSINESS PROFILE SECTION ─── */
 :root{
   --g-blue:#4285F4; --g-red:#EA4335; --g-yellow:#FBBC05; --g-green:#34A853;
@@ -631,7 +628,7 @@ footer{background:#050505;}
   .nl-inp{border-radius:12px 12px 0 0;padding:14px 18px;}
   .nl-btn{border-radius:0 0 12px 12px;padding:14px 20px;}
   .cards-wrap{grid-template-columns:1fr 1fr;}
-  .m-row,.sf-row{grid-template-columns:1fr;}
+  .m-row,.sf-row,.phone-code-wrap{grid-template-columns:1fr;}
   .modal-box{width:96%;max-height:92vh;overflow-y:auto;}
   .modal-body{padding:20px;}
   .ld-name{font-size:36px;letter-spacing:.08em;}
@@ -1915,7 +1912,6 @@ footer{background:#050505;}
           <button class="review-primary" type="button" onclick="prepareReviewComment()">📩 Préparer mon avis</button>
           <a class="review-secondary" href="https://www.google.com/search?q=public-map.com+avis+Google" target="_blank" rel="noopener">🌍 Publier sur Google</a>
         </div>
-        <a class="review-primary" id="review-mailto" href="mailto:contact@public-map.com" style="display:none;margin-top:12px;">Envoyer mon commentaire →</a>
         <div class="review-form-msg" id="review-form-msg"></div>
         <div class="review-google-note">Conseil : pour booster la visibilité, l'avis le plus puissant est celui publié directement sur la fiche Google Business Profile.</div>
       </div>
@@ -2338,10 +2334,34 @@ footer{background:#050505;}
             <div><div class="sf-label">Votre courriel</div><input class="sf-inp" id="sf-email" type="email" placeholder="courriel@exemple.com"/></div>
             <div><div class="sf-label">Votre nom</div><input class="sf-inp" id="sf-name" type="text" placeholder="Prénom Nom"/></div>
             <div><div class="sf-label">Entreprise</div><input class="sf-inp" id="sf-company" type="text" placeholder="Nom de votre entreprise"/></div>
-            <div><div class="sf-label">Téléphone</div><input class="sf-inp" id="sf-phone" type="tel" placeholder="+1 ..."/></div>
-            <button class="sf-submit" onclick="prepareSiteQuote(this)"><span>📩</span> Préparer ma demande →</button>
+            <div class="phone-field">
+              <div class="sf-label">Téléphone</div>
+              <div class="phone-code-wrap">
+                <select class="phone-code-select" id="sf-phone-code" aria-label="Indicatif pays">
+                  <option value="+1" selected>🇨🇦 Canada +1</option>
+                  <option value="+1">🇺🇸 USA +1</option>
+                  <option value="+33">🇫🇷 France +33</option>
+                  <option value="+44">🇬🇧 UK +44</option>
+                  <option value="+32">🇧🇪 Belgium +32</option>
+                  <option value="+41">🇨🇭 Switzerland +41</option>
+                  <option value="+352">🇱🇺 Luxembourg +352</option>
+                  <option value="+49">🇩🇪 Germany +49</option>
+                  <option value="+34">🇪🇸 Spain +34</option>
+                  <option value="+39">🇮🇹 Italy +39</option>
+                  <option value="+230">🇲🇺 Mauritius +230</option>
+                  <option value="+596">🇲🇶 Martinique +596</option>
+                  <option value="+212">🇲🇦 Morocco +212</option>
+                  <option value="+237">🇨🇲 Cameroon +237</option>
+                  <option value="+225">🇨🇮 Côte d'Ivoire +225</option>
+                  <option value="+221">🇸🇳 Senegal +221</option>
+                  <option value="+971">🇦🇪 UAE +971</option>
+                  <option value="">🌍 Autre indicatif</option>
+                </select>
+                <input class="sf-inp" id="sf-phone" type="tel" placeholder="514 800 0000" autocomplete="tel-national"/>
+              </div>
+            </div>
+            <button class="sf-submit" onclick="prepareSiteQuote(this)"><span>📩</span> Envoyer ma demande par courriel →</button>
             <div class="m-err" id="sf-err"></div>
-            <a class="sf-submit" id="sf-mailto" href="mailto:contact@public-map.com" style="display:none;text-decoration:none;"><span>✉️</span> Ouvrir mon courriel →</a>
           </div>
           <div class="sf-note"><span>🔒 Paiement sécurisé via Lemon Squeezy</span><span>·</span><span>Lien envoyé après validation du devis</span></div>
         </div>
@@ -2399,7 +2419,6 @@ footer{background:#050505;}
 <!-- ═══ MODAL DEMANDE DE DEVIS ═══ -->
 <div id="modal">
   <div class="modal-box">
-    <div class="m-overlay" id="m-ok"><div class="ok-circle">✓</div><span style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;">Votre demande est prête</span><p style="font-size:13px;color:#777;text-align:center;max-width:280px;line-height:1.7;">Ouvrez votre messagerie pour envoyer votre demande de devis. Après validation, le lien de paiement Lemon Squeezy vous sera envoyé de façon sécurisée.</p><a id="m-mailto" href="mailto:contact@public-map.com" style="background:var(--rouge);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;text-decoration:none;">Ouvrir mon courriel →</a><button onclick="closeModal()" style="background:transparent;color:#777;border:none;font-size:13px;cursor:pointer;">Fermer</button></div>
     <div class="modal-head" id="m-head">
       <div class="mh-left"><h3 id="m-title">Service</h3><p id="m-zone-label">Zone Canada 🇨🇦</p></div>
       <div><div class="mh-price" id="m-price">$0</div><div class="mh-price-sub" id="m-price2" style="display:none;"></div></div>
@@ -2411,10 +2430,35 @@ footer{background:#050505;}
         <div><div class="m-label">Votre nom</div><input class="m-inp" id="m-name" type="text" placeholder="Prénom Nom" autocomplete="name"/></div>
         <div class="m-row">
           <div><div class="m-label">Entreprise</div><input class="m-inp" id="m-company" type="text" placeholder="Nom de l'entreprise"/></div>
-          <div><div class="m-label">Téléphone</div><input class="m-inp" id="m-phone" type="tel" placeholder="+1 ..."/></div>
+          <div class="phone-field">
+            <div class="m-label">Téléphone</div>
+            <div class="phone-code-wrap">
+              <select class="phone-code-select" id="m-phone-code" aria-label="Indicatif pays">
+                <option value="+1" selected>🇨🇦 Canada +1</option>
+                <option value="+1">🇺🇸 USA +1</option>
+                <option value="+33">🇫🇷 France +33</option>
+                <option value="+44">🇬🇧 UK +44</option>
+                <option value="+32">🇧🇪 Belgium +32</option>
+                <option value="+41">🇨🇭 Switzerland +41</option>
+                <option value="+352">🇱🇺 Luxembourg +352</option>
+                <option value="+49">🇩🇪 Germany +49</option>
+                <option value="+34">🇪🇸 Spain +34</option>
+                <option value="+39">🇮🇹 Italy +39</option>
+                <option value="+230">🇲🇺 Mauritius +230</option>
+                <option value="+596">🇲🇶 Martinique +596</option>
+                <option value="+212">🇲🇦 Morocco +212</option>
+                <option value="+237">🇨🇲 Cameroon +237</option>
+                <option value="+225">🇨🇮 Côte d'Ivoire +225</option>
+                <option value="+221">🇸🇳 Senegal +221</option>
+                <option value="+971">🇦🇪 UAE +971</option>
+                <option value="">🌍 Autre indicatif</option>
+              </select>
+              <input class="m-inp" id="m-phone" type="tel" placeholder="514 800 0000" autocomplete="tel-national"/>
+            </div>
+          </div>
         </div>
         <div class="m-err" id="m-err"></div>
-        <button class="m-submit" id="m-btn" onclick="submitQuote()"><span>📩</span><span id="m-btn-txt">Préparer ma demande</span></button>
+        <button class="m-submit" id="m-btn" onclick="submitQuote()"><span>📩</span><span id="m-btn-txt">Envoyer ma demande par courriel</span></button>
       </div>
       <div class="m-foot"><span>🔒 Paiement Lemon Squeezy sécurisé</span><span>·</span><span>Devis sans engagement</span></div>
     </div>
@@ -2735,12 +2779,10 @@ function prepareReviewComment(){
   const rating=document.getElementById('review-rating').value;
   const comment=document.getElementById('review-comment').value.trim();
   const msg=document.getElementById('review-form-msg');
-  const link=document.getElementById('review-mailto');
   const isEn=reviewLang()==='en';
 
   msg.className='review-form-msg';
   msg.style.display='none';
-  link.style.display='none';
 
   if(name.length<2){
     msg.textContent=isEn?'Please enter your name.':'Veuillez entrer votre nom.';
@@ -2773,10 +2815,9 @@ function prepareReviewComment(){
     'Merci.'
   ].join('\n');
 
-  link.href=`mailto:contact@public-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  link.style.display='inline-flex';
-  msg.textContent=isEn?'Your review is ready. Click the email button or publish it directly on Google.':'Votre avis est prêt. Cliquez sur le bouton courriel ou publiez-le directement sur Google.';
+  msg.textContent=isEn?'Your mailbox is opening with the prepared review.':'Votre messagerie va s’ouvrir avec l’avis prérempli.';
   msg.className='review-form-msg ok';
+  window.location.href=`mailto:contact@public-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 window.prepareReviewComment=prepareReviewComment;
 
@@ -2789,6 +2830,15 @@ function toggleFaq(btn){
 }
 
 /* ── DEMANDE DE DEVIS ── */
+function getPhoneWithCountryCode(codeId, phoneId){
+  const code=document.getElementById(codeId)?.value || '';
+  const raw=document.getElementById(phoneId)?.value.trim() || '';
+  if(!raw)return '';
+  const cleaned=raw.replace(/[^\d+().\-\s]/g,'').replace(/\s+/g,' ').trim();
+  if(cleaned.startsWith('+'))return cleaned;
+  return code?`${code} ${cleaned}`:cleaned;
+}
+
 function buildQuoteMailto(service,price,zone,email,name,company,phone){
   const amount=price?`${zone==='ca'?'$':'€'}${parseInt(price).toLocaleString(zone==='ca'?'fr-CA':'fr-FR')} ${zone==='ca'?'CAD':'HT'}`:'À préciser';
   const subject=`Demande de devis — ${service||'Projet digital'}`;
@@ -2813,15 +2863,12 @@ function prepareSiteQuote(){
   const email=document.getElementById('sf-email').value.trim();
   const name=document.getElementById('sf-name').value.trim();
   const company=document.getElementById('sf-company').value.trim();
-  const phone=document.getElementById('sf-phone').value.trim();
+  const phone=getPhoneWithCountryCode('sf-phone-code','sf-phone');
   const err=document.getElementById('sf-err');
-  const link=document.getElementById('sf-mailto');
   err.style.display='none';
-  link.style.display='none';
   if(!email||!email.includes('@')){err.textContent='⚠️ Veuillez entrer un courriel valide.';err.style.display='block';return;}
   if(name.length<2){err.textContent='⚠️ Veuillez entrer votre nom.';err.style.display='block';return;}
-  link.href=buildQuoteMailto('Projet digital',null,activeZone,email,name,company,phone);
-  link.style.display='flex';
+  window.location.href=buildQuoteMailto('Projet digital',null,activeZone,email,name,company,phone);
 }
 
 /* ── MODAL ── */
@@ -2837,8 +2884,7 @@ function openModal(name,cad,eur,zone){
   const btn=document.getElementById('m-btn');
   btn.className='m-submit'+(zone==='eu'?' eu-btn':'');
   document.getElementById('m-err').style.display='none';
-  document.getElementById('m-ok').classList.remove('show');
-  document.getElementById('m-btn-txt').textContent='Préparer ma demande';
+  document.getElementById('m-btn-txt').textContent='Envoyer ma demande par courriel';
   document.getElementById('m-btn').disabled=false;
   const m=document.getElementById('modal');
   m.style.display='flex';
@@ -2857,16 +2903,15 @@ function submitQuote(){
   const email=document.getElementById('m-email').value.trim();
   const name=document.getElementById('m-name').value.trim();
   const company=document.getElementById('m-company').value.trim();
-  const phone=document.getElementById('m-phone').value.trim();
+  const phone=getPhoneWithCountryCode('m-phone-code','m-phone');
   const err=document.getElementById('m-err');
   err.style.display='none';
   if(!email||!email.includes('@')){err.textContent='⚠️ Veuillez entrer un courriel valide.';err.style.display='block';return;}
   if(name.length<2){err.textContent='⚠️ Veuillez entrer votre nom.';err.style.display='block';return;}
-  document.getElementById('m-mailto').href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone);
-  document.getElementById('m-ok').classList.add('show');
+  window.location.href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone);
 }
 </script>
-<script src="i18n-sparkles.js?v=2026061304"></script>
+<script src="i18n-sparkles.js?v=2026061401"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>

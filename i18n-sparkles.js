@@ -628,8 +628,9 @@ const T = {
   "Votre nom":"Your name",
   "Entreprise":"Company",
   "Téléphone":"Phone",
-  "Préparer ma demande →":"Prepare my request →",
-  "Ouvrir mon courriel →":"Open my email →",
+  "Envoyer ma demande par courriel →":"Email my request →",
+  "Autre indicatif":"Other code",
+  "🌍 Autre indicatif":"🌍 Other code",
   "🔒 Paiement sécurisé via Lemon Squeezy":"🔒 Secure payment via Lemon Squeezy",
   "Lien envoyé après validation du devis":"Link sent after quote approval",
 
@@ -695,12 +696,10 @@ const T = {
   "Réponse sous 2h · 7j/7":"Response within 2h · 7 days/week",
 
   // Modal
-  "Votre demande est prête":"Your request is ready",
-  "Ouvrez votre messagerie pour envoyer votre demande de devis. Après validation, le lien de paiement Lemon Squeezy vous sera envoyé de façon sécurisée.":"Open your mailbox to send your quote request. After approval, the Lemon Squeezy payment link will be sent to you securely.",
   "Fermer":"Close",
   "Service":"Service",
   "Zone Canada 🇨🇦":"Canada Zone 🇨🇦",
-  "Préparer ma demande":"Prepare my request",
+  "Envoyer ma demande par courriel":"Email my request",
   "🔒 Paiement Lemon Squeezy sécurisé":"🔒 Secure Lemon Squeezy payment",
   "Devis sans engagement":"No-obligation quote"
 };
