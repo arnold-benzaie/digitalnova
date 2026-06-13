@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 PUBLI-MAP — Final polish
+   🌍 PUBLIC-MAP — Final polish
    1. Hide entire certs chip bar (save vertical space)
    2. Newsletter + Footer fused as ONE big rounded blue dome
    3. Hero brand text shimmer (visible animated shine)
@@ -198,7 +198,7 @@ footer.foot-bar-rounded {
 }
 
 /* ════════════════════════════════════════════
-   3. HERO TITLE — VISIBLE SHIMMER on "PUBLI-MAP"
+   3. HERO TITLE — VISIBLE SHIMMER on "PUBLIC-MAP"
    ════════════════════════════════════════════ */
 /* Strong, NOTICEABLE shimmer for the brand-ish lines */
 .hero-h1-premium .hero-line-1,

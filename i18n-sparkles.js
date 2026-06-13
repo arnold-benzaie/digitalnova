@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   🌍 PUBLI-MAP — Sparkle cursor + FR/EN translation
+   🌍 PUBLIC-MAP — Sparkle cursor + FR/EN translation
    ═══════════════════════════════════════════════ */
 
 /* ─── SPARKLE / STAR CURSOR EFFECT ─── */
@@ -59,7 +59,7 @@
 /* ─── FR/EN TRANSLATION SYSTEM ─── */
 const T = {
   // Meta / title
-  "🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital":"🌍 PUBLI-MAP CANADA INC. — The Reference in Digital Marketing",
+  "🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital":"🌍 PUBLIC-MAP CANADA INC. — The Reference in Digital Marketing",
   "Chargement de la plateforme…":"Loading the platform…",
 
   // Navigation
@@ -83,7 +83,7 @@ const T = {
   "Professionnels Certifiés":"Certified Professionals",
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
-  "🌍 PUBLI-MAP — Google Business Profile, SEO local et avis Google pour attirer plus de clients au Canada et en Europe.":"🌍 PUBLI-MAP — Google Business Profile, local SEO and Google reviews to attract more customers in Canada and Europe.",
+  "🌍 PUBLIC-MAP — Google Business Profile, SEO local et avis Google pour attirer plus de clients au Canada et en Europe.":"🌍 PUBLIC-MAP — Google Business Profile, local SEO and Google reviews to attract more customers in Canada and Europe.",
   "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",
@@ -129,7 +129,7 @@ const T = {
   "Google Ads":"Google Ads",
 
   // Dashboard
-  "🌍 PUBLI-MAP — Dashboard Marketing Canada & Europe":"🌍 PUBLI-MAP — Marketing Dashboard Canada & Europe",
+  "🌍 PUBLIC-MAP — Dashboard Marketing Canada & Europe":"🌍 PUBLIC-MAP — Marketing Dashboard Canada & Europe",
   "SEO Traffic":"SEO Traffic",
   "×4.8 ROI":"×4.8 ROI",
   "Retour invest.":"ROI",
@@ -142,7 +142,7 @@ const T = {
   "Ads":"Ads",
   "Analytics":"Analytics",
   "Ads Expert":"Ads Expert",
-  "🌍 PUBLI-MAP Dashboard":"🌍 PUBLI-MAP Dashboard",
+  "🌍 PUBLIC-MAP Dashboard":"🌍 PUBLIC-MAP Dashboard",
   "SEO Rankings":"SEO Rankings",
   "#1 Google.ca":"#1 Google.ca",
   "#2 Québec":"#2 Quebec",
@@ -152,7 +152,7 @@ const T = {
   "+280% de trafic !":"+280% traffic!",
   "SEO National Canada":"National SEO Canada",
   "En seulement 3 mois 🚀":"In just 3 months 🚀",
-  "Partner Team — 🌍 PUBLI-MAP CANADA INC.":"Partner Team — 🌍 PUBLI-MAP CANADA INC.",
+  "Partner Team — 🌍 PUBLIC-MAP CANADA INC.":"Partner Team — 🌍 PUBLIC-MAP CANADA INC.",
   "✓ Certifié":"✓ Certified",
 
   // Service intro
@@ -458,7 +458,7 @@ const T = {
   "\"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada et en Europe.\"":"\"The most transparent and effective agency I've worked with in Canada and Europe.\"",
   "Marie-Claude Tremblay":"Marie-Claude Tremblay",
   "Montréal, Québec 🇨🇦":"Montreal, Quebec 🇨🇦",
-  "🌍 PUBLI-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"🌍 PUBLI-MAP transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
+  "🌍 PUBLIC-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !":"🌍 PUBLIC-MAP transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!",
   "Il y a 2 semaines · Avis vérifié Google ✓":"2 weeks ago · Google verified review ✓",
   "Jean-François Bouchard":"Jean-François Bouchard",
   "Québec City 🇨🇦":"Quebec City 🇨🇦",
@@ -467,20 +467,20 @@ const T = {
   "Il y a 1 mois · Avis vérifié Google ✓":"1 month ago · Google verified review ✓",
   "Sophie Larivière":"Sophie Larivière",
   "Toronto, Ontario 🇨🇦":"Toronto, Ontario 🇨🇦",
-  "J'ai testé 4 agences avant 🌍 PUBLI-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before 🌍 PUBLI-MAP — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
+  "J'ai testé 4 agences avant 🌍 PUBLIC-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.":"I tested 4 agencies before 🌍 PUBLIC-MAP — no comparison possible. Here, measurable results, transparent reports and long-term strategy. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Absolutely exceptional.",
   "Google Ads Pro Canada":"Google Ads Pro Canada",
   "Il y a 3 semaines · Avis vérifié Google ✓":"3 weeks ago · Google verified review ✓",
   "Pierre-Antoine Moreau":"Pierre-Antoine Moreau",
   "Paris, France 🇫🇷":"Paris, France 🇫🇷",
-  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLI-MAP France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The 🌍 PUBLI-MAP France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
+  "Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLIC-MAP France a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois. Impressionnant.":"I was worried about working with a Canadian agency from Paris. The 🌍 PUBLIC-MAP France office dispelled all my fears. Perfect mastery of the European French-speaking market. Results: +190% qualified leads in 5 months. Impressive.",
   "Il y a 6 semaines · Avis vérifié Google ✓":"6 weeks ago · Google verified review ✓",
   "Lucie Gagnon":"Lucie Gagnon",
   "Vancouver, C.-B. 🇨🇦":"Vancouver, B.C. 🇨🇦",
-  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLI-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 PUBLI-MAP is the ideal partner for any SME that wants to grow fast and sustainably.",
+  "L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLIC-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.":"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 PUBLIC-MAP is the ideal partner for any SME that wants to grow fast and sustainably.",
   "Il y a 2 mois · Avis vérifié Google ✓":"2 months ago · Google verified review ✓",
   "Nicolas Blanchard":"Nicolas Blanchard",
   "Bruxelles, Belgique 🇧🇪":"Brussels, Belgium 🇧🇪",
-  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 PUBLI-MAP !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks 🌍 PUBLI-MAP!",
+  "La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose. Merci 🌍 PUBLIC-MAP !":"The only agency operating simultaneously in Canada and Europe I found. Concrete results, billing in euros, French-speaking team, total GDPR compliance. My EU site is perfect and my SEO is exploding. Thanks 🌍 PUBLIC-MAP!",
   "Site Web Europe + SEO":"Website Europe + SEO",
   "Il y a 5 semaines · Avis vérifié Google ✓":"5 weeks ago · Google verified review ✓",
 
@@ -488,7 +488,7 @@ const T = {
   "⭐ Visibilité Google":"⭐ Google Visibility",
   "Aidez-nous à gagner":"Help us gain",
   "plus de visibilité":"more visibility",
-  "Un avis client réel aide PUBLI-MAP à renforcer sa crédibilité sur Google, rassure les futurs clients et améliore la confiance autour de nos services Canada & Europe.":"A real client review helps PUBLI-MAP strengthen its credibility on Google, reassure future clients, and improve trust around our Canada & Europe services.",
+  "Un avis client réel aide PUBLIC-MAP à renforcer sa crédibilité sur Google, rassure les futurs clients et améliore la confiance autour de nos services Canada & Europe.":"A real client review helps PUBLIC-MAP strengthen its credibility on Google, reassure future clients, and improve trust around our Canada & Europe services.",
   "Meilleur référencement local":"Better local ranking",
   "Les avis réguliers aident une fiche Google Business à paraître plus active et plus fiable.":"Regular reviews help a Google Business listing look more active and more trustworthy.",
   "Preuve sociale plus forte":"Stronger social proof",
@@ -528,7 +528,7 @@ const T = {
   "Pays":"Countries",
 
   // Credibility
-  "🌍 PUBLI-MAP CANADA INC.":"🌍 PUBLI-MAP CANADA INC.",
+  "🌍 PUBLIC-MAP CANADA INC.":"🌍 PUBLIC-MAP CANADA INC.",
   "Société Officiellement Enregistrée":"Officially Registered Company",
   "Corporations Canada":"Corporations Canada",
   "Registre fédéral canadien · Numéro sur demande":"Canadian federal register · Number on request",
@@ -547,7 +547,7 @@ const T = {
   "Transparence Totale":"Total Transparency",
   "Votre sécurité,":"Your security,",
   "notre priorité":"our priority",
-  "🌍 PUBLI-MAP CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 PUBLI-MAP CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
+  "🌍 PUBLIC-MAP CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 PUBLIC-MAP CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
   "🔒 Aucune donnée bancaire":"🔒 No banking data",
   "🛡️ ISO 27001":"🛡️ ISO 27001",
   "📋 RGPD Compliant":"📋 GDPR Compliant",
@@ -562,7 +562,7 @@ const T = {
   "Certifications Officielles":"Official Certifications",
   "Notre expertise,":"Our expertise,",
   "certifiée et reconnue":"certified and recognized",
-  "🌍 PUBLI-MAP CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 PUBLI-MAP CANADA INC. holds official certifications issued by Google and leading global SEO authorities. Every certification reflects rigorous exams and proven field expertise.",
+  "🌍 PUBLIC-MAP CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 PUBLIC-MAP CANADA INC. holds official certifications issued by Google and leading global SEO authorities. Every certification reflects rigorous exams and proven field expertise.",
   "Nos Certifications":"Our Certifications",
   "Digital Marketing Master Licensed":"Digital Marketing Master Licensed",
   "CSS3 Developer Certification":"CSS3 Developer Certification",
@@ -583,7 +583,7 @@ const T = {
   "Questions fréquentes —":"FAQ —",
   "Toutes les réponses":"All the answers",
   "Nous répondons à chaque doute avec transparence et précision.":"We answer every doubt with transparency and precision.",
-  "🤔 🌍 PUBLI-MAP est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 PUBLI-MAP a real registered company?",
+  "🤔 🌍 PUBLIC-MAP est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 PUBLIC-MAP a real registered company?",
   "Oui, à 100%.":"Yes, 100%.",
   "Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.":"Searchable on corporations.canada.ca (Canada) and via INPI in France. Our business number is provided on simple request. Zero opacity.",
   "📋 Comment recevoir mon devis ?":"📋 How do I receive my quote?",
@@ -606,7 +606,7 @@ const T = {
   "Réseaux Sociaux :":"Social Networks:",
   "croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.":"measurable growth from week 2. Real-time dashboard included.",
   "🏆 Comment vérifier vos certifications Google ?":"🏆 How to verify your Google certifications?",
-  "Recherchez \"🌍 PUBLI-MAP CANADA\" sur":"Search \"🌍 PUBLI-MAP CANADA\" on",
+  "Recherchez \"🌍 PUBLIC-MAP CANADA\" sur":"Search \"🌍 PUBLIC-MAP CANADA\" on",
   ". Les autres accréditations techniques sont vérifiables sur demande. Liens envoyés sous 10 minutes.":". Other technical accreditations are verifiable on request. Links sent within 10 minutes.",
   "📞 Qui sera mon interlocuteur dédié ?":"📞 Who will be my dedicated contact?",
   "Un Chef de Projet dédié":"A dedicated Project Manager",
@@ -646,7 +646,7 @@ const T = {
   "Paris, France":"Paris, France",
   "Bureaux CA + Europe":"CA + Europe offices",
   "Ouvert : Lundi à Vendredi 09H - 17H":"Open: Monday to Friday 09:00 - 17:00",
-  "Copyright © 2026 PUBLI-MAP CANADA INC. Tous droits réservés.":"Copyright © 2026 PUBLI-MAP CANADA INC. All rights reserved.",
+  "Copyright © 2026 PUBLIC-MAP CANADA INC. Tous droits réservés.":"Copyright © 2026 PUBLIC-MAP CANADA INC. All rights reserved.",
   "SEO & Référencement":"SEO & Search",
   "E-Commerce":"E-Commerce",
   "Stratégie 360°":"360° Strategy",
@@ -752,8 +752,8 @@ function walkAndTranslate(targetLang){
   });
 
   // Update <title>
-  if(targetLang === 'en') document.title = T["🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital"] || document.title;
-  else document.title = "🌍 PUBLI-MAP CANADA INC. — La Référence du Marketing Digital";
+  if(targetLang === 'en') document.title = T["🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital"] || document.title;
+  else document.title = "🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital";
 
   document.documentElement.lang = targetLang;
   CURRENT_LANG = targetLang;

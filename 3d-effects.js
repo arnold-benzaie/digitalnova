@@ -2,14 +2,14 @@
    DIGITALNOVA — Ultra-realistic 3D animations
    ═══════════════════════════════════════════════════════ */
 
-const PUBLI_MAP_RICH_3D = (() => {
+const PUBLIC_MAP_RICH_3D = (() => {
   const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const finePointer = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   const saveData = navigator.connection && navigator.connection.saveData;
   return window.innerWidth >= 1180 && finePointer && !reducedMotion && !saveData;
 })();
 
-if (PUBLI_MAP_RICH_3D) {
+if (PUBLIC_MAP_RICH_3D) {
 
 (function inject3DStyles(){
   const css = `

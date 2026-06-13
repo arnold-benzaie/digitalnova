@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 PUBLI-MAP — Full Animation Pack
+   🌍 PUBLIC-MAP — Full Animation Pack
    Additive animations on every section / element
    ═══════════════════════════════════════════════════════ */
 
-function publiMapMobilePerfMode(){
+function publicMapMobilePerfMode(){
   const saveData = navigator.connection && navigator.connection.saveData;
   const lowMemory = navigator.deviceMemory && navigator.deviceMemory <= 4;
   return (window.matchMedia && window.matchMedia('(max-width: 1180px), (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce)').matches)
@@ -307,7 +307,7 @@ function publiMapMobilePerfMode(){
       });
     });
 
-    if(publiMapMobilePerfMode()){
+    if(publicMapMobilePerfMode()){
       document.querySelectorAll('.anim, .stagger, .rv, .rv-l, .rv-r').forEach(el => {
         el.classList.add('in', 'on');
       });
@@ -340,7 +340,7 @@ function publiMapMobilePerfMode(){
 (function counters(){
   const init = () => {
     const els = document.querySelectorAll('[data-count]');
-    if(publiMapMobilePerfMode()){
+    if(publicMapMobilePerfMode()){
       els.forEach(el => {
         const target = parseInt(el.dataset.count, 10);
         if(!isNaN(target)) el.textContent = `${target}${target === 98 ? '%' : target === 850 ? '+' : ''}`;
@@ -378,7 +378,7 @@ function publiMapMobilePerfMode(){
 (function magnetic(){
   const SEL = '.btn-red, .nav-cta, .g-btn-primary, .btn-order, .sf-submit, .m-submit, .nl-btn';
   const init = () => {
-    if(publiMapMobilePerfMode()) return;
+    if(publicMapMobilePerfMode()) return;
     document.querySelectorAll(SEL).forEach(btn => {
       btn.classList.add('magnetic');
       btn.addEventListener('mousemove', e => {
@@ -400,7 +400,7 @@ function publiMapMobilePerfMode(){
 (function bgParticles(){
   const init = () => {
     const enableDecorativeParticles = document.documentElement.dataset.particles === 'on';
-    if(!enableDecorativeParticles || publiMapMobilePerfMode()) return;
+    if(!enableDecorativeParticles || publicMapMobilePerfMode()) return;
     const wrap = document.createElement('div');
     wrap.id = 'bg-particles';
     document.body.appendChild(wrap);
@@ -426,7 +426,7 @@ function publiMapMobilePerfMode(){
 /* ─── TYPEWRITER on hero pre-title (one-shot) ─── */
 (function typewriter(){
   const init = () => {
-    if(publiMapMobilePerfMode()) return;
+    if(publicMapMobilePerfMode()) return;
     const target = document.querySelector('.hero-pre');
     if(!target) return;
     const txt = target.innerText;

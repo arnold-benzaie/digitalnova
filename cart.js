@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 PUBLI-MAP — Panier (Shopping Cart) système
+   🌍 PUBLIC-MAP — Panier (Shopping Cart) système
    - Détecte chaque carte service et ajoute un bouton "Panier"
    - Drawer latéral droit avec liste, quantités, total
    - Persistance localStorage (survit aux rechargements)
@@ -571,7 +571,7 @@ function renderCart(){
       const displayPrice = zone === 'eu' ? totalEU : totalCA;
       if(typeof window.openModal === 'function'){
         window.openModal(
-          t('Panier 🌍 PUBLI-MAP','🌍 PUBLI-MAP Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
+          t('Panier 🌍 PUBLIC-MAP','🌍 PUBLIC-MAP Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
           displayPrice,
           displayPrice,
           zone
