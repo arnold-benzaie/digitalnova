@@ -72,7 +72,7 @@ const T = {
   "FR":"FR","EN":"EN",
 
   // Hero
-  "Canada · France · Europe — Enregistrée Officiellement":"Canada · France · Europe — Officially Registered",
+  "Visibilité internationale — partout dans le monde":"International visibility — worldwide",
   "Le Marketing":"Marketing",
   "Digital":"Digital",
   "Sans Limites":"Without Limits",
@@ -83,7 +83,7 @@ const T = {
   "Professionnels Certifiés":"Certified Professionals",
   "Service 5 Étoiles":"5-Star Service",
   "Support 24/7":"24/7 Support",
-  "🌍 PUBLIC-MAP — Google Business Profile, SEO local et avis Google pour attirer plus de clients au Canada et en Europe.":"🌍 PUBLIC-MAP — Google Business Profile, local SEO and Google reviews to attract more customers in Canada and Europe.",
+  "🌍 PUBLIC-MAP — Google Business Profile, SEO local et avis Google pour attirer plus de clients partout dans le monde.":"🌍 PUBLIC-MAP — Google Business Profile, local SEO and Google reviews to attract more customers worldwide.",
   "🚀 Demander un devis":"🚀 Request a quote",
   "Voir les témoignages →":"See testimonials →",
   "Clients actifs":"Active clients",
