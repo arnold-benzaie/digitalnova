@@ -435,7 +435,7 @@ const T = {
   ". Livraison sous 5 jours ouvrables.":". Delivery within 5 business days.",
   "Review us on":"Review us on",
   "Reviews":"Reviews",
-  "🌍 PUBLI-MAP.CA · Google Reviews":"🌍 PUBLI-MAP.CA · Google Reviews",
+  "🌍 public-map.com · Google Reviews":"🌍 public-map.com · Google Reviews",
   "VOTRE LOGO":"YOUR LOGO",
   "1 Scan = 1 Avis":"1 Scan = 1 Review",
   "Le client scanne le QR Code avec son iPhone ou Android — redirigé vers votre fiche Google Reviews en 2 secondes.":"Customer scans the QR Code with iPhone or Android — redirected to your Google Reviews page in 2 seconds.",
