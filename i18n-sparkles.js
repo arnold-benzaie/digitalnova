@@ -629,8 +629,6 @@ const T = {
   "Entreprise":"Company",
   "Téléphone":"Phone",
   "Envoyer ma demande par courriel →":"Email my request →",
-  "Autre indicatif":"Other code",
-  "🌍 Autre indicatif":"🌍 Other code",
   "🔒 Paiement sécurisé via Lemon Squeezy":"🔒 Secure payment via Lemon Squeezy",
   "Lien envoyé après validation du devis":"Link sent after quote approval",
 

@@ -2337,26 +2337,7 @@ footer{background:#050505;}
             <div class="phone-field">
               <div class="sf-label">Téléphone</div>
               <div class="phone-code-wrap">
-                <select class="phone-code-select" id="sf-phone-code" aria-label="Indicatif pays">
-                  <option value="+1" selected>🇨🇦 Canada +1</option>
-                  <option value="+1">🇺🇸 USA +1</option>
-                  <option value="+33">🇫🇷 France +33</option>
-                  <option value="+44">🇬🇧 UK +44</option>
-                  <option value="+32">🇧🇪 Belgium +32</option>
-                  <option value="+41">🇨🇭 Switzerland +41</option>
-                  <option value="+352">🇱🇺 Luxembourg +352</option>
-                  <option value="+49">🇩🇪 Germany +49</option>
-                  <option value="+34">🇪🇸 Spain +34</option>
-                  <option value="+39">🇮🇹 Italy +39</option>
-                  <option value="+230">🇲🇺 Mauritius +230</option>
-                  <option value="+596">🇲🇶 Martinique +596</option>
-                  <option value="+212">🇲🇦 Morocco +212</option>
-                  <option value="+237">🇨🇲 Cameroon +237</option>
-                  <option value="+225">🇨🇮 Côte d'Ivoire +225</option>
-                  <option value="+221">🇸🇳 Senegal +221</option>
-                  <option value="+971">🇦🇪 UAE +971</option>
-                  <option value="">🌍 Autre indicatif</option>
-                </select>
+                <select class="phone-code-select" id="sf-phone-code" aria-label="Indicatif pays" data-default-country="CA"></select>
                 <input class="sf-inp" id="sf-phone" type="tel" placeholder="514 800 0000" autocomplete="tel-national"/>
               </div>
             </div>
@@ -2433,26 +2414,7 @@ footer{background:#050505;}
           <div class="phone-field">
             <div class="m-label">Téléphone</div>
             <div class="phone-code-wrap">
-              <select class="phone-code-select" id="m-phone-code" aria-label="Indicatif pays">
-                <option value="+1" selected>🇨🇦 Canada +1</option>
-                <option value="+1">🇺🇸 USA +1</option>
-                <option value="+33">🇫🇷 France +33</option>
-                <option value="+44">🇬🇧 UK +44</option>
-                <option value="+32">🇧🇪 Belgium +32</option>
-                <option value="+41">🇨🇭 Switzerland +41</option>
-                <option value="+352">🇱🇺 Luxembourg +352</option>
-                <option value="+49">🇩🇪 Germany +49</option>
-                <option value="+34">🇪🇸 Spain +34</option>
-                <option value="+39">🇮🇹 Italy +39</option>
-                <option value="+230">🇲🇺 Mauritius +230</option>
-                <option value="+596">🇲🇶 Martinique +596</option>
-                <option value="+212">🇲🇦 Morocco +212</option>
-                <option value="+237">🇨🇲 Cameroon +237</option>
-                <option value="+225">🇨🇮 Côte d'Ivoire +225</option>
-                <option value="+221">🇸🇳 Senegal +221</option>
-                <option value="+971">🇦🇪 UAE +971</option>
-                <option value="">🌍 Autre indicatif</option>
-              </select>
+              <select class="phone-code-select" id="m-phone-code" aria-label="Indicatif pays" data-default-country="CA"></select>
               <input class="m-inp" id="m-phone" type="tel" placeholder="514 800 0000" autocomplete="tel-national"/>
             </div>
           </div>
@@ -2830,13 +2792,278 @@ function toggleFaq(btn){
 }
 
 /* ── DEMANDE DE DEVIS ── */
+const PHONE_COUNTRIES=[
+  {iso:'CA',name:'Canada',code:'+1'},
+  {iso:'US',name:'United States',code:'+1'},
+  {iso:'FR',name:'France',code:'+33'},
+  {iso:'GB',name:'United Kingdom',code:'+44'},
+  {iso:'BE',name:'Belgium',code:'+32'},
+  {iso:'CH',name:'Switzerland',code:'+41'},
+  {iso:'LU',name:'Luxembourg',code:'+352'},
+  {iso:'MU',name:'Mauritius',code:'+230'},
+  {iso:'MQ',name:'Martinique',code:'+596'},
+  {iso:'DE',name:'Germany',code:'+49'},
+  {iso:'ES',name:'Spain',code:'+34'},
+  {iso:'IT',name:'Italy',code:'+39'},
+  {iso:'MA',name:'Morocco',code:'+212'},
+  {iso:'CM',name:'Cameroon',code:'+237'},
+  {iso:'CI',name:"Côte d'Ivoire",code:'+225'},
+  {iso:'SN',name:'Senegal',code:'+221'},
+  {iso:'AE',name:'United Arab Emirates',code:'+971'},
+  {iso:'AF',name:'Afghanistan',code:'+93'},
+  {iso:'AX',name:'Åland Islands',code:'+358'},
+  {iso:'AL',name:'Albania',code:'+355'},
+  {iso:'DZ',name:'Algeria',code:'+213'},
+  {iso:'AS',name:'American Samoa',code:'+1-684'},
+  {iso:'AD',name:'Andorra',code:'+376'},
+  {iso:'AO',name:'Angola',code:'+244'},
+  {iso:'AI',name:'Anguilla',code:'+1-264'},
+  {iso:'AG',name:'Antigua & Barbuda',code:'+1-268'},
+  {iso:'AR',name:'Argentina',code:'+54'},
+  {iso:'AM',name:'Armenia',code:'+374'},
+  {iso:'AW',name:'Aruba',code:'+297'},
+  {iso:'AU',name:'Australia',code:'+61'},
+  {iso:'AT',name:'Austria',code:'+43'},
+  {iso:'AZ',name:'Azerbaijan',code:'+994'},
+  {iso:'BS',name:'Bahamas',code:'+1-242'},
+  {iso:'BH',name:'Bahrain',code:'+973'},
+  {iso:'BD',name:'Bangladesh',code:'+880'},
+  {iso:'BB',name:'Barbados',code:'+1-246'},
+  {iso:'BY',name:'Belarus',code:'+375'},
+  {iso:'BZ',name:'Belize',code:'+501'},
+  {iso:'BJ',name:'Benin',code:'+229'},
+  {iso:'BM',name:'Bermuda',code:'+1-441'},
+  {iso:'BT',name:'Bhutan',code:'+975'},
+  {iso:'BO',name:'Bolivia',code:'+591'},
+  {iso:'BA',name:'Bosnia & Herzegovina',code:'+387'},
+  {iso:'BW',name:'Botswana',code:'+267'},
+  {iso:'BR',name:'Brazil',code:'+55'},
+  {iso:'IO',name:'British Indian Ocean Territory',code:'+246'},
+  {iso:'VG',name:'British Virgin Islands',code:'+1-284'},
+  {iso:'BN',name:'Brunei',code:'+673'},
+  {iso:'BG',name:'Bulgaria',code:'+359'},
+  {iso:'BF',name:'Burkina Faso',code:'+226'},
+  {iso:'BI',name:'Burundi',code:'+257'},
+  {iso:'KH',name:'Cambodia',code:'+855'},
+  {iso:'CV',name:'Cape Verde',code:'+238'},
+  {iso:'BQ',name:'Caribbean Netherlands',code:'+599'},
+  {iso:'KY',name:'Cayman Islands',code:'+1-345'},
+  {iso:'CF',name:'Central African Republic',code:'+236'},
+  {iso:'TD',name:'Chad',code:'+235'},
+  {iso:'CL',name:'Chile',code:'+56'},
+  {iso:'CN',name:'China',code:'+86'},
+  {iso:'CX',name:'Christmas Island',code:'+61'},
+  {iso:'CC',name:'Cocos Islands',code:'+61'},
+  {iso:'CO',name:'Colombia',code:'+57'},
+  {iso:'KM',name:'Comoros',code:'+269'},
+  {iso:'CG',name:'Congo - Brazzaville',code:'+242'},
+  {iso:'CD',name:'Congo - Kinshasa',code:'+243'},
+  {iso:'CK',name:'Cook Islands',code:'+682'},
+  {iso:'CR',name:'Costa Rica',code:'+506'},
+  {iso:'HR',name:'Croatia',code:'+385'},
+  {iso:'CU',name:'Cuba',code:'+53'},
+  {iso:'CW',name:'Curaçao',code:'+599'},
+  {iso:'CY',name:'Cyprus',code:'+357'},
+  {iso:'CZ',name:'Czechia',code:'+420'},
+  {iso:'DK',name:'Denmark',code:'+45'},
+  {iso:'DJ',name:'Djibouti',code:'+253'},
+  {iso:'DM',name:'Dominica',code:'+1-767'},
+  {iso:'DO',name:'Dominican Republic',code:'+1-809'},
+  {iso:'EC',name:'Ecuador',code:'+593'},
+  {iso:'EG',name:'Egypt',code:'+20'},
+  {iso:'SV',name:'El Salvador',code:'+503'},
+  {iso:'GQ',name:'Equatorial Guinea',code:'+240'},
+  {iso:'ER',name:'Eritrea',code:'+291'},
+  {iso:'EE',name:'Estonia',code:'+372'},
+  {iso:'SZ',name:'Eswatini',code:'+268'},
+  {iso:'ET',name:'Ethiopia',code:'+251'},
+  {iso:'FK',name:'Falkland Islands',code:'+500'},
+  {iso:'FO',name:'Faroe Islands',code:'+298'},
+  {iso:'FJ',name:'Fiji',code:'+679'},
+  {iso:'FI',name:'Finland',code:'+358'},
+  {iso:'GF',name:'French Guiana',code:'+594'},
+  {iso:'PF',name:'French Polynesia',code:'+689'},
+  {iso:'GA',name:'Gabon',code:'+241'},
+  {iso:'GM',name:'Gambia',code:'+220'},
+  {iso:'GE',name:'Georgia',code:'+995'},
+  {iso:'GH',name:'Ghana',code:'+233'},
+  {iso:'GI',name:'Gibraltar',code:'+350'},
+  {iso:'GR',name:'Greece',code:'+30'},
+  {iso:'GL',name:'Greenland',code:'+299'},
+  {iso:'GD',name:'Grenada',code:'+1-473'},
+  {iso:'GP',name:'Guadeloupe',code:'+590'},
+  {iso:'GU',name:'Guam',code:'+1-671'},
+  {iso:'GT',name:'Guatemala',code:'+502'},
+  {iso:'GG',name:'Guernsey',code:'+44-1481'},
+  {iso:'GN',name:'Guinea',code:'+224'},
+  {iso:'GW',name:'Guinea-Bissau',code:'+245'},
+  {iso:'GY',name:'Guyana',code:'+592'},
+  {iso:'HT',name:'Haiti',code:'+509'},
+  {iso:'HN',name:'Honduras',code:'+504'},
+  {iso:'HK',name:'Hong Kong',code:'+852'},
+  {iso:'HU',name:'Hungary',code:'+36'},
+  {iso:'IS',name:'Iceland',code:'+354'},
+  {iso:'IN',name:'India',code:'+91'},
+  {iso:'ID',name:'Indonesia',code:'+62'},
+  {iso:'IR',name:'Iran',code:'+98'},
+  {iso:'IQ',name:'Iraq',code:'+964'},
+  {iso:'IE',name:'Ireland',code:'+353'},
+  {iso:'IM',name:'Isle of Man',code:'+44-1624'},
+  {iso:'IL',name:'Israel',code:'+972'},
+  {iso:'JM',name:'Jamaica',code:'+1-876'},
+  {iso:'JP',name:'Japan',code:'+81'},
+  {iso:'JE',name:'Jersey',code:'+44-1534'},
+  {iso:'JO',name:'Jordan',code:'+962'},
+  {iso:'KZ',name:'Kazakhstan',code:'+7'},
+  {iso:'KE',name:'Kenya',code:'+254'},
+  {iso:'KI',name:'Kiribati',code:'+686'},
+  {iso:'XK',name:'Kosovo',code:'+383'},
+  {iso:'KW',name:'Kuwait',code:'+965'},
+  {iso:'KG',name:'Kyrgyzstan',code:'+996'},
+  {iso:'LA',name:'Laos',code:'+856'},
+  {iso:'LV',name:'Latvia',code:'+371'},
+  {iso:'LB',name:'Lebanon',code:'+961'},
+  {iso:'LS',name:'Lesotho',code:'+266'},
+  {iso:'LR',name:'Liberia',code:'+231'},
+  {iso:'LY',name:'Libya',code:'+218'},
+  {iso:'LI',name:'Liechtenstein',code:'+423'},
+  {iso:'LT',name:'Lithuania',code:'+370'},
+  {iso:'MO',name:'Macau',code:'+853'},
+  {iso:'MG',name:'Madagascar',code:'+261'},
+  {iso:'MW',name:'Malawi',code:'+265'},
+  {iso:'MY',name:'Malaysia',code:'+60'},
+  {iso:'MV',name:'Maldives',code:'+960'},
+  {iso:'ML',name:'Mali',code:'+223'},
+  {iso:'MT',name:'Malta',code:'+356'},
+  {iso:'MH',name:'Marshall Islands',code:'+692'},
+  {iso:'MR',name:'Mauritania',code:'+222'},
+  {iso:'YT',name:'Mayotte',code:'+262'},
+  {iso:'MX',name:'Mexico',code:'+52'},
+  {iso:'FM',name:'Micronesia',code:'+691'},
+  {iso:'MD',name:'Moldova',code:'+373'},
+  {iso:'MC',name:'Monaco',code:'+377'},
+  {iso:'MN',name:'Mongolia',code:'+976'},
+  {iso:'ME',name:'Montenegro',code:'+382'},
+  {iso:'MS',name:'Montserrat',code:'+1-664'},
+  {iso:'MZ',name:'Mozambique',code:'+258'},
+  {iso:'MM',name:'Myanmar',code:'+95'},
+  {iso:'NA',name:'Namibia',code:'+264'},
+  {iso:'NR',name:'Nauru',code:'+674'},
+  {iso:'NP',name:'Nepal',code:'+977'},
+  {iso:'NL',name:'Netherlands',code:'+31'},
+  {iso:'NC',name:'New Caledonia',code:'+687'},
+  {iso:'NZ',name:'New Zealand',code:'+64'},
+  {iso:'NI',name:'Nicaragua',code:'+505'},
+  {iso:'NE',name:'Niger',code:'+227'},
+  {iso:'NG',name:'Nigeria',code:'+234'},
+  {iso:'NU',name:'Niue',code:'+683'},
+  {iso:'KP',name:'North Korea',code:'+850'},
+  {iso:'MK',name:'North Macedonia',code:'+389'},
+  {iso:'MP',name:'Northern Mariana Islands',code:'+1-670'},
+  {iso:'NO',name:'Norway',code:'+47'},
+  {iso:'OM',name:'Oman',code:'+968'},
+  {iso:'PK',name:'Pakistan',code:'+92'},
+  {iso:'PW',name:'Palau',code:'+680'},
+  {iso:'PS',name:'Palestine',code:'+970'},
+  {iso:'PA',name:'Panama',code:'+507'},
+  {iso:'PG',name:'Papua New Guinea',code:'+675'},
+  {iso:'PY',name:'Paraguay',code:'+595'},
+  {iso:'PE',name:'Peru',code:'+51'},
+  {iso:'PH',name:'Philippines',code:'+63'},
+  {iso:'PL',name:'Poland',code:'+48'},
+  {iso:'PT',name:'Portugal',code:'+351'},
+  {iso:'PR',name:'Puerto Rico',code:'+1-787'},
+  {iso:'QA',name:'Qatar',code:'+974'},
+  {iso:'RE',name:'Réunion',code:'+262'},
+  {iso:'RO',name:'Romania',code:'+40'},
+  {iso:'RU',name:'Russia',code:'+7'},
+  {iso:'RW',name:'Rwanda',code:'+250'},
+  {iso:'BL',name:'Saint Barthélemy',code:'+590'},
+  {iso:'SH',name:'Saint Helena',code:'+290'},
+  {iso:'KN',name:'Saint Kitts & Nevis',code:'+1-869'},
+  {iso:'LC',name:'Saint Lucia',code:'+1-758'},
+  {iso:'MF',name:'Saint Martin',code:'+590'},
+  {iso:'PM',name:'Saint Pierre & Miquelon',code:'+508'},
+  {iso:'VC',name:'Saint Vincent & Grenadines',code:'+1-784'},
+  {iso:'WS',name:'Samoa',code:'+685'},
+  {iso:'SM',name:'San Marino',code:'+378'},
+  {iso:'ST',name:'São Tomé & Príncipe',code:'+239'},
+  {iso:'SA',name:'Saudi Arabia',code:'+966'},
+  {iso:'RS',name:'Serbia',code:'+381'},
+  {iso:'SC',name:'Seychelles',code:'+248'},
+  {iso:'SL',name:'Sierra Leone',code:'+232'},
+  {iso:'SG',name:'Singapore',code:'+65'},
+  {iso:'SX',name:'Sint Maarten',code:'+1-721'},
+  {iso:'SK',name:'Slovakia',code:'+421'},
+  {iso:'SI',name:'Slovenia',code:'+386'},
+  {iso:'SB',name:'Solomon Islands',code:'+677'},
+  {iso:'SO',name:'Somalia',code:'+252'},
+  {iso:'ZA',name:'South Africa',code:'+27'},
+  {iso:'KR',name:'South Korea',code:'+82'},
+  {iso:'SS',name:'South Sudan',code:'+211'},
+  {iso:'LK',name:'Sri Lanka',code:'+94'},
+  {iso:'SD',name:'Sudan',code:'+249'},
+  {iso:'SR',name:'Suriname',code:'+597'},
+  {iso:'SE',name:'Sweden',code:'+46'},
+  {iso:'SY',name:'Syria',code:'+963'},
+  {iso:'TW',name:'Taiwan',code:'+886'},
+  {iso:'TJ',name:'Tajikistan',code:'+992'},
+  {iso:'TZ',name:'Tanzania',code:'+255'},
+  {iso:'TH',name:'Thailand',code:'+66'},
+  {iso:'TL',name:'Timor-Leste',code:'+670'},
+  {iso:'TG',name:'Togo',code:'+228'},
+  {iso:'TK',name:'Tokelau',code:'+690'},
+  {iso:'TO',name:'Tonga',code:'+676'},
+  {iso:'TT',name:'Trinidad & Tobago',code:'+1-868'},
+  {iso:'TN',name:'Tunisia',code:'+216'},
+  {iso:'TR',name:'Turkey',code:'+90'},
+  {iso:'TM',name:'Turkmenistan',code:'+993'},
+  {iso:'TC',name:'Turks & Caicos Islands',code:'+1-649'},
+  {iso:'TV',name:'Tuvalu',code:'+688'},
+  {iso:'VI',name:'U.S. Virgin Islands',code:'+1-340'},
+  {iso:'UG',name:'Uganda',code:'+256'},
+  {iso:'UA',name:'Ukraine',code:'+380'},
+  {iso:'UY',name:'Uruguay',code:'+598'},
+  {iso:'UZ',name:'Uzbekistan',code:'+998'},
+  {iso:'VU',name:'Vanuatu',code:'+678'},
+  {iso:'VA',name:'Vatican City',code:'+39-06'},
+  {iso:'VE',name:'Venezuela',code:'+58'},
+  {iso:'VN',name:'Vietnam',code:'+84'},
+  {iso:'WF',name:'Wallis & Futuna',code:'+681'},
+  {iso:'EH',name:'Western Sahara',code:'+212'},
+  {iso:'YE',name:'Yemen',code:'+967'},
+  {iso:'ZM',name:'Zambia',code:'+260'},
+  {iso:'ZW',name:'Zimbabwe',code:'+263'}
+];
+
+function countryFlag(iso){
+  return /^[A-Z]{2}$/.test(iso)?[...iso].map(char=>String.fromCodePoint(char.charCodeAt(0)+127397)).join(''):'';
+}
+
+function populatePhoneCodeSelects(){
+  document.querySelectorAll('.phone-code-select').forEach(select=>{
+    const selectedCountry=select.dataset.defaultCountry||'CA';
+    select.replaceChildren(...PHONE_COUNTRIES.map(country=>{
+      const flag=countryFlag(country.iso);
+      const label=`${flag} ${country.name} ${country.code}`;
+      const option=new Option(label,country.code,false,country.iso===selectedCountry);
+      option.dataset.country=country.iso;
+      option.dataset.label=label;
+      return option;
+    }));
+  });
+}
+populatePhoneCodeSelects();
+
 function getPhoneWithCountryCode(codeId, phoneId){
-  const code=document.getElementById(codeId)?.value || '';
+  const select=document.getElementById(codeId);
+  const code=select?.value || '';
+  const label=select?.selectedOptions?.[0]?.dataset.label || code;
   const raw=document.getElementById(phoneId)?.value.trim() || '';
   if(!raw)return '';
   const cleaned=raw.replace(/[^\d+().\-\s]/g,'').replace(/\s+/g,' ').trim();
   if(cleaned.startsWith('+'))return cleaned;
-  return code?`${code} ${cleaned}`:cleaned;
+  return code?`${label} ${cleaned}`:cleaned;
 }
 
 function buildQuoteMailto(service,price,zone,email,name,company,phone){
@@ -2911,7 +3138,7 @@ function submitQuote(){
   window.location.href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone);
 }
 </script>
-<script src="i18n-sparkles.js?v=2026061401"></script>
+<script src="i18n-sparkles.js?v=2026061402"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
