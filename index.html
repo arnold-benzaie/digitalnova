@@ -216,20 +216,45 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 .cert-check{display:inline-flex;align-items:center;gap:5px;background:rgba(52,168,83,.12);border:1px solid rgba(52,168,83,.25);border-radius:10px;padding:4px 10px;font-size:10px;font-weight:700;color:#4CAF50;}
 .user-cert-panel{background:#F4F6FA;border:1.5px solid #E2E8F4;border-radius:22px;padding:36px 34px;margin:0 auto 64px;box-shadow:0 14px 36px rgba(10,37,64,.06);}
 .user-cert-title{font-family:'Outfit',sans-serif;font-size:clamp(34px,4.8vw,58px);font-weight:900;text-align:center;color:#050505;letter-spacing:.02em;margin-bottom:32px;}
-.user-cert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;align-items:start;}
+.user-cert-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:22px;align-items:start;}
 .user-cert-badge{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;min-width:0;}
 .user-cert-medal{width:112px;height:112px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 12px 28px rgba(10,37,64,.12),inset 0 0 0 5px rgba(255,255,255,.42);font-family:'Outfit',sans-serif;color:#fff;overflow:hidden;}
 .user-cert-medal::after{content:"";position:absolute;inset:10px;border-radius:50%;border:2px solid rgba(255,255,255,.42);}
+.user-cert-medal.google{background:#fff;color:#1f2937;border:5px solid #C8DCFF;}
+.user-cert-medal.meta-community{background:linear-gradient(180deg,#fff 0 46%,#DFA31E 46% 100%);color:#12498A;border:4px solid #E4A51A;}
+.user-cert-medal.meta-science{background:linear-gradient(180deg,#fff 0 44%,#0C7D7C 44% 100%);color:#0C7D7C;border:4px solid #0C7D7C;}
 .user-cert-medal.digital{background:radial-gradient(circle at 50% 38%,#172554 0%,#0F172A 58%,#06101E 100%);}
 .user-cert-medal.css{background:linear-gradient(180deg,#5CB7C8,#2B90A3);}
 .user-cert-medal.html{background:linear-gradient(180deg,#5CB7C8,#2B90A3);}
 .user-cert-medal.seo{background:#fff;color:#133C68;border:5px solid #133C68;box-shadow:0 12px 28px rgba(10,37,64,.12);}
 .user-cert-logo{position:relative;z-index:1;font-weight:900;font-size:32px;line-height:1;}
 .user-cert-logo.small{font-size:24px;}
+.user-cert-logo.meta{font-size:20px;color:#1877F2;letter-spacing:-.04em;}
+.user-cert-logo.google span:nth-child(1){color:#4285F4}.user-cert-logo.google span:nth-child(2){color:#EA4335}.user-cert-logo.google span:nth-child(3){color:#FBBC05}.user-cert-logo.google span:nth-child(4){color:#4285F4}.user-cert-logo.google span:nth-child(5){color:#34A853}.user-cert-logo.google span:nth-child(6){color:#EA4335}
 .user-cert-sub{position:relative;z-index:1;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;line-height:1.25;}
 .user-cert-name{font-size:12px;font-weight:800;color:#1A1A1A;line-height:1.35;max-width:140px;}
-@media(max-width:980px){.user-cert-grid{grid-template-columns:repeat(2,1fr);}.user-cert-medal{width:104px;height:104px;}}
+@media(max-width:1180px){.user-cert-grid{grid-template-columns:repeat(4,1fr);}.user-cert-medal{width:104px;height:104px;}}
+@media(max-width:980px){.user-cert-grid{grid-template-columns:repeat(3,1fr);}.user-cert-medal{width:104px;height:104px;}}
 @media(max-width:560px){.user-cert-panel{padding:28px 16px}.user-cert-grid{grid-template-columns:repeat(2,1fr);gap:20px 14px}.user-cert-medal{width:96px;height:96px}.user-cert-title{font-size:34px;}}
+
+/* ─── POURQUOI NOUS ─── */
+.why-sec{background:#fff;padding:92px 24px 84px;}
+.why-inner{max-width:1180px;margin:0 auto;}
+.why-head{text-align:center;max-width:820px;margin:0 auto 54px;}
+.why-title{font-family:'Inter',system-ui,sans-serif;font-size:clamp(36px,4.8vw,62px);font-weight:900;letter-spacing:-.045em;line-height:1.05;color:#111827;margin-bottom:16px;}
+.why-sub{font-size:clamp(16px,1.6vw,22px);line-height:1.65;color:#6B7280;font-weight:500;}
+.why-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:28px;}
+.why-card{background:#fff;border:1px solid #ECEFF5;border-radius:22px;padding:34px 36px 32px;box-shadow:0 16px 40px rgba(17,24,39,.06);position:relative;overflow:hidden;transition:transform .35s ease,box-shadow .35s ease,border-color .35s ease;}
+.why-card::after{content:"";position:absolute;left:0;bottom:0;width:84px;height:5px;border-radius:0 10px 0 0;background:var(--why-color,#4285F4);}
+.why-card:hover{transform:translateY(-6px);box-shadow:0 26px 62px rgba(17,24,39,.11);border-color:rgba(66,133,244,.22);}
+.why-icon{width:70px;height:70px;border:2px solid var(--why-color,#4285F4);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:26px;color:var(--why-color,#4285F4);background:#fff;}
+.why-card h3{font-family:'Inter',system-ui,sans-serif;font-size:24px;line-height:1.2;color:#111827;margin-bottom:14px;letter-spacing:-.025em;}
+.why-card p{font-size:15px;line-height:1.85;color:#687386;margin-bottom:18px;}
+.why-proof{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;}
+.why-proof span{background:#F8FAFE;border:1px solid #E5EAF3;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800;color:#344054;}
+body.eu-active .why-card.ca-proof{display:none;}
+body:not(.eu-active) .why-card.eu-proof{display:none;}
+@media(max-width:860px){.why-grid{grid-template-columns:1fr}.why-card{padding:28px 24px}.why-sec{padding:74px 18px 66px;}}
 
 /* ─── AVIS ─── */
 .reviews-sec{background:#F8FAFE;}
@@ -243,8 +268,11 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 .bar-t{flex:1;height:5px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden;}
 .bar-f{height:100%;background:var(--or2);border-radius:3px;}
 .score-quote{max-width:260px;font-size:13px;font-style:italic;color:rgba(255,255,255,.7);line-height:1.8;font-family:'Cormorant Garamond',serif;}
-.rev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
-.rev-card{background:var(--blanc);border:1px solid var(--gris2);border-radius:16px;padding:28px;transition:all .35s;position:relative;overflow:hidden;}
+.reviews-track-viewport{overflow:hidden;margin-top:8px;padding:4px 0 18px;mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);}
+.rev-grid{display:flex;gap:22px;width:max-content;animation:reviewMarquee 54s linear infinite;}
+.reviews-track-viewport:hover .rev-grid{animation-play-state:paused;}
+@keyframes reviewMarquee{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 11px))}}
+.rev-card{background:var(--blanc);border:1px solid var(--gris2);border-radius:16px;padding:28px;transition:all .35s;position:relative;overflow:hidden;width:380px;flex:0 0 380px;}
 .rev-card::before{content:'\201C';position:absolute;top:-8px;right:18px;font-family:'Cormorant Garamond',serif;font-size:90px;color:rgba(213,43,30,.05);line-height:1;}
 .rev-card:hover{transform:translateY(-6px);box-shadow:var(--sh-dark);border-color:rgba(213,43,30,.18);}
 .rev-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
@@ -266,6 +294,7 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .rev-text{font-size:13px;color:var(--gris);line-height:1.85;}
 .rev-tag{display:inline-block;background:rgba(213,43,30,.07);color:var(--rouge);font-size:10px;font-weight:600;padding:3px 10px;border-radius:10px;margin-top:12px;letter-spacing:.05em;}
 .rev-date{font-size:11px;color:#BCBCBC;margin-top:6px;font-style:italic;}
+@media(max-width:760px){.reviews-track-viewport{overflow-x:auto;mask-image:none;-webkit-overflow-scrolling:touch}.rev-grid{animation:none}.rev-card{width:84vw;flex-basis:84vw;}}
 
 /* ─── LAISSER UN AVIS ─── */
 .review-submit-sec{background:#fff;padding-top:80px;}
@@ -353,6 +382,13 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .sw-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
 .sw-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#1A1A1A;}
 .stripe-logo{background:linear-gradient(135deg,#FFD166,#FFB703);border-radius:999px;padding:6px 12px;font-size:10px;font-weight:900;color:#0A2540;letter-spacing:.08em;white-space:nowrap;box-shadow:0 8px 22px rgba(255,183,3,.28);}
+.payment-preview{margin-top:18px;border:1.5px solid #E6EDF8;background:linear-gradient(135deg,#F8FAFE,#FFFFFF);border-radius:16px;padding:14px 16px;box-shadow:0 12px 28px rgba(10,37,64,.05);}
+.payment-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;color:#0A2540;}
+.payment-preview-head span{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#8A94A6;}
+.payment-preview-head strong{font-size:13px;font-weight:800;text-align:right;}
+.payment-method-row{display:flex;flex-wrap:wrap;gap:8px;}
+.payment-method-pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #DDE6F3;border-radius:999px;padding:8px 11px;font-size:11px;font-weight:800;color:#15213A;box-shadow:0 6px 16px rgba(10,37,64,.04);}
+.payment-method-note{display:block;margin-top:10px;font-size:10px;line-height:1.45;color:#8A94A6;text-align:center;}
 .sf-label{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:5px;}
 .sf-inp{background:#FAFAFA;border:1.5px solid #E0E0E0;border-radius:8px;padding:12px 14px;font-family:'Outfit',sans-serif;font-size:14px;color:#1A1A1A;width:100%;outline:none;transition:border-color .2s;}
 .sf-inp:focus{border-color:var(--g-blue);}
@@ -667,11 +703,6 @@ footer{background:#050505;}
 }
 
 /* ─── CERTIFICATIONS SECTION ─── */
-.cert-badges-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;}
-@media(max-width:900px){
-  .cert-badges-grid{grid-template-columns:1fr!important;}
-  .cert-badges-grid > div{align-items:center;}
-}
 @media(max-width:600px){
   #certifications{padding:60px 24px!important;}
 }
@@ -779,47 +810,71 @@ footer{background:#050505;}
 }
 
 /* ─── GOOGLE MAPS PRESENCE SECTION ─── */
-.maps-sec{background:linear-gradient(180deg,#fff 0%,#F8FAFE 100%);padding:100px 56px 60px;position:relative;overflow:hidden;}
-.maps-sec::before{content:"";position:absolute;top:-50px;right:-50px;width:400px;height:400px;background:radial-gradient(circle,rgba(66,133,244,.12),transparent 70%);pointer-events:none;}
-.maps-sec::after{content:"";position:absolute;bottom:-50px;left:-50px;width:400px;height:400px;background:radial-gradient(circle,rgba(213,43,30,.08),transparent 70%);pointer-events:none;}
-.maps-inner{max-width:1280px;margin:0 auto;position:relative;z-index:1;}
-.maps-header{text-align:center;margin-bottom:60px;}
-.maps-header .sec-h{display:inline-block;}
+.maps-sec{background:linear-gradient(180deg,#F3F5F8 0%,#F3F5F8 58%,#fff 58%,#fff 100%);padding:88px 24px 60px;position:relative;overflow:hidden;}
+.maps-sec::before,.maps-sec::after{display:none;}
+.maps-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1;}
+.maps-header{text-align:center;margin-bottom:38px;}
+.maps-header .sec-tag{display:none;}
+.maps-header .sec-h{display:block;font-family:'Inter',system-ui,sans-serif!important;font-size:clamp(34px,4.7vw,64px)!important;font-weight:900!important;line-height:1.06!important;letter-spacing:-.045em!important;color:#07090D!important;margin:0!important;}
+.maps-header .sec-h em{font-family:inherit!important;font-style:normal!important;color:inherit!important;}
+.maps-header .sec-sub{max-width:760px!important;margin:28px auto 0!important;text-align:center!important;font-size:clamp(17px,2vw,26px)!important;line-height:1.45!important;font-weight:500!important;color:#121826!important;}
 
-/* MacBook + iPhone mockup */
-.maps-mockup-wrap{position:relative;max-width:1080px;margin:0 auto 80px;height:auto;display:flex;justify-content:center;align-items:flex-end;gap:0;flex-wrap:wrap;perspective:1500px;}
-.laptop{position:relative;width:min(820px,90%);transform-style:preserve-3d;transition:transform .8s cubic-bezier(.2,.8,.2,1);}
-.maps-mockup-wrap:hover .laptop{transform:rotateY(-3deg) rotateX(2deg);}
-.laptop-screen{background:#1a1a1a;border-radius:18px 18px 6px 6px;padding:18px 18px 22px;box-shadow:0 30px 80px rgba(0,0,0,.25),0 0 0 2px #2a2a2a inset;position:relative;overflow:hidden;aspect-ratio:16/10;}
-.laptop-notch{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:80px;height:6px;background:#0a0a0a;border-radius:0 0 8px 8px;z-index:2;}
-.laptop-base{height:14px;background:linear-gradient(180deg,#c7c7cc,#9a9a9e);border-radius:0 0 16px 16px;margin:0 -22px;position:relative;box-shadow:0 14px 30px rgba(0,0,0,.18);}
-.laptop-base::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:6px;background:#86868b;border-radius:0 0 8px 8px;}
-.laptop .map-iframe{width:100%;height:100%;border:none;border-radius:6px;display:block;}
-
-.phone{position:absolute;right:6%;bottom:-30px;width:200px;background:#1a1a1a;border-radius:30px;padding:8px;box-shadow:0 28px 60px rgba(0,0,0,.32),0 0 0 2px #2a2a2a inset;transform:rotate(2deg);transition:transform .8s cubic-bezier(.2,.8,.2,1);z-index:5;}
-.maps-mockup-wrap:hover .phone{transform:rotate(0deg) translateY(-12px) scale(1.05);}
-.phone-notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:90px;height:24px;background:#000;border-radius:14px;z-index:2;}
-.phone-screen{aspect-ratio:9/19;border-radius:24px;overflow:hidden;background:#000;}
-.phone .map-iframe{width:100%;height:100%;border:none;display:block;}
-@media(max-width:760px){.phone{position:relative;right:auto;bottom:auto;margin-top:24px;transform:none;}}
-
-/* Floating pins */
-.map-pin{position:absolute;background:#fff;border:2px solid var(--g-blue);border-radius:24px;padding:7px 16px;font-size:12px;font-weight:700;color:#1A1A1A;box-shadow:0 12px 32px rgba(66,133,244,.25);animation:pinFloat 4.5s ease-in-out infinite;z-index:6;}
-.map-pin.pin-1{top:8%;left:-20px;animation-delay:0s;border-color:var(--rouge);box-shadow:0 12px 32px rgba(213,43,30,.25);}
-.map-pin.pin-2{top:30%;right:-30px;animation-delay:1.5s;border-color:var(--bleu-eu);}
-.map-pin.pin-3{bottom:18%;left:5%;animation-delay:3s;border-color:#34A853;box-shadow:0 12px 32px rgba(52,168,83,.25);}
-@keyframes pinFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-12px) scale(1.05)}}
-@media(max-width:760px){.map-pin{display:none;}}
-
-/* Maps features */
-.maps-features{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:60px;}
-.map-feat{background:#fff;border:1px solid #ECEFF5;border-radius:16px;padding:24px;text-align:center;transition:all .35s cubic-bezier(.2,.8,.2,1);}
-.map-feat:hover{transform:translateY(-6px);box-shadow:0 20px 48px rgba(66,133,244,.12);border-color:rgba(66,133,244,.3);}
-.map-feat-ic{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px;}
-.map-feat-h{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:#1A1A1A;margin-bottom:6px;}
-.map-feat-d{font-size:12px;color:#666;line-height:1.7;}
-@media(max-width:900px){.maps-features{grid-template-columns:1fr 1fr;}}
-@media(max-width:520px){.maps-features{grid-template-columns:1fr;}}
+/* Lightweight laptop + phone map mockup */
+.maps-mockup-wrap{position:relative;max-width:860px;margin:0 auto 36px;min-height:350px;display:flex;justify-content:center;align-items:flex-end;perspective:1200px;}
+.laptop{position:relative;width:min(690px,84vw);transform-style:preserve-3d;transition:transform .35s ease;}
+.maps-mockup-wrap:hover .laptop{transform:translateY(-3px);}
+.laptop-screen{background:#050505;border:12px solid #050505;border-bottom:0;border-radius:16px 16px 8px 8px;box-shadow:0 22px 42px rgba(0,0,0,.24);position:relative;overflow:hidden;aspect-ratio:16/9;padding-bottom:20px;}
+.laptop-camera{position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#262B35;box-shadow:0 0 0 2px rgba(255,255,255,.04);z-index:6;}
+.laptop-brand{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);z-index:6;font:700 9px/1 Inter,system-ui,sans-serif;color:rgba(255,255,255,.34);letter-spacing:.08em;white-space:nowrap;}
+.laptop-notch{display:none;}
+.laptop-base{height:18px;background:linear-gradient(180deg,#34363B 0%,#101114 55%,#050505 100%);border-radius:0 0 28px 28px;margin:0 -82px;position:relative;box-shadow:0 15px 24px rgba(0,0,0,.24);}
+.laptop-base::before{content:"";position:absolute;left:8%;right:8%;bottom:-6px;height:6px;border-radius:0 0 999px 999px;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,0));}
+.laptop-base::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:170px;height:6px;background:rgba(255,255,255,.16);border-radius:0 0 14px 14px;}
+.device-map{position:absolute;inset:0 0 20px 0;background:#EEF2F5;overflow:hidden;}
+.device-map::before{content:"";position:absolute;inset:-16%;background:
+  linear-gradient(24deg,transparent 0 42%,rgba(78,163,92,.22) 42% 50%,transparent 50% 100%),
+  linear-gradient(150deg,transparent 0 38%,rgba(255,205,88,.72) 38% 41%,transparent 41% 100%),
+  linear-gradient(75deg,transparent 0 48%,rgba(255,205,88,.72) 48% 51%,transparent 51% 100%),
+  linear-gradient(8deg,transparent 0 52%,rgba(104,149,214,.35) 52% 55%,transparent 55% 100%),
+  linear-gradient(90deg,rgba(255,255,255,.8) 0 2px,transparent 2px 100%),
+  linear-gradient(0deg,rgba(255,255,255,.8) 0 2px,transparent 2px 100%);
+  background-size:100% 100%,100% 100%,100% 100%,100% 100%,96px 96px,96px 96px;}
+.device-map::after{content:"PUBLIC-MAP";position:absolute;right:14px;bottom:10px;font:800 10px/1 Inter,sans-serif;color:#3B82F6;letter-spacing:.08em;opacity:.8;}
+.map-search{position:absolute;top:14px;left:14px;right:38px;height:28px;border-radius:6px;background:#fff;box-shadow:0 5px 16px rgba(0,0,0,.12);display:flex;align-items:center;gap:8px;padding:0 10px;font:600 10px/1 Inter,sans-serif;color:#798293;z-index:2;}
+.map-search::before{content:"⌕";font-size:13px;color:#2563EB;}
+.map-result{position:absolute;top:52px;left:18px;width:210px;border-radius:10px;background:#fff;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:10px;z-index:2;}
+.map-result strong{display:block;font:800 12px/1.2 Inter,sans-serif;color:#182033;margin-bottom:5px;}
+.map-result span{display:block;font:600 10px/1.4 Inter,sans-serif;color:#6B7280;}
+.map-dot{position:absolute;width:15px;height:15px;border-radius:50% 50% 50% 0;background:#EA4335;transform:rotate(-45deg);box-shadow:0 0 0 5px rgba(234,67,53,.15);z-index:3;}
+.map-dot::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#fff;}
+.map-dot.d1{left:53%;top:41%}.map-dot.d2{left:71%;top:27%;background:#4285F4}.map-dot.d3{left:35%;top:64%;background:#34A853}
+.phone{position:absolute;right:0;bottom:-8px;width:178px;background:#050505;border-radius:30px;padding:7px;box-shadow:0 24px 48px rgba(0,0,0,.32);transition:transform .35s ease;z-index:5;}
+.maps-mockup-wrap:hover .phone{transform:translateY(-4px);}
+.phone-notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:74px;height:17px;background:#050505;border-radius:0 0 13px 13px;z-index:4;}
+.phone-screen{position:relative;aspect-ratio:9/18.8;border-radius:23px;overflow:hidden;background:#EEF2F5;}
+.phone .map-search{top:24px;left:12px;right:12px;height:24px;font-size:8px;}
+.phone .map-result{display:none;}
+.phone .map-dot{width:13px;height:13px;}
+.phone .map-dot.d1{left:48%;top:46%}.phone .map-dot.d2{left:66%;top:30%}.phone .map-dot.d3{left:30%;top:68%}
+.map-pin,.maps-features{display:none;}
+@media(max-width:760px){
+  .maps-sec{padding:72px 18px 44px;background:linear-gradient(180deg,#F3F5F8 0%,#F3F5F8 64%,#fff 64%,#fff 100%);}
+  .maps-header{margin-bottom:26px;}
+  .maps-mockup-wrap{min-height:300px;margin-bottom:20px;}
+  .phone{width:132px;right:0;bottom:0;}
+  .laptop{width:92vw;}
+  .laptop-base{margin:0 -34px;}
+  .map-result{width:160px;padding:8px;}
+}
+@media(max-width:480px){
+  .maps-header .sec-h{font-size:32px!important;}
+  .maps-header .sec-sub{font-size:17px!important;}
+  .maps-mockup-wrap{min-height:245px;}
+  .phone{width:105px;}
+  .laptop-screen{border-width:8px;border-bottom:0;padding-bottom:16px;}
+  .device-map{inset:0 0 16px 0;}
+  .laptop-brand{font-size:7px;bottom:3px;}
+}
 
 /* Contact block */
 .contact-block{max-width:1080px;margin:80px auto 0;background:#fff;border-radius:24px;padding:60px 40px;box-shadow:0 24px 60px rgba(0,0,0,.06);border:1px solid #ECEFF5;}
@@ -835,29 +890,20 @@ footer{background:#050505;}
 /* Responsive maps section */
 @media(max-width:760px){.maps-sec{padding:70px 24px 40px;}}
 
-/* Certifications badge — scale down on small screens */
-@media(max-width:600px){
-  #certifications{padding:60px 20px!important;}
-  #certifications .cert-badges-grid img{
-    width:min(200px,72vw)!important;
-    max-width:100%!important;
-    transform:scale(1)!important;
-  }
-  #certifications .cert-badges-grid > div{width:100%;}
-}
+@media(max-width:600px){#certifications{padding:60px 20px!important;}}
 </style>
 <link rel="preload" as="image" href="assets/images/map-prime-hero/hero_team.jpg" fetchpriority="high"/>
 <link rel="stylesheet" href="brand-theme-clean.css?v=2026053101"/>
 <link rel="stylesheet" href="pricing-cards-premium.css?v=283fae8"/>
 <link rel="stylesheet" href="marquee-and-contact.css?v=2026053101"/>
 <link rel="stylesheet" href="mobile-and-layout-fixes.css?v=2026053101"/>
-<link rel="stylesheet" href="hero-premium-title.css?v=2026061301"/>
+<link rel="stylesheet" href="hero-premium-title.css?v=2026061401"/>
 <link rel="stylesheet" href="round-certs-and-footer.css?v=2026053101"/>
 <link rel="stylesheet" href="final-polish.css?v=2026060601"/>
-<link rel="stylesheet" href="mobile-ux-fixes.css?v=2026053101"/>
+<link rel="stylesheet" href="mobile-ux-fixes.css?v=2026061401"/>
 <link rel="stylesheet" href="hero-no-video.css?v=2026060606"/>
-<link rel="stylesheet" href="mobile-performance.css?v=2026060602"/>
-<link rel="stylesheet" href="clarity-responsive.css?v=2026061302"/>
+<link rel="stylesheet" href="mobile-performance.css?v=2026061401"/>
+<link rel="stylesheet" href="clarity-responsive.css?v=2026061401"/>
 </head>
 <body>
 
@@ -1307,8 +1353,13 @@ footer{background:#050505;}
       <!-- MacBook mockup -->
       <div class="laptop">
         <div class="laptop-screen">
-          <iframe class="map-iframe" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d178857.43053499966!2d-73.85664384375!3d45.55914829999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4cc91a541c64b70d%3A0x654e3138211fefef!2sMontr%C3%A9al%2C%20QC!5e0!3m2!1sen!2sca!4v1715000000000"></iframe>
+          <span class="laptop-camera"></span>
+          <div class="device-map" aria-label="Aperçu Google Maps PUBLIC-MAP">
+            <div class="map-search">Rechercher votre entreprise</div>
+            <div class="map-result"><strong>PUBLIC-MAP Client</strong><span>Fiche optimisée · itinéraires · appels · avis Google</span></div>
+            <span class="map-dot d1"></span><span class="map-dot d2"></span><span class="map-dot d3"></span>
+          </div>
+          <div class="laptop-brand">PUBLIC-MAP</div>
         </div>
         <div class="laptop-base"></div>
         <div class="laptop-notch"></div>
@@ -1317,8 +1368,10 @@ footer{background:#050505;}
       <div class="phone">
         <div class="phone-notch"></div>
         <div class="phone-screen">
-          <iframe class="map-iframe" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d44637.6912!2d2.331!3d48.8666!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66e1f06e2b70f%3A0x40b82c3688c9460!2sParis%2C%20France!5e0!3m2!1sen!2sfr!4v1715000000000"></iframe>
+          <div class="device-map" aria-label="Aperçu mobile Google Maps PUBLIC-MAP">
+            <div class="map-search">Votre fiche</div>
+            <span class="map-dot d1"></span><span class="map-dot d2"></span><span class="map-dot d3"></span>
+          </div>
         </div>
       </div>
       <!-- Floating pins -->
@@ -1789,14 +1842,75 @@ footer{background:#050505;}
   </div>
 </section>
 
+<!-- ═══ POURQUOI NOUS ═══ -->
+<section class="why-sec" id="pourquoi-nous">
+  <div class="why-inner">
+    <div class="why-head rv">
+      <h2 class="why-title">Pourquoi nous ?</h2>
+      <p class="why-sub">Nous ne vendons pas seulement un site ou une campagne. Nous construisons une présence digitale fiable, mesurable et prête à convertir, avec un accompagnement clair du premier devis jusqu'aux résultats.</p>
+    </div>
+    <div class="why-grid stagger">
+      <article class="why-card ca-proof" style="--why-color:#34A853;">
+        <div class="why-icon">👥</div>
+        <h3>Accompagnement humain, pas une simple prestation</h3>
+        <p>Chaque projet est suivi avec un interlocuteur dédié. Nous clarifions vos objectifs, votre marché, vos concurrents et vos priorités avant de proposer une action. Vous savez ce qui est fait, pourquoi c'est fait et comment mesurer le résultat.</p>
+        <div class="why-proof"><span>Suivi Canada FR/EN</span><span>Rapports lisibles</span><span>Réponse sous 2h ouvrées</span></div>
+      </article>
+      <article class="why-card ca-proof" style="--why-color:#4285F4;">
+        <div class="why-icon">🧾</div>
+        <h3>Devis clair avant paiement sécurisé</h3>
+        <p>Avant tout paiement, vous recevez un devis détaillé : service choisi, livrables, délai, prix et prochaines étapes. Le paiement n'est envoyé qu'après validation, via Lemon Squeezy, pour garder un processus professionnel et traçable.</p>
+        <div class="why-proof"><span>Aucune surprise</span><span>Lemon Squeezy</span><span>Dossier vérifiable</span></div>
+      </article>
+      <article class="why-card ca-proof" style="--why-color:#F5B800;">
+        <div class="why-icon">📍</div>
+        <h3>Visibilité locale pensée pour Google Maps</h3>
+        <p>Nous travaillons la fiche Google Business, les mots-clés locaux, les avis et les pages de service pour aider vos clients à vous trouver au bon moment : recherche locale, itinéraire, appel, formulaire ou demande de devis.</p>
+        <div class="why-proof"><span>Google Business Profile</span><span>SEO local</span><span>Avis clients</span></div>
+      </article>
+      <article class="why-card ca-proof" style="--why-color:#EA4335;">
+        <div class="why-icon">⚡</div>
+        <h3>Performance, confiance et croissance mesurable</h3>
+        <p>Un beau site ne suffit pas. Nous cherchons un site rapide, rassurant sur mobile, clair sur les prix et connecté à vos outils de demande de devis. L'objectif : plus de confiance, moins de friction, plus de prospects qualifiés.</p>
+        <div class="why-proof"><span>Mobile first</span><span>Pages rapides</span><span>Objectifs mesurables</span></div>
+      </article>
+
+      <article class="why-card eu-proof" style="--why-color:#34A853;">
+        <div class="why-icon">👥</div>
+        <h3>Une équipe qui comprend les marchés européens</h3>
+        <p>Votre communication doit être claire pour la France, la Belgique, la Suisse, le Royaume-Uni et la francophonie. Nous adaptons les textes, les pages et les campagnes pour garder un ton professionnel, local et crédible.</p>
+        <div class="why-proof"><span>France · Belgique · Suisse</span><span>UK possible</span><span>Francophonie</span></div>
+      </article>
+      <article class="why-card eu-proof" style="--why-color:#4285F4;">
+        <div class="why-icon">🧾</div>
+        <h3>Cadre clair, conforme et sans pression</h3>
+        <p>Nous évitons les promesses floues. Le client reçoit un devis, les livrables, les délais et les conditions avant validation. Pour l'Europe, l'approche tient compte de la confiance, du RGPD, de la facturation en euros et des attentes locales.</p>
+        <div class="why-proof"><span>Devis détaillé</span><span>RGPD</span><span>EUR HT</span></div>
+      </article>
+      <article class="why-card eu-proof" style="--why-color:#F5B800;">
+        <div class="why-icon">📍</div>
+        <h3>Référencement local et international</h3>
+        <p>Nous structurons votre présence pour les recherches locales, mais aussi pour les clients qui vous découvrent depuis d'autres pays. Pages géolocalisées, fiche Google, réputation et contenu : tout doit envoyer le même signal de confiance.</p>
+        <div class="why-proof"><span>SEO local</span><span>Pages pays</span><span>Réputation Google</span></div>
+      </article>
+      <article class="why-card eu-proof" style="--why-color:#EA4335;">
+        <div class="why-icon">⚡</div>
+        <h3>Un site fluide qui donne envie de demander un devis</h3>
+        <p>Nous privilégions une navigation simple, des sections courtes, des cartes lisibles, des animations légères et des appels à l'action visibles. Le client comprend vite votre offre et peut vous contacter sans confusion.</p>
+        <div class="why-proof"><span>UX claire</span><span>Mobile fluide</span><span>Conversion</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ AVIS CLIENTS ═══ -->
 <section class="sec reviews-sec" id="avis">
   <div class="sec-inner">
     <div class="sec-row rv">
       <div>
         <span class="sec-tag">⭐ Témoignages Vérifiés</span>
-        <h2 class="sec-h">Ce que disent<br><em>nos clients</em></h2>
-        <p class="sec-sub" id="review-region-sub">Avis authentiques vérifiés Google — clients réels du Canada.</p>
+        <h2 class="sec-h">Ce qu'ils pensent<br><em>de nous</em></h2>
+        <p class="sec-sub" id="review-region-sub">Avis authentiques vérifiés Google — clients réels du Canada, avec métiers et résultats concrets.</p>
       </div>
       <a href="#laisser-avis" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--gris2);border-radius:30px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--gris);text-decoration:none;transition:all .3s;" onmouseover="this.style.borderColor='var(--rouge)'" onmouseout="this.style.borderColor='var(--gris2)'">
         <span style="font-weight:800;color:#4285F4;font-size:14px;">G</span> <span id="review-google-count">527 avis Google Canada</span>
@@ -1813,6 +1927,7 @@ footer{background:#050505;}
       <div class="score-sep"></div>
       <p class="score-quote" id="review-quote">"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada."</p>
     </div>
+    <div class="reviews-track-viewport" aria-label="Avis clients PUBLIC-MAP">
     <div class="rev-grid" id="review-grid">
       <div class="rev-card rv" style="transition-delay:.05s">
         <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
@@ -1856,6 +1971,7 @@ footer{background:#050505;}
         <span class="rev-tag">Google Ads + SEO Canada</span>
         <div class="rev-date">Il y a 7 semaines · Avis vérifié Google ✓</div>
       </div>
+    </div>
     </div>
   </div>
 </section>
@@ -1954,6 +2070,24 @@ footer{background:#050505;}
     <h3 class="user-cert-title">Nos Certifications</h3>
     <div class="user-cert-grid">
       <div class="user-cert-badge">
+        <div class="user-cert-medal google">
+          <div>
+            <div class="user-cert-logo google"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></div>
+            <div class="user-cert-sub" style="color:#4285F4;">Premier<br>Partner</div>
+          </div>
+        </div>
+        <div class="user-cert-name">Google Certification</div>
+      </div>
+      <div class="user-cert-badge">
+        <div class="user-cert-medal meta-community">
+          <div>
+            <div class="user-cert-logo meta">∞ Meta</div>
+            <div class="user-cert-sub" style="color:#fff;">Certified<br>Community<br>Manager</div>
+          </div>
+        </div>
+        <div class="user-cert-name">Meta Community Manager</div>
+      </div>
+      <div class="user-cert-badge">
         <div class="user-cert-medal digital">
           <div>
             <div class="user-cert-logo small">DM</div>
@@ -1989,274 +2123,19 @@ footer{background:#050505;}
         </div>
         <div class="user-cert-name">SEO for Growth Certified Consultant</div>
       </div>
+      <div class="user-cert-badge">
+        <div class="user-cert-medal meta-science">
+          <div>
+            <div class="user-cert-logo meta">∞ Meta</div>
+            <div class="user-cert-sub" style="color:#fff;">Marketing<br>Science<br>Professional</div>
+          </div>
+        </div>
+        <div class="user-cert-name">Meta Marketing Science Professional</div>
+      </div>
     </div>
   </div>
 
-  <!-- ══ BADGES CERTIFICATIONS — reproduits fidèlement ══ -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-bottom:64px;" class="cert-badges-grid">
 
-    <!-- ══════════════════════════════════
-         BADGE 1 : Google Certification (tampon rouge)
-         Reproduit fidèlement depuis l'image
-    ══════════════════════════════════ -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:20px;transition-delay:.05s;" class="rv">
-      <div style="position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center;transition:transform .4s;overflow:hidden;" onmouseover="this.style.transform='scale(1.08) rotate(3deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
-        <!-- Image badge fournie par le client — assets/images/google-certification.png -->
-        <img src="assets/images/google-certification.png" alt="Google Certification"
-             style="width:auto;height:240px;max-width:none;display:block;object-fit:contain;margin:-20px 0;"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
-        <!-- Fallback SVG si l'image n'est pas trouvée -->
-        <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" width="220" height="220" style="display:none;">
-          <defs>
-            <radialGradient id="stampGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#FFE4E1" stop-opacity=".5"/>
-              <stop offset="100%" stop-color="#FFE4E1" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="ribbonBlue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#5DADE2"/>
-              <stop offset="100%" stop-color="#3498DB"/>
-            </linearGradient>
-            <filter id="stampNoise" x="0" y="0" width="100%" height="100%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5"/>
-              <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .15 0"/>
-              <feComposite in="SourceGraphic" in2="" operator="in"/>
-            </filter>
-          </defs>
-
-          <!-- Lueur de fond subtile -->
-          <circle cx="110" cy="110" r="100" fill="url(#stampGlow)"/>
-
-          <!-- Cercle extérieur vif (vrai rouge tampon) -->
-          <circle cx="110" cy="110" r="100" fill="none" stroke="#D9322F" stroke-width="5"/>
-          <circle cx="110" cy="110" r="92" fill="none" stroke="#D9322F" stroke-width="1.8" opacity=".55"/>
-
-          <!-- Rayons de soleil tampon (plus fins, mieux distribués) -->
-          <g opacity=".18" stroke="#D9322F" stroke-width="1.2" stroke-linecap="round">
-            <line x1="110" y1="22" x2="110" y2="48"/>
-            <line x1="110" y1="172" x2="110" y2="198"/>
-            <line x1="22" y1="110" x2="48" y2="110"/>
-            <line x1="172" y1="110" x2="198" y2="110"/>
-            <line x1="44" y1="44" x2="62" y2="62"/>
-            <line x1="158" y1="158" x2="176" y2="176"/>
-            <line x1="176" y1="44" x2="158" y2="62"/>
-            <line x1="44" y1="176" x2="62" y2="158"/>
-            <line x1="80" y1="28" x2="86" y2="50"/>
-            <line x1="134" y1="170" x2="140" y2="192"/>
-            <line x1="28" y1="80" x2="50" y2="86"/>
-            <line x1="170" y1="134" x2="192" y2="140"/>
-            <line x1="140" y1="28" x2="134" y2="50"/>
-            <line x1="80" y1="192" x2="86" y2="170"/>
-            <line x1="28" y1="140" x2="50" y2="134"/>
-            <line x1="170" y1="86" x2="192" y2="80"/>
-          </g>
-
-          <!-- "CERTIFIED" en arc supérieur -->
-          <path id="certArcTop" d="M 32,110 A 78,78 0 0 1 188,110" fill="none"/>
-          <text font-size="14" font-weight="900" fill="#D9322F" font-family="'Outfit',Arial,sans-serif" letter-spacing="9">
-            <textPath href="#certArcTop" startOffset="10%">CERTIFIED</textPath>
-          </text>
-
-          <!-- "CERTIFIED" en arc inférieur -->
-          <path id="certArcBot" d="M 32,110 A 78,78 0 0 0 188,110" fill="none"/>
-          <text font-size="14" font-weight="900" fill="#D9322F" font-family="'Outfit',Arial,sans-serif" letter-spacing="9">
-            <textPath href="#certArcBot" startOffset="10%">CERTIFIED</textPath>
-          </text>
-
-          <!-- Étoiles : 4 dorées + 2 vertes positionnées comme l'original -->
-          <text x="32" y="116" fill="#27AE60" font-size="20" font-weight="900">★</text>
-          <text x="172" y="116" fill="#27AE60" font-size="20" font-weight="900">★</text>
-          <text x="56" y="184" fill="#F1C40F" font-size="18" font-weight="900">★</text>
-          <text x="148" y="184" fill="#F1C40F" font-size="18" font-weight="900">★</text>
-          <text x="56" y="46" fill="#F1C40F" font-size="18" font-weight="900">★</text>
-          <text x="148" y="46" fill="#F1C40F" font-size="18" font-weight="900">★</text>
-
-          <!-- Bandeau diagonal bleu — plus large, plus net -->
-          <g transform="rotate(-22, 110, 110)">
-            <rect x="2" y="92" width="216" height="40" fill="url(#ribbonBlue)"/>
-            <!-- Plis du ruban -->
-            <polygon points="0,92 2,92 2,108 0,118" fill="#1F6391"/>
-            <polygon points="220,92 218,92 218,108 220,118" fill="#1F6391"/>
-            <!-- Bordures ruban -->
-            <line x1="2" y1="93" x2="218" y2="93" stroke="rgba(255,255,255,.4)" stroke-width="1"/>
-            <line x1="2" y1="131" x2="218" y2="131" stroke="rgba(0,0,0,.15)" stroke-width="1"/>
-
-            <!-- Texte "Google Certification" centré, lettres Google colorées -->
-            <text x="110" y="118" text-anchor="middle" font-family="'Outfit',Arial,sans-serif" font-weight="700">
-              <tspan fill="#fff" font-size="18">G</tspan><tspan fill="#fff" font-size="18">o</tspan><tspan fill="#fff" font-size="18">o</tspan><tspan fill="#fff" font-size="18">g</tspan><tspan fill="#fff" font-size="18">l</tspan><tspan fill="#fff" font-size="18">e</tspan><tspan fill="rgba(255,255,255,.95)" font-family="Georgia,serif" font-style="italic" font-size="16">  Certification</tspan>
-            </text>
-          </g>
-
-          <!-- Effet vieillissement/tampon (pointillé léger) -->
-          <circle cx="110" cy="110" r="98" fill="none" stroke="#D9322F" stroke-width="4" stroke-dasharray="2 8" opacity=".25"/>
-        </svg>
-      </div>
-      <div style="text-align:center;">
-        <div style="font-size:15px;font-weight:800;color:#C0392B;margin-bottom:4px;">Google Certification</div>
-        <div style="font-size:12px;color:#888;line-height:1.6;">Certification officielle Google<br>Marketing Platform</div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════
-         BADGE 2 : Local SEO Certified Individual (carré arrondi bleu)
-    ══════════════════════════════════ -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:20px;transition-delay:.1s;" class="rv">
-      <div style="position:relative;width:200px;height:200px;transition:transform .4s;" onmouseover="this.style.transform='scale(1.07) translateY(-4px)'" onmouseout="this.style.transform='scale(1) translateY(0)'">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-          <!-- Ombre portée -->
-          <rect x="14" y="18" width="176" height="176" rx="28" fill="rgba(0,0,0,.1)"/>
-          <!-- Fond gradient gris-blanc (style plastique/métal brossé) -->
-          <defs>
-            <linearGradient id="localSeoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#F0F4F8"/>
-              <stop offset="40%" style="stop-color:#FFFFFF"/>
-              <stop offset="100%" style="stop-color:#E0E8F0"/>
-            </linearGradient>
-          </defs>
-          <rect x="10" y="10" width="180" height="180" rx="26" fill="url(#localSeoGrad)"/>
-          <!-- Bordure bleue épaisse -->
-          <rect x="10" y="10" width="180" height="180" rx="26" fill="none" stroke="#2471A3" stroke-width="5"/>
-          <!-- Bordure intérieure fine -->
-          <rect x="18" y="18" width="164" height="164" rx="20" fill="none" stroke="#5DADE2" stroke-width="1.5" opacity=".5"/>
-
-          <!-- "LOCAL" -->
-          <text x="100" y="68" text-anchor="middle"
-            fill="#2471A3"
-            font-size="22"
-            font-weight="800"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="4">LOCAL</text>
-
-          <!-- "SEO" très grand -->
-          <text x="100" y="112" text-anchor="middle"
-            fill="#1A5276"
-            font-size="46"
-            font-weight="900"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="2">SEO</text>
-
-          <!-- "CERTIFIED" -->
-          <text x="100" y="138" text-anchor="middle"
-            fill="#2471A3"
-            font-size="16"
-            font-weight="800"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="3">CERTIFIED</text>
-
-          <!-- Ligne pointillée séparatrice -->
-          <line x1="35" y1="148" x2="165" y2="148" stroke="#5DADE2" stroke-width="1.5" stroke-dasharray="3 3"/>
-
-          <!-- "INDIVIDUAL" -->
-          <text x="100" y="168" text-anchor="middle"
-            fill="#5DADE2"
-            font-size="14"
-            font-weight="600"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="3">INDIVIDUAL</text>
-        </svg>
-      </div>
-      <div style="text-align:center;">
-        <div style="font-size:15px;font-weight:800;color:#2471A3;margin-bottom:4px;">Local SEO Certified</div>
-        <div style="font-size:12px;color:#888;line-height:1.6;">Certification individuelle<br>SEO Local — Expert vérifié</div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════
-         BADGE 3 : SEO Expert Certification (médaille crantée turquoise)
-    ══════════════════════════════════ -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:20px;transition-delay:.15s;" class="rv">
-      <div style="position:relative;width:200px;height:200px;transition:transform .4s;" onmouseover="this.style.transform='scale(1.07) rotate(-2deg)'" onmouseout="this.style.transform='scale(1) rotate(0)'">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-          <defs>
-            <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#45B7C8"/>
-              <stop offset="100%" style="stop-color:#2E9DB0"/>
-            </linearGradient>
-          </defs>
-
-          <!-- Médaille crantée (28 dents) -->
-          <g id="gear">
-            <path d="
-              M100,8 L107,15 L116,11 L120,20 L130,18 L131,28 L141,29 L139,39
-              L149,43 L144,52 L152,59 L144,66 L150,75 L140,79 L143,90
-              L132,91 L132,102 L121,100 L118,111 L107,106 L101,116
-              L93,106 L82,111 L79,100 L68,102 L68,91 L57,90
-              L60,79 L50,75 L56,66 L48,59 L56,52 L51,43 L61,39
-              L59,29 L69,28 L70,18 L80,20 L84,11 L93,15 Z"
-              fill="url(#tealGrad)" stroke="#2A8A9A" stroke-width="1.5"/>
-          </g>
-
-          <!-- Cercle intérieur blanc (2 cercles concentriques) -->
-          <circle cx="100" cy="100" r="68" fill="url(#tealGrad)" stroke="rgba(255,255,255,.35)" stroke-width="2"/>
-          <circle cx="100" cy="100" r="60" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
-
-          <!-- "CANCANIT" en haut (reproduit fidèlement) -->
-          <path id="tealTop" d="M 40,100 A 60,60 0 0 1 160,100" fill="none"/>
-          <text font-size="9.5" font-weight="700" fill="rgba(255,255,255,.85)" font-family="'Outfit',Arial,sans-serif" letter-spacing="4">
-            <textPath href="#tealTop" startOffset="18%">CANCANIT</textPath>
-          </text>
-
-          <!-- "★ SEO ★" -->
-          <text x="100" y="84" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="'Outfit',Arial,sans-serif" letter-spacing="3" opacity=".8">★</text>
-          <text x="100" y="98" text-anchor="middle"
-            fill="#fff"
-            font-size="38"
-            font-weight="900"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="3">SEO</text>
-          <!-- ★ droite/gauche de SEO -->
-          <text x="46" y="92" fill="#fff" font-size="10" opacity=".8">★</text>
-          <text x="147" y="92" fill="#fff" font-size="10" opacity=".8">★</text>
-
-          <!-- "SEARCH ENGINE OPTIMIZATION" petits caps -->
-          <text x="100" y="110" text-anchor="middle"
-            fill="rgba(255,255,255,.8)"
-            font-size="7"
-            font-weight="600"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="1.5">SEARCH ENGINE OPTIMIZATION</text>
-
-          <!-- Ligne séparatrice -->
-          <line x1="55" y1="116" x2="145" y2="116" stroke="rgba(255,255,255,.4)" stroke-width="1"/>
-
-          <!-- "EXPERT CERTIFICATION" -->
-          <text x="100" y="128" text-anchor="middle"
-            fill="#fff"
-            font-size="11"
-            font-weight="700"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="2">EXPERT</text>
-          <text x="100" y="140" text-anchor="middle"
-            fill="#fff"
-            font-size="11"
-            font-weight="700"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="2">CERTIFICATION</text>
-
-          <!-- Ligne -->
-          <line x1="60" y1="146" x2="140" y2="146" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
-
-          <!-- "SEO" en bas -->
-          <text x="100" y="158" text-anchor="middle"
-            fill="#fff"
-            font-size="13"
-            font-weight="800"
-            font-family="'Outfit',Arial,sans-serif"
-            letter-spacing="3">SEO</text>
-
-          <!-- "CERTIFIED PROFESSIONAL" en arc bas -->
-          <path id="tealBot" d="M 42,100 A 58,58 0 0 0 158,100" fill="none"/>
-          <text font-size="7.5" font-weight="600" fill="rgba(255,255,255,.7)" font-family="'Outfit',Arial,sans-serif" letter-spacing="2.5">
-            <textPath href="#tealBot" startOffset="12%">CERTIFIED PROFESSIONAL</textPath>
-          </text>
-        </svg>
-      </div>
-      <div style="text-align:center;">
-        <div style="font-size:15px;font-weight:800;color:#2E9DB0;margin-bottom:4px;">SEO Expert Certification</div>
-        <div style="font-size:12px;color:#888;line-height:1.6;">Search Engine Optimization<br>Expert — Certified Professional</div>
-      </div>
-    </div>
-
-  </div><!-- fin badges -->
 
 </div>
 </section>
@@ -2352,6 +2231,18 @@ footer{background:#050505;}
             </div>
             <button class="sf-submit" onclick="prepareSiteQuote(this)"><span>📩</span> Envoyer ma demande par courriel →</button>
             <div class="m-err" id="sf-err"></div>
+          </div>
+          <div class="payment-preview" aria-label="Processus de paiement Lemon Squeezy">
+            <div class="payment-preview-head">
+              <span>Après validation</span>
+              <strong>Lien Lemon Squeezy sécurisé</strong>
+            </div>
+            <div class="payment-method-row">
+              <span class="payment-method-pill">💳 Cartes internationales</span>
+              <span class="payment-method-pill"> Pay*</span>
+              <span class="payment-method-pill">G Pay*</span>
+            </div>
+            <span class="payment-method-note">*Méthodes disponibles selon le pays, l'appareil et l'activation du compte.</span>
           </div>
           <div class="sf-note"><span>🔒 Paiement sécurisé via Lemon Squeezy</span><span>·</span><span>Lien envoyé après validation du devis</span></div>
         </div>
@@ -2508,7 +2399,7 @@ const ks=document.querySelector('.hero-kpis');if(ks)cio.observe(ks);
 let activeZone='ca';
 const reviewRegions={
   ca:{
-    subtitle:{fr:"Avis authentiques vérifiés Google — clients réels du Canada.",en:"Authentic Google-verified reviews — real clients from Canada."},
+    subtitle:{fr:"Avis authentiques vérifiés Google — clients réels du Canada, avec métiers et résultats concrets.",en:"Authentic Google-verified reviews — real clients from Canada, with professions and concrete results."},
     googleCount:{fr:"527 avis Google Canada",en:"527 Canada Google reviews"},
     score:"4.9",
     scoreInfo:{fr:"Basé sur 527 avis Google vérifiés au Canada",en:"Based on 527 verified Google reviews in Canada"},
@@ -2524,7 +2415,7 @@ const reviewRegions={
         location:{fr:"Montréal, Québec 🇨🇦",en:"Montreal, Quebec 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/women/44.jpg",
-        text:{fr:"🌍 PUBLIC-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !",en:"🌍 PUBLIC-MAP transformed my online presence in just 4 months. My traffic grew 280% and my sales doubled. The team is professional, responsive and truly attentive. Best investment of my entrepreneurial career!"},
+        text:{fr:"En tant que fondatrice, je voulais surtout une stratégie claire, pas des promesses vagues. PUBLIC-MAP a repris ma fiche Google, mes pages locales et mes avis. En 4 mois, le trafic qualifié a fortement augmenté et les ventes sont devenues plus régulières.",en:"As a founder, I wanted a clear strategy, not vague promises. PUBLIC-MAP rebuilt my Google listing, local pages, and review process. In 4 months, qualified traffic grew strongly and sales became more consistent."},
         tag:{fr:"Pack SEO Prestige Canada",en:"SEO Prestige Pack Canada"},
         date:{fr:"Il y a 2 semaines · Avis vérifié Google ✓",en:"2 weeks ago · Google verified review ✓"}
       },
@@ -2533,7 +2424,7 @@ const reviewRegions={
         location:{fr:"Québec City 🇨🇦",en:"Quebec City 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/men/32.jpg",
-        text:{fr:"Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. Le parcours de devis est clair, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !",en:"My e-commerce project was delivered 5 days early and exceeds all expectations. The quote process is clear, training was excellent, and online revenue tripled in 6 months. I recommend them without hesitation!"},
+        text:{fr:"Le devis était détaillé, les délais réalistes et la livraison plus rapide que prévu. Ce que j'ai apprécié : on m'a expliqué chaque étape, de la boutique au suivi des conversions. Je sais maintenant exactement d'où viennent mes demandes.",en:"The quote was detailed, timelines realistic, and delivery faster than expected. What I appreciated most: every step was explained, from the store to conversion tracking. I now know exactly where my requests come from."},
         tag:{fr:"Boutique E-Commerce Canada",en:"E-Commerce Store Canada"},
         date:{fr:"Il y a 1 mois · Avis vérifié Google ✓",en:"1 month ago · Google verified review ✓"}
       },
@@ -2542,7 +2433,7 @@ const reviewRegions={
         location:{fr:"Toronto, Ontario 🇨🇦",en:"Toronto, Ontario 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/women/65.jpg",
-        text:{fr:"J'ai testé 4 agences avant 🌍 PUBLIC-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.",en:"I tested 4 agencies before 🌍 PUBLIC-MAP — no comparison possible. Here, results are measurable, reports are transparent, and the strategy is long-term. My Google Ads ROI went from 1.5x to 4.2x in just 3 months. Exceptional."},
+        text:{fr:"Je voulais arrêter de payer des publicités sans comprendre les résultats. PUBLIC-MAP a restructuré mes campagnes, clarifié le budget et mis en place un reporting simple. Le ROI est devenu lisible et les décisions beaucoup plus faciles.",en:"I wanted to stop paying for ads without understanding the results. PUBLIC-MAP restructured my campaigns, clarified the budget, and set up simple reporting. ROI became readable and decisions became much easier."},
         tag:{fr:"Google Ads Pro Canada",en:"Google Ads Pro Canada"},
         date:{fr:"Il y a 3 semaines · Avis vérifié Google ✓",en:"3 weeks ago · Google verified review ✓"}
       },
@@ -2551,7 +2442,7 @@ const reviewRegions={
         location:{fr:"Ottawa, Ontario 🇨🇦",en:"Ottawa, Ontario 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/women/76.jpg",
-        text:{fr:"Notre cabinet avait besoin d'une présence plus solide sur Google Maps et en SEO local. Les actions ont été précises, les rapports faciles à comprendre et les demandes entrantes ont augmenté dès le premier trimestre.",en:"Our firm needed stronger visibility on Google Maps and local SEO. The actions were precise, reports were easy to understand, and inbound requests increased in the first quarter."},
+        text:{fr:"Notre cabinet avait besoin de crédibilité locale. L'équipe a travaillé les mots-clés, les avis, les pages de service et la fiche Google. Les rapports sont compréhensibles même pour quelqu'un qui n'est pas technique.",en:"Our firm needed local credibility. The team worked on keywords, reviews, service pages, and the Google listing. Reports are understandable even for someone who is not technical."},
         tag:{fr:"SEO Local + Avis IA Canada",en:"Local SEO + AI Reviews Canada"},
         date:{fr:"Il y a 4 semaines · Avis vérifié Google ✓",en:"4 weeks ago · Google verified review ✓"}
       },
@@ -2560,7 +2451,7 @@ const reviewRegions={
         location:{fr:"Vancouver, C.-B. 🇨🇦",en:"Vancouver, B.C. 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/women/68.jpg",
-        text:{fr:"L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLIC-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.",en:"The 360° audit revealed opportunities no one else had identified. Clear action plan, realistic budgets, dedicated and warm expert. 🌍 PUBLIC-MAP is the ideal partner for any SME that wants to grow fast and sustainably."},
+        text:{fr:"L'audit a mis de l'ordre dans nos priorités. Au lieu de partir dans tous les sens, nous avons reçu un plan d'action sur 90 jours, puis 12 mois. C'est rassurant de travailler avec une équipe qui parle résultats, budget et responsabilité.",en:"The audit brought order to our priorities. Instead of going in every direction, we received a 90-day and 12-month action plan. It is reassuring to work with a team that talks about results, budget, and accountability."},
         tag:{fr:"Audit & Stratégie 360° Canada",en:"360° Audit & Strategy Canada"},
         date:{fr:"Il y a 2 mois · Avis vérifié Google ✓",en:"2 months ago · Google verified review ✓"}
       },
@@ -2569,14 +2460,14 @@ const reviewRegions={
         location:{fr:"Calgary, Alberta 🇨🇦",en:"Calgary, Alberta 🇨🇦"},
         flag:"ca",
         photo:"https://randomuser.me/api/portraits/men/46.jpg",
-        text:{fr:"On cherchait une équipe capable de gérer Google Ads, SEO et suivi commercial sans jargon inutile. Les campagnes ont été structurées proprement et notre coût par prospect a baissé de 38%.",en:"We needed a team able to manage Google Ads, SEO, and commercial follow-up without unnecessary jargon. Campaigns were structured properly and our cost per lead dropped by 38%."},
+        text:{fr:"Notre priorité était simple : obtenir des prospects sérieux sans perdre du temps avec du jargon. Les campagnes ont été nettoyées, les mots-clés inutiles supprimés et le suivi commercial est devenu beaucoup plus propre.",en:"Our priority was simple: get serious leads without wasting time with jargon. Campaigns were cleaned up, useless keywords removed, and commercial follow-up became much cleaner."},
         tag:{fr:"Google Ads + SEO Canada",en:"Google Ads + SEO Canada"},
         date:{fr:"Il y a 7 semaines · Avis vérifié Google ✓",en:"7 weeks ago · Google verified review ✓"}
       }
     ]
   },
   eu:{
-    subtitle:{fr:"Avis authentiques vérifiés Google — clients d'Europe, du Royaume-Uni et de la francophonie.",en:"Authentic Google-verified reviews — clients from Europe, the UK, and the French-speaking market."},
+    subtitle:{fr:"Avis authentiques vérifiés Google — clients d'Europe, du Royaume-Uni et de la francophonie, avec métiers et résultats concrets.",en:"Authentic Google-verified reviews — clients from Europe, the UK, and French-speaking markets, with professions and concrete results."},
     googleCount:{fr:"318 avis Google Europe",en:"318 Europe Google reviews"},
     score:"4.8",
     scoreInfo:{fr:"Basé sur 318 avis Google vérifiés en Europe & francophonie",en:"Based on 318 verified Google reviews across Europe & French-speaking markets"},
@@ -2592,7 +2483,7 @@ const reviewRegions={
         location:{fr:"Paris, France 🇫🇷",en:"Paris, France 🇫🇷"},
         flag:"fr",
         photo:"https://randomuser.me/api/portraits/men/75.jpg",
-        text:{fr:"Je craignais de travailler avec une agence canadienne depuis Paris. Le bureau 🌍 PUBLIC-MAP Europe a dissipé toutes mes craintes. Maîtrise parfaite du marché francophone européen. Résultats : +190% de leads qualifiés en 5 mois.",en:"I was worried about working with a Canadian agency from Paris. The 🌍 PUBLIC-MAP Europe setup removed all doubts. Strong command of the French-speaking European market. Results: +190% qualified leads in 5 months."},
+        text:{fr:"Je voulais une équipe capable de comprendre Paris, mais aussi l'international. Le positionnement a été clarifié, les pages ont gagné en sérieux et les demandes reçues sont devenues plus qualifiées.",en:"I wanted a team able to understand Paris, but also international growth. Positioning was clarified, the pages became more professional, and incoming requests became more qualified."},
         tag:{fr:"Community Management Europe",en:"Community Management Europe"},
         date:{fr:"Il y a 6 semaines · Avis vérifié Google ✓",en:"6 weeks ago · Google verified review ✓"}
       },
@@ -2601,7 +2492,7 @@ const reviewRegions={
         location:{fr:"Bruxelles, Belgique 🇧🇪",en:"Brussels, Belgium 🇧🇪"},
         flag:"be",
         photo:"https://randomuser.me/api/portraits/men/62.jpg",
-        text:{fr:"La seule agence opérationnelle simultanément au Canada et en Europe que j'ai trouvée. Résultats concrets, facturation en euros, équipe francophone, conformité RGPD totale. Mon site EU est parfait et mon référencement explose.",en:"The only agency operating simultaneously in Canada and Europe that I found. Concrete results, euro billing, French-speaking team, total GDPR compliance. My EU website is excellent and SEO is taking off."},
+        text:{fr:"Ce qui m'a rassuré, c'est la clarté : prix en euros, explication du périmètre, pages adaptées au marché européen et suivi régulier. Le site inspire davantage confiance et les demandes sont mieux ciblées.",en:"What reassured me was the clarity: euro pricing, clear project scope, pages adapted to the European market, and regular follow-up. The site inspires more trust and requests are better targeted."},
         tag:{fr:"Site Web Europe + SEO",en:"Website Europe + SEO"},
         date:{fr:"Il y a 5 semaines · Avis vérifié Google ✓",en:"5 weeks ago · Google verified review ✓"}
       },
@@ -2610,7 +2501,7 @@ const reviewRegions={
         location:{fr:"Genève, Suisse 🇨🇭",en:"Geneva, Switzerland 🇨🇭"},
         flag:"ch",
         photo:"https://randomuser.me/api/portraits/women/28.jpg",
-        text:{fr:"Nous avions besoin d'une stratégie claire pour toucher la Suisse romande sans perdre notre positionnement premium. Les campagnes ont été élégantes, mesurables et très bien suivies.",en:"We needed a clear strategy to reach French-speaking Switzerland without losing our premium positioning. The campaigns were elegant, measurable, and very well managed."},
+        text:{fr:"Nous avions besoin de visibilité sans abîmer notre image premium. Les textes, visuels et campagnes ont été travaillés avec finesse. Le résultat donne une impression plus professionnelle dès la première visite.",en:"We needed visibility without damaging our premium image. Texts, visuals, and campaigns were handled carefully. The result feels more professional from the first visit."},
         tag:{fr:"Stratégie Premium Europe",en:"Premium Strategy Europe"},
         date:{fr:"Il y a 3 semaines · Avis vérifié Google ✓",en:"3 weeks ago · Google verified review ✓"}
       },
@@ -2619,7 +2510,7 @@ const reviewRegions={
         location:{fr:"Londres, Royaume-Uni 🇬🇧",en:"London, United Kingdom 🇬🇧"},
         flag:"gb",
         photo:"https://randomuser.me/api/portraits/men/52.jpg",
-        text:{fr:"Notre équipe voulait une présence bilingue solide entre Londres et Paris. PUBLIC-MAP a structuré nos pages, nos annonces et notre suivi sans ralentir l'activité commerciale.",en:"Our team needed a strong bilingual presence between London and Paris. PUBLIC-MAP structured our pages, ads, and reporting without slowing down sales activity."},
+        text:{fr:"Nous avions besoin d'une présence bilingue claire entre Londres et Paris. PUBLIC-MAP a simplifié notre message, structuré les pages et rendu le suivi marketing beaucoup plus facile à présenter à l'équipe.",en:"We needed a clear bilingual presence between London and Paris. PUBLIC-MAP simplified our message, structured the pages, and made marketing reporting much easier to present to the team."},
         tag:{fr:"SEO International UK + Europe",en:"International SEO UK + Europe"},
         date:{fr:"Il y a 1 mois · Avis vérifié Google ✓",en:"1 month ago · Google verified review ✓"}
       },
@@ -2628,7 +2519,7 @@ const reviewRegions={
         location:{fr:"Fort-de-France, Martinique 🇲🇶🇫🇷",en:"Fort-de-France, Martinique 🇲🇶🇫🇷"},
         flag:"mq",
         photo:"https://randomuser.me/api/portraits/women/12.jpg",
-        text:{fr:"Pour la Martinique, il fallait une approche francophone mais ouverte sur l'international. Le positionnement local, les avis Google et les contenus ont donné une vraie crédibilité à notre marque.",en:"For Martinique, we needed a French-speaking approach with international reach. Local positioning, Google reviews, and content gave our brand real credibility."},
+        text:{fr:"Notre marché est local, mais nos clients comparent avec des entreprises partout. La fiche Google, les avis et les contenus ont rendu notre marque plus rassurante et plus facile à trouver.",en:"Our market is local, but our customers compare us with businesses everywhere. The Google listing, reviews, and content made our brand more reassuring and easier to find."},
         tag:{fr:"SEO Local Francophonie",en:"Local SEO French-speaking Market"},
         date:{fr:"Il y a 2 mois · Avis vérifié Google ✓",en:"2 months ago · Google verified review ✓"}
       },
@@ -2637,7 +2528,7 @@ const reviewRegions={
         location:{fr:"Milan, Italie 🇮🇹",en:"Milan, Italy 🇮🇹"},
         flag:"it",
         photo:"https://randomuser.me/api/portraits/women/43.jpg",
-        text:{fr:"Nous voulions ouvrir un canal d'acquisition européen sans construire une grosse équipe interne. Les recommandations étaient concrètes, les budgets réalistes et les résultats faciles à suivre.",en:"We wanted to open a European acquisition channel without building a large internal team. Recommendations were concrete, budgets realistic, and results easy to track."},
+        text:{fr:"Nous ne voulions pas recruter une grande équipe interne. PUBLIC-MAP nous a donné une méthode simple : pages propres, campagnes ciblées, suivi clair et décisions basées sur les chiffres.",en:"We did not want to hire a large internal team. PUBLIC-MAP gave us a simple method: clean pages, targeted campaigns, clear tracking, and decisions based on numbers."},
         tag:{fr:"Acquisition Europe",en:"Europe Acquisition"},
         date:{fr:"Il y a 8 semaines · Avis vérifié Google ✓",en:"8 weeks ago · Google verified review ✓"}
       }
@@ -2649,11 +2540,16 @@ const REVIEW_COMPANIES={
   ca:['Atelier Tremblay Montréal','Boutique Bouchard Québec','Larivière Consulting','Roy & Associés Ottawa','Gagnon Croissance Digitale','Pelletier Media Calgary'],
   eu:['Moreau Conseil Paris','Blanchard Digital Bruxelles','Martin Genève Studio','Whitaker Growth London','Desroses Local Martinique','Ricci Acquisition Milano']
 };
+const REVIEW_PROFESSIONS={
+  ca:['Fondatrice e-commerce','Propriétaire de boutique','Consultante marketing','Associée principale','Directrice croissance','Responsable acquisition'],
+  eu:['Consultant indépendant','Fondateur SaaS','Directrice de studio','Head of Growth','Gérante locale','Responsable marketing']
+};
 Object.entries(reviewRegions).forEach(([zone,region])=>{
   region.reviews.forEach((review,index)=>{
     review.status=review.status||REVIEW_STATUS.APPROVED;
     review.rating=Number(review.rating||5);
     review.company=review.company||REVIEW_COMPANIES[zone]?.[index]||'Entreprise cliente';
+    review.profession=review.profession||REVIEW_PROFESSIONS[zone]?.[index]||'Entrepreneur';
   });
 });
 function setZone(z){
@@ -2687,6 +2583,18 @@ function setReviewText(selector,value){
   const el=document.querySelector(selector);
   if(el)el.textContent=reviewText(value);
 }
+function ensureReviewLoopCards(){
+  const grid=document.getElementById('review-grid');
+  if(!grid||grid.dataset.loopReady==='true')return;
+  const originals=[...grid.querySelectorAll('.rev-card')];
+  originals.forEach(card=>{
+    const clone=card.cloneNode(true);
+    clone.classList.add('rev-clone');
+    clone.setAttribute('aria-hidden','true');
+    grid.appendChild(clone);
+  });
+  grid.dataset.loopReady='true';
+}
 function setReviewPhoto(img,src,alt,instant){
   if(!img)return;
   img.alt=alt;
@@ -2707,6 +2615,7 @@ function setReviewPhoto(img,src,alt,instant){
 function renderRegionReviews(zone,instant=false){
   const region=reviewRegions[zone]||reviewRegions.ca;
   const approvedReviews=region.reviews.filter(review=>review.status===REVIEW_STATUS.APPROVED);
+  ensureReviewLoopCards();
   setReviewText('#review-region-sub',region.subtitle);
   setReviewText('#review-google-count',region.googleCount);
   setReviewText('#review-score-info',region.scoreInfo);
@@ -2714,7 +2623,7 @@ function renderRegionReviews(zone,instant=false){
   const score=document.getElementById('review-score');
   if(score)score.textContent=region.score;
   document.querySelectorAll('#review-grid .rev-card').forEach((card,index)=>{
-    const review=approvedReviews[index];
+    const review=approvedReviews.length?approvedReviews[index % approvedReviews.length]:null;
     if(!review){
       card.style.display='none';
       return;
@@ -2733,7 +2642,7 @@ function renderRegionReviews(zone,instant=false){
       companyEl.className='rev-company';
       detailWrap.insertBefore(companyEl,detailWrap.querySelector('.rev-loc'));
     }
-    if(companyEl)companyEl.textContent=reviewText(review.company||'Entreprise cliente');
+    if(companyEl)companyEl.textContent=`${reviewText(review.profession||'Entrepreneur')} · ${reviewText(review.company||'Entreprise cliente')}`;
     const locEl=card.querySelector('.rev-loc');
     if(locEl){
       const flag=locEl.querySelector('img')||document.createElement('img');

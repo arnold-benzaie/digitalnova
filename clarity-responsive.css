@@ -106,11 +106,12 @@ footer {
 }
 
 .hero-h1-premium .hero-line-2.hero-line-world {
-  max-width: min(900px, 92vw);
-  font-size: clamp(38px, 5.8vw, 88px) !important;
-  line-height: 1.02 !important;
-  letter-spacing: -.018em !important;
+  max-width: min(920px, 94vw);
+  font-size: clamp(58px, 7.8vw, 118px) !important;
+  line-height: .96 !important;
+  letter-spacing: -.028em !important;
   white-space: normal !important;
+  text-wrap: balance;
 }
 
 .hero-pre {
@@ -514,9 +515,9 @@ footer.foot-bar-rounded .foot-legal {
 
   .hero-h1-premium .hero-line-2.hero-line-world {
     max-width: 100%;
-    font-size: clamp(28px, 8.8vw, 42px) !important;
-    line-height: 1.08 !important;
-    letter-spacing: -.012em !important;
+    font-size: clamp(44px, 13.5vw, 62px) !important;
+    line-height: .98 !important;
+    letter-spacing: -.022em !important;
   }
 
   .nl-eu-symbol {

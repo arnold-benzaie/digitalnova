@@ -143,7 +143,7 @@
     gap: 24px !important;
   }
   .hero-pre {
-    font-size: 10px !important;
+    font-size: clamp(10.5px, 2.9vw, 12.5px) !important;
     padding: 8px 14px !important;
     line-height: 1.5;
     margin-bottom: 18px !important;
@@ -152,16 +152,16 @@
     margin-bottom: 14px !important;
   }
   .hero-h1-premium .hero-line-1 {
-    font-size: clamp(36px, 11vw, 50px) !important;
-    line-height: 1.05 !important;
+    font-size: clamp(42px, 12vw, 62px) !important;
+    line-height: 1.02 !important;
   }
   .hero-h1-premium .hero-line-2 {
-    font-size: clamp(46px, 14vw, 64px) !important;
-    line-height: 1 !important;
+    font-size: clamp(48px, 14vw, 76px) !important;
+    line-height: .98 !important;
     margin-top: 4px !important;
   }
   .hero-sub {
-    font-size: 14px !important;
+    font-size: clamp(15px, 3.8vw, 18px) !important;
     line-height: 1.65 !important;
     margin: 18px 0 26px !important;
     max-width: 100% !important;
@@ -195,8 +195,8 @@
 
 @media (max-width: 480px) {
   .hero-content { padding: 100px 18px 48px !important; }
-  .hero-h1-premium .hero-line-1 { font-size: clamp(32px, 10vw, 42px) !important; }
-  .hero-h1-premium .hero-line-2 { font-size: clamp(40px, 13vw, 54px) !important; }
-  .hero-sub { font-size: 13px !important; }
+  .hero-h1-premium .hero-line-1 { font-size: clamp(38px, 11vw, 50px) !important; }
+  .hero-h1-premium .hero-line-2 { font-size: clamp(44px, 13.5vw, 62px) !important; }
+  .hero-sub { font-size: clamp(14.5px, 3.7vw, 17px) !important; }
   .kpi-n { font-size: 30px !important; }
 }
