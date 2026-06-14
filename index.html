@@ -519,6 +519,9 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .nl-inp{flex:1;padding:16px 20px;border:none;font-family:'Outfit',sans-serif;font-size:14px;color:var(--noir);outline:none;}
 .nl-btn{background:var(--noir);color:var(--blanc);border:none;padding:16px 26px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s;letter-spacing:.05em;}
 .nl-btn:hover{background:#222;}
+.nl-msg{display:none;margin:14px auto 0;max-width:480px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;text-align:center;border-radius:10px;padding:10px 14px;}
+.nl-msg.ok{display:block;color:#0B7A35;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.28);}
+.nl-msg.err{display:block;color:#B91C1C;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);}
 
 /* ─── FOOTER ─── */
 footer{background:#050505;}
@@ -2357,10 +2360,11 @@ footer{background:#050505;}
   <div style="position:relative;z-index:2;max-width:680px;margin:0 auto;">
     <h2 class="nl-title">Rejoignez 1 000 000+<br><em>abonnés professionnels</em></h2>
     <p class="nl-sub">Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.</p>
-    <div class="nl-form">
-      <input type="email" class="nl-inp" placeholder="votre@courriel.com"/>
-      <button class="nl-btn">S'inscrire →</button>
-    </div>
+    <form class="nl-form" id="newsletter-form" novalidate>
+      <input type="email" class="nl-inp" id="nl-email" placeholder="votre@courriel.com" autocomplete="email"/>
+      <button class="nl-btn" type="submit" onclick="subscribeNewsletter(event)">S'inscrire →</button>
+    </form>
+    <div class="nl-msg" id="nl-msg" aria-live="polite"></div>
     <p style="color:rgba(255,255,255,.4);font-size:11px;margin-top:14px;text-align:center;">Désinscription libre · RGPD & LPRPDE compliant</p>
   </div>
 </section>
@@ -3137,8 +3141,38 @@ function submitQuote(){
   if(name.length<2){err.textContent='⚠️ Veuillez entrer votre nom.';err.style.display='block';return;}
   window.location.href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone);
 }
+
+function subscribeNewsletter(event){
+  if(event)event.preventDefault();
+  const input=document.getElementById('nl-email');
+  const msg=document.getElementById('nl-msg');
+  const email=input?.value.trim() || '';
+  const isEn=document.documentElement.lang==='en';
+  msg.className='nl-msg';
+  msg.style.display='none';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    msg.textContent=isEn?'Please enter a valid email address.':'Veuillez entrer une adresse courriel valide.';
+    msg.className='nl-msg err';
+    return;
+  }
+  const subject='Inscription newsletter PUBLIC-MAP';
+  const body=[
+    'Bonjour PUBLIC-MAP,',
+    '',
+    'Je souhaite m’inscrire à votre newsletter professionnelle.',
+    '',
+    `Courriel : ${email}`,
+    '',
+    'Merci.'
+  ].join('\n');
+  msg.textContent=isEn?'Your mailbox is opening to confirm the subscription.':'Votre messagerie va s’ouvrir pour confirmer l’inscription.';
+  msg.className='nl-msg ok';
+  window.location.href=`mailto:contact@public-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+window.subscribeNewsletter=subscribeNewsletter;
+document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026061402"></script>
+<script src="i18n-sparkles.js?v=2026061403"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
