@@ -259,6 +259,7 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .av-e{background:linear-gradient(135deg,#E65100,#FB8C00);}
 .av-f{background:linear-gradient(135deg,#00695C,#00897B);}
 .rev-name{font-weight:700;font-size:15px;color:var(--noir);}
+.rev-company{font-size:11px;font-weight:700;color:#0A2540;margin-top:3px;}
 .rev-loc{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gris);margin-top:3px;}
 .rev-loc img{width:16px;height:10px;border-radius:2px;object-fit:cover;}
 .rev-stars{color:#F5A623;font-size:15px;letter-spacing:2px;margin-bottom:11px;}
@@ -294,6 +295,8 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .review-primary{background:linear-gradient(135deg,#1B5BFF,#073BD4);color:#fff;box-shadow:0 14px 34px rgba(27,91,255,.24);}
 .review-secondary{background:#fff;color:#1B5BFF;border:1.5px solid #D8E6FF;}
 .review-primary:hover,.review-secondary:hover{transform:translateY(-2px);}
+.review-secondary[disabled],.review-secondary.is-disabled{opacity:.55;cursor:not-allowed;background:#F7F9FC;color:#8A94A6;box-shadow:none;}
+.review-secondary[disabled]:hover,.review-secondary.is-disabled:hover{transform:none;}
 .review-form-msg{display:none;margin-top:12px;border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.55;}
 .review-form-msg.ok{display:block;background:#F0FFF4;border:1px solid #B7E4C7;color:#1B7F3B;}
 .review-form-msg.err{display:block;background:#FFF5F5;border:1px solid #FFCDD2;color:#C0392B;}
@@ -1876,14 +1879,18 @@ footer{background:#050505;}
       <div class="review-form-card">
         <div class="review-form-title">Laisser un commentaire</div>
         <p class="review-form-sub">Votre avis nous aide à améliorer nos services et à développer notre présence sur Google.</p>
-        <div class="review-form-grid">
+        <form class="review-form-grid" id="review-form" novalidate>
           <div class="review-field">
             <label for="review-name">Votre nom</label>
-            <input id="review-name" type="text" placeholder="Prénom Nom"/>
+            <input id="review-name" type="text" placeholder="Prénom Nom" autocomplete="name"/>
           </div>
           <div class="review-field">
             <label for="review-company">Entreprise</label>
-            <input id="review-company" type="text" placeholder="Nom de votre entreprise"/>
+            <input id="review-company" type="text" placeholder="Nom de votre entreprise" autocomplete="organization"/>
+          </div>
+          <div class="review-field">
+            <label for="review-email">Email du client</label>
+            <input id="review-email" type="email" placeholder="client@entreprise.com" autocomplete="email"/>
           </div>
           <div class="review-field">
             <label for="review-service">Service utilisé</label>
@@ -1910,13 +1917,13 @@ footer{background:#050505;}
             <label for="review-comment">Votre commentaire</label>
             <textarea id="review-comment" placeholder="Expliquez votre expérience, le service reçu, le résultat obtenu et ce que vous avez apprécié."></textarea>
           </div>
-        </div>
+        </form>
         <div class="review-actions">
-          <button class="review-primary" type="button" onclick="prepareReviewComment()">📩 Préparer mon avis</button>
-          <a class="review-secondary" href="https://www.google.com/search?q=public-map.com+avis+Google" target="_blank" rel="noopener">🌍 Publier sur Google</a>
+          <button class="review-primary" id="review-submit-btn" type="submit" form="review-form">📩 Envoyer mon avis</button>
+          <button class="review-secondary" id="google-review-btn" type="button" disabled aria-disabled="true">🌍 Publier sur Google</button>
         </div>
         <div class="review-form-msg" id="review-form-msg"></div>
-        <div class="review-google-note">Conseil : pour booster la visibilité, l'avis le plus puissant est celui publié directement sur la fiche Google Business Profile.</div>
+        <div class="review-google-note" id="review-google-note">Les avis sont vérifiés manuellement avant publication. Le bouton Google sera activé dès que le lien Google Business Profile sera configuré.</div>
       </div>
     </div>
   </div>
@@ -2638,6 +2645,18 @@ const reviewRegions={
     ]
   }
 };
+const REVIEW_STATUS={PENDING:'pending',APPROVED:'approved',REJECTED:'rejected'};
+const REVIEW_COMPANIES={
+  ca:['Atelier Tremblay Montréal','Boutique Bouchard Québec','Larivière Consulting','Roy & Associés Ottawa','Gagnon Croissance Digitale','Pelletier Media Calgary'],
+  eu:['Moreau Conseil Paris','Blanchard Digital Bruxelles','Martin Genève Studio','Whitaker Growth London','Desroses Local Martinique','Ricci Acquisition Milano']
+};
+Object.entries(reviewRegions).forEach(([zone,region])=>{
+  region.reviews.forEach((review,index)=>{
+    review.status=review.status||REVIEW_STATUS.APPROVED;
+    review.rating=Number(review.rating||5);
+    review.company=review.company||REVIEW_COMPANIES[zone]?.[index]||'Entreprise cliente';
+  });
+});
 function setZone(z){
   switchPanel(z);
 }
@@ -2660,6 +2679,10 @@ function reviewLang(){return document.documentElement.lang==='en'?'en':'fr';}
 function reviewText(value){
   const lang=reviewLang();
   return typeof value==='string'?value:(value[lang]||value.fr||'');
+}
+function reviewStars(rating){
+  const score=Math.max(1,Math.min(5,Number(rating)||5));
+  return '★★★★★'.slice(0,score)+'☆☆☆☆☆'.slice(0,5-score);
 }
 function setReviewText(selector,value){
   const el=document.querySelector(selector);
@@ -2684,6 +2707,7 @@ function setReviewPhoto(img,src,alt,instant){
 }
 function renderRegionReviews(zone,instant=false){
   const region=reviewRegions[zone]||reviewRegions.ca;
+  const approvedReviews=region.reviews.filter(review=>review.status===REVIEW_STATUS.APPROVED);
   setReviewText('#review-region-sub',region.subtitle);
   setReviewText('#review-google-count',region.googleCount);
   setReviewText('#review-score-info',region.scoreInfo);
@@ -2691,7 +2715,7 @@ function renderRegionReviews(zone,instant=false){
   const score=document.getElementById('review-score');
   if(score)score.textContent=region.score;
   document.querySelectorAll('#review-grid .rev-card').forEach((card,index)=>{
-    const review=region.reviews[index];
+    const review=approvedReviews[index];
     if(!review){
       card.style.display='none';
       return;
@@ -2703,6 +2727,14 @@ function renderRegionReviews(zone,instant=false){
     setReviewPhoto(img,review.photo,(reviewLang()==='en'?'Portrait of ':'Portrait de ')+name,instant);
     const nameEl=card.querySelector('.rev-name');
     if(nameEl)nameEl.textContent=name;
+    const detailWrap=card.querySelector('.rev-head > div:last-child');
+    let companyEl=card.querySelector('.rev-company');
+    if(!companyEl && detailWrap){
+      companyEl=document.createElement('div');
+      companyEl.className='rev-company';
+      detailWrap.insertBefore(companyEl,detailWrap.querySelector('.rev-loc'));
+    }
+    if(companyEl)companyEl.textContent=reviewText(review.company||'Entreprise cliente');
     const locEl=card.querySelector('.rev-loc');
     if(locEl){
       const flag=locEl.querySelector('img')||document.createElement('img');
@@ -2710,10 +2742,12 @@ function renderRegionReviews(zone,instant=false){
       flag.alt=review.flag.toUpperCase();
       locEl.replaceChildren(flag,document.createTextNode(' '+location));
     }
+    const starsEl=card.querySelector('.rev-stars');
+    if(starsEl)starsEl.textContent=reviewStars(review.rating);
     const textEl=card.querySelector('.rev-text');
     if(textEl)textEl.textContent=reviewText(review.text);
     const tagEl=card.querySelector('.rev-tag');
-    if(tagEl)tagEl.textContent=reviewText(review.tag);
+    if(tagEl)tagEl.textContent=reviewText(review.service||review.tag);
     const dateEl=card.querySelector('.rev-date');
     if(dateEl)dateEl.textContent=reviewText(review.date);
   });
@@ -2738,54 +2772,126 @@ document.addEventListener('digitalnova:language-updated',()=>{
 });
 
 /* ── LAISSER UN AVIS ── */
-function prepareReviewComment(){
-  const name=document.getElementById('review-name').value.trim();
-  const company=document.getElementById('review-company').value.trim();
-  const service=document.getElementById('review-service').value;
-  const rating=document.getElementById('review-rating').value;
-  const comment=document.getElementById('review-comment').value.trim();
-  const msg=document.getElementById('review-form-msg');
-  const isEn=reviewLang()==='en';
+function getPublicMapConfig(name){
+  const config=window.PUBLIC_MAP_CONFIG||{};
+  const metaName=name.toLowerCase().replace(/_/g,'-');
+  return window[name]||config[name]||document.querySelector(`meta[name="${metaName}"]`)?.content||'';
+}
+const REVIEW_WEBHOOK_URL=getPublicMapConfig('REVIEW_WEBHOOK_URL');
+const GOOGLE_REVIEW_URL=getPublicMapConfig('GOOGLE_REVIEW_URL');
 
+function setReviewMessage(type,text){
+  const msg=document.getElementById('review-form-msg');
+  if(!msg)return;
   msg.className='review-form-msg';
   msg.style.display='none';
-
-  if(name.length<2){
-    msg.textContent=isEn?'Please enter your name.':'Veuillez entrer votre nom.';
-    msg.className='review-form-msg err';
-    return;
-  }
-  if(comment.length<30){
-    msg.textContent=isEn?'Please write a more detailed comment, at least 30 characters.':'Veuillez écrire un commentaire un peu plus détaillé, au moins 30 caractères.';
-    msg.className='review-form-msg err';
-    return;
-  }
-
-  const stars='★★★★★'.slice(0,Number(rating))+'☆☆☆☆☆'.slice(0,5-Number(rating));
-  const subject=`Avis client PUBLIC-MAP — ${rating}/5`;
-  const body=[
-    'Bonjour PUBLIC-MAP,',
-    '',
-    'Voici mon avis client :',
-    '',
-    `Nom : ${name}`,
-    `Entreprise : ${company||'Non précisée'}`,
-    `Service utilisé : ${service}`,
-    `Note : ${stars} (${rating}/5)`,
-    '',
-    'Commentaire :',
-    comment,
-    '',
-    'Vous pouvez me recontacter si vous souhaitez vérifier ou publier ce témoignage.',
-    '',
-    'Merci.'
-  ].join('\n');
-
-  msg.textContent=isEn?'Your mailbox is opening with the prepared review.':'Votre messagerie va s’ouvrir avec l’avis prérempli.';
-  msg.className='review-form-msg ok';
-  window.location.href=`mailto:contact@public-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  if(!text)return;
+  msg.textContent=text;
+  msg.className=`review-form-msg ${type}`;
 }
-window.prepareReviewComment=prepareReviewComment;
+
+function readReviewForm(){
+  return {
+    id:`review_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+    source:'public-map.com',
+    schemaVersion:1,
+    status:REVIEW_STATUS.PENDING,
+    zone:activeZone,
+    language:reviewLang(),
+    name:document.getElementById('review-name').value.trim(),
+    company:document.getElementById('review-company').value.trim(),
+    email:document.getElementById('review-email').value.trim(),
+    service:document.getElementById('review-service').value,
+    rating:Number(document.getElementById('review-rating').value),
+    comment:document.getElementById('review-comment').value.trim(),
+    createdAt:new Date().toISOString()
+  };
+}
+
+function validateReviewPayload(payload){
+  const isEn=reviewLang()==='en';
+  if(payload.name.length<2)return isEn?'Please enter your name.':'Veuillez entrer votre nom.';
+  if(payload.company.length<2)return isEn?'Please enter your company name.':'Veuillez entrer le nom de votre entreprise.';
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))return isEn?'Please enter a valid email address.':'Veuillez entrer une adresse email valide.';
+  if(!payload.service)return isEn?'Please select the service used.':'Veuillez sélectionner le service utilisé.';
+  if(!payload.rating||payload.rating<1||payload.rating>5)return isEn?'Please choose a rating from 1 to 5.':'Veuillez choisir une note de 1 à 5.';
+  if(payload.comment.length<30)return isEn?'Please write a more detailed comment, at least 30 characters.':'Veuillez écrire un commentaire un peu plus détaillé, au moins 30 caractères.';
+  return '';
+}
+
+function savePendingReviewLocally(payload){
+  try{
+    const key='public-map-pending-reviews';
+    const existing=JSON.parse(localStorage.getItem(key)||'[]');
+    existing.push(payload);
+    localStorage.setItem(key,JSON.stringify(existing.slice(-25)));
+  }catch(error){
+    console.warn('PUBLIC-MAP review local backup failed',error);
+  }
+}
+
+async function sendReviewToWebhook(payload){
+  if(!REVIEW_WEBHOOK_URL)return {configured:false,sent:false};
+  await fetch(REVIEW_WEBHOOK_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  });
+  return {configured:true,sent:true};
+}
+
+async function submitReview(event){
+  if(event)event.preventDefault();
+  setReviewMessage('', '');
+  const payload=readReviewForm();
+  const error=validateReviewPayload(payload);
+  if(error){
+    setReviewMessage('err',error);
+    return;
+  }
+  const btn=document.getElementById('review-submit-btn');
+  const previousText=btn?.textContent;
+  if(btn){
+    btn.disabled=true;
+    btn.textContent=reviewLang()==='en'?'Sending...':'Envoi en cours...';
+  }
+  try{
+    savePendingReviewLocally(payload);
+    await sendReviewToWebhook(payload);
+    document.getElementById('review-form')?.reset();
+    setReviewMessage('ok','Merci ! Votre avis a été envoyé et sera publié après validation.');
+  }catch(error){
+    console.error('PUBLIC-MAP review submission failed',error);
+    setReviewMessage('err',reviewLang()==='en'?'The review could not be sent. Please try again or contact us by email.':"L'avis n'a pas pu être envoyé. Veuillez réessayer ou nous contacter par email.");
+  }finally{
+    if(btn){
+      btn.disabled=false;
+      btn.textContent=previousText;
+    }
+  }
+}
+
+function configureGoogleReviewButton(){
+  const btn=document.getElementById('google-review-btn');
+  const note=document.getElementById('review-google-note');
+  if(!btn)return;
+  if(GOOGLE_REVIEW_URL){
+    btn.disabled=false;
+    btn.classList.remove('is-disabled');
+    btn.setAttribute('aria-disabled','false');
+    btn.title='Publier directement sur Google Business Profile';
+    btn.addEventListener('click',()=>window.open(GOOGLE_REVIEW_URL,'_blank','noopener'));
+    if(note)note.textContent="Conseil : pour booster la visibilité, l'avis le plus puissant est celui publié directement sur la fiche Google Business Profile.";
+  }else{
+    btn.disabled=true;
+    btn.classList.add('is-disabled');
+    btn.setAttribute('aria-disabled','true');
+    btn.title='Lien Google Business Profile non configuré';
+  }
+}
+document.getElementById('review-form')?.addEventListener('submit',submitReview);
+window.submitReview=submitReview;
+configureGoogleReviewButton();
 
 /* ── FAQ ── */
 function toggleFaq(btn){
@@ -3172,7 +3278,7 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026061403"></script>
+<script src="i18n-sparkles.js?v=2026061404"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
