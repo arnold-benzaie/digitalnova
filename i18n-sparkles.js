@@ -669,6 +669,13 @@ const T = {
   "abonnés professionnels":"professional subscribers",
   "Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.":"Exclusive digital marketing tips, Canada & Europe trends, members-only offers.",
   "S'inscrire →":"Subscribe →",
+  "Pourquoi choisir":"Why choose",
+  "Optimisation de la fiche Google Business":"Google Business Profile Optimization",
+  "Services de SEO local":"Local SEO Services",
+  "Gestion Google Ads":"Google Ads Management",
+  "Création de site web":"Website Creation",
+  "Expertise Canada & Europe":"Canada & Europe Focus",
+  "Support client rapide":"Fast Customer Support",
   "Désinscription libre · RGPD & LPRPDE compliant":"Free unsubscribe · GDPR & PIPEDA compliant",
 
   // Footer
