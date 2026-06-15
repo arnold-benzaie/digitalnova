@@ -665,7 +665,7 @@ const T = {
   "Lien envoyé après validation du devis":"Link sent after quote approval",
 
   // Newsletter
-  "Rejoignez 1 000 000+":"Join 1,000,000+",
+  "Rejoignez nos":"Join our",
   "abonnés professionnels":"professional subscribers",
   "Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.":"Exclusive digital marketing tips, Canada & Europe trends, members-only offers.",
   "S'inscrire →":"Subscribe →",

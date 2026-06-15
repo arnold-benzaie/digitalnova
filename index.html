@@ -929,7 +929,6 @@ footer{background:#050505;}
   <div class="nav-mobile-panel" id="nav-mobile-panel">
     <ul class="nav-center">
       <li><a href="#services">Services</a></li>
-      <li><a href="#avis">Avis Clients</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
     <div class="nav-right">
@@ -1020,9 +1019,7 @@ footer{background:#050505;}
 <div class="ribbon">
   <div class="rib-item">🇨🇦 Corporations Canada</div>
   <div class="rib-item">🇫🇷 Registre France INPI</div>
-  <div class="rib-item">🏆 Google Premier Partner</div>
-  <div class="rib-item">⭐ 4.9/5 · 527 Avis Google</div>
-  <div class="rib-item">📈 SEO Premium</div>
+  <div class="rib-item">🏆 Google Premier Partner</div>  <div class="rib-item">📈 SEO Premium</div>
   <div class="rib-item">📋 Devis personnalisé</div>
 </div>
 
@@ -1350,35 +1347,16 @@ footer{background:#050505;}
     </div>
 
     <div class="maps-mockup-wrap anim anim-zoom">
-      <!-- MacBook mockup -->
-      <div class="laptop">
-        <div class="laptop-screen">
-          <span class="laptop-camera"></span>
-          <div class="device-map" aria-label="Aperçu Google Maps PUBLIC-MAP">
-            <div class="map-search">Rechercher votre entreprise</div>
-            <div class="map-result"><strong>PUBLIC-MAP Client</strong><span>Fiche optimisée · itinéraires · appels · avis Google</span></div>
-            <span class="map-dot d1"></span><span class="map-dot d2"></span><span class="map-dot d3"></span>
-          </div>
-          <div class="laptop-brand">PUBLIC-MAP</div>
-        </div>
-        <div class="laptop-base"></div>
-        <div class="laptop-notch"></div>
-      </div>
-      <!-- Phone mockup -->
-      <div class="phone">
-        <div class="phone-notch"></div>
-        <div class="phone-screen">
-          <div class="device-map" aria-label="Aperçu mobile Google Maps PUBLIC-MAP">
-            <div class="map-search">Votre fiche</div>
-            <span class="map-dot d1"></span><span class="map-dot d2"></span><span class="map-dot d3"></span>
-          </div>
-        </div>
-      </div>
-      <!-- Floating pins -->
-      <div class="map-pin pin-1">📍 Montréal</div>
-      <div class="map-pin pin-2">📍 Paris</div>
-      <div class="map-pin pin-3">📍 Toronto</div>
+      <img class="maps-device maps-macbook" src="assets/images/map-devices/frame_macbook.png" alt="Aperçu Google Maps sur ordinateur — PUBLIC-MAP" loading="lazy"/>
+      <img class="maps-device maps-ios" src="assets/images/map-devices/frame_ios.png" alt="Aperçu Google Maps sur mobile — PUBLIC-MAP" loading="lazy"/>
     </div>
+    <style>
+      .maps-mockup-wrap{position:relative;max-width:940px;margin:10px auto 0;display:flex;justify-content:center;align-items:flex-end;min-height:0;height:auto;background:none;}
+      .maps-device{height:auto;display:block;}
+      .maps-macbook{width:80%;max-width:760px;}
+      .maps-ios{position:absolute;right:3%;bottom:-3%;width:20%;max-width:200px;filter:drop-shadow(0 24px 50px rgba(0,0,0,.22));}
+      @media(max-width:640px){.maps-macbook{width:84%}.maps-ios{right:0;width:26%}}
+    </style>
 
     <div class="maps-features stagger">
       <div class="map-feat">
@@ -1842,147 +1820,6 @@ footer{background:#050505;}
   </div>
 </section>
 
-<!-- ═══ AVIS CLIENTS ═══ -->
-<section class="sec reviews-sec" id="avis">
-  <div class="sec-inner">
-    <div class="sec-row rv">
-      <div>
-        <span class="sec-tag">⭐ Témoignages Vérifiés</span>
-        <h2 class="sec-h">Ce qu'ils pensent<br><em>de nous</em></h2>
-        <p class="sec-sub" id="review-region-sub">Avis authentiques vérifiés Google — clients réels du Canada, avec métiers et résultats concrets.</p>
-      </div>
-      <a href="#laisser-avis" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--gris2);border-radius:30px;padding:11px 22px;font-size:13px;font-weight:600;color:var(--gris);text-decoration:none;transition:all .3s;" onmouseover="this.style.borderColor='var(--rouge)'" onmouseout="this.style.borderColor='var(--gris2)'">
-        <span style="font-weight:800;color:#4285F4;font-size:14px;">G</span> <span id="review-google-count">527 avis Google Canada</span>
-      </a>
-    </div>
-    <div class="score-block rv">
-      <div><div class="score-big" id="review-score">4.9</div><div class="score-stars">★★★★★</div><div class="score-info" id="review-score-info">Basé sur 527 avis Google vérifiés au Canada</div></div>
-      <div class="score-sep"></div>
-      <div class="score-bars">
-        <div class="bar-r"><span>5★</span><div class="bar-t"><div class="bar-f" style="width:92%"></div></div><span>92%</span></div>
-        <div class="bar-r"><span>4★</span><div class="bar-t"><div class="bar-f" style="width:6%"></div></div><span>6%</span></div>
-        <div class="bar-r"><span>3★</span><div class="bar-t"><div class="bar-f" style="width:2%"></div></div><span>2%</span></div>
-      </div>
-      <div class="score-sep"></div>
-      <p class="score-quote" id="review-quote">"L'agence la plus transparente et la plus efficace avec laquelle j'ai travaillé au Canada."</p>
-    </div>
-    <div class="reviews-track-viewport" aria-label="Avis clients PUBLIC-MAP">
-    <div class="rev-grid" id="review-grid">
-      <div class="rev-card rv" style="transition-delay:.05s">
-        <div class="rev-head"><div class="rev-av av-a"><img src="https://randomuser.me/api/portraits/women/44.jpg" width="54" height="54" alt="Portrait de Marie-Claude Tremblay" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marie-Claude Tremblay</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Montréal, Québec 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">🌍 PUBLIC-MAP a transformé ma présence en ligne en seulement 4 mois. Mon trafic a augmenté de 280% et mes ventes ont doublé. L'équipe est professionnelle, réactive et vraiment à l'écoute. Le meilleur investissement de ma carrière d'entrepreneur !</p>
-        <span class="rev-tag">Pack SEO Prestige Canada</span>
-        <div class="rev-date">Il y a 2 semaines · Avis vérifié Google ✓</div>
-      </div>
-      <div class="rev-card rv" style="transition-delay:.1s">
-        <div class="rev-head"><div class="rev-av av-b"><img src="https://randomuser.me/api/portraits/men/32.jpg" width="54" height="54" alt="Portrait de Jean-François Bouchard" loading="lazy" decoding="async"/></div><div><div class="rev-name">Jean-François Bouchard</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Québec City 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">Mon e-commerce livré 5 jours avant le délai prévu et il dépasse toutes mes attentes. Le parcours de devis est clair, la formation était excellente. Chiffre d'affaires en ligne multiplié par 3 en 6 mois. Je recommande sans réserve !</p>
-        <span class="rev-tag">Boutique E-Commerce Canada</span>
-        <div class="rev-date">Il y a 1 mois · Avis vérifié Google ✓</div>
-      </div>
-      <div class="rev-card rv" style="transition-delay:.15s">
-        <div class="rev-head"><div class="rev-av av-c"><img src="https://randomuser.me/api/portraits/women/65.jpg" width="54" height="54" alt="Portrait de Sophie Larivière" loading="lazy" decoding="async"/></div><div><div class="rev-name">Sophie Larivière</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Toronto, Ontario 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">J'ai testé 4 agences avant 🌍 PUBLIC-MAP — aucune comparaison possible. Ici, résultats mesurables, rapports transparents et stratégie à long terme. Mon ROI Google Ads est passé de 1.5x à 4.2x en 3 mois seulement. Absolument exceptionnel.</p>
-        <span class="rev-tag">Google Ads Pro Canada</span>
-        <div class="rev-date">Il y a 3 semaines · Avis vérifié Google ✓</div>
-      </div>
-      <div class="rev-card rv" style="transition-delay:.2s">
-        <div class="rev-head"><div class="rev-av av-d"><img src="https://randomuser.me/api/portraits/women/76.jpg" width="54" height="54" alt="Portrait de Amélie Roy" loading="lazy" decoding="async"/></div><div><div class="rev-name">Amélie Roy</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Ottawa, Ontario 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">Notre cabinet avait besoin d'une présence plus solide sur Google Maps et en SEO local. Les actions ont été précises, les rapports faciles à comprendre et les demandes entrantes ont augmenté dès le premier trimestre.</p>
-        <span class="rev-tag">SEO Local + Avis IA Canada</span>
-        <div class="rev-date">Il y a 4 semaines · Avis vérifié Google ✓</div>
-      </div>
-      <div class="rev-card rv" style="transition-delay:.25s">
-        <div class="rev-head"><div class="rev-av av-e"><img src="https://randomuser.me/api/portraits/women/68.jpg" width="54" height="54" alt="Portrait de Lucie Gagnon" loading="lazy" decoding="async"/></div><div><div class="rev-name">Lucie Gagnon</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Vancouver, C.-B. 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">L'audit 360° a révélé des opportunités que personne d'autre n'avait identifiées. Plan d'action clair, budgets réalistes, expert dédié et chaleureux. 🌍 PUBLIC-MAP est le partenaire idéal pour toute PME qui veut croître vite et durablement.</p>
-        <span class="rev-tag">Audit & Stratégie 360° Canada</span>
-        <div class="rev-date">Il y a 2 mois · Avis vérifié Google ✓</div>
-      </div>
-      <div class="rev-card rv" style="transition-delay:.3s">
-        <div class="rev-head"><div class="rev-av av-f"><img src="https://randomuser.me/api/portraits/men/46.jpg" width="54" height="54" alt="Portrait de Marc-André Pelletier" loading="lazy" decoding="async"/></div><div><div class="rev-name">Marc-André Pelletier</div><div class="rev-loc"><img src="https://flagcdn.com/w20/ca.png" alt="CA"/> Calgary, Alberta 🇨🇦</div></div></div>
-        <div class="rev-stars">★★★★★</div>
-        <p class="rev-text">On cherchait une équipe capable de gérer Google Ads, SEO et suivi commercial sans jargon inutile. Les campagnes ont été structurées proprement et notre coût par prospect a baissé de 38%.</p>
-        <span class="rev-tag">Google Ads + SEO Canada</span>
-        <div class="rev-date">Il y a 7 semaines · Avis vérifié Google ✓</div>
-      </div>
-    </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ LAISSER UN AVIS ═══ -->
-<section class="sec review-submit-sec" id="laisser-avis">
-  <div class="review-submit-wrap rv">
-    <div class="review-submit-copy">
-      <span class="review-submit-kicker">⭐ Visibilité Google</span>
-      <h2 class="review-submit-title">Aidez-nous à gagner<br><em>plus de visibilité</em></h2>
-      <p class="review-submit-desc">Un avis client réel aide PUBLIC-MAP à renforcer sa crédibilité sur Google, rassure les futurs clients et améliore la confiance autour de nos services Canada & Europe.</p>
-      <div class="review-benefits">
-        <div class="review-benefit"><span>📍</span><div><strong>Meilleur référencement local</strong><span>Les avis réguliers aident une fiche Google Business à paraître plus active et plus fiable.</span></div></div>
-        <div class="review-benefit"><span>🤝</span><div><strong>Preuve sociale plus forte</strong><span>Un commentaire concret rassure mieux qu'une simple note étoilée.</span></div></div>
-        <div class="review-benefit"><span>⚡</span><div><strong>Processus simple</strong><span>Le client prépare son avis ici, puis l'envoie par courriel ou le publie sur Google.</span></div></div>
-      </div>
-    </div>
-
-    <div class="review-submit-form">
-      <div class="review-form-card">
-        <div class="review-form-title">Laisser un commentaire</div>
-        <p class="review-form-sub">Votre avis nous aide à améliorer nos services et à développer notre présence sur Google.</p>
-        <form class="review-form-grid" id="review-form" novalidate>
-          <div class="review-field">
-            <label for="review-name">Votre nom</label>
-            <input id="review-name" type="text" placeholder="Prénom Nom" autocomplete="name"/>
-          </div>
-          <div class="review-field">
-            <label for="review-company">Entreprise</label>
-            <input id="review-company" type="text" placeholder="Nom de votre entreprise" autocomplete="organization"/>
-          </div>
-          <div class="review-field">
-            <label for="review-email">Email du client</label>
-            <input id="review-email" type="email" placeholder="client@entreprise.com" autocomplete="email"/>
-          </div>
-          <div class="review-field">
-            <label for="review-service">Service utilisé</label>
-            <select id="review-service">
-              <option>Google Business Profile</option>
-              <option>SEO Local</option>
-              <option>Site Web</option>
-              <option>E-Commerce</option>
-              <option>Google Ads</option>
-              <option>Stratégie 360°</option>
-            </select>
-          </div>
-          <div class="review-field">
-            <label for="review-rating">Note</label>
-            <select id="review-rating">
-              <option value="5">★★★★★ 5 étoiles</option>
-              <option value="4">★★★★☆ 4 étoiles</option>
-              <option value="3">★★★☆☆ 3 étoiles</option>
-              <option value="2">★★☆☆☆ 2 étoiles</option>
-              <option value="1">★☆☆☆☆ 1 étoile</option>
-            </select>
-          </div>
-          <div class="review-field full">
-            <label for="review-comment">Votre commentaire</label>
-            <textarea id="review-comment" placeholder="Expliquez votre expérience, le service reçu, le résultat obtenu et ce que vous avez apprécié."></textarea>
-          </div>
-        </form>
-        <div class="review-actions">
-          <button class="review-primary" id="review-submit-btn" type="submit" form="review-form">📩 Envoyer mon avis</button>
-          <button class="review-secondary" id="google-review-btn" type="button" disabled aria-disabled="true">🌍 Publier sur Google</button>
-        </div>
-        <div class="review-form-msg" id="review-form-msg"></div>
-        <div class="review-google-note" id="review-google-note">Les avis sont vérifiés manuellement avant publication. Le bouton Google sera activé dès que le lien Google Business Profile sera configuré.</div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ═══ CERTIFICATIONS PREMIUM ═══ -->
 <section id="certifications" style="background:#fff;padding:90px 56px;border-top:1px solid #F0F0F0;">
 <div style="max-width:1280px;margin:0 auto;">
@@ -2007,71 +1844,71 @@ footer{background:#050505;}
   <!-- ══ CERTIFICATS FOURNIS — rangée statique type image de référence ══ -->
   <div class="user-cert-panel rv">
     <h3 class="user-cert-title">Nos Certifications</h3>
-    <div class="user-cert-grid">
-      <div class="user-cert-badge">
-        <div class="user-cert-medal google">
-          <div>
-            <div class="user-cert-logo google"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></div>
-            <div class="user-cert-sub" style="color:#4285F4;">Premier<br>Partner</div>
+    <div class="user-cert-marquee">
+      <div class="user-cert-track" id="certTrack">
+        <div class="user-cert-badge">
+          <div class="user-cert-medal google">
+            <div>
+              <div class="user-cert-logo google"><span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span></div>
+              <div class="user-cert-sub" style="color:#4285F4;">Premier<br>Partner</div>
+            </div>
           </div>
+          <div class="user-cert-name">Google Certification</div>
         </div>
-        <div class="user-cert-name">Google Certification</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal meta-community">
-          <div>
-            <div class="user-cert-logo meta">∞ Meta</div>
-            <div class="user-cert-sub" style="color:#fff;">Certified<br>Community<br>Manager</div>
+        <div class="user-cert-badge">
+          <div class="user-cert-medal css">
+            <div>
+              <div class="user-cert-logo">3</div>
+              <div class="user-cert-sub">Developer<br>Certification<br>CSS3</div>
+            </div>
           </div>
+          <div class="user-cert-name">CSS3 Developer Certification</div>
         </div>
-        <div class="user-cert-name">Meta Community Manager</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal digital">
-          <div>
-            <div class="user-cert-logo small">DM</div>
-            <div class="user-cert-sub">Digital Marketing<br>Master<br>Licensed</div>
+        <div class="user-cert-badge">
+          <div class="user-cert-medal html">
+            <div>
+              <div class="user-cert-logo">5</div>
+              <div class="user-cert-sub">Developer<br>Certification<br>HTML5</div>
+            </div>
           </div>
+          <div class="user-cert-name">HTML5 Developer Certification</div>
         </div>
-        <div class="user-cert-name">Digital Marketing Master Licensed</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal css">
-          <div>
-            <div class="user-cert-logo">3</div>
-            <div class="user-cert-sub">Developer<br>Certification<br>CSS3</div>
+        <div class="user-cert-badge">
+          <div class="user-cert-medal seo">
+            <div>
+              <div class="user-cert-logo small">SEO</div>
+              <div class="user-cert-sub" style="color:#133C68;">For Growth<br>Certified<br>Consultant</div>
+            </div>
           </div>
+          <div class="user-cert-name">SEO for Growth Certified Consultant</div>
         </div>
-        <div class="user-cert-name">CSS3 Developer Certification</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal html">
-          <div>
-            <div class="user-cert-logo">5</div>
-            <div class="user-cert-sub">Developer<br>Certification<br>HTML5</div>
-          </div>
-        </div>
-        <div class="user-cert-name">HTML5 Developer Certification</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal seo">
-          <div>
-            <div class="user-cert-logo small">SEO</div>
-            <div class="user-cert-sub" style="color:#133C68;">For Growth<br>Certified<br>Consultant</div>
-          </div>
-        </div>
-        <div class="user-cert-name">SEO for Growth Certified Consultant</div>
-      </div>
-      <div class="user-cert-badge">
-        <div class="user-cert-medal meta-science">
-          <div>
-            <div class="user-cert-logo meta">∞ Meta</div>
-            <div class="user-cert-sub" style="color:#fff;">Marketing<br>Science<br>Professional</div>
-          </div>
-        </div>
-        <div class="user-cert-name">Meta Marketing Science Professional</div>
       </div>
     </div>
+    <style>
+      .user-cert-marquee{position:relative;overflow:hidden;margin:6px -34px 0;padding:18px 0 10px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);}
+      .user-cert-track{display:flex;width:max-content;gap:34px;animation:certScroll 34s linear infinite;will-change:transform;}
+      .user-cert-marquee:hover .user-cert-track{animation-play-state:paused;}
+      @keyframes certScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      .user-cert-track .user-cert-badge{flex:0 0 auto;width:152px;transition:transform .4s cubic-bezier(.2,.7,.2,1);}
+      .user-cert-track .user-cert-badge:hover{transform:translateY(-9px);}
+      .user-cert-track .user-cert-medal{transition:transform .4s cubic-bezier(.2,.7,.2,1),box-shadow .4s ease;}
+      .user-cert-track .user-cert-badge:hover .user-cert-medal{transform:scale(1.08);box-shadow:0 22px 48px rgba(10,37,64,.26),inset 0 0 0 5px rgba(255,255,255,.55);}
+      .user-cert-track .user-cert-name{transition:color .3s ease;}
+      .user-cert-track .user-cert-badge:hover .user-cert-name{color:#1B5BFF;}
+      @media(prefers-reduced-motion:reduce){.user-cert-track{animation:none;}}
+      @media(max-width:560px){.user-cert-marquee{margin-left:-16px;margin-right:-16px;}.user-cert-track{gap:22px}.user-cert-track .user-cert-badge{width:132px}}
+    </style>
+    <script>
+      (function(){
+        var t=document.getElementById('certTrack');
+        if(!t||t.dataset.looped) return;
+        t.dataset.looped='1';
+        var base=t.innerHTML;
+        // 4 copies (16 badges): one half (8 badges) is wider than the capped panel (<=1180px),
+        // so the -50% loop is always seamless with no gap, no width measurement needed.
+        t.innerHTML = base+base+base+base;
+      })();
+    </script>
   </div>
 
 </div>
@@ -2192,7 +2029,7 @@ footer{background:#050505;}
 <section class="nl-sec">
   <div class="nl-eu-symbol" aria-hidden="true">🇪🇺</div>
   <div style="position:relative;z-index:2;max-width:680px;margin:0 auto;">
-    <h2 class="nl-title">Rejoignez 1 000 000+<br><em>abonnés professionnels</em></h2>
+    <h2 class="nl-title">Rejoignez nos<br><em>abonnés professionnels</em></h2>
     <p class="nl-sub">Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.</p>
     <form class="nl-form" id="newsletter-form" novalidate>
       <input type="email" class="nl-inp" id="nl-email" placeholder="votre@courriel.com" autocomplete="email"/>
@@ -2423,15 +2260,6 @@ const reviewRegions={
         text:{fr:"Je voulais une équipe capable de comprendre Paris, mais aussi l'international. Le positionnement a été clarifié, les pages ont gagné en sérieux et les demandes reçues sont devenues plus qualifiées.",en:"I wanted a team able to understand Paris, but also international growth. Positioning was clarified, the pages became more professional, and incoming requests became more qualified."},
         tag:{fr:"Community Management Europe",en:"Community Management Europe"},
         date:{fr:"Il y a 6 semaines · Avis vérifié Google ✓",en:"6 weeks ago · Google verified review ✓"}
-      },
-      {
-        name:"Nicolas Blanchard",
-        location:{fr:"Bruxelles, Belgique 🇧🇪",en:"Brussels, Belgium 🇧🇪"},
-        flag:"be",
-        photo:"https://randomuser.me/api/portraits/men/62.jpg",
-        text:{fr:"Ce qui m'a rassuré, c'est la clarté : prix en euros, explication du périmètre, pages adaptées au marché européen et suivi régulier. Le site inspire davantage confiance et les demandes sont mieux ciblées.",en:"What reassured me was the clarity: euro pricing, clear project scope, pages adapted to the European market, and regular follow-up. The site inspires more trust and requests are better targeted."},
-        tag:{fr:"Site Web Europe + SEO",en:"Website Europe + SEO"},
-        date:{fr:"Il y a 5 semaines · Avis vérifié Google ✓",en:"5 weeks ago · Google verified review ✓"}
       },
       {
         name:"Élodie Martin",
