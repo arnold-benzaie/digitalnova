@@ -1,6 +1,11 @@
 {
   "cleanUrls": false,
   "trailingSlash": false,
+  "rewrites": [
+    { "source": "/privacy-policy", "destination": "/privacy-policy/index.html" },
+    { "source": "/terms-and-conditions", "destination": "/terms-and-conditions/index.html" },
+    { "source": "/refund-policy", "destination": "/refund-policy/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*).mp4",
