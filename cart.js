@@ -540,7 +540,7 @@ function renderCart(){
     <button class="cart-checkout" id="cart-checkout">
       📋 ${t('Demander un devis','Request a quote')} →
     </button>
-    <div class="cart-secure">${t('Devis personnalisé · Paiement sécurisé via Lemon Squeezy','Personalized quote · Secure payment via Lemon Squeezy')}</div>
+    <div class="cart-secure">${t('Devis personnalisé · Paiement après validation du devis','Personalized quote · Payment after quote approval')}</div>
   `;
   footer.innerHTML = totalsHtml;
 
