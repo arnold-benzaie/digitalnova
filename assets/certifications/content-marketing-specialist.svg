@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 230" role="img" aria-labelledby="title desc">
+  <title id="title">Content Marketing Specialist badge</title>
+  <desc id="desc">Navy professional shield with a gold certification ribbon.</desc>
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#173c70"/>
+      <stop offset="1" stop-color="#081a36"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d99100"/>
+      <stop offset=".5" stop-color="#ffd86b"/>
+      <stop offset="1" stop-color="#b76a00"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#0a2540" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M49 31h122v92c0 40-25 64-61 82-36-18-61-42-61-82z" fill="url(#shield)" stroke="#6f87aa" stroke-width="5"/>
+    <path d="M60 41h100v78c0 33-19 53-50 70-31-17-50-37-50-70z" fill="none" stroke="#d8e2f0" stroke-opacity=".45" stroke-width="2"/>
+    <circle cx="110" cy="72" r="29" fill="#edf3fb" stroke="#a9bad0" stroke-width="3"/>
+    <circle cx="102" cy="65" r="8" fill="none" stroke="#173c70" stroke-width="4"/>
+    <path d="M87 89c4-13 12-18 24-18 9 0 16 3 21 11" fill="none" stroke="#173c70" stroke-width="4" stroke-linecap="round"/>
+    <path d="M124 53l16-12 5 6-16 14z" fill="url(#gold)" stroke="#9a6200" stroke-width="1.5"/>
+    <text x="110" y="116" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="1.4">CONTENT</text>
+    <text x="110" y="135" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="1.2">MARKETING</text>
+    <text x="110" y="151" text-anchor="middle" fill="#b9cae1" font-family="Arial, sans-serif" font-size="7" font-weight="700" letter-spacing="1.5">SPECIALIST</text>
+    <path d="M25 155l31-10h108l31 10-17 23-30-9H72l-30 9z" fill="url(#gold)" stroke="#9a6200" stroke-width="2"/>
+    <path d="M56 145l16 24h76l16-24z" fill="#e9ab25" opacity=".45"/>
+    <text x="110" y="165" text-anchor="middle" fill="#19355e" font-family="Arial, sans-serif" font-size="12" font-weight="900" letter-spacing="1.8">CERTIFIED</text>
+    <circle cx="110" cy="193" r="8" fill="#fff" stroke="#d5a129" stroke-width="2"/>
+    <path d="M106 193l3 3 6-7" fill="none" stroke="#173c70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 230" role="img" aria-labelledby="title desc">
+  <title id="title">Certified Organic SEO badge</title>
+  <desc id="desc">Green circular seal for organic search expertise.</desc>
+  <defs>
+    <radialGradient id="paper" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#fffef7"/>
+      <stop offset="1" stop-color="#e9f5df"/>
+    </radialGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ac63f"/>
+      <stop offset="1" stop-color="#287a31"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#1f5e2b" flood-opacity=".24"/>
+    </filter>
+    <path id="topArc" d="M42 112a68 68 0 0 1 136 0"/>
+    <path id="bottomArc" d="M174 133a68 68 0 0 1-128 0"/>
+  </defs>
+  <g filter="url(#shadow)">
+    <circle cx="110" cy="116" r="91" fill="url(#paper)" stroke="#3d8b3c" stroke-width="5"/>
+    <circle cx="110" cy="116" r="80" fill="none" stroke="#7caf48" stroke-width="2"/>
+    <circle cx="110" cy="116" r="68" fill="#fff" stroke="#c1dbaa" stroke-width="2"/>
+    <text fill="#2e7633" font-family="Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="2">
+      <textPath href="#topArc" startOffset="50%" text-anchor="middle">CERTIFIED ORGANIC</textPath>
+    </text>
+    <text fill="#4b8e3e" font-family="Arial, sans-serif" font-size="9" font-weight="700" letter-spacing="1.7">
+      <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">GROW YOUR VISIBILITY</textPath>
+    </text>
+    <rect x="58" y="91" width="104" height="52" rx="7" fill="url(#green)" stroke="#225f2b" stroke-width="3"/>
+    <rect x="64" y="97" width="92" height="40" rx="4" fill="#fff"/>
+    <text x="110" y="126" text-anchor="middle" fill="#24599b" font-family="Arial, sans-serif" font-size="29" font-weight="900" letter-spacing="6">SEO</text>
+    <path d="M145 83c12-12 22-6 22-6s1 11-12 18c-8 4-13 2-13 2s-1-7 3-14z" fill="#68ad3f"/>
+    <path d="M144 98c8-8 14-12 22-17" fill="none" stroke="#2d7b35" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="35" cy="116" r="3" fill="#3d8b3c"/>
+    <circle cx="185" cy="116" r="3" fill="#3d8b3c"/>
+  </g>
+</svg>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 230" role="img" aria-labelledby="title desc">
+  <title id="title">Google Ads Certified badge</title>
+  <desc id="desc">Red professional certification stamp with Google Ads lettering.</desc>
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#7d1f18" flood-opacity=".25"/>
+    </filter>
+    <path id="topArc" d="M41 114a69 69 0 0 1 138 0"/>
+    <path id="bottomArc" d="M174 139a69 69 0 0 1-128 0"/>
+  </defs>
+  <g filter="url(#shadow)" transform="rotate(-7 110 116)">
+    <circle cx="110" cy="116" r="88" fill="#fffaf6" stroke="#bd3c31" stroke-width="5"/>
+    <circle cx="110" cy="116" r="78" fill="none" stroke="#d76a5d" stroke-width="2" stroke-dasharray="5 3"/>
+    <circle cx="110" cy="116" r="62" fill="none" stroke="#bd3c31" stroke-width="3"/>
+    <text fill="#a92e25" font-family="Arial, sans-serif" font-size="11" font-weight="900" letter-spacing="2.1">
+      <textPath href="#topArc" startOffset="50%" text-anchor="middle">ADS CERTIFICATION</textPath>
+    </text>
+    <text fill="#a92e25" font-family="Arial, sans-serif" font-size="9" font-weight="800" letter-spacing="1.8">
+      <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">VERIFIED SKILLS</textPath>
+    </text>
+    <text x="74" y="128" fill="#4285f4" font-family="Arial, sans-serif" font-size="44" font-weight="900">G</text>
+    <text x="112" y="123" fill="#264f8a" font-family="Arial, sans-serif" font-size="21" font-weight="800">Ads</text>
+    <path d="M70 139h80" stroke="#4285f4" stroke-width="4"/>
+    <path d="M70 139h27" stroke="#ea4335" stroke-width="4"/>
+    <path d="M97 139h26" stroke="#fbbc05" stroke-width="4"/>
+    <path d="M123 139h27" stroke="#34a853" stroke-width="4"/>
+    <path d="M41 116l8 3-8 3-8-3zM179 116l8 3-8 3-8-3z" fill="#bd3c31"/>
+    <path d="M110 57l3 7 8 1-6 5 2 8-7-4-7 4 2-8-6-5 8-1z" fill="#c89b2b"/>
+  </g>
+</svg>
