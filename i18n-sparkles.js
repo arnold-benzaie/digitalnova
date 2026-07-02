@@ -584,6 +584,15 @@ const T = {
   "Vérifiez notre enregistrement sur corporations.canada.ca":"Verify our registration on corporations.canada.ca",
 
   // Certifications
+  "Certifications professionnelles":"Professional Certifications",
+  "Expertise certifiée pour votre visibilité":"Certified expertise for your visibility",
+  "Des compétences spécialisées en contenu, SEO organique, Google Ads et référencement local. Justificatifs disponibles sur demande.":"Specialized expertise in content, organic SEO, Google Ads, and local search. Supporting credentials are available upon request.",
+  "Content Marketing Specialist":"Content Marketing Specialist",
+  "Stratégie de contenu":"Content strategy",
+  "Référencement naturel":"Organic search optimization",
+  "Publicité & mesure":"Advertising & measurement",
+  "Google Business Profile":"Google Business Profile",
+  "Références et justificatifs communiqués sur demande.":"References and supporting credentials are available upon request.",
   "Certifications Officielles":"Official Certifications",
   "Notre expertise,":"Our expertise,",
   "certifiée et reconnue":"certified and recognized",
