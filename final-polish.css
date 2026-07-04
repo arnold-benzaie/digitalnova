@@ -260,3 +260,41 @@ footer.foot-bar-rounded {
   -webkit-text-fill-color: transparent;
   animation: heroShimmerStrong 6s linear infinite;
 }
+
+/* ════════════════════════════════════════════
+   CERTIFICATIONS — 5 badges alignés sur UNE rangée, sans défilement
+   ════════════════════════════════════════════ */
+.credential-marquee { overflow: visible !important; }
+.credential-track {
+  animation: none !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+.credential-group {
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  gap: 20px !important;
+  width: 100% !important;
+}
+.credential-badge {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  text-align: center;
+}
+/* Uniform box so all 5 badges align perfectly (aspect ratio preserved) */
+.credential-logo-image {
+  width: 150px !important;
+  height: 130px !important;
+  object-fit: contain !important;
+  object-position: center bottom;
+}
+/* Tablet: 2 rows evenly centered (no lonely orphan) */
+@media (max-width: 1024px) {
+  .credential-group { flex-wrap: wrap !important; gap: 22px 30px !important; }
+  .credential-logo-image { width: 130px !important; height: 115px !important; }
+}
+@media (max-width: 560px) {
+  .credential-logo-image { width: 104px !important; height: 96px !important; }
+  .credential-group { gap: 16px 20px !important; }
+}
