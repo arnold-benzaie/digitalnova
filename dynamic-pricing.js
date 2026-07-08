@@ -8,6 +8,13 @@
     return document.body.classList.contains('eu-active') ? 'eu' : 'ca';
   }
 
+  function zoneText(card, zone, key){
+    const isEnglish = document.documentElement.lang === 'en';
+    const enKey = zone + key + 'En';
+    const baseKey = zone + key;
+    return (isEnglish && card.dataset[enKey]) ? card.dataset[enKey] : card.dataset[baseKey];
+  }
+
   function fmtAmount(amount, currency){
     const locale = document.documentElement.lang === 'en' ? 'en-CA' : 'fr-CA';
     const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
@@ -36,11 +43,11 @@
 
     // Regional bonus features
     card.querySelectorAll('.feat-region-bonus').forEach(li => {
-      const bonus = card.dataset[zone + 'FeatBonus'];
+      const bonus = zoneText(card, zone, 'FeatBonus');
       if(bonus) li.textContent = bonus;
     });
     card.querySelectorAll('.feat-region-articles').forEach(li => {
-      const txt = card.dataset[zone + 'FeatArticles'];
+      const txt = zoneText(card, zone, 'FeatArticles');
       if(txt) li.textContent = txt;
     });
 
@@ -55,9 +62,18 @@
       btn.textContent = label;
     }
 
-    // Update green title for pack 3 if title attribute exists
+    // Update optional text fields when a pack needs zone-specific copy
+    const nameEl = card.querySelector('.g-price-name');
+    const nameAttr = zoneText(card, zone, 'Name');
+    if(nameEl && nameAttr) nameEl.textContent = nameAttr;
+
+    const descEl = card.querySelector('.g-price-desc');
+    const descAttr = zoneText(card, zone, 'Desc');
+    if(descEl && descAttr) descEl.textContent = descAttr;
+
+    // Update title if title attribute exists
     const titleEl = card.querySelector('.g-price-title');
-    const titleAttr = card.dataset[zone + 'Title'];
+    const titleAttr = zoneText(card, zone, 'Title');
     if(titleEl && titleAttr) titleEl.textContent = titleAttr;
   }
 
@@ -115,7 +131,7 @@
     if(!card) return;
     const zone = getZone();
     const amount = card.dataset[zone + 'Amount'];
-    const modalLabel = card.dataset[zone + 'Modal'] || 'Service';
+    const modalLabel = zoneText(card, zone, 'Modal') || 'Service';
     if(typeof window.openModal === 'function'){
       window.openModal(modalLabel, amount, amount, zone);
     }
