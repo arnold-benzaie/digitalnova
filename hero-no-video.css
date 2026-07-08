@@ -49,7 +49,7 @@
 .hero-slide-1,
 .hero-slide-2,
 .hero-slide-3 {
-  background-image: url("assets/images/map-prime-hero/hero_team.jpg");
+  background-image: url("assets/images/map-prime-hero/hero_team.webp");
 }
 .hero-slide-1 { animation-delay: 0s; }
 .hero-slide-2 { animation-delay: -7s; }
