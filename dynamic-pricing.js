@@ -50,8 +50,8 @@
       const locale = isEnglish ? 'en-CA' : 'fr-CA';
       const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
       const action = isEnglish ? 'Request a quote' : 'Demander un devis';
-      const tax = isEnglish ? 'excl. tax' : 'HT';
-      const label = zone === 'eu' ? `${action} — ${formatted} € ${tax} →` : `${action} — $${formatted} CAD →`;
+      const suffix = f.cur || (zone === 'eu' ? (isEnglish ? 'excl. tax' : 'HT') : 'CAD');
+      const label = zone === 'eu' ? `${action} — ${formatted} € ${suffix} →` : `${action} — $${formatted} ${suffix} →`;
       btn.textContent = label;
     }
 
