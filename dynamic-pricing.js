@@ -88,7 +88,7 @@
       flag.textContent = '🇨🇦';
       title.style.color = '#1B5BFF';
       title.textContent = 'Affichage en Dollar Canadien (CAD)';
-      sub.textContent = 'Bureau Montréal · Support EST/PST 7j/7 · Cliquez sur Europe pour basculer en EUR';
+      sub.textContent = 'Bureau Montréal · Support jours ouvrés EST/PST · Cliquez sur Europe pour basculer en EUR';
       if(qbCa){
         qbCa.style.background = '#1B5BFF';
         qbCa.style.color = '#fff';
