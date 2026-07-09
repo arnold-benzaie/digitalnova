@@ -539,13 +539,17 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .gpb-g{background:var(--g-green);color:#fff;box-shadow:0 6px 20px rgba(52,168,83,.3);}
 .gpb-g:hover{background:#2A8F45;}
 .g-addon-section{margin-top:28px;padding:28px;border-radius:18px;background:linear-gradient(135deg,#F8FAFE,#FFFFFF);border:1px solid #E3ECFF;box-shadow:0 16px 44px rgba(27,91,255,.06);}
-.g-addon-head{text-align:center;max-width:760px;margin:0 auto 24px;}
+.g-addon-head{text-align:center;max-width:720px;margin:0 auto 24px;}
 .g-addon-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 16px;border-radius:999px;background:#EEF4FF;border:1px solid #D7E5FF;color:#1B5BFF;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;}
-.g-addon-title{font-family:'Cormorant Garamond',serif;font-size:clamp(26px,3vw,38px);font-weight:700;color:#10213A;margin:0 0 8px;}
+.g-addon-title{font-family:'Cormorant Garamond',serif;font-size:clamp(24px,2.6vw,34px);line-height:1.08;font-weight:700;color:#10213A;margin:0 0 8px;}
 .g-addon-sub{font-size:13px;line-height:1.7;color:#667085;margin:0;}
 .g-addon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
 .g-addon-card{position:relative;display:flex;flex-direction:column;min-height:100%;padding:22px;border-radius:16px;background:#fff;border:1px solid #E6EEF8;box-shadow:0 10px 28px rgba(16,33,58,.06);transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease;}
 .g-addon-card:hover{transform:translateY(-5px);border-color:#C8DCFF;box-shadow:0 18px 44px rgba(27,91,255,.12);}
+.g-addon-badge{position:absolute;top:16px;right:16px;padding:5px 10px;border-radius:999px;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;}
+.g-addon-badge.best{background:#EEF4FF;color:#1B5BFF;border:1px solid #C8DCFF;}
+.g-addon-badge.unique{background:#FFF7DB;color:#8B6500;border:1px solid #FFE199;}
+.g-addon-badge.new{background:#F0FFF4;color:#208A42;border:1px solid #B8EDCC;}
 .g-addon-icon{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;}
 .g-addon-card .g-price-name{margin-bottom:7px;}
 .g-addon-card .g-price-title{font-size:22px;line-height:1.15;}
@@ -1415,11 +1419,11 @@ footer{background:#050505;}
 
       </div>
 
-      <div class="g-addon-section rv" aria-label="Services Google Business Profile à la carte">
+      <div class="g-addon-section rv" aria-label="Services digitaux à la carte">
         <div class="g-addon-head">
-          <div class="g-addon-kicker">Google Business Profile · À la carte</div>
-          <h4 class="g-addon-title">Des interventions rapides pour votre fiche Google</h4>
-          <p class="g-addon-sub">Idéal si vous avez déjà une fiche Google Maps et que vous voulez reprendre le contrôle, corriger les accès ou obtenir un accompagnement ciblé sans prendre un grand pack.</p>
+          <div class="g-addon-kicker">Services digitaux · À la carte</div>
+          <h4 class="g-addon-title">Des interventions rapides pour avancer sans gros pack</h4>
+          <p class="g-addon-sub">Idéal si vous avez un besoin précis : reprendre le contrôle d'une fiche Google, lancer un site vitrine, collecter plus d'avis ou préparer vos réseaux sociaux professionnels.</p>
         </div>
         <div class="g-addon-grid">
           <div class="g-addon-card dyn-price-card"
@@ -1535,6 +1539,126 @@ footer{background:#050505;}
               <li class="feat-region-bonus">Support en jours ouvrés après livraison</li>
             </ul>
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $275 CAD →</button>
+          </div>
+
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="2490" data-ca-currency="CAD" data-ca-period="paiement unique · livraison 3 semaines ouvrées"
+               data-eu-amount="1690" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · 3-business-week delivery"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Best-seller"
+               data-eu-name="Best-seller Europe"
+               data-ca-name-en="Best-seller"
+               data-eu-name-en="Best-seller Europe"
+               data-ca-title="Pack site web vitrine + paiement"
+               data-eu-title="Pack site web vitrine + paiement"
+               data-ca-title-en="Showcase website + payment pack"
+               data-eu-title-en="Showcase website + payment pack"
+               data-ca-desc="Site web professionnel sur mesure livré selon le périmètre validé : mobile-first, rapide, SEO intégré et préparation du paiement sécurisé par carte bancaire."
+               data-eu-desc="Site web professionnel sur mesure livré selon le périmètre validé : mobile-first, rapide, SEO intégré et préparation du paiement sécurisé par carte bancaire."
+               data-ca-desc-en="A custom professional website delivered according to the approved scope: mobile-first, fast, SEO-ready and prepared for secure card payment."
+               data-eu-desc-en="A custom professional website delivered according to the approved scope: mobile-first, fast, SEO-ready and prepared for secure card payment."
+               data-ca-modal="Pack site web vitrine + paiement 🇨🇦"
+               data-eu-modal="Pack site web vitrine + paiement 🇪🇺"
+               data-ca-modal-en="Showcase website + payment pack 🇨🇦"
+               data-eu-modal-en="Showcase website + payment pack 🇪🇺"
+               data-ca-feat-bonus="Configuration CAD et conformité Canada"
+               data-eu-feat-bonus="Configuration EUR et conformité RGPD">
+            <span class="g-addon-badge best">Best-seller</span>
+            <div class="g-addon-icon gpi-b">🌐</div>
+            <div class="g-price-name gpn-b">Best-seller</div>
+            <div class="g-price-title">Pack site web vitrine + paiement</div>
+            <div class="g-price-desc">Site web professionnel sur mesure livré selon le périmètre validé : mobile-first, rapide, SEO intégré et préparation du paiement sécurisé par carte bancaire.</div>
+            <div class="g-price-amount"><span class="amount-num">$2 490</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · livraison 3 semaines ouvrées</div>
+            <ul class="g-price-feats gf-b">
+              <li>Design sur mesure adapté à votre identité</li>
+              <li>Jusqu'à 15 pages optimisées SEO</li>
+              <li>Chatbot IA de qualification si compatible</li>
+              <li>Paiement sécurisé par carte bancaire préparé</li>
+              <li class="feat-region-bonus">Configuration CAD et conformité Canada</li>
+            </ul>
+            <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $2 490 CAD →</button>
+          </div>
+
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="249" data-ca-currency="CAD" data-ca-period="paiement unique · installation incluse"
+               data-eu-amount="169" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · setup included"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Unique"
+               data-eu-name="Unique Europe"
+               data-ca-name-en="Unique"
+               data-eu-name-en="Unique Europe"
+               data-ca-title="Installation gestion des avis Google"
+               data-eu-title="Installation gestion des avis Google"
+               data-ca-title-en="Google review management setup"
+               data-eu-title-en="Google review management setup"
+               data-ca-desc="Système pour faciliter la collecte d'avis clients via QR Code, lien direct et relances encadrées, tout en respectant les règles Google."
+               data-eu-desc="Système pour faciliter la collecte d'avis clients via QR Code, lien direct et relances encadrées, tout en respectant les règles Google."
+               data-ca-desc-en="A system to simplify customer review collection through QR code, direct link and guided follow-ups while respecting Google rules."
+               data-eu-desc-en="A system to simplify customer review collection through QR code, direct link and guided follow-ups while respecting Google rules."
+               data-ca-modal="Installation gestion des avis Google 🇨🇦"
+               data-eu-modal="Installation gestion des avis Google 🇪🇺"
+               data-ca-modal-en="Google review management setup 🇨🇦"
+               data-eu-modal-en="Google review management setup 🇪🇺"
+               data-ca-feat-bonus="Parcours adapté aux clients canadiens"
+               data-eu-feat-bonus="Parcours adapté aux clients européens">
+            <span class="g-addon-badge unique">Unique</span>
+            <div class="g-addon-icon gpi-y">⭐</div>
+            <div class="g-price-name gpn-y">Unique</div>
+            <div class="g-price-title">Installation gestion des avis Google</div>
+            <div class="g-price-desc">Système pour faciliter la collecte d'avis clients via QR Code, lien direct et relances encadrées, tout en respectant les règles Google.</div>
+            <div class="g-price-amount"><span class="amount-num">$249</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · installation incluse</div>
+            <ul class="g-price-feats gf-y">
+              <li>Configuration QR Code et liens directs Google</li>
+              <li>Modèles de demande d'avis par email ou SMS</li>
+              <li>Tableau de suivi des avis et demandes</li>
+              <li>Formation équipe à la gestion des avis</li>
+              <li class="feat-region-bonus">Parcours adapté aux clients canadiens</li>
+            </ul>
+            <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $249 CAD →</button>
+          </div>
+
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="499" data-ca-currency="CAD" data-ca-period="paiement unique · livraison 5 jours ouvrés"
+               data-eu-amount="349" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · 5-business-day delivery"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Nouveau"
+               data-eu-name="Nouveau Europe"
+               data-ca-name-en="New"
+               data-eu-name-en="New Europe"
+               data-ca-title="Installation réseaux sociaux Meta"
+               data-eu-title="Installation réseaux sociaux Meta"
+               data-ca-title-en="Meta social media setup"
+               data-eu-title-en="Meta social media setup"
+               data-ca-desc="Configuration professionnelle de vos principaux réseaux sociaux pour présenter votre entreprise, suivre les campagnes et préparer votre calendrier de contenu."
+               data-eu-desc="Configuration professionnelle de vos principaux réseaux sociaux pour présenter votre entreprise, suivre les campagnes et préparer votre calendrier de contenu."
+               data-ca-desc-en="Professional setup of your main social media profiles to present your business, track campaigns and prepare your content calendar."
+               data-eu-desc-en="Professional setup of your main social media profiles to present your business, track campaigns and prepare your content calendar."
+               data-ca-modal="Installation réseaux sociaux Meta 🇨🇦"
+               data-eu-modal="Installation réseaux sociaux Meta 🇪🇺"
+               data-ca-modal-en="Meta social media setup 🇨🇦"
+               data-eu-modal-en="Meta social media setup 🇪🇺"
+               data-ca-feat-bonus="Calendrier éditorial 30 jours adapté au Canada"
+               data-eu-feat-bonus="Calendrier éditorial 30 jours adapté à l'Europe">
+            <span class="g-addon-badge new">Nouveau</span>
+            <div class="g-addon-icon gpi-g">📱</div>
+            <div class="g-price-name gpn-g">Nouveau</div>
+            <div class="g-price-title">Installation réseaux sociaux Meta</div>
+            <div class="g-price-desc">Configuration professionnelle de vos principaux réseaux sociaux pour présenter votre entreprise, suivre les campagnes et préparer votre calendrier de contenu.</div>
+            <div class="g-price-amount"><span class="amount-num">$499</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · livraison 5 jours ouvrés</div>
+            <ul class="g-price-feats gf-g">
+              <li>Instagram, Facebook, TikTok, LinkedIn et YouTube</li>
+              <li>WhatsApp Business avec catalogue produits</li>
+              <li>Meta Pixel préparé pour suivi publicitaire</li>
+              <li>Optimisation des bios, liens et informations</li>
+              <li class="feat-region-bonus">Calendrier éditorial 30 jours adapté au Canada</li>
+            </ul>
+            <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $499 CAD →</button>
           </div>
         </div>
         <p class="g-addon-note">Ces services sont parfaits pour une intervention ciblée. Pour une stratégie complète avec SEO, avis, contenu, IA et suivi mensuel, choisissez plutôt un pack annuel.</p>
@@ -3424,7 +3548,7 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026070901"></script>
+<script src="i18n-sparkles.js?v=2026070902"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
