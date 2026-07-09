@@ -538,6 +538,23 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .gpb-y:hover{background:#E6AC00;}
 .gpb-g{background:var(--g-green);color:#fff;box-shadow:0 6px 20px rgba(52,168,83,.3);}
 .gpb-g:hover{background:#2A8F45;}
+.g-addon-section{margin-top:28px;padding:28px;border-radius:18px;background:linear-gradient(135deg,#F8FAFE,#FFFFFF);border:1px solid #E3ECFF;box-shadow:0 16px 44px rgba(27,91,255,.06);}
+.g-addon-head{text-align:center;max-width:760px;margin:0 auto 24px;}
+.g-addon-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 16px;border-radius:999px;background:#EEF4FF;border:1px solid #D7E5FF;color:#1B5BFF;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;}
+.g-addon-title{font-family:'Cormorant Garamond',serif;font-size:clamp(26px,3vw,38px);font-weight:700;color:#10213A;margin:0 0 8px;}
+.g-addon-sub{font-size:13px;line-height:1.7;color:#667085;margin:0;}
+.g-addon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+.g-addon-card{position:relative;display:flex;flex-direction:column;min-height:100%;padding:22px;border-radius:16px;background:#fff;border:1px solid #E6EEF8;box-shadow:0 10px 28px rgba(16,33,58,.06);transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease;}
+.g-addon-card:hover{transform:translateY(-5px);border-color:#C8DCFF;box-shadow:0 18px 44px rgba(27,91,255,.12);}
+.g-addon-icon{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;}
+.g-addon-card .g-price-name{margin-bottom:7px;}
+.g-addon-card .g-price-title{font-size:22px;line-height:1.15;}
+.g-addon-card .g-price-desc{font-size:12px;color:#667085;line-height:1.65;margin-bottom:12px;}
+.g-addon-card .g-price-amount{padding:8px 0 0;font-size:34px;}
+.g-addon-card .g-price-period{padding:2px 0 14px;color:#8A94A6;}
+.g-addon-card .g-price-feats{padding:0 0 18px;gap:7px;flex:1;}
+.g-addon-card .g-price-btn{margin:0;padding:12px 14px;border-radius:10px;}
+.g-addon-note{margin-top:18px;text-align:center;font-size:12px;color:#7A8496;line-height:1.7;}
 
 /* ── Processus Google ── */
 .g-process{background:#F8FAFE;padding:52px 56px;}
@@ -583,7 +600,7 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 
 /* RESPONSIVE GOOGLE */
 @media(max-width:1024px){
-  .g-feat-grid,.g-price-grid,.seo-grid{grid-template-columns:1fr!important;}
+  .g-feat-grid,.g-price-grid,.g-addon-grid,.seo-grid{grid-template-columns:1fr!important;}
   .g-steps{grid-template-columns:1fr 1fr;gap:32px;}
   .g-steps::before{display:none;}
   .g-features,.g-pricing,.g-process,.seo-sec{padding:42px 28px;}
@@ -722,6 +739,8 @@ footer{background:#050505;}
   .g-feat-body{padding:22px;}
   .g-feat-sub{margin-bottom:24px;}
   .g-price-grid,.g-steps,.seo-grid{margin-top:26px;}
+  .g-addon-section{padding:22px 16px;margin-top:22px;}
+  .g-addon-card{padding:20px 18px;}
   .g-price-card .g-price-amount{font-size:40px!important;}
 }
 @media(max-width:400px){
@@ -1394,6 +1413,131 @@ footer{background:#050505;}
           <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $490 CAD/an →</button>
         </div>
 
+      </div>
+
+      <div class="g-addon-section rv" aria-label="Services Google Business Profile à la carte">
+        <div class="g-addon-head">
+          <div class="g-addon-kicker">Google Business Profile · À la carte</div>
+          <h4 class="g-addon-title">Des interventions rapides pour votre fiche Google</h4>
+          <p class="g-addon-sub">Idéal si vous avez déjà une fiche Google Maps et que vous voulez reprendre le contrôle, corriger les accès ou obtenir un accompagnement ciblé sans prendre un grand pack.</p>
+        </div>
+        <div class="g-addon-grid">
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="179" data-ca-currency="CAD" data-ca-period="paiement unique · formation initiale"
+               data-eu-amount="129" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · initial training"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Intervention GMB"
+               data-eu-name="Intervention GBP Europe"
+               data-ca-name-en="GMB Session"
+               data-eu-name-en="GBP Europe Session"
+               data-ca-title="Gestion propriétaire GMB"
+               data-eu-title="Gestion propriétaire GBP"
+               data-ca-title-en="GMB owner access"
+               data-eu-title-en="GBP owner access"
+               data-ca-desc="Accès propriétaire, configuration de base et formation personnalisée pour gérer votre fiche Google Business Profile avec plus d'autonomie."
+               data-eu-desc="Accès propriétaire, configuration de base et formation personnalisée pour gérer votre fiche Google Business Profile avec plus d'autonomie."
+               data-ca-desc-en="Owner access, basic setup and personalized training to manage your Google Business Profile with more autonomy."
+               data-eu-desc-en="Owner access, basic setup and personalized training to manage your Google Business Profile with more autonomy."
+               data-ca-modal="Gestion propriétaire GMB 🇨🇦"
+               data-eu-modal="Gestion propriétaire GBP 🇪🇺"
+               data-ca-modal-en="GMB owner access 🇨🇦"
+               data-eu-modal-en="GBP owner access 🇪🇺"
+               data-ca-feat-bonus="Conseils adaptés au marché canadien"
+               data-eu-feat-bonus="Conseils adaptés au marché européen">
+            <div class="g-addon-icon gpi-b">🔑</div>
+            <div class="g-price-name gpn-b">Intervention GMB</div>
+            <div class="g-price-title">Gestion propriétaire GMB</div>
+            <div class="g-price-desc">Accès propriétaire, configuration de base et formation personnalisée pour gérer votre fiche Google Business Profile avec plus d'autonomie.</div>
+            <div class="g-price-amount"><span class="amount-num">$179</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · formation initiale</div>
+            <ul class="g-price-feats gf-b">
+              <li>Accès propriétaire ou transfert guidé</li>
+              <li>Formation étape par étape avec un technicien spécialisé</li>
+              <li>Guide pour ajouter photos, services et publications</li>
+              <li class="feat-region-bonus">Conseils adaptés au marché canadien</li>
+            </ul>
+            <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $179 CAD →</button>
+          </div>
+
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="1200" data-ca-currency="CAD" data-ca-period="paiement unique · intervention 48h ouvrées"
+               data-eu-amount="790" data-eu-currency="€ HT" data-eu-period="paiement unique · intervention 48h ouvrées"
+               data-ca-period-en="one-time payment · 48-business-hour intervention"
+               data-eu-period-en="one-time payment · 48-business-hour intervention"
+               data-ca-name="Optimisation Google Maps"
+               data-eu-name="Optimisation Google Maps Europe"
+               data-ca-name-en="Google Maps Optimization"
+               data-eu-name-en="Google Maps Europe Optimization"
+               data-ca-title="Sécurisation & optimisation Google Maps"
+               data-eu-title="Sécurisation & optimisation Google Maps"
+               data-ca-title-en="Google Maps security & optimization"
+               data-eu-title-en="Google Maps security & optimization"
+               data-ca-desc="Un spécialiste vérifie, sécurise et optimise votre fiche Google Maps sous 48h ouvrées selon les bonnes pratiques Google."
+               data-eu-desc="Un spécialiste vérifie, sécurise et optimise votre fiche Google Maps sous 48h ouvrées selon les bonnes pratiques Google et le contexte européen."
+               data-ca-desc-en="A specialist reviews, secures and optimizes your Google Maps listing within 48 business hours using Google best practices."
+               data-eu-desc-en="A specialist reviews, secures and optimizes your Google Maps listing within 48 business hours using Google best practices and European context."
+               data-ca-modal="Sécurisation & optimisation Google Maps 🇨🇦"
+               data-eu-modal="Sécurisation & optimisation Google Maps 🇪🇺"
+               data-ca-modal-en="Google Maps security & optimization 🇨🇦"
+               data-eu-modal-en="Google Maps security & optimization 🇪🇺"
+               data-ca-feat-bonus="Optimisation pour recherches locales Canada"
+               data-eu-feat-bonus="Optimisation pour recherches locales Europe">
+            <div class="g-addon-icon gpi-y">🛡️</div>
+            <div class="g-price-name gpn-y">Optimisation Google Maps</div>
+            <div class="g-price-title">Sécurisation & optimisation Google Maps</div>
+            <div class="g-price-desc">Un spécialiste vérifie, sécurise et optimise votre fiche Google Maps sous 48h ouvrées selon les bonnes pratiques Google.</div>
+            <div class="g-price-amount"><span class="amount-num">$1 200</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · intervention 48h ouvrées</div>
+            <ul class="g-price-feats gf-y">
+              <li>Vérification des accès et rôles utilisateurs</li>
+              <li>Sécurisation du compte et recommandations claires</li>
+              <li>Photos redimensionnées selon les bonnes pratiques</li>
+              <li>Messagerie et informations clés configurées</li>
+              <li class="feat-region-bonus">Optimisation pour recherches locales Canada</li>
+            </ul>
+            <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $1 200 CAD →</button>
+          </div>
+
+          <div class="g-addon-card dyn-price-card"
+               data-ca-amount="275" data-ca-currency="CAD" data-ca-period="paiement unique · accompagnement initial"
+               data-eu-amount="190" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · initial support"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Conseil GBP"
+               data-eu-name="Conseil GBP Europe"
+               data-ca-name-en="GBP Consulting"
+               data-eu-name-en="GBP Europe Consulting"
+               data-ca-title="Conseil & gestion GBP"
+               data-eu-title="Conseil & gestion GBP"
+               data-ca-title-en="GBP consulting & management"
+               data-eu-title-en="GBP consulting & management"
+               data-ca-desc="Un accompagnement expert pour structurer votre fiche, planifier les optimisations et garder votre profil actif dans le temps."
+               data-eu-desc="Un accompagnement expert pour structurer votre fiche, planifier les optimisations et garder votre profil actif dans le temps."
+               data-ca-desc-en="Expert support to structure your listing, plan optimizations and keep your profile active over time."
+               data-eu-desc-en="Expert support to structure your listing, plan optimizations and keep your profile active over time."
+               data-ca-modal="Conseil & gestion GBP 🇨🇦"
+               data-eu-modal="Conseil & gestion GBP 🇪🇺"
+               data-ca-modal-en="GBP consulting & management 🇨🇦"
+               data-eu-modal-en="GBP consulting & management 🇪🇺"
+               data-ca-feat-bonus="Support en jours ouvrés après livraison"
+               data-eu-feat-bonus="Support en jours ouvrés heure européenne">
+            <div class="g-addon-icon gpi-g">🧭</div>
+            <div class="g-price-name gpn-g">Conseil GBP</div>
+            <div class="g-price-title">Conseil & gestion GBP</div>
+            <div class="g-price-desc">Un accompagnement expert pour structurer votre fiche, planifier les optimisations et garder votre profil actif dans le temps.</div>
+            <div class="g-price-amount"><span class="amount-num">$275</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · accompagnement initial</div>
+            <ul class="g-price-feats gf-g">
+              <li>Audit et plan d'action Google Business Profile</li>
+              <li>Conseils stratégiques personnalisés</li>
+              <li>Optimisation continue selon les données disponibles</li>
+              <li class="feat-region-bonus">Support en jours ouvrés après livraison</li>
+            </ul>
+            <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $275 CAD →</button>
+          </div>
+        </div>
+        <p class="g-addon-note">Ces services sont parfaits pour une intervention ciblée. Pour une stratégie complète avec SEO, avis, contenu, IA et suivi mensuel, choisissez plutôt un pack annuel.</p>
       </div>
 
       <!-- Zone Switcher (dynamic) -->
@@ -3280,12 +3424,12 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026061404"></script>
+<script src="i18n-sparkles.js?v=2026070901"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
 <script src="cart.js?v=2026061301"></script>
-<script src="dynamic-pricing.js?v=2026053101"></script>
+<script src="dynamic-pricing.js?v=2026070901"></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script>
 (function(){

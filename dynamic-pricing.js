@@ -28,7 +28,7 @@
   function syncCard(card, zone){
     const amount = card.dataset[zone + 'Amount'];
     const currency = card.dataset[zone + 'Currency'];
-    const period = card.dataset[zone + 'Period'];
+    const period = zoneText(card, zone, 'Period') || card.dataset[zone + 'Period'];
     if(!amount) return;
 
     const numEl = card.querySelector('.amount-num');
