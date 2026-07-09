@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/*
+ * Design-token bridge — DO NOT drift from the static marketing site.
+ * Source of truth: /brand-theme-clean.css (repo root, :root block) and
+ * the Google-brand block used in the pricing section of /index.html.
+ * If the brand palette changes on the marketing site, mirror the change
+ * here manually — there is no shared build dependency between the two
+ * codebases by design (see architecture plan).
+ */
+:root {
+  --pm-rouge: #d52b1e;
+  --pm-rouge-2: #b02318;
+  --pm-or: #c8922a;
+  --pm-or-2: #e8b84b;
+  --pm-noir: #080808;
+  --pm-noir-2: #111111;
+  --pm-blanc: #fafaf8;
+  --pm-gris: #6b6b6b;
+  --pm-gris-2: #e2ddd8;
+  --pm-bleu-eu: #003399;
+
+  --pm-g-blue: #4285f4;
+  --pm-g-red: #ea4335;
+  --pm-g-yellow: #fbbc05;
+  --pm-g-green: #34a853;
+}
+
+@theme inline {
+  --color-pm-rouge: var(--pm-rouge);
+  --color-pm-rouge-2: var(--pm-rouge-2);
+  --color-pm-or: var(--pm-or);
+  --color-pm-or-2: var(--pm-or-2);
+  --color-pm-noir: var(--pm-noir);
+  --color-pm-noir-2: var(--pm-noir-2);
+  --color-pm-blanc: var(--pm-blanc);
+  --color-pm-gris: var(--pm-gris);
+  --color-pm-gris-2: var(--pm-gris-2);
+  --color-pm-bleu-eu: var(--pm-bleu-eu);
+
+  --color-pm-g-blue: var(--pm-g-blue);
+  --color-pm-g-red: var(--pm-g-red);
+  --color-pm-g-yellow: var(--pm-g-yellow);
+  --color-pm-g-green: var(--pm-g-green);
+
+  --font-sans: var(--font-outfit);
+  --font-serif: var(--font-cormorant);
+}
+
+body {
+  font-family: var(--font-outfit), sans-serif;
+}
