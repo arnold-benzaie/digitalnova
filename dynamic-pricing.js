@@ -18,7 +18,7 @@
   function fmtAmount(amount, currency){
     const locale = document.documentElement.lang === 'en' ? 'en-CA' : 'fr-CA';
     const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
-    // CAD: "$1 000 CAD" · EU: "219 € HT"
+    // CAD: "$1 000 CAD" · EU: "219 € HT" or "255 € TTC"
     if(currency.startsWith('€') || currency === 'EUR' || currency.includes('€')){
       return { num: formatted + ' €', cur: currency.replace('€','').trim() || 'HT' };
     }
@@ -88,8 +88,8 @@
     if(zone === 'eu'){
       flag.textContent = '🇪🇺';
       title.style.color = '#003399';
-      title.textContent = 'Affichage en Euro HT (EUR)';
-      sub.textContent = 'Conformité RGPD · Bureau Paris CET · Facturation en euros · Cliquez sur Canada pour basculer en CAD';
+      title.textContent = 'Affichage en Euro (EUR)';
+      sub.textContent = 'Conformité RGPD · Bureau Paris CET · TVA selon l’offre · Cliquez sur Canada pour basculer en CAD';
       if(qbCa){
         qbCa.style.background = '#fff';
         qbCa.style.color = '#1B5BFF';
@@ -131,9 +131,11 @@
     if(!card) return;
     const zone = getZone();
     const amount = card.dataset[zone + 'Amount'];
+    const currency = card.dataset[zone + 'Currency'];
+    const f = fmtAmount(amount, currency || (zone === 'eu' ? '€ HT' : 'CAD'));
     const modalLabel = zoneText(card, zone, 'Modal') || 'Service';
     if(typeof window.openModal === 'function'){
-      window.openModal(modalLabel, amount, amount, zone);
+      window.openModal(modalLabel, amount, amount, zone, f.cur);
     }
   };
 

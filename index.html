@@ -1199,7 +1199,8 @@ footer{background:#050505;}
         <!-- Pack 1 : Lancement Local IA -->
         <div class="g-price-card rv dyn-price-card"
              data-ca-amount="249" data-ca-currency="CAD" data-ca-period="paiement unique · lancement initial"
-             data-eu-amount="169" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+             data-eu-amount="255" data-eu-currency="€ TTC" data-eu-period="paiement unique · TTC"
+             data-eu-period-en="one-time payment · VAT included"
              data-ca-title="Google Business Profile + SEO local" data-eu-title="Google Business Profile + SEO local"
              data-ca-modal="Pack Lancement Local IA 🇨🇦" data-eu-modal="Pack Lancement Local IA 🇪🇺"
              data-ca-feat-bonus="Kit de demande d'avis adapté au marché canadien"
@@ -2169,7 +2170,7 @@ footer{background:#050505;}
           <div id="price-zone-flag" style="font-size:32px;line-height:1;">🇨🇦</div>
           <div>
             <div id="price-zone-title" style="font-size:14px;font-weight:700;color:#0039e4;">Affichage en Dollar Canadien (CAD)</div>
-            <div id="price-zone-sub" style="font-size:12px;color:#666;margin-top:2px;">Cliquez sur Europe en haut pour basculer en Euro HT · Bureau Paris CET disponible</div>
+            <div id="price-zone-sub" style="font-size:12px;color:#666;margin-top:2px;">Cliquez sur Europe en haut pour basculer en Euro · Bureau Paris CET disponible</div>
           </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -3911,8 +3912,9 @@ function getPhoneWithCountryCode(codeId, phoneId){
   return code?`${label} ${cleaned}`:cleaned;
 }
 
-function buildQuoteMailto(service,price,zone,email,name,company,phone){
-  const amount=price?`${zone==='ca'?'$':'€'}${parseInt(price).toLocaleString(zone==='ca'?'fr-CA':'fr-FR')} ${zone==='ca'?'CAD':'HT'}`:'À préciser';
+function buildQuoteMailto(service,price,zone,email,name,company,phone,currencyLabel){
+  const label=currencyLabel || (zone==='ca'?'CAD':'HT');
+  const amount=price?`${zone==='ca'?'$':'€'}${parseInt(price).toLocaleString(zone==='ca'?'fr-CA':'fr-FR')} ${label}`:'À préciser';
   const subject=`Demande de devis — ${service||'Projet digital'}`;
   const body=[
     'Bonjour PUBLIC-MAP,',
@@ -3945,11 +3947,12 @@ function prepareSiteQuote(){
 
 /* ── MODAL ── */
 let currentOrder={};
-function openModal(name,cad,eur,zone){
-  currentOrder={name,cad,eur,zone};
+function openModal(name,cad,eur,zone,currencyLabel){
+  const label=currencyLabel || (zone==='ca'?'CAD':'HT');
+  currentOrder={name,cad,eur,zone,currencyLabel:label};
   document.getElementById('m-title').textContent=name;
   document.getElementById('m-zone-label').textContent=zone==='ca'?'Zone Canada 🇨🇦 — Dollar Canadien':'Zone Europe 🇪🇺 — Euro';
-  document.getElementById('m-price').textContent=zone==='ca'?'$'+parseInt(cad).toLocaleString('fr-CA')+' CAD':'€'+parseInt(eur).toLocaleString('fr-FR')+' HT';
+  document.getElementById('m-price').textContent=zone==='ca'?'$'+parseInt(cad).toLocaleString('fr-CA')+' CAD':'€'+parseInt(eur).toLocaleString('fr-FR')+' '+label;
   document.getElementById('m-price2').style.display='none';
   const h=document.getElementById('m-head');
   h.className='modal-head'+(zone==='eu'?' eu-head':'');
@@ -3980,7 +3983,7 @@ function submitQuote(){
   err.style.display='none';
   if(!email||!email.includes('@')){err.textContent='⚠️ Veuillez entrer un courriel valide.';err.style.display='block';return;}
   if(name.length<2){err.textContent='⚠️ Veuillez entrer votre nom.';err.style.display='block';return;}
-  window.location.href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone);
+  window.location.href=buildQuoteMailto(currentOrder.name,currentOrder.zone==='ca'?currentOrder.cad:currentOrder.eur,currentOrder.zone,email,name,company,phone,currentOrder.currencyLabel);
 }
 
 function subscribeNewsletter(event){
