@@ -184,27 +184,11 @@ nav.nav-open .nav-toggle-bar:nth-child(3){transform:translateY(-7px) rotate(-45d
 
 /* ─── ZONE SWITCHER SECTION ─── */
 .zone-section{background:#fff;padding:0;}
-.zone-tabs{display:flex;max-width:1280px;margin:0 auto;border-bottom:2px solid #F0F0F0;}
-.zone-tab{flex:1;padding:28px 56px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:background .3s;border-bottom:3px solid transparent;background:#fff;}
-.zone-tab:hover{background:rgba(255,255,255,.03);}
-.zone-tab.active-ca{border-bottom-color:var(--rouge);background:rgba(255,0,78,.06);}
-.zone-tab.active-eu{border-bottom-color:var(--bleu-eu);background:rgba(0,57,228,.07);}
-.zt-flag{width:40px;height:26px;object-fit:cover;border-radius:4px;border:1px solid rgba(255,255,255,.15);flex-shrink:0;}
-.zt-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:#1A1A1A;}
-.zt-desc{font-size:12px;color:#888;margin-top:2px;}
-.zt-currency{margin-left:auto;font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--rouge);}
-.zone-tab.active-eu .zt-currency{color:#6699FF;}
 
 /* ─── SERVICES ─── */
 .services-panel{display:none;background:#fff;}
 .services-panel.active{display:block;}
 .services-panel-inner{max-width:1280px;margin:0 auto;padding:70px 56px 90px;background:#fff;}
-.services-zone-header{display:flex;align-items:center;gap:20px;margin-bottom:50px;padding-bottom:30px;border-bottom:1px solid rgba(255,255,255,.06);}
-.szh-flag{width:56px;height:36px;object-fit:cover;border-radius:6px;border:2px solid rgba(255,255,255,.15);}
-.szh-title{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;color:#1A1A1A;}
-.szh-sub{font-size:13px;color:#888;margin-top:3px;}
-.szh-badge{margin-left:auto;background:rgba(255,0,78,.15);border:1px solid rgba(255,0,78,.3);border-radius:20px;padding:6px 16px;font-size:11px;font-weight:700;color:rgba(255,255,255,.8);}
-.szh-badge.eu{background:rgba(0,57,228,.2);border-color:rgba(0,57,228,.4);color:#9ee8ff;}
 
 /* Services grid */
 .srv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;}
@@ -671,8 +655,6 @@ footer{background:#050505;}
   .cred-inner,.pay-inner{grid-template-columns:1fr;gap:50px;}
   .foot-top{grid-template-columns:1fr 1fr;gap:40px;}
   .faq-list{grid-template-columns:1fr;}
-  .zone-tabs{flex-direction:column;}
-  .zone-tab{padding:20px 28px;}
 }
 @media(max-width:900px){
   .nav-toggle{display:flex;}
@@ -700,12 +682,6 @@ footer{background:#050505;}
   .ribbon{gap:16px 24px;padding:12px 20px;}
   .rib-item{font-size:10px;letter-spacing:.08em;}
   .services-panel-inner{padding:48px 20px 64px;}
-  .services-zone-header{flex-wrap:wrap;gap:14px;}
-  .szh-badge{margin-left:0;}
-  .szh-title{font-size:26px;}
-  .zone-tab{padding:18px 20px;flex-wrap:wrap;}
-  .zt-currency{margin-left:0;width:100%;margin-top:6px;}
-  .zt-name{font-size:19px;}
   .cred-sec,.pay-sec{padding:70px 20px;}
   .nl-sec{padding:70px 20px;}
   .cards-wrap{grid-template-columns:repeat(2,1fr);}
@@ -2387,35 +2363,9 @@ footer{background:#050505;}
 
 <!-- ═══ SERVICES ═══ -->
 <section id="services" class="zone-section">
-  <!-- Zone Tabs -->
-  <div class="zone-tabs">
-    <div class="zone-tab active-ca" id="tab-ca" onclick="switchPanel('ca')" aria-label="Zone Canada">
-      <img src="https://flagcdn.com/w40/ca.png" alt="Canada" class="zt-flag"/>
-      <div>
-        <div class="zt-name">🇨🇦</div>
-      </div>
-      <div class="zt-currency">$ CAD</div>
-    </div>
-    <div class="zone-tab" id="tab-eu" onclick="switchPanel('eu')" aria-label="Zone France et Europe">
-      <img src="https://flagcdn.com/w40/eu.png" alt="Europe" class="zt-flag"/>
-      <div>
-        <div class="zt-name">🇫🇷/🇪🇺</div>
-      </div>
-      <div class="zt-currency" style="color:#6699FF;">€ EUR</div>
-    </div>
-  </div>
-
   <!-- ── PANEL CANADA ── -->
   <div class="services-panel active" id="panel-ca">
     <div class="services-panel-inner">
-      <div class="services-zone-header">
-        <img src="https://flagcdn.com/w40/ca.png" alt="Canada" class="szh-flag"/>
-        <div>
-          <div class="szh-title">Services — Zone Canada 🇨🇦</div>
-          <div class="szh-sub">Prix en Dollar Canadien · Équipe disponible EST/PST · Support en jours ouvrés</div>
-        </div>
-        <div class="szh-badge">$ Dollars Canadiens</div>
-      </div>
       <div class="srv-grid">
 
         <!-- SERVICE CA 1 -->
@@ -2675,14 +2625,6 @@ footer{background:#050505;}
   <!-- ── PANEL EUROPE ── -->
   <div class="services-panel" id="panel-eu">
     <div class="services-panel-inner">
-      <div class="services-zone-header">
-        <img src="https://flagcdn.com/w40/eu.png" alt="Europe" class="szh-flag"/>
-        <div>
-          <div class="szh-title">Services — Zone Europe 🇪🇺</div>
-          <div class="szh-sub">Prix en Euro · Conformité RGPD · Équipe Paris · Support en jours ouvrés</div>
-        </div>
-        <div class="szh-badge eu">€ Euros — Marché Européen</div>
-      </div>
       <div class="srv-grid">
 
         <!-- SERVICE EU 1 -->
@@ -3449,8 +3391,6 @@ function switchPanel(z){
   document.body.classList.toggle('eu-active',z==='eu');
   document.getElementById('panel-ca').classList.toggle('active',z==='ca');
   document.getElementById('panel-eu').classList.toggle('active',z==='eu');
-  document.getElementById('tab-ca').className='zone-tab'+(z==='ca'?' active-ca':'');
-  document.getElementById('tab-eu').className='zone-tab'+(z==='eu'?' active-eu':'');
   document.getElementById('nb-ca').classList.toggle('active',z==='ca');
   document.getElementById('nb-eu').classList.toggle('active',z==='eu');
   renderRegionReviews(z);
