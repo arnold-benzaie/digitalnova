@@ -117,7 +117,7 @@
 
 /* Restore visible curve ONLY at the actual page footer */
 footer.foot-bar-rounded {
-  background: linear-gradient(135deg, #1B5BFF 0%, #0E3FD8 50%, #003399 100%) !important;
+  background: linear-gradient(145deg, #0039e4 0%, #0160e7 46%, #04dbf1 100%) !important;
   border-radius: 50% 50% 0 0 / 140px 140px 0 0 !important;
   padding-top: 100px !important;
   margin-top: 60px !important;
