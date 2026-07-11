@@ -262,34 +262,34 @@ footer.foot-bar-rounded {
 }
 
 /* ════════════════════════════════════════════
-   CERTIFICATIONS — rangée fixe et centrée
+   CERTIFICATIONS — défilement centré et continu
    ════════════════════════════════════════════ */
 .credential-marquee {
-  overflow: visible !important;
+  overflow: hidden !important;
   width: 100%;
-  padding: 18px 20px 24px;
-  -webkit-mask-image: none !important;
-          mask-image: none !important;
+  padding: 18px 0 24px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
 }
 .credential-track {
-  display: block !important;
-  width: 100% !important;
-  animation: none !important;
-  transform: none !important;
-  will-change: auto;
+  --credential-row-width: 1042px;
+  --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  gap: 0 !important;
+  animation: credScrollCentered 32s linear infinite !important;
+  will-change: transform;
 }
 .credential-group {
   display: flex !important;
-  flex-wrap: wrap !important;
+  flex-wrap: nowrap !important;
   align-items: flex-start !important;
-  justify-content: center !important;
+  justify-content: flex-start !important;
   gap: 48px !important;
-  width: min(100%, 1050px) !important;
-  margin: 0 auto !important;
-  flex: 0 1 auto !important;
-}
-.credential-group[aria-hidden="true"] {
-  display: none !important;
+  width: var(--credential-row-width) !important;
+  margin: 0 !important;
+  flex: 0 0 var(--credential-row-width) !important;
 }
 .credential-badge {
   flex: 0 0 auto !important;
@@ -305,12 +305,16 @@ footer.foot-bar-rounded {
   display: block;
   margin: 0 auto 10px;
 }
-@keyframes credScroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+@keyframes credScrollCentered {
+  from { transform: translateX(var(--credential-start)); }
+  to   { transform: translateX(calc(var(--credential-start) - var(--credential-row-width))); }
 }
 @media (max-width: 768px) {
-  .credential-marquee { padding-inline: 16px; }
+  .credential-track {
+    --credential-row-width: 754px;
+    --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
+    animation-duration: 25s !important;
+  }
   .credential-group { gap: 26px !important; }
   .credential-badge { width: 130px !important; }
   .credential-logo-image { height: 115px !important; max-width: 130px !important; }
