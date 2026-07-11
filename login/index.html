@@ -58,10 +58,11 @@
 
     const params = new URLSearchParams(window.location.search);
     const messageCode = params.get("message");
+    const errorCode = params.get("error");
     if (messageCode === "dashboard") {
       showMessage("Connectez-vous avec Google pour accéder à votre espace client.");
-    } else if (messageCode === "auth-error") {
-      showMessage(params.get("detail") || "Connexion impossible. Merci de réessayer.");
+    } else if (errorCode === "oauth" || messageCode === "auth-error") {
+      showMessage("Connexion Google impossible. Vérifiez les variables Supabase dans Vercel et les URLs de redirection OAuth.");
     }
 
     try {
@@ -79,7 +80,7 @@
       button.disabled = true;
       button.textContent = "Redirection vers Google...";
       try {
-        await signInWithGoogle({ redirectTo: `${window.location.origin}/auth/callback` });
+        await signInWithGoogle();
       } catch (error) {
         button.disabled = false;
         button.innerHTML = '<span class="google-mark">G</span> Continuer avec Google';

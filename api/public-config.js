@@ -2,28 +2,42 @@ module.exports = function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, max-age=0");
 
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    "";
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    "";
+  function normalizeSupabaseUrl(value) {
+    if (!value) return "";
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") return "";
+      return url.origin;
+    } catch {
+      return "";
+    }
+  }
+
+  function isLikelyAnonKey(value) {
+    return Boolean(
+      value &&
+      !/^https?:\/\//i.test(value) &&
+      value.length > 80 &&
+      value.split(".").length >= 3
+    );
+  }
+
+  const normalizedSupabaseUrl = normalizeSupabaseUrl(supabaseUrl);
+  const validAnonKey = isLikelyAnonKey(supabaseAnonKey);
 
   const missing = [];
-  if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  if (!normalizedSupabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!validAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-  res.statusCode = missing.length ? 200 : 200;
+  res.statusCode = 200;
   res.end(JSON.stringify({
     configured: missing.length === 0,
     missing,
-    supabaseUrl: supabaseUrl || null,
-    supabaseAnonKey: supabaseAnonKey || null,
+    supabaseUrl: missing.length ? null : normalizedSupabaseUrl,
+    supabaseAnonKey: missing.length ? null : supabaseAnonKey,
     googleReviewUrl: process.env.GOOGLE_REVIEW_URL || null
   }));
 };

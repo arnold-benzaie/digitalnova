@@ -3,7 +3,8 @@
   "trailingSlash": false,
   "redirects": [
     { "source": "/auth", "destination": "/login", "permanent": false },
-    { "source": "/sign-in", "destination": "/login", "permanent": false }
+    { "source": "/sign-in", "destination": "/login", "permanent": false },
+    { "source": "/connexion", "destination": "/login", "permanent": false }
   ],
   "rewrites": [
     { "source": "/login", "destination": "/login/index.html" },

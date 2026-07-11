@@ -26,11 +26,9 @@
       message.textContent = "Connexion validée. Redirection vers votre espace...";
       window.location.replace("/dashboard");
     } catch (error) {
-      const detail = error?.message || "Erreur de connexion.";
-      message.textContent = detail;
+      message.textContent = error?.message || "Erreur de connexion.";
       const login = new URL("/login", window.location.origin);
-      login.searchParams.set("message", "auth-error");
-      login.searchParams.set("detail", detail);
+      login.searchParams.set("error", "oauth");
       window.setTimeout(() => window.location.replace(login.toString()), 1300);
     }
   </script>

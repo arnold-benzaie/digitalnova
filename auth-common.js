@@ -43,6 +43,46 @@ function safeUrl(value) {
   }
 }
 
+function normalizeSupabaseUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.origin : "";
+  } catch {
+    return "";
+  }
+}
+
+function isLikelyAnonKey(value) {
+  return Boolean(
+    value &&
+    !/^https?:\/\//i.test(value) &&
+    value.length > 80 &&
+    value.split(".").length >= 3
+  );
+}
+
+function normalizePublicConfig(config) {
+  const normalizedUrl = normalizeSupabaseUrl(config?.supabaseUrl || "");
+  const validAnonKey = isLikelyAnonKey(config?.supabaseAnonKey || "");
+  const missing = Array.isArray(config?.missing) ? [...config.missing] : [];
+
+  if (!normalizedUrl && !missing.includes("NEXT_PUBLIC_SUPABASE_URL")) {
+    missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  }
+  if (!validAnonKey && !missing.includes("NEXT_PUBLIC_SUPABASE_ANON_KEY")) {
+    missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+
+  return {
+    ...config,
+    configured: missing.length === 0,
+    missing,
+    supabaseUrl: normalizedUrl,
+    supabaseAnonKey: validAnonKey ? config.supabaseAnonKey : ""
+  };
+}
+
 export async function getPublicConfig() {
   if (!configPromise) {
     configPromise = fetch(PUBLIC_CONFIG_ENDPOINT, { cache: "no-store" })
@@ -50,7 +90,8 @@ export async function getPublicConfig() {
         if (!response.ok) {
           throw new Error(`Configuration inaccessible (${response.status})`);
         }
-        return response.json();
+        const config = await response.json();
+        return normalizePublicConfig(config);
       });
   }
   return configPromise;
@@ -80,8 +121,8 @@ export async function getAuthContext() {
 export function missingConfigMessage(config) {
   const missing = config?.missing?.length ? config.missing.join(", ") : "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY";
   return isEnglish()
-    ? `Google login is not active yet. Missing Vercel variables: ${missing}.`
-    : `La connexion Google n'est pas encore active. Variables Vercel manquantes : ${missing}.`;
+    ? `Google login is not active yet. Check these Vercel variables: ${missing}.`
+    : `La connexion Google n'est pas encore active. Vérifiez ces variables Vercel : ${missing}.`;
 }
 
 export async function getSession() {
@@ -92,16 +133,15 @@ export async function getSession() {
   return data.session || null;
 }
 
-export async function signInWithGoogle(options = {}) {
+export async function signInWithGoogle() {
   const { config, supabase } = await getAuthContext();
   if (!supabase) {
     throw new Error(missingConfigMessage(config));
   }
-  const redirectTo = options.redirectTo || `${window.location.origin}/auth/callback`;
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo
+      redirectTo: `${window.location.origin}/auth/callback`
     }
   });
   if (error) throw error;
