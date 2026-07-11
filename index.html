@@ -530,6 +530,25 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .g-addon-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 16px;border-radius:999px;background:#EEF4FF;border:1px solid #D7E5FF;color:#0039e4;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;}
 .g-addon-title{font-family:'Cormorant Garamond',serif;font-size:clamp(24px,2.6vw,34px);line-height:1.08;font-weight:700;color:#10213A;margin:0 0 8px;}
 .g-addon-sub{font-size:13px;line-height:1.7;color:#667085;margin:0;}
+.g-pair-section{margin:0 0 30px;padding:24px;border-radius:16px;background:#fff;border:1px solid #DCE8FF;box-shadow:0 10px 28px rgba(16,33,58,.05);}
+.g-pair-head{text-align:center;max-width:760px;margin:0 auto 20px;}
+.g-pair-kicker{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;background:#FFF7DB;border:1px solid #FFE199;color:#8B6500;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+.g-pair-head h5{margin:8px 0 6px;font-family:'Cormorant Garamond',serif;font-size:28px;line-height:1.1;color:#10213A;}
+.g-pair-head p{margin:0;color:#667085;font-size:12px;line-height:1.65;}
+.g-pair-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.g-pair-card{position:relative;display:flex;flex-direction:column;min-height:220px;padding:19px;border:1px solid #E4ECF8;border-radius:14px;background:linear-gradient(145deg,#fff,#F8FBFF);overflow:hidden;}
+.g-pair-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--pair-color,#1B5BFF);}
+.g-pair-step{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--pair-color,#1B5BFF);margin-bottom:8px;}
+.g-pair-card h6{margin:0 0 7px;font-size:17px;line-height:1.2;color:#10213A;}
+.g-pair-card p{margin:0 0 13px;color:#667085;font-size:12px;line-height:1.6;}
+.g-pair-services{margin:0 0 16px;padding:10px 12px;border-radius:9px;background:#fff;border:1px solid #E7EEF8;color:#34445E;font-size:11px;font-weight:700;line-height:1.45;}
+.g-pair-services span{color:var(--pair-color,#1B5BFF);font-size:13px;padding:0 4px;}
+.g-pair-btn{margin-top:auto;width:100%;padding:11px 12px;border:0;border-radius:9px;background:var(--pair-color,#1B5BFF);color:#fff;font:700 12px 'Outfit',sans-serif;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease;}
+.g-pair-btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(16,33,58,.18);}
+.g-pair-card.blue{--pair-color:#1B5BFF;}.g-pair-card.yellow{--pair-color:#C88A00;}.g-pair-card.green{--pair-color:#2F9E55;}
+.g-addon-library-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 14px;padding-top:4px;border-top:1px solid #E7EEF8;}
+.g-addon-library-head h5{margin:18px 0 0;font-size:16px;color:#10213A;}
+.g-addon-library-head p{margin:0;color:#7A8496;font-size:11px;line-height:1.55;text-align:right;}
 .g-addon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
 .g-addon-card{position:relative;display:flex;flex-direction:column;min-height:100%;padding:22px;border-radius:16px;background:#fff;border:1px solid #E6EEF8;box-shadow:0 10px 28px rgba(16,33,58,.06);transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease;}
 .g-addon-card:hover{transform:translateY(-5px);border-color:#C8DCFF;box-shadow:0 18px 44px rgba(0,57,228,.12);}
@@ -594,7 +613,9 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 
 /* RESPONSIVE GOOGLE */
 @media(max-width:1024px){
-  .g-feat-grid,.g-price-grid,.g-addon-grid,.seo-grid{grid-template-columns:1fr!important;}
+  .g-feat-grid,.g-price-grid,.g-addon-grid,.g-pair-grid,.seo-grid{grid-template-columns:1fr!important;}
+  .g-addon-library-head{display:block;}
+  .g-addon-library-head p{text-align:left;margin-top:5px;}
   .g-steps{grid-template-columns:1fr 1fr;gap:32px;}
   .g-steps::before{display:none;}
   .g-features,.g-pricing,.g-process,.seo-sec{padding:42px 28px;}
@@ -1405,8 +1426,64 @@ footer{background:#050505;}
       <div class="g-addon-section rv" aria-label="Services digitaux à la carte">
         <div class="g-addon-head">
           <div class="g-addon-kicker">Services IA — Google Maps & Digital</div>
-          <h4 class="g-addon-title">Services ciblés, SEO annuel, maintenance et accompagnement premium</h4>
-          <p class="g-addon-sub">Idéal si vous avez un besoin précis : reprendre le contrôle d'une fiche Google, lancer un site vitrine, collecter plus d'avis, préparer vos réseaux sociaux, maintenir votre site ou renforcer votre référencement sur l'année.</p>
+          <h4 class="g-addon-title">Des services classés par objectif, seuls ou en duo</h4>
+          <p class="g-addon-sub">Commencez par le résultat que vous recherchez. Nos combinaisons 2 en 1 réunissent deux services complémentaires ; les services individuels restent disponibles plus bas pour une demande précise.</p>
+        </div>
+
+        <section class="g-pair-section" aria-labelledby="pair-offers-title">
+          <div class="g-pair-head">
+            <span class="g-pair-kicker">Combinaisons recommandées</span>
+            <h5 id="pair-offers-title">Deux services, un objectif commercial clair</h5>
+            <p>Ajoutez un duo au panier en un clic. Le devis reprend chaque service séparément, pour que vous gardiez toujours le contrôle.</p>
+          </div>
+          <div class="g-pair-grid">
+            <article class="g-pair-card blue" data-offer-pair="brand-foundation" data-offer-ids="logo-design,website-payment">
+              <div class="g-pair-step">01 · Lancer votre marque</div>
+              <h6>Logo professionnel + site vitrine</h6>
+              <p>Une identité qui inspire confiance, puis un site conçu pour transformer les visites en demandes de devis.</p>
+              <div class="g-pair-services">Création de logo <span>+</span> Site web vitrine & paiement</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('brand-foundation')">Ajouter les 2 au panier</button>
+            </article>
+            <article class="g-pair-card yellow" data-offer-pair="local-trust" data-offer-ids="maps-security,reviews-ai">
+              <div class="g-pair-step">02 · Rassurer localement</div>
+              <h6>Fiche Google optimisée + avis IA</h6>
+              <p>Une fiche propre et fiable, complétée par une gestion régulière des réponses pour renforcer la confiance.</p>
+              <div class="g-pair-services">Sécurisation Google Maps <span>+</span> Gestion avis Google IA</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('local-trust')">Ajouter les 2 au panier</button>
+            </article>
+            <article class="g-pair-card green" data-offer-pair="maps-activity" data-offer-ids="maps-ai-optimization,maps-ai-posts">
+              <div class="g-pair-step">03 · Rester visible</div>
+              <h6>Optimisation Maps IA + publications</h6>
+              <p>Un diagnostic clair pour prioriser les améliorations, puis du contenu régulier pour garder votre fiche active.</p>
+              <div class="g-pair-services">Optimisation IA Maps <span>+</span> Posts Google Maps IA</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('maps-activity')">Ajouter les 2 au panier</button>
+            </article>
+            <article class="g-pair-card blue" data-offer-pair="seo-growth" data-offer-ids="seo-prestige,keywords-ai">
+              <div class="g-pair-step">04 · Gagner des recherches</div>
+              <h6>SEO Prestige + mots-clés IA</h6>
+              <p>Le plan SEO construit la base ; les mots-clés ciblés élargissent les recherches utiles à votre activité.</p>
+              <div class="g-pair-services">Pack SEO Prestige <span>+</span> 10 mots-clés IA</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('seo-growth')">Ajouter les 2 au panier</button>
+            </article>
+            <article class="g-pair-card yellow" data-offer-pair="lead-automation" data-offer-ids="chatbot-ai,social-ai">
+              <div class="g-pair-step">05 · Attirer et répondre</div>
+              <h6>Réseaux sociaux IA + chatbot</h6>
+              <p>Du contenu pour attirer l’attention et un assistant pour répondre aux premières questions des prospects.</p>
+              <div class="g-pair-services">Gestion réseaux sociaux IA <span>+</span> Chatbot IA</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('lead-automation')">Ajouter les 2 au panier</button>
+            </article>
+            <article class="g-pair-card green" data-offer-pair="digital-care" data-offer-ids="site-maintenance,technical-support">
+              <div class="g-pair-step">06 · Garder le contrôle</div>
+              <h6>Maintenance du site + assistance</h6>
+              <p>Votre site et vos informations restent à jour, avec un interlocuteur pour les demandes techniques courantes.</p>
+              <div class="g-pair-services">Maintenance site web <span>+</span> Assistance technique</div>
+              <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('digital-care')">Ajouter les 2 au panier</button>
+            </article>
+          </div>
+        </section>
+        <div class="g-addon-library-head">
+          <h5>Ou composez votre solution à la carte</h5>
+          <p>Pour un besoin précis, choisissez un service individuel et complétez-le quand votre activité évolue.</p>
         </div>
         <div class="g-addon-grid">
           <div class="g-addon-card dyn-price-card"
@@ -1447,7 +1524,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $179 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="maps-security"
                data-ca-amount="1200" data-ca-currency="CAD" data-ca-period="paiement unique · intervention 48h ouvrées"
                data-eu-amount="499" data-eu-currency="€ TTC" data-eu-period="paiement unique · TTC"
                data-ca-period-en="one-time payment · 48-business-hour intervention"
@@ -1524,7 +1601,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $275 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="website-payment"
                data-ca-amount="2490" data-ca-currency="CAD" data-ca-period="paiement unique · livraison 3 semaines ouvrées"
                data-eu-amount="1690" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
                data-ca-period-en="one-time payment · 3-business-week delivery"
@@ -1644,7 +1721,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $499 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="seo-prestige"
                data-ca-amount="1890" data-ca-currency="CAD" data-ca-period="annuel · plan 90 jours inclus"
                data-eu-amount="1190" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · 90-day action plan included"
@@ -1726,7 +1803,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $759 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="technical-support"
                data-ca-amount="450" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
                data-eu-amount="290" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · free renewal"
@@ -1766,7 +1843,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $450 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="site-maintenance"
                data-ca-amount="449" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
                data-eu-amount="290" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · free renewal"
@@ -1806,7 +1883,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $449 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="keywords-ai"
                data-ca-amount="299" data-ca-currency="CAD" data-ca-period="annuel · 10 mots-clés + IA"
                data-eu-amount="299" data-eu-currency="€ TTC" data-eu-period="annuel · TTC"
                data-ca-period-en="annual · 10 keywords + AI"
@@ -1886,7 +1963,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $690 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="maps-ai-optimization"
                data-ca-amount="490" data-ca-currency="CAD" data-ca-period="paiement unique · livraison 48h ouvrées"
                data-eu-amount="329" data-eu-currency="€ HT" data-eu-period="paiement unique · livraison 48h ouvrées"
                data-ca-period-en="one-time payment · 48-business-hour delivery"
@@ -1926,7 +2003,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $490 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="reviews-ai"
                data-ca-amount="290" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
                data-eu-amount="190" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · free renewal"
@@ -2046,7 +2123,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $149 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="maps-ai-posts"
                data-ca-amount="199" data-ca-currency="CAD" data-ca-period="annuel · 8 posts/mois inclus"
                data-eu-amount="349" data-eu-currency="€ TTC" data-eu-period="annuel · TTC"
                data-ca-period-en="annual · 8 posts/month included"
@@ -2086,7 +2163,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $199 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="chatbot-ai"
                data-ca-amount="349" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
                data-eu-amount="229" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · free renewal"
@@ -2126,7 +2203,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $349 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="social-ai"
                data-ca-amount="890" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
                data-eu-amount="590" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
                data-ca-period-en="annual · free renewal"
@@ -2206,7 +2283,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $490 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
+          <div class="g-addon-card dyn-price-card" data-offer-id="logo-design"
                data-ca-amount="690" data-ca-currency="CAD" data-ca-period="paiement unique · droits d'utilisation à vie"
                data-eu-amount="449" data-eu-currency="€ TTC" data-eu-period="paiement unique · droits d'utilisation à vie"
                data-ca-period-en="one-time payment · lifetime usage rights"
@@ -4105,11 +4182,11 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026071101"></script>
+<script src="i18n-sparkles.js?v=2026071102"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
-<script src="cart.js?v=2026071101"></script>
+<script src="cart.js?v=2026071102"></script>
 <script src="dynamic-pricing.js?v=2026070901"></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script>

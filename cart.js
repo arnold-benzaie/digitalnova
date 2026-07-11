@@ -406,6 +406,43 @@ function syncCartButton(card, cartBtn, idx){
   return true;
 }
 
+/* ─── Recommended two-service offers ─── */
+window.addOfferPairToCart = function(pairId){
+  const pair = document.querySelector(`[data-offer-pair="${pairId}"]`);
+  const offerIds = pair?.dataset.offerIds?.split(',').map(id => id.trim()).filter(Boolean) || [];
+  const zone = document.body.classList.contains('eu-active') ? 'eu' : 'ca';
+  let added = 0;
+
+  offerIds.forEach((offerId, idx) => {
+    const card = document.querySelector(`[data-offer-id="${offerId}"]`);
+    const price = card ? parsePrice(card) : null;
+    const nameEl = card?.querySelector('.g-price-title');
+    const iconEl = card?.querySelector('.g-addon-icon, .g-price-icon');
+    if(!card || price == null || !nameEl) return;
+
+    const name = nameEl.textContent.trim();
+    const id = `${zone}-${name.replace(/\s+/g,'-').toLowerCase().slice(0,40)}`;
+    if(CART.items.some(item => item.id === id && item.zone === zone)) return;
+
+    CART.add({
+      id,
+      name,
+      icon: iconEl?.textContent.trim() || '📦',
+      price,
+      zone
+    });
+    added += 1;
+  });
+
+  renderCart();
+  if(added){
+    showToast(t(`✓ ${added} services ajoutés au panier`, `✓ ${added} services added to cart`));
+    openCart();
+  } else {
+    showToast(t('Ces services sont déjà dans votre panier','These services are already in your cart'));
+  }
+};
+
 /* ─── Inject "Add to cart" button on every service card ─── */
 function injectCartButtons(){
   // Legacy service cards, main packages and add-on pricing cards.
