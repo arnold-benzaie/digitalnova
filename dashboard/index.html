@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mon espace — PUBLIC-MAP</title>
+  <meta name="robots" content="noindex"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/auth-pages.css?v=2026071101"/>
+</head>
+<body class="auth-body">
+  <header class="auth-nav">
+    <a class="auth-brand" href="/">PUBLIC-<span>MAP</span></a>
+    <nav class="auth-nav-links" aria-label="Navigation">
+      <a href="/">Accueil</a>
+      <a href="/#services">Services</a>
+      <a class="auth-mobile-keep" href="mailto:contact@public-map.com">Contact</a>
+    </nav>
+  </header>
+
+  <main class="dashboard-page">
+    <section class="dashboard-panel">
+      <div class="dash-head">
+        <div>
+          <span class="auth-kicker">Tableau de bord</span>
+          <h1>Bienvenue dans votre espace</h1>
+          <p class="auth-sub">Votre espace PUBLIC-MAP est prêt pour recevoir vos demandes, vos documents et le suivi de vos services.</p>
+        </div>
+        <div id="dash-user" class="dash-user" aria-live="polite">
+          <span class="fallback">P</span>
+          <div>
+            <strong>Chargement...</strong><br/>
+            <span>Session Google</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="dashboard-message" class="auth-message" role="status"></div>
+
+      <div class="dash-grid">
+        <article class="dash-card">
+          <span>📩</span>
+          <h2>Demandes et devis</h2>
+          <p>Retrouvez ici les demandes envoyées depuis le site lorsque la base client sera connectée.</p>
+          <a class="auth-primary" href="/#services">Voir les services</a>
+        </article>
+        <article class="dash-card">
+          <span>📍</span>
+          <h2>Visibilité Google</h2>
+          <p>Prévu pour centraliser les actions Google Business Profile, SEO local et avis clients.</p>
+          <a class="auth-secondary" href="mailto:contact@public-map.com?subject=Suivi%20PUBLIC-MAP">Contacter PUBLIC-MAP</a>
+        </article>
+        <article class="dash-card">
+          <span>🔐</span>
+          <h2>Session sécurisée</h2>
+          <p>Vous êtes connecté avec Google via Supabase Auth. Vous pouvez vous déconnecter à tout moment.</p>
+          <button id="logout-btn" type="button" class="danger-btn">Se déconnecter</button>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { requireAuth, signOutToHome } from "/auth-common.js?v=2026071101";
+
+    const message = document.getElementById("dashboard-message");
+    const userBox = document.getElementById("dash-user");
+    const logout = document.getElementById("logout-btn");
+
+    function showMessage(text) {
+      message.textContent = text;
+      message.classList.add("show");
+    }
+
+    function initialFrom(user) {
+      const base = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "P";
+      return base.charAt(0).toUpperCase();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function safeUrl(value) {
+      try {
+        const url = new URL(value);
+        return ["https:", "http:"].includes(url.protocol) ? url.href : "";
+      } catch {
+        return "";
+      }
+    }
+
+    try {
+      const session = await requireAuth();
+      if (session?.user) {
+        const user = session.user;
+        const avatar = safeUrl(user.user_metadata?.avatar_url || user.user_metadata?.picture || "");
+        const name = user.user_metadata?.full_name || user.user_metadata?.name || "Client PUBLIC-MAP";
+        userBox.innerHTML = `
+          ${avatar ? `<img src="${escapeHtml(avatar)}" alt=""/>` : `<span class="fallback">${escapeHtml(initialFrom(user))}</span>`}
+          <div>
+            <strong>${escapeHtml(name)}</strong><br/>
+            <span>${escapeHtml(user.email || "Compte Google")}</span>
+          </div>
+        `;
+      }
+    } catch (error) {
+      showMessage(error.message || "Connexion requise.");
+    }
+
+    logout.addEventListener("click", () => signOutToHome());
+  </script>
+</body>
+</html>

@@ -970,6 +970,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="hero-premium-title.css?v=2026061401"/>
 <link rel="stylesheet" href="round-certs-and-footer.css?v=2026053101"/>
 <link rel="stylesheet" href="final-polish.css?v=2026071106"/>
+<link rel="stylesheet" href="auth-common.css?v=2026071101"/>
 <link rel="stylesheet" href="mobile-ux-fixes.css?v=2026061401"/>
 <link rel="stylesheet" href="hero-no-video.css?v=2026060606"/>
 <link rel="stylesheet" href="mobile-performance.css?v=2026061401"/>
@@ -1011,6 +1012,7 @@ footer{background:#050505;}
           <span class="zone-flag-pair" aria-hidden="true"><img src="https://flagcdn.com/w40/fr.png" alt=""/><span>/</span><img src="https://flagcdn.com/w40/eu.png" alt=""/></span> Europe
         </button>
       </div>
+      <a href="/login" class="nav-auth-link" data-auth-nav>Connexion</a>
       <a href="#services" class="nav-cta">Demander un devis →</a>
     </div>
   </div>
@@ -3995,9 +3997,19 @@ function getPhoneWithCountryCode(codeId, phoneId){
   return code?`${label} ${cleaned}`:cleaned;
 }
 
+function formatQuoteAmount(value, locale){
+  const number=Number(String(value ?? '').replace(',', '.'));
+  if(!Number.isFinite(number))return '';
+  const hasDecimals=Math.abs(number-Math.round(number))>0.001;
+  return number.toLocaleString(locale,{
+    minimumFractionDigits:hasDecimals?2:0,
+    maximumFractionDigits:2
+  });
+}
+
 function buildQuoteMailto(service,price,zone,email,name,company,phone,currencyLabel){
   const label=currencyLabel || (zone==='ca'?'CAD':'HT');
-  const amount=price?`${zone==='ca'?'$':'€'}${parseInt(price).toLocaleString(zone==='ca'?'fr-CA':'fr-FR')} ${label}`:'À préciser';
+  const amount=price?`${zone==='ca'?'$':'€'}${formatQuoteAmount(price,zone==='ca'?'fr-CA':'fr-FR')} ${label}`:'À préciser';
   const subject=`Demande de devis — ${service||'Projet digital'}`;
   const body=[
     'Bonjour PUBLIC-MAP,',
@@ -4035,7 +4047,7 @@ function openModal(name,cad,eur,zone,currencyLabel){
   currentOrder={name,cad,eur,zone,currencyLabel:label};
   document.getElementById('m-title').textContent=name;
   document.getElementById('m-zone-label').textContent=zone==='ca'?'Zone Canada 🇨🇦 — Dollar Canadien':'Zone Europe 🇪🇺 — Euro';
-  document.getElementById('m-price').textContent=zone==='ca'?'$'+parseInt(cad).toLocaleString('fr-CA')+' CAD':'€'+parseInt(eur).toLocaleString('fr-FR')+' '+label;
+  document.getElementById('m-price').textContent=zone==='ca'?'$'+formatQuoteAmount(cad,'fr-CA')+' CAD':'€'+formatQuoteAmount(eur,'fr-FR')+' '+label;
   document.getElementById('m-price2').style.display='none';
   const h=document.getElementById('m-head');
   h.className='modal-head'+(zone==='eu'?' eu-head':'');
@@ -4105,6 +4117,7 @@ document.getElementById('newsletter-form')?.addEventListener('submit',subscribeN
 <script src="theme-extra-anims.js?v=2026060601"></script>
 <script src="cart.js?v=2026071102"></script>
 <script src="dynamic-pricing.js?v=2026071101"></script>
+<script type="module" src="auth-common.js?v=2026071101"></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script>
 (function(){

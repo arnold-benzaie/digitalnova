@@ -1,7 +1,14 @@
 {
   "cleanUrls": false,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/auth", "destination": "/login", "permanent": false },
+    { "source": "/sign-in", "destination": "/login", "permanent": false }
+  ],
   "rewrites": [
+    { "source": "/login", "destination": "/login/index.html" },
+    { "source": "/auth/callback", "destination": "/auth/callback/index.html" },
+    { "source": "/dashboard", "destination": "/dashboard/index.html" },
     { "source": "/privacy-policy", "destination": "/privacy-policy/index.html" },
     { "source": "/terms-and-conditions", "destination": "/terms-and-conditions/index.html" },
     { "source": "/refund-policy", "destination": "/refund-policy/index.html" }

@@ -1,0 +1,62 @@
+.nav-auth-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 999px;
+  color: rgba(255,255,255,.84);
+  background: rgba(255,255,255,.08);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  transition: transform .2s ease, border-color .2s ease, background .2s ease, color .2s ease;
+}
+
+.nav-auth-link:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,.32);
+  color: #fff;
+  background: rgba(255,255,255,.14);
+}
+
+.nav-auth-link.is-logged-in {
+  padding-left: 10px;
+  background: rgba(27,91,255,.18);
+  border-color: rgba(126,166,255,.45);
+  color: #fff;
+}
+
+.auth-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.52);
+  background: #fff;
+}
+
+.auth-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg,#1B5BFF,#0CB5FF);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .nav-auth-link {
+    width: 100%;
+    min-height: 48px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+}

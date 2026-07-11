@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Connexion — PUBLIC-MAP</title>
+  <meta name="description" content="Connexion client PUBLIC-MAP avec Google."/>
+  <link rel="canonical" href="https://public-map.com/login"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/auth-pages.css?v=2026071101"/>
+</head>
+<body class="auth-body">
+  <header class="auth-nav">
+    <a class="auth-brand" href="/">PUBLIC-<span>MAP</span></a>
+    <nav class="auth-nav-links" aria-label="Navigation">
+      <a href="/">Accueil</a>
+      <a href="/#services">Services</a>
+      <a class="auth-mobile-keep" href="mailto:contact@public-map.com">Contact</a>
+    </nav>
+  </header>
+
+  <main class="auth-page">
+    <section class="auth-shell">
+      <div class="auth-panel auth-copy">
+        <span class="auth-kicker">Espace client sécurisé</span>
+        <h1 class="auth-title">Connectez-vous à votre <em>espace PUBLIC-MAP</em></h1>
+        <p class="auth-sub">Un accès simple pour suivre vos demandes, vos services et les prochaines étapes de votre visibilité Google.</p>
+        <div class="auth-benefits">
+          <div class="auth-benefit"><strong>🔐 Connexion Google</strong><span>Aucun mot de passe supplémentaire à gérer sur le site.</span></div>
+          <div class="auth-benefit"><strong>📍 Suivi client</strong><span>Base prête pour retrouver vos demandes, devis et ressources.</span></div>
+          <div class="auth-benefit"><strong>🛡️ Sécurité</strong><span>Les sessions sont gérées par Supabase Auth, avec OAuth Google officiel.</span></div>
+        </div>
+      </div>
+
+      <div class="auth-panel auth-card">
+        <h2>Connexion</h2>
+        <p>Utilisez votre compte Google pour accéder à votre espace. Si l’accès n’est pas encore activé, un message vous indiquera les variables à ajouter dans Vercel.</p>
+        <button id="google-login" class="google-btn" type="button">
+          <span class="google-mark">G</span>
+          Continuer avec Google
+        </button>
+        <div id="auth-message" class="auth-message" role="status"></div>
+        <p class="auth-note">PUBLIC-MAP ne stocke pas votre mot de passe Google.</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { getAuthContext, missingConfigMessage, redirectIfAuthenticated, signInWithGoogle } from "/auth-common.js?v=2026071101";
+
+    const button = document.getElementById("google-login");
+    const message = document.getElementById("auth-message");
+
+    function showMessage(text) {
+      message.textContent = text;
+      message.classList.add("show");
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const messageCode = params.get("message");
+    if (messageCode === "dashboard") {
+      showMessage("Connectez-vous avec Google pour accéder à votre espace client.");
+    } else if (messageCode === "auth-error") {
+      showMessage(params.get("detail") || "Connexion impossible. Merci de réessayer.");
+    }
+
+    try {
+      await redirectIfAuthenticated();
+      const { config, supabase } = await getAuthContext();
+      if (!supabase) {
+        button.disabled = true;
+        showMessage(missingConfigMessage(config));
+      }
+    } catch (error) {
+      showMessage(error.message || "Configuration de connexion indisponible.");
+    }
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      button.textContent = "Redirection vers Google...";
+      try {
+        await signInWithGoogle({ redirectTo: `${window.location.origin}/auth/callback` });
+      } catch (error) {
+        button.disabled = false;
+        button.innerHTML = '<span class="google-mark">G</span> Continuer avec Google';
+        showMessage(error.message || "Connexion Google impossible pour le moment.");
+      }
+    });
+  </script>
+</body>
+</html>

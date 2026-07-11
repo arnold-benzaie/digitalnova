@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Connexion en cours — PUBLIC-MAP</title>
+  <meta name="robots" content="noindex"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/auth-pages.css?v=2026071101"/>
+</head>
+<body class="auth-body">
+  <main class="auth-page">
+    <section class="auth-panel callback-card">
+      <div class="auth-spinner" aria-hidden="true"></div>
+      <h1>Connexion en cours</h1>
+      <p id="callback-message">Nous validons votre connexion Google et préparons votre espace client.</p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { completeOAuthCallback } from "/auth-common.js?v=2026071101";
+
+    const message = document.getElementById("callback-message");
+    try {
+      await completeOAuthCallback();
+      message.textContent = "Connexion validée. Redirection vers votre espace...";
+      window.location.replace("/dashboard");
+    } catch (error) {
+      const detail = error?.message || "Erreur de connexion.";
+      message.textContent = detail;
+      const login = new URL("/login", window.location.origin);
+      login.searchParams.set("message", "auth-error");
+      login.searchParams.set("detail", detail);
+      window.setTimeout(() => window.location.replace(login.toString()), 1300);
+    }
+  </script>
+</body>
+</html>
