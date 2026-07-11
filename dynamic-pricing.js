@@ -86,7 +86,7 @@
     if(!flag || !title || !sub) return;
 
     if(zone === 'eu'){
-      flag.textContent = '🇪🇺';
+      flag.textContent = '🇫🇷/🇪🇺';
       title.style.color = '#003399';
       title.textContent = 'Affichage en Euro (EUR)';
       sub.textContent = 'Conformité RGPD · Bureau Paris CET · TVA selon l’offre · Cliquez sur Canada pour basculer en CAD';

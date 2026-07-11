@@ -117,6 +117,9 @@ nav.scrolled{background:rgba(8,8,8,.97);backdrop-filter:blur(16px);box-shadow:0 
 .zone-toggle{display:flex;background:rgba(255,255,255,.08);border-radius:24px;padding:3px;border:1px solid rgba(255,255,255,.1);}
 .zone-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:none;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .25s;background:transparent;color:rgba(255,255,255,.5);letter-spacing:.04em;}
 .zone-btn img{width:20px;height:13px;object-fit:cover;border-radius:2px;}
+.zone-flag-pair{display:inline-flex;align-items:center;gap:2px;line-height:1;}
+.zone-btn .zone-flag-pair img{width:16px;height:11px;}
+.zone-flag-pair span{font-size:10px;opacity:.8;}
 .zone-btn.active{background:var(--rouge);color:var(--blanc);box-shadow:var(--sh-red);}
 .zone-btn.active.eu{background:var(--bleu-eu);}
 .nav-cta{background:var(--rouge);color:var(--blanc);padding:9px 22px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:.04em;transition:all .25s;border:none;cursor:pointer;}
@@ -984,7 +987,7 @@ footer{background:#050505;}
           <img src="https://flagcdn.com/w40/ca.png" alt="🇨🇦"/> Canada
         </button>
         <button class="zone-btn" id="nb-eu" onclick="setZone('eu')">
-          <img src="https://flagcdn.com/w40/eu.png" alt="🇪🇺"/> Europe
+          <span class="zone-flag-pair" aria-hidden="true"><img src="https://flagcdn.com/w40/fr.png" alt=""/><span>/</span><img src="https://flagcdn.com/w40/eu.png" alt=""/></span> Europe
         </button>
       </div>
       <a href="#services" class="nav-cta">Demander un devis →</a>
@@ -2217,7 +2220,7 @@ footer{background:#050505;}
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="zone-quick-btn" id="qb-ca" onclick="setZone('ca')" style="background:#0039e4;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;">🇨🇦 Voir prix CAD</button>
-          <button class="zone-quick-btn" id="qb-eu" onclick="setZone('eu')" style="background:#fff;color:#0039e4;border:1.5px solid #0039e4;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;">🇪🇺 Voir prix EUR</button>
+          <button class="zone-quick-btn" id="qb-eu" onclick="setZone('eu')" style="background:#fff;color:#0039e4;border:1.5px solid #0039e4;padding:11px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;">🇫🇷/🇪🇺 Voir prix EUR</button>
         </div>
       </div>
     </div>
