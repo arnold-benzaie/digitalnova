@@ -258,6 +258,10 @@
       background: rgba(255,255,255,.18);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.28);
     }
+    .g-addon-card .btn-cart {
+      width: 100%;
+      min-height: 43px;
+    }
 
     /* FLY-TO-CART animation */
     .fly-clone {
@@ -404,12 +408,16 @@ function syncCartButton(card, cartBtn, idx){
 
 /* ─── Inject "Add to cart" button on every service card ─── */
 function injectCartButtons(){
-  // Service cards (.srv-card) and Google price cards (.g-price-card)
-  document.querySelectorAll('.srv-card, .g-price-card').forEach((card, idx) => {
+  // Legacy service cards, main packages and add-on pricing cards.
+  document.querySelectorAll('.srv-card, .g-price-card, .g-addon-card').forEach((card, idx) => {
     const orderBtn = card.querySelector('.btn-order, .g-price-btn');
     if(!orderBtn) return;
     let cartBtn = card.querySelector('.btn-cart');
     if(cartBtn){
+      if(card.classList.contains('g-addon-card')){
+        orderBtn.style.marginRight = '0';
+        orderBtn.style.marginBottom = '10px';
+      }
       syncCartButton(card, cartBtn, idx);
       return;
     }
@@ -441,7 +449,12 @@ function injectCartButtons(){
 
     // Insert next to the order button
     orderBtn.parentNode.insertBefore(cartBtn, orderBtn.nextSibling);
-    orderBtn.style.marginRight = '8px';
+    if(card.classList.contains('g-addon-card')){
+      orderBtn.style.marginRight = '0';
+      orderBtn.style.marginBottom = '10px';
+    } else {
+      orderBtn.style.marginRight = '8px';
+    }
   });
 }
 
