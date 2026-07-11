@@ -53,18 +53,23 @@ function normalizeSupabaseUrl(value) {
   }
 }
 
-function isLikelyAnonKey(value) {
+function isLikelyPublicApiKey(value) {
+  const isLegacyAnonJwt =
+    value &&
+    value.length > 80 &&
+    value.split(".").length >= 3;
+  const isPublishableKey = /^sb_publishable_[a-zA-Z0-9_-]+$/.test(value || "");
+
   return Boolean(
     value &&
     !/^https?:\/\//i.test(value) &&
-    value.length > 80 &&
-    value.split(".").length >= 3
+    (isLegacyAnonJwt || isPublishableKey)
   );
 }
 
 function normalizePublicConfig(config) {
   const normalizedUrl = normalizeSupabaseUrl(config?.supabaseUrl || "");
-  const validAnonKey = isLikelyAnonKey(config?.supabaseAnonKey || "");
+  const validAnonKey = isLikelyPublicApiKey(config?.supabaseAnonKey || "");
   const missing = Array.isArray(config?.missing) ? [...config.missing] : [];
 
   if (!normalizedUrl && !missing.includes("NEXT_PUBLIC_SUPABASE_URL")) {

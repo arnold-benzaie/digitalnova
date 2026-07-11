@@ -16,17 +16,22 @@ module.exports = function handler(req, res) {
     }
   }
 
-  function isLikelyAnonKey(value) {
+  function isLikelyPublicApiKey(value) {
+    const isLegacyAnonJwt =
+      value &&
+      value.length > 80 &&
+      value.split(".").length >= 3;
+    const isPublishableKey = /^sb_publishable_[a-zA-Z0-9_-]+$/.test(value || "");
+
     return Boolean(
       value &&
       !/^https?:\/\//i.test(value) &&
-      value.length > 80 &&
-      value.split(".").length >= 3
+      (isLegacyAnonJwt || isPublishableKey)
     );
   }
 
   const normalizedSupabaseUrl = normalizeSupabaseUrl(supabaseUrl);
-  const validAnonKey = isLikelyAnonKey(supabaseAnonKey);
+  const validAnonKey = isLikelyPublicApiKey(supabaseAnonKey);
 
   const missing = [];
   if (!normalizedSupabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
