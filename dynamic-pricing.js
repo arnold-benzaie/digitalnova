@@ -15,9 +15,18 @@
     return (isEnglish && card.dataset[enKey]) ? card.dataset[enKey] : card.dataset[baseKey];
   }
 
+  function formatAmountNumber(amount, locale){
+    const value = Number(amount);
+    const decimals = Number.isFinite(value) && Math.abs(value % 1) > 0.0001 ? 2 : 0;
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(value);
+  }
+
   function fmtAmount(amount, currency){
     const locale = document.documentElement.lang === 'en' ? 'en-CA' : 'fr-CA';
-    const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
+    const formatted = formatAmountNumber(amount, locale);
     // CAD: "$1 000 CAD" · EU: "219 € HT" or "255 € TTC"
     if(currency.startsWith('€') || currency === 'EUR' || currency.includes('€')){
       return { num: formatted + ' €', cur: currency.replace('€','').trim() || 'HT' };
@@ -55,7 +64,7 @@
     if(btn){
       const isEnglish = document.documentElement.lang === 'en';
       const locale = isEnglish ? 'en-CA' : 'fr-CA';
-      const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(amount));
+      const formatted = formatAmountNumber(amount, locale);
       const action = isEnglish ? 'Request a quote' : 'Demander un devis';
       const suffix = f.cur || (zone === 'eu' ? (isEnglish ? 'excl. tax' : 'HT') : 'CAD');
       const label = zone === 'eu' ? `${action} — ${formatted} € ${suffix} →` : `${action} — $${formatted} ${suffix} →`;
