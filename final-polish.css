@@ -266,40 +266,47 @@ footer.foot-bar-rounded {
    ════════════════════════════════════════════ */
 .credential-marquee {
   overflow: hidden !important;
-  width: 100%;
-  padding: 18px 0 24px;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  width: 100vw !important;
+  max-width: none !important;
+  margin-left: calc(50% - 50vw) !important;
+  padding: 18px 0 26px;
+  -webkit-mask-image: none !important;
+          mask-image: none !important;
+}
+#certifications > .credential-marquee {
+  width: 100vw !important;
+  max-width: none !important;
+  margin-left: calc(50% - 50vw) !important;
 }
 .credential-track {
-  --credential-row-width: 738px;
-  --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
   display: flex !important;
   flex-wrap: nowrap !important;
-  width: max-content !important;
+  justify-content: center !important;
+  width: 100% !important;
   gap: 0 !important;
-  animation: credScrollCentered 32s linear infinite !important;
-  will-change: transform;
+  animation: none !important;
+  transform: none !important;
+  will-change: auto;
 }
 .credential-group {
   display: flex !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
   align-items: flex-start !important;
-  justify-content: flex-start !important;
-  gap: 46px !important;
-  width: var(--credential-row-width) !important;
-  margin: 0 !important;
-  flex: 0 0 var(--credential-row-width) !important;
+  justify-content: center !important;
+  gap: 34px 42px !important;
+  width: min(100%, 980px) !important;
+  margin: 0 auto !important;
+  flex: 0 1 auto !important;
 }
 .credential-badge {
   flex: 0 0 auto !important;
-  width: 150px !important;
+  width: 154px !important;
   text-align: center;
 }
 .credential-logo-image {
   width: auto !important;
-  height: 128px !important;
-  max-width: 150px !important;
+  height: 124px !important;
+  max-width: 154px !important;
   object-fit: contain !important;
   display: block;
   margin: 0 auto 10px;
@@ -310,11 +317,9 @@ footer.foot-bar-rounded {
 }
 @media (max-width: 768px) {
   .credential-track {
-    --credential-row-width: 598px;
-    --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
-    animation-duration: 25s !important;
+    width: 100% !important;
   }
-  .credential-group { gap: 26px !important; }
+  .credential-group { gap: 24px 18px !important; }
   .credential-badge { width: 130px !important; }
   .credential-logo-image { height: 106px !important; max-width: 130px !important; }
 }
