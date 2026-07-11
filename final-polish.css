@@ -272,7 +272,7 @@ footer.foot-bar-rounded {
           mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
 }
 .credential-track {
-  --credential-row-width: 1042px;
+  --credential-row-width: 738px;
   --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -286,21 +286,20 @@ footer.foot-bar-rounded {
   flex-wrap: nowrap !important;
   align-items: flex-start !important;
   justify-content: flex-start !important;
-  gap: 48px !important;
+  gap: 46px !important;
   width: var(--credential-row-width) !important;
   margin: 0 !important;
   flex: 0 0 var(--credential-row-width) !important;
 }
 .credential-badge {
   flex: 0 0 auto !important;
-  width: 170px !important;          /* même largeur pour tous */
+  width: 150px !important;
   text-align: center;
 }
-/* MÊME HAUTEUR pour tous les badges = même taille visuelle (comme Google) */
 .credential-logo-image {
   width: auto !important;
-  height: 150px !important;
-  max-width: 170px !important;
+  height: 128px !important;
+  max-width: 150px !important;
   object-fit: contain !important;
   display: block;
   margin: 0 auto 10px;
@@ -311,13 +310,13 @@ footer.foot-bar-rounded {
 }
 @media (max-width: 768px) {
   .credential-track {
-    --credential-row-width: 754px;
+    --credential-row-width: 598px;
     --credential-start: max(0px, calc((100vw - var(--credential-row-width)) / 2));
     animation-duration: 25s !important;
   }
   .credential-group { gap: 26px !important; }
   .credential-badge { width: 130px !important; }
-  .credential-logo-image { height: 115px !important; max-width: 130px !important; }
+  .credential-logo-image { height: 106px !important; max-width: 130px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .credential-track { animation: none !important; }
