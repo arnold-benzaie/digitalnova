@@ -270,6 +270,8 @@ footer.foot-bar-rounded {
   max-width: none !important;
   margin-left: calc(50% - 50vw) !important;
   padding: 18px 0 26px;
+  display: flex !important;
+  justify-content: center !important;
   -webkit-mask-image: none !important;
           mask-image: none !important;
 }
@@ -282,19 +284,20 @@ footer.foot-bar-rounded {
   display: flex !important;
   flex-wrap: nowrap !important;
   justify-content: center !important;
-  width: 100% !important;
+  width: max-content !important;
   gap: 0 !important;
-  animation: none !important;
-  transform: none !important;
-  will-change: auto;
+  animation: credentialGentleScroll 12s ease-in-out infinite alternate !important;
+  transform: translateX(0);
+  will-change: transform;
 }
 .credential-group {
   display: flex !important;
-  flex-wrap: wrap !important;
+  flex-wrap: nowrap !important;
   align-items: flex-start !important;
   justify-content: center !important;
   gap: 34px 42px !important;
-  width: min(100%, 980px) !important;
+  width: max-content !important;
+  max-width: none !important;
   margin: 0 auto !important;
   flex: 0 1 auto !important;
 }
@@ -304,24 +307,35 @@ footer.foot-bar-rounded {
   text-align: center;
 }
 .credential-logo-image {
-  width: auto !important;
+  width: 124px !important;
   height: 124px !important;
   max-width: 154px !important;
   object-fit: contain !important;
   display: block;
   margin: 0 auto 10px;
 }
+.credential-google .credential-logo-image {
+  width: 124px !important;
+  height: 124px !important;
+  max-width: 124px !important;
+}
 @keyframes credScrollCentered {
   from { transform: translateX(var(--credential-start)); }
   to   { transform: translateX(calc(var(--credential-start) - var(--credential-row-width))); }
 }
+@keyframes credentialGentleScroll {
+  from { transform: translateX(clamp(90px, 12vw, 220px)); }
+  to   { transform: translateX(clamp(-220px, -12vw, -90px)); }
+}
 @media (max-width: 768px) {
   .credential-track {
-    width: 100% !important;
+    width: max-content !important;
+    animation-duration: 14s !important;
   }
   .credential-group { gap: 24px 18px !important; }
   .credential-badge { width: 130px !important; }
-  .credential-logo-image { height: 106px !important; max-width: 130px !important; }
+  .credential-logo-image { width: 106px !important; height: 106px !important; max-width: 106px !important; }
+  .credential-google .credential-logo-image { width: 106px !important; height: 106px !important; max-width: 106px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .credential-track { animation: none !important; }
