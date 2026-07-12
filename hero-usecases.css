@@ -1,0 +1,172 @@
+/* ═══════════════════════════════════════════════════════════════
+   🌍 PUBLIC-MAP — HERO USE-CASE PHOTO MONTAGE  (premium, Apple/Airbnb feel)
+   Real royalty-free photographs (Unsplash) of real people in real
+   PUBLIC-MAP scenarios, each tagged with a Google-style search pill.
+   Purely visual — no JS hooks, no functional classes touched.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Right column becomes a staged photo montage + stats bar */
+.hero-right{
+  position:relative;
+  display:flex !important;
+  flex-direction:column;
+  gap:22px !important;
+  perspective:1500px;
+}
+
+/* 2-column staggered grid of real-photo cards */
+.hero-usecases{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  width:100%;
+  align-items:start;
+}
+/* Offset the 2nd column downward for an organic, editorial rhythm */
+.hero-usecases .uc-card:nth-child(2),
+.hero-usecases .uc-card:nth-child(4){ transform:translateY(28px); }
+
+/* Individual photo card */
+.uc-card{
+  position:relative;
+  margin:0;
+  border-radius:20px;
+  overflow:hidden;
+  background:#0b1424;
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:
+    0 22px 50px -18px rgba(0,0,0,.65),
+    0 2px 0 0 rgba(255,255,255,.06) inset;
+  aspect-ratio:4/5;
+  will-change:transform;
+  transition:transform .55s cubic-bezier(.2,.8,.2,1),
+             box-shadow .55s cubic-bezier(.2,.8,.2,1),
+             border-color .4s ease;
+}
+.uc-card::after{                 /* legibility gradient for the pill */
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(to top,
+     rgba(6,12,24,.78) 0%,
+     rgba(6,12,24,.30) 34%,
+     rgba(6,12,24,0)   60%);
+  pointer-events:none;
+}
+.uc-card img{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  object-fit:cover;
+  display:block;
+  transform:scale(1.02);
+  transition:transform 1.1s cubic-bezier(.2,.8,.2,1), filter .5s ease;
+  filter:saturate(1.03) contrast(1.02);
+}
+.uc-card:hover{
+  transform:translateY(-6px) !important;
+  border-color:rgba(201,162,75,.55);
+  box-shadow:
+    0 34px 70px -20px rgba(0,0,0,.75),
+    0 0 0 1px rgba(201,162,75,.35),
+    0 2px 0 0 rgba(255,255,255,.10) inset;
+}
+.hero-usecases .uc-card:nth-child(2):hover,
+.hero-usecases .uc-card:nth-child(4):hover{ transform:translateY(22px) !important; }
+.uc-card:hover img{ transform:scale(1.09); }
+
+/* Gentle idle float so the montage feels alive (respects reduced-motion below) */
+.uc-card:nth-child(1){ animation:ucFloatA 9s ease-in-out infinite; }
+.uc-card:nth-child(2){ animation:ucFloatB 10.5s ease-in-out infinite; }
+.uc-card:nth-child(3){ animation:ucFloatB 9.8s ease-in-out infinite; }
+.uc-card:nth-child(4){ animation:ucFloatA 11s ease-in-out infinite; }
+@keyframes ucFloatA{ 0%,100%{ transform:translateY(0);}   50%{ transform:translateY(-9px);} }
+@keyframes ucFloatB{ 0%,100%{ transform:translateY(28px);} 50%{ transform:translateY(19px);} }
+
+/* Google-style search pill overlay */
+.uc-pill{
+  position:absolute;
+  left:12px; right:12px; bottom:12px;
+  display:flex; align-items:center; gap:9px;
+  padding:9px 12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.94);
+  -webkit-backdrop-filter:blur(10px) saturate(1.3);
+          backdrop-filter:blur(10px) saturate(1.3);
+  box-shadow:0 8px 22px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.9);
+  font-family:'Outfit',system-ui,sans-serif;
+  font-weight:600; font-size:12.5px; line-height:1.15;
+  color:#101A30;
+  z-index:2;
+}
+.uc-pill .uc-pin{ flex:0 0 auto; width:15px; height:15px; }
+.uc-pill .uc-txt{
+  white-space:normal;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  letter-spacing:-.005em;
+}
+.uc-pill .uc-live{           /* tiny "live search" dot */
+  margin-left:auto; flex:0 0 auto;
+  width:7px; height:7px; border-radius:50%;
+  background:#22C55E;
+  box-shadow:0 0 0 0 rgba(34,197,94,.6);
+  animation:ucPulse 2.2s ease-out infinite;
+}
+@keyframes ucPulse{
+  0%{ box-shadow:0 0 0 0 rgba(34,197,94,.55);}
+  70%{ box-shadow:0 0 0 7px rgba(34,197,94,0);}
+  100%{ box-shadow:0 0 0 0 rgba(34,197,94,0);}
+}
+
+/* One elegant glass stats bar BELOW the montage (numbers preserved, no overlap) */
+.hero-stats-strip{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  align-items:stretch;
+  border-radius:18px;
+  padding:4px;
+  background:linear-gradient(180deg, rgba(16,26,48,.78), rgba(10,17,32,.82));
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);
+          backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid rgba(201,162,75,.30);
+  box-shadow:0 20px 50px -18px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.hero-right .floating-card{
+  position:relative !important;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  padding:12px 16px !important;
+  animation:none !important;
+  text-align:center;
+}
+.hero-stats-strip .floating-card + .floating-card{
+  border-left:1px solid rgba(255,255,255,.10) !important;
+}
+
+/* Keep the montage ABOVE the slideshow but under nav; subtle 3D tilt */
+.hero-right{ z-index:5; }
+.hero-usecases{ transform:perspective(1500px) rotateY(-5deg) rotateX(2deg); transform-style:preserve-3d; }
+
+/* ── Tablet ── */
+@media (max-width:1024px){
+  .hero-usecases{ transform:none; gap:14px; }
+}
+
+/* ── Mobile: SHOW the photos (hero is the priority) in a clean compact grid ── */
+@media (max-width:768px){
+  .hero-right{ display:flex !important; margin-top:8px; gap:16px !important; }
+  .hero-usecases{ transform:none; gap:12px; }
+  .hero-usecases .uc-card:nth-child(2),
+  .hero-usecases .uc-card:nth-child(4){ transform:translateY(16px); }
+  .uc-card{ aspect-ratio:1/1; border-radius:16px; animation:none !important; }
+  .uc-pill{ font-size:11px; padding:7px 10px; left:8px; right:8px; bottom:8px; }
+  .hero-stats-strip .floating-card{ padding:10px 8px !important; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .uc-card,
+  .hero-right .floating-card{ animation:none !important; }
+  .uc-pill .uc-live{ animation:none !important; }
+}

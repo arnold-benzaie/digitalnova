@@ -983,6 +983,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="mobile-performance.css?v=2026061401"/>
 <link rel="stylesheet" href="clarity-responsive.css?v=2026061401"/>
 <link rel="stylesheet" href="credential-premium-badges.css?v=2026070202"/>
+<link rel="stylesheet" href="hero-usecases.css?v=2026071303"/>
 </head>
 <body>
 
@@ -1078,20 +1079,56 @@ footer{background:#050505;}
       </div>
     </div>
     <div class="hero-right">
-      <div class="floating-card">
-        <div class="fc-label">ROI Moyen Client — 6 mois</div>
-        <div class="fc-val red">×4.8</div>
-        <div class="fc-sub">Retour sur investissement</div>
+      <div class="hero-usecases">
+        <figure class="uc-card">
+          <img src="https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=640&q=72" alt="Couple cherchant un restaurant sur Google Maps dans une nouvelle ville" loading="lazy" decoding="async" width="640" height="800"/>
+          <figcaption class="uc-pill">
+            <svg class="uc-pin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" fill="#EA4335"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+            <span class="uc-txt" data-i18n="hero.uc.resto">Restaurants près de moi</span>
+            <span class="uc-live" aria-hidden="true"></span>
+          </figcaption>
+        </figure>
+        <figure class="uc-card">
+          <img src="https://images.unsplash.com/photo-1517840901100-8179e982acb7?auto=format&fit=crop&w=640&q=72" alt="Famille cherchant un hôtel pour ses vacances à l'étranger" loading="lazy" decoding="async" width="640" height="800"/>
+          <figcaption class="uc-pill">
+            <svg class="uc-pin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" fill="#4285F4"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+            <span class="uc-txt" data-i18n="hero.uc.hotel">Hôtels · vacances à l'étranger</span>
+            <span class="uc-live" aria-hidden="true"></span>
+          </figcaption>
+        </figure>
+        <figure class="uc-card">
+          <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=640&q=72" alt="Personne cherchant un dentiste à proximité sur Google" loading="lazy" decoding="async" width="640" height="800"/>
+          <figcaption class="uc-pill">
+            <svg class="uc-pin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" fill="#34A853"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+            <span class="uc-txt" data-i18n="hero.uc.dentist">Dentiste · médecin près de moi</span>
+            <span class="uc-live" aria-hidden="true"></span>
+          </figcaption>
+        </figure>
+        <figure class="uc-card">
+          <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=640&q=72" alt="Entrepreneur consultant les performances de sa fiche Google Business" loading="lazy" decoding="async" width="640" height="800"/>
+          <figcaption class="uc-pill">
+            <svg class="uc-pin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" fill="#FBBC05"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>
+            <span class="uc-txt" data-i18n="hero.uc.gbp">Ma fiche Google Business</span>
+            <span class="uc-live" aria-hidden="true"></span>
+          </figcaption>
+        </figure>
       </div>
-      <div class="floating-card">
-        <div class="fc-label">Croissance SEO</div>
-        <div class="fc-val">+340%</div>
-        <div class="fc-sub">Trafic organique en 90 jours</div>
-      </div>
-      <div class="floating-card">
-        <div class="fc-label">Présence Internationale</div>
-        <div class="fc-val or">18 Pays</div>
-        <div class="fc-sub">Canada · France · Belgique · Suisse…</div>
+      <div class="hero-stats-strip">
+        <div class="floating-card">
+          <div class="fc-label">ROI Moyen Client — 6 mois</div>
+          <div class="fc-val red">×4.8</div>
+          <div class="fc-sub">Retour sur investissement</div>
+        </div>
+        <div class="floating-card">
+          <div class="fc-label">Croissance SEO</div>
+          <div class="fc-val">+340%</div>
+          <div class="fc-sub">Trafic organique en 90 jours</div>
+        </div>
+        <div class="floating-card">
+          <div class="fc-label">Présence Internationale</div>
+          <div class="fc-val or">18 Pays</div>
+          <div class="fc-sub">Canada · France · Belgique · Suisse…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -4120,7 +4157,7 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026071102"></script>
+<script src="i18n-sparkles.js?v=2026071301"></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
 <script src="theme-extra-anims.js?v=2026060601"></script>
