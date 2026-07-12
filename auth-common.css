@@ -1,33 +1,174 @@
 .nav-auth-link {
+  position: relative;
+  isolation: isolate;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 8px 16px;
-  border: 1px solid rgba(255,255,255,.16);
+  gap: 10px;
+  min-width: 148px;
+  min-height: 52px;
+  padding: 0 34px;
+  overflow: hidden;
+  border: 1px solid rgba(219,234,254,.94);
   border-radius: 999px;
-  color: rgba(255,255,255,.84);
-  background: rgba(255,255,255,.08);
+  color: #fff;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255,255,255,.42), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.08) 46%, transparent),
+    linear-gradient(135deg, #1D4ED8 0%, #2563EB 46%, #3B82F6 100%);
+  box-shadow:
+    0 20px 44px rgba(29,78,216,.58),
+    0 0 0 6px rgba(59,130,246,.16),
+    0 0 54px rgba(56,189,248,.58),
+    0 0 0 1px rgba(255,255,255,.34) inset;
   text-decoration: none;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  transition: transform .2s ease, border-color .2s ease, background .2s ease, color .2s ease;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(7,28,53,.26), 0 0 18px rgba(255,255,255,.28);
+  transform: translateZ(0) scale(1);
+  animation:
+    navAuthBreath 2s ease-in-out infinite,
+    navAuthPulseGlow 4s ease-in-out infinite,
+    navAuthTinyVibe 5.6s ease-in-out infinite;
+  transition:
+    transform .3s ease,
+    box-shadow .3s ease,
+    border-color .3s ease,
+    filter .3s ease;
+  will-change: transform, filter;
+}
+
+.nav-auth-link::before,
+.nav-auth-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.nav-auth-link::before {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,255,255,.46), transparent 44%),
+    linear-gradient(135deg, rgba(255,255,255,.24), transparent 58%);
+  opacity: .78;
+}
+
+.nav-auth-link::after {
+  left: -48%;
+  right: auto;
+  width: 46%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.78), rgba(255,255,255,.34), transparent);
+  opacity: .5;
+  transform: translateX(-160%) skewX(-18deg);
+  animation: navAuthLightSweep 3.6s ease-in-out infinite;
 }
 
 .nav-auth-link:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255,255,255,.32);
+  animation: none;
+  transform: translateY(-3px) scale(1.08);
+  border-color: rgba(255,255,255,1);
   color: #fff;
-  background: rgba(255,255,255,.14);
+  filter: brightness(1.18) saturate(1.08);
+  box-shadow:
+    0 28px 62px rgba(29,78,216,.72),
+    0 0 0 8px rgba(59,130,246,.2),
+    0 0 72px rgba(56,189,248,.74),
+    0 0 0 1px rgba(255,255,255,.44) inset;
+}
+
+.nav-auth-link:hover::after {
+  opacity: .68;
+  animation-duration: 2.4s;
+}
+
+.nav-auth-link:active {
+  transform: translateY(0) scale(.97);
+  filter: brightness(1.08);
+  box-shadow:
+    0 12px 28px rgba(29,78,216,.52),
+    0 0 0 5px rgba(59,130,246,.16),
+    0 0 34px rgba(56,189,248,.5),
+    0 0 0 1px rgba(255,255,255,.25) inset;
+}
+
+.nav-auth-link:focus-visible {
+  outline: 3px solid rgba(59,130,246,.46);
+  outline-offset: 4px;
+  box-shadow:
+    0 20px 46px rgba(29,78,216,.6),
+    0 0 0 8px rgba(59,130,246,.2),
+    0 0 58px rgba(56,189,248,.58),
+    0 0 0 1px rgba(255,255,255,.36) inset;
 }
 
 .nav-auth-link.is-logged-in {
-  padding-left: 10px;
-  background: rgba(27,91,255,.18);
-  border-color: rgba(126,166,255,.45);
+  min-width: 154px;
+  padding-left: 18px;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255,255,255,.36), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.06) 44%, transparent),
+    linear-gradient(135deg, #1D4ED8 0%, #2563EB 42%, #38BDF8 100%);
+  border-color: rgba(191,219,254,.64);
   color: #fff;
+}
+
+@keyframes navAuthBreath {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateZ(0) scale(1.05);
+    filter: brightness(1.05);
+  }
+}
+
+@keyframes navAuthPulseGlow {
+  0%, 82%, 100% {
+    box-shadow:
+      0 20px 44px rgba(29,78,216,.58),
+      0 0 0 6px rgba(59,130,246,.16),
+      0 0 54px rgba(56,189,248,.58),
+      0 0 0 1px rgba(255,255,255,.34) inset;
+  }
+  90% {
+    box-shadow:
+      0 26px 58px rgba(29,78,216,.72),
+      0 0 0 9px rgba(59,130,246,.22),
+      0 0 76px rgba(56,189,248,.76),
+      0 0 0 1px rgba(255,255,255,.42) inset;
+  }
+}
+
+@keyframes navAuthLightSweep {
+  0%, 46% {
+    transform: translateX(-160%) skewX(-18deg);
+  }
+  64%, 100% {
+    transform: translateX(380%) skewX(-18deg);
+  }
+}
+
+@keyframes navAuthTinyVibe {
+  0%, 100% {
+    translate: 0 0;
+  }
+  6% {
+    translate: .6px 0;
+  }
+  12% {
+    translate: -.6px 0;
+  }
+  18% {
+    translate: .35px 0;
+  }
+  24%, 100% {
+    translate: 0 0;
+  }
 }
 
 .auth-avatar {
@@ -55,8 +196,20 @@
 @media (max-width: 900px) {
   .nav-auth-link {
     width: 100%;
-    min-height: 48px;
-    font-size: 14px;
-    border-radius: 12px;
+    min-height: 58px;
+    padding: 0 26px;
+    font-size: 14.5px;
+    border-radius: 999px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-auth-link,
+  .nav-auth-link::after {
+    animation: none;
+  }
+
+  .nav-auth-link {
+    transition-duration: .01ms;
   }
 }
