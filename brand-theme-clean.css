@@ -153,14 +153,18 @@ nav.scrolled {
 .hero-content .fc-val.or { color: #FFD56B !important; }
 .hero-content .fc-sub { color: rgba(255,255,255,.55) !important; }
 
-/* Nav over dark hero — make it readable */
+/* Nav over dark hero — make it readable.
+   The logo defaults to dark for white sections; JS only applies logo-on-dark
+   while the nav is really sitting above the dark hero. */
+nav.logo-on-dark .nav-brand,
 nav:not(.scrolled) .nav-brand { color: #FFFFFF !important; }
+nav.logo-on-dark .nav-brand span,
 nav:not(.scrolled) .nav-brand span { color: #6B95FF !important; }
-nav:not(.scrolled) .nav-logo-public {
+nav.logo-on-dark .nav-logo-public {
   fill: #FFFFFF !important;
   filter: drop-shadow(0 2px 10px rgba(0,0,0,.35));
 }
-nav:not(.scrolled) .nav-logo-map {
+nav.logo-on-dark .nav-logo-map {
   fill: #6B95FF !important;
 }
 nav.scrolled .nav-logo-public {

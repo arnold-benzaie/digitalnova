@@ -970,7 +970,7 @@ footer{background:#050505;}
 @media(max-width:600px){#certifications{padding:60px 20px!important;}}
 </style>
 <link rel="preload" as="image" href="assets/images/map-prime-hero/hero_team.webp" fetchpriority="high"/>
-<link rel="stylesheet" href="brand-theme-clean.css?v=2026053101"/>
+<link rel="stylesheet" href="brand-theme-clean.css?v=2026071301"/>
 <link rel="stylesheet" href="pricing-cards-premium.css?v=283fae8"/>
 <link rel="stylesheet" href="marquee-and-contact.css?v=2026053101"/>
 <link rel="stylesheet" href="mobile-and-layout-fixes.css?v=2026053101"/>
@@ -999,7 +999,7 @@ footer{background:#050505;}
 <div id="cur2"></div>
 
 <!-- ═══ NAVIGATION ═══ -->
-<nav id="navbar">
+<nav id="navbar" class="logo-on-dark">
   <a href="#" class="nav-brand" aria-label="PUBLIC-MAP accueil">
     <svg class="nav-logo-svg" viewBox="0 0 360 92" role="img" aria-labelledby="public-map-logo-title">
       <title id="public-map-logo-title">PUBLIC-MAP</title>
@@ -3343,9 +3343,16 @@ if(fineCursor&&c1&&c2){
 }
 
 /* ── NAVBAR SCROLL ── */
-window.addEventListener('scroll',()=>{
-  document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>40);
-});
+const navbarEl=document.getElementById('navbar');
+const updateNavbarState=()=>{
+  if(!navbarEl)return;
+  const isScrolled=window.scrollY>40;
+  navbarEl.classList.toggle('scrolled',isScrolled);
+  navbarEl.classList.toggle('logo-on-dark',window.scrollY<=20);
+};
+updateNavbarState();
+window.addEventListener('scroll',updateNavbarState,{passive:true});
+window.addEventListener('pageshow',updateNavbarState);
 
 /* ── MOBILE NAV ── */
 (function(){
