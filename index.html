@@ -109,8 +109,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:700;padding:0 56px;height:68px;d
 nav.scrolled{background:rgba(8,8,8,.97);backdrop-filter:blur(16px);box-shadow:0 1px 0 rgba(255,255,255,.06);}
 .nav-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--blanc);letter-spacing:.1em;text-decoration:none;display:inline-flex;align-items:center;}
 .nav-brand span{color:var(--rouge);}
-.nav-logo-img{display:block;width:auto;height:44px;max-width:226px;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(37,99,235,.12));transition:transform .25s ease,filter .25s ease;}
-.nav-brand:hover .nav-logo-img{transform:translateY(-1px);filter:drop-shadow(0 14px 28px rgba(37,99,235,.22));}
+.nav-logo-svg{display:block;width:244px;height:auto;max-width:34vw;overflow:visible;filter:drop-shadow(0 12px 24px rgba(0,0,0,.28));transition:transform .25s ease,filter .25s ease;}
+.nav-brand:hover .nav-logo-svg{transform:translateY(-1px) scale(1.015);filter:drop-shadow(0 16px 30px rgba(37,99,235,.22));}
 .nav-center{display:flex;gap:36px;list-style:none;}
 .nav-center a{font-size:13px;font-weight:500;color:rgba(255,255,255,.6);text-decoration:none;letter-spacing:.04em;transition:color .2s;}
 .nav-center a:hover{color:var(--blanc);}
@@ -703,7 +703,7 @@ footer{background:#050505;}
   .zone-btn{flex:1;justify-content:center;padding:10px 12px;}
   .nav-cta{display:flex;justify-content:center;padding:14px 22px;font-size:14px;}
   .nav-brand{font-size:21px;letter-spacing:.06em;}
-  .nav-logo-img{height:39px;max-width:180px;}
+  .nav-logo-svg{width:206px;max-width:48vw;}
   nav{padding:0 16px;height:64px;}
   .hero-content{padding:88px 20px 48px;gap:32px;}
   .hero{min-height:100svh;height:auto;}
@@ -761,7 +761,7 @@ footer{background:#050505;}
   .certs-grid{grid-template-columns:1fr;}
   .zone-btn span:not(.zone-btn img){font-size:11px;}
   .nav-brand{font-size:18px;}
-  .nav-logo-img{height:34px;max-width:158px;}
+  .nav-logo-svg{width:178px;max-width:52vw;}
 }
 @media(hover:none),(pointer:coarse){
   #cur,#cur2{display:none!important;}
@@ -1001,7 +1001,29 @@ footer{background:#050505;}
 <!-- ═══ NAVIGATION ═══ -->
 <nav id="navbar">
   <a href="#" class="nav-brand" aria-label="PUBLIC-MAP accueil">
-    <img class="nav-logo-img" src="assets/images/public-map-logo.png" alt="PUBLIC-MAP" width="1546" height="538" decoding="async"/>
+    <svg class="nav-logo-svg" viewBox="0 0 360 92" role="img" aria-labelledby="public-map-logo-title">
+      <title id="public-map-logo-title">PUBLIC-MAP</title>
+      <defs>
+        <linearGradient id="pm-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#60A5FA"/>
+          <stop offset="100%" stop-color="#2563EB"/>
+        </linearGradient>
+        <linearGradient id="pm-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#FDE68A"/>
+          <stop offset="100%" stop-color="#F59E0B"/>
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#pm-blue)" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="43" cy="40" r="25" stroke-width="8"/>
+        <path d="M60 58l22 22" stroke-width="9"/>
+        <path d="M43 25c-8 0-14 6-14 14 0 11 14 24 14 24s14-13 14-24c0-8-6-14-14-14z" fill="url(#pm-blue)" stroke="none"/>
+        <circle cx="43" cy="39" r="5.5" fill="#fff" stroke="none"/>
+      </g>
+      <text class="nav-logo-public" x="92" y="57" font-family="Outfit, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.5" fill="#F8FAFC">PUBLIC</text>
+      <text class="nav-logo-map" x="223" y="57" font-family="Outfit, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.5" fill="#60A5FA">-MAP</text>
+      <path d="M314 58c15-10 23-23 30-43" fill="none" stroke="url(#pm-gold)" stroke-width="7" stroke-linecap="round"/>
+      <path d="M346 13l-1 27-19-17z" fill="url(#pm-gold)"/>
+    </svg>
   </a>
   <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-mobile-panel">
     <span class="nav-toggle-bar"></span>
@@ -1262,15 +1284,15 @@ footer{background:#050505;}
           </div>
           <span style="font-size:12px;font-weight:700;color:#999;letter-spacing:.15em;text-transform:uppercase;">Business Profile — Nos Offres</span>
         </div>
-        <h3 class="g-feat-title">Une solution pour <span>chaque besoin</span></h3>
-        <p class="g-feat-sub">Offres combinées Google, SEO, IA, site web et automatisation · Canada et Europe francophone</p>
-        <p class="g-feat-sub" style="margin-top:8px;font-size:13px;">Pas sûr de choisir ? Les packs regroupent l'essentiel pour avancer vite ; les services à la carte sont pensés pour un besoin précis.</p>
+        <h3 class="g-feat-title">Des offres simples pour <span>vendre plus</span></h3>
+        <p class="g-feat-sub">Google Business Profile, SEO local, Ads, site web, CRM et automatisation IA · Canada et Europe francophone</p>
+        <p class="g-feat-sub" style="margin-top:8px;font-size:13px;">Pas sûr de choisir ? Les packs regroupent l'essentiel pour être trouvé, convertir et suivre vos prospects ; les services à la carte servent à renforcer un besoin précis.</p>
       </div>
       <div class="g-price-grid">
 
         <!-- Pack 1 : Lancement Local IA -->
         <div class="g-price-card rv dyn-price-card"
-             data-ca-amount="249" data-ca-currency="CAD" data-ca-period="paiement unique · lancement initial"
+             data-ca-amount="390" data-ca-currency="CAD" data-ca-period="paiement unique · lancement initial"
              data-eu-amount="255" data-eu-currency="€ TTC" data-eu-period="paiement unique · TTC"
              data-eu-period-en="one-time payment · VAT included"
              data-ca-title="Google Business Profile + SEO local" data-eu-title="Google Business Profile + SEO local"
@@ -1280,11 +1302,11 @@ footer{background:#050505;}
              style="transition-delay:.05s">
           <div class="g-price-top gpt-blue">
             <div class="g-price-icon gpi-b">🏢</div>
-            <div class="g-price-name gpn-b">Pack Lancement Local IA</div>
+            <div class="g-price-name gpn-b">Pack Local IA</div>
             <div class="g-price-title">Google Business Profile + SEO local</div>
-            <div class="g-price-desc">Pour lancer une présence propre sur Google et inspirer confiance dès le premier contact</div>
+            <div class="g-price-desc">Pour transformer une fiche Google gratuite en présence locale claire, crédible et prête à recevoir des demandes</div>
           </div>
-          <div class="g-price-amount"><span class="amount-num">$249</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+          <div class="g-price-amount"><span class="amount-num">$390</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
           <div class="g-price-period">paiement unique · lancement initial</div>
           <ul class="g-price-feats gf-b">
             <li>Création ou optimisation complète de votre fiche Google</li>
@@ -1293,15 +1315,15 @@ footer{background:#050505;}
             <li>Kit de demande d'avis et messages prêts à envoyer</li>
             <li>Préparation contact/devis et suivi des demandes</li>
             <li class="feat-region-bonus">Kit de demande d'avis adapté au marché canadien</li>
-            <li>Rapport d'optimisation clair</li>
+            <li>Rapport d'optimisation clair et prochaines actions</li>
           </ul>
-          <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $249 CAD →</button>
+          <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $390 CAD →</button>
         </div>
 
         <!-- Pack 2 : Business Growth IA -->
         <div class="g-price-card popular rv dyn-price-card"
-             data-ca-amount="790" data-ca-currency="CAD/an" data-ca-period="paiement annuel · suivi mensuel"
-             data-eu-amount="549" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · TVA selon pays"
+             data-ca-amount="990" data-ca-currency="CAD/an" data-ca-period="paiement annuel · suivi mensuel"
+             data-eu-amount="690" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · TVA selon pays"
              data-ca-modal="Pack Business Growth IA 🇨🇦" data-eu-modal="Pack Business Growth IA 🇪🇺"
              data-ca-feat-bonus="Analyse concurrents Canada + opportunités locales"
              data-eu-feat-bonus="Analyse concurrents Europe + conformité RGPD"
@@ -1313,22 +1335,22 @@ footer{background:#050505;}
           </div>
           <div class="g-price-top gpt-yellow">
             <div class="g-price-icon gpi-y">📍</div>
-            <div class="g-price-name gpn-y">Pack Business Growth IA</div>
-            <div class="g-price-title">Visibilité locale + contenu IA</div>
-            <div class="g-price-desc">Pour les PME qui veulent publier régulièrement et transformer les recherches locales en demandes</div>
+            <div class="g-price-name gpn-y">Pack Croissance Locale IA</div>
+            <div class="g-price-title">Avis, contenus Google & visibilité locale</div>
+            <div class="g-price-desc">Pour les PME qui veulent rester actives sur Google, rassurer les clients et suivre les actions utiles chaque mois</div>
           </div>
-          <div class="g-price-amount"><span class="amount-num">$790</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
+          <div class="g-price-amount"><span class="amount-num">$990</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
           <div class="g-price-period">paiement annuel · suivi mensuel</div>
           <ul class="g-price-feats gf-y">
             <li>Tout le Pack Lancement +</li>
             <li>Calendrier de contenu IA pour Google et réseaux sociaux</li>
-            <li>Publications Google mensuelles</li>
-            <li>25 services ou produits optimisés</li>
-            <li>Modèles de réponses aux avis + relances email</li>
+            <li>Publications Google mensuelles et contenus courts</li>
+            <li>25 services ou produits optimisés avec IA</li>
+            <li>Modèles de réponses aux avis + relances email prêtes</li>
             <li class="feat-region-bonus">Analyse concurrents Canada + opportunités locales</li>
             <li>Rapport mensuel clair + actions prioritaires</li>
           </ul>
-          <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $790 CAD/an →</button>
+          <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $990 CAD/an →</button>
         </div>
 
         <!-- Pack 3 : Tout-Inclus Prestige IA -->
@@ -1360,7 +1382,7 @@ footer{background:#050505;}
           </div>
           <div class="g-price-top gpt-green">
             <div class="g-price-icon gpi-g">🚀</div>
-            <div class="g-price-name gpn-g">Pack Tout-Inclus Prestige Canada</div>
+            <div class="g-price-name gpn-g">Pack 360 International</div>
             <div class="g-price-title">SEO, avis, Google Maps, Meta & IA</div>
             <div class="g-price-desc">La solution complète pour renforcer durablement votre visibilité au Canada avec SEO national, avis assistés par IA, publications Google, réseaux sociaux Meta et assistance premium.</div>
           </div>
@@ -1415,8 +1437,8 @@ footer{background:#050505;}
 
         <!-- Pack 5 : SEO / GEO International IA -->
         <div class="g-price-card rv dyn-price-card"
-             data-ca-amount="1990" data-ca-currency="CAD/an" data-ca-period="paiement annuel · visibilité multi-pays"
-             data-eu-amount="1290" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · visibilité multi-pays"
+             data-ca-amount="1590.79" data-ca-currency="CAD/an" data-ca-period="paiement annuel · 26 pays inclus"
+             data-eu-amount="790" data-eu-currency="€ TTC/an" data-eu-period="paiement annuel · TTC"
              data-ca-modal="SEO / GEO International IA 🇨🇦" data-eu-modal="SEO / GEO International IA 🇪🇺"
              data-ca-feat-bonus="Canada, USA, Europe, UK et marchés francophones"
              data-eu-feat-bonus="Europe, UK, Canada, USA et marchés francophones"
@@ -1427,46 +1449,45 @@ footer{background:#050505;}
             <div class="g-price-title">SEO + visibilité dans les moteurs IA</div>
             <div class="g-price-desc">Pour préparer votre marque à Google, Google Maps et aux recherches assistées par IA dans plusieurs pays</div>
           </div>
-          <div class="g-price-amount"><span class="amount-num">$1 990</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
-          <div class="g-price-period">paiement annuel · visibilité multi-pays</div>
+          <div class="g-price-amount"><span class="amount-num">$1 590,79</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
+          <div class="g-price-period">paiement annuel · 26 pays inclus</div>
           <ul class="g-price-feats gf-y">
             <li>Stratégie SEO internationale Canada, Europe, UK et marchés francophones</li>
             <li>Recherche de mots-clés FR/EN par marché</li>
             <li>Optimisation GEO pour moteurs de recherche IA</li>
-            <li>Pages ou briefs de contenu multi-pays</li>
+            <li>Pages ou briefs de contenu multi-pays selon priorité</li>
             <li class="feat-region-bonus">Canada, USA, Europe, UK et marchés francophones</li>
             <li>Suivi des positions et opportunités mensuelles</li>
             <li>Priorité aux marchés les plus rentables</li>
           </ul>
-          <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $1 990 CAD/an →</button>
+          <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $1 590,79 CAD/an →</button>
         </div>
 
-        <!-- Pack 6 : Assistance Premium IA -->
+        <!-- Pack 6 : Ads Performance -->
         <div class="g-price-card rv dyn-price-card"
-             data-ca-amount="490" data-ca-currency="CAD/an" data-ca-period="paiement annuel · assistance prioritaire"
-             data-eu-amount="329" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · assistance prioritaire"
-             data-ca-modal="Assistance Premium IA 🇨🇦" data-eu-modal="Assistance Premium IA 🇪🇺"
-             data-ca-feat-bonus="Réponse prioritaire en jours ouvrés"
-             data-eu-feat-bonus="Réponse prioritaire en heure européenne"
+             data-ca-amount="990" data-ca-currency="CAD/an" data-ca-period="paiement annuel · budget publicitaire non inclus"
+             data-eu-amount="690" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · budget publicitaire non inclus"
+             data-ca-modal="Campagnes Google Ads & Meta Ads 🇨🇦" data-eu-modal="Campagnes Google Ads & Meta Ads 🇪🇺"
+             data-ca-feat-bonus="Campagnes adaptées au marché canadien"
+             data-eu-feat-bonus="Campagnes adaptées à l'Europe francophone"
              style="transition-delay:.3s">
           <div class="g-price-top gpt-green">
-            <div class="g-price-icon gpi-g">🛠️</div>
-            <div class="g-price-name gpn-g">Assistance Premium IA</div>
-            <div class="g-price-title">Support, mises à jour & contenus</div>
-            <div class="g-price-desc">Pour garder votre présence active sans recruter une équipe interne</div>
+            <div class="g-price-icon gpi-g">🎯</div>
+            <div class="g-price-name gpn-g">Ads Performance</div>
+            <div class="g-price-title">Google Ads & Meta Ads</div>
+            <div class="g-price-desc">Pour attirer des prospects plus vite avec des campagnes propres, mesurées et reliées à vos formulaires de demande</div>
           </div>
-          <div class="g-price-amount"><span class="amount-num">$490</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
-          <div class="g-price-period">paiement annuel · assistance prioritaire</div>
+          <div class="g-price-amount"><span class="amount-num">$990</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
+          <div class="g-price-period">paiement annuel · budget publicitaire non inclus</div>
           <ul class="g-price-feats gf-g">
-            <li>Mises à jour régulières de votre fiche et site</li>
-            <li>Ajout de produits, services, promotions et photos</li>
-            <li>Publications Google ou contenu court assisté par IA</li>
-            <li>Nettoyage de doublons et corrections NAP</li>
-            <li>Améliorations continues selon les données</li>
-            <li class="feat-region-bonus">Réponse prioritaire en jours ouvrés</li>
-            <li>Rapport mensuel</li>
+            <li>Structuration des campagnes Google Search ou Meta</li>
+            <li>Pages ou formulaires de conversion reliés aux annonces</li>
+            <li>Suivi des leads, appels et demandes de devis</li>
+            <li>Optimisations mensuelles selon les données</li>
+            <li class="feat-region-bonus">Campagnes adaptées au marché canadien</li>
+            <li>Rapport simple : budget, clics, demandes et pistes d'amélioration</li>
           </ul>
-          <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $490 CAD/an →</button>
+          <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $990 CAD/an →</button>
         </div>
 
       </div>
@@ -1499,11 +1520,11 @@ footer{background:#050505;}
               <div class="g-pair-services">Sécurisation Google Maps <span>+</span> Gestion avis Google IA</div>
               <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('local-trust')">Ajouter les 2 au panier</button>
             </article>
-            <article class="g-pair-card green" data-offer-pair="maps-activity" data-offer-ids="maps-ai-optimization,maps-ai-posts">
+            <article class="g-pair-card green" data-offer-pair="maps-activity" data-offer-ids="maps-ai-optimization,maps-products">
               <div class="g-pair-step">03 · Rester visible</div>
-              <h6>Optimisation Maps IA + publications</h6>
-              <p>Un diagnostic clair pour prioriser les améliorations, puis du contenu régulier pour garder votre fiche active.</p>
-              <div class="g-pair-services">Optimisation IA Maps <span>+</span> Posts Google Maps IA</div>
+              <h6>Optimisation Maps IA + produits/services</h6>
+              <p>Une fiche plus complète, des services bien présentés et des contenus utiles pour aider Google et les clients à comprendre votre offre.</p>
+              <div class="g-pair-services">Optimisation IA Maps <span>+</span> Produits & services IA</div>
               <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('maps-activity')">Ajouter les 2 au panier</button>
             </article>
             <article class="g-pair-card blue" data-offer-pair="seo-growth" data-offer-ids="seo-prestige,keywords-ai">
@@ -1513,11 +1534,11 @@ footer{background:#050505;}
               <div class="g-pair-services">Pack SEO Prestige <span>+</span> 10 mots-clés IA</div>
               <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('seo-growth')">Ajouter les 2 au panier</button>
             </article>
-            <article class="g-pair-card yellow" data-offer-pair="lead-automation" data-offer-ids="chatbot-ai,social-ai">
+            <article class="g-pair-card yellow" data-offer-pair="lead-automation" data-offer-ids="crm-automation,social-ai">
               <div class="g-pair-step">05 · Attirer et répondre</div>
-              <h6>Réseaux sociaux IA + chatbot</h6>
-              <p>Du contenu pour attirer l’attention et un assistant pour répondre aux premières questions des prospects.</p>
-              <div class="g-pair-services">Gestion réseaux sociaux IA <span>+</span> Chatbot IA</div>
+              <h6>Réseaux sociaux IA + CRM automatisé</h6>
+              <p>Du contenu pour attirer l’attention, puis un système simple pour capter, qualifier et relancer les prospects.</p>
+              <div class="g-pair-services">Gestion réseaux sociaux IA <span>+</span> CRM & automatisation</div>
               <button class="g-pair-btn" type="button" onclick="window.addOfferPairToCart('lead-automation')">Ajouter les 2 au panier</button>
             </article>
             <article class="g-pair-card green" data-offer-pair="digital-care" data-offer-ids="site-maintenance,technical-support">
@@ -2091,84 +2112,84 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $290 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
-               data-ca-amount="390" data-ca-currency="CAD" data-ca-period="paiement unique · livraison 72h ouvrées"
-               data-eu-amount="259" data-eu-currency="€ HT" data-eu-period="paiement unique · livraison 72h ouvrées"
-               data-ca-period-en="one-time payment · 72-business-hour delivery"
-               data-eu-period-en="one-time payment · 72-business-hour delivery"
+          <div class="g-addon-card dyn-price-card" data-offer-id="maps-products"
+               data-ca-amount="690" data-ca-currency="CAD" data-ca-period="paiement unique · assistance 12 mois"
+               data-eu-amount="459" data-eu-currency="€ TTC" data-eu-period="paiement unique · TTC · assistance 12 mois"
+               data-ca-period-en="one-time payment · 12-month assistance"
+               data-eu-period-en="one-time payment · VAT included · 12-month assistance"
                data-ca-name="IA · Unique"
                data-eu-name="IA · Unique Europe"
                data-ca-name-en="AI · One-time"
                data-eu-name-en="AI · One-time Europe"
-               data-ca-title="Optimisation photos Google Maps IA"
-               data-eu-title="Optimisation photos Google Maps IA"
-               data-ca-title-en="AI Google Maps photo optimization"
-               data-eu-title-en="AI Google Maps photo optimization"
-               data-ca-desc="L'IA analyse vos photos, identifie les améliorations prioritaires et prépare des optimisations visuelles compatibles avec votre fiche Google Maps."
-               data-eu-desc="L'IA analyse vos photos, identifie les améliorations prioritaires et prépare des optimisations visuelles compatibles avec votre fiche Google Maps."
-               data-ca-desc-en="AI analyzes your photos, identifies priority improvements and prepares visual optimizations compatible with your Google Maps listing."
-               data-eu-desc-en="AI analyzes your photos, identifies priority improvements and prepares visual optimizations compatible with your Google Maps listing."
-               data-ca-modal="Optimisation photos Google Maps IA 🇨🇦"
-               data-eu-modal="Optimisation photos Google Maps IA 🇪🇺"
-               data-ca-modal-en="AI Google Maps photo optimization 🇨🇦"
-               data-eu-modal-en="AI Google Maps photo optimization 🇪🇺"
-               data-ca-feat-bonus="Recommandations visuelles pour clients Canada"
-               data-eu-feat-bonus="Recommandations visuelles pour clients Europe">
+               data-ca-title="Produits & services Google optimisés par IA"
+               data-eu-title="Produits & services Google optimisés par IA"
+               data-ca-title-en="AI-optimized Google products and services"
+               data-eu-title-en="AI-optimized Google products and services"
+               data-ca-desc="Nous structurons vos produits, services, photos et textes pour rendre votre fiche Google plus claire, plus complète et plus utile aux clients."
+               data-eu-desc="Nous structurons vos produits, services, photos et textes pour rendre votre fiche Google plus claire, plus complète et plus utile aux clients."
+               data-ca-desc-en="We structure your products, services, photos and copy to make your Google listing clearer, more complete and more useful to customers."
+               data-eu-desc-en="We structure your products, services, photos and copy to make your Google listing clearer, more complete and more useful to customers."
+               data-ca-modal="Produits & services Google optimisés par IA 🇨🇦"
+               data-eu-modal="Produits & services Google optimisés par IA 🇪🇺"
+               data-ca-modal-en="AI-optimized Google products and services 🇨🇦"
+               data-eu-modal-en="AI-optimized Google products and services 🇪🇺"
+               data-ca-feat-bonus="Structure adaptée aux recherches Canada"
+               data-eu-feat-bonus="Structure adaptée aux recherches Europe">
             <span class="g-addon-badge ai">Propulsé par IA</span>
-            <div class="g-addon-icon gpi-g">📸</div>
+            <div class="g-addon-icon gpi-g">📦</div>
             <div class="g-price-name gpn-g">IA · Unique</div>
-            <div class="g-price-title">Optimisation photos Google Maps IA</div>
-            <div class="g-price-desc">L'IA analyse vos photos, identifie les améliorations prioritaires et prépare des optimisations visuelles compatibles avec votre fiche Google Maps.</div>
-            <div class="g-price-amount"><span class="amount-num">$390</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
-            <div class="g-price-period">paiement unique · livraison 72h ouvrées</div>
+            <div class="g-price-title">Produits & services Google optimisés par IA</div>
+            <div class="g-price-desc">Nous structurons vos produits, services, photos et textes pour rendre votre fiche Google plus claire, plus complète et plus utile aux clients.</div>
+            <div class="g-price-amount"><span class="amount-num">$690</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · assistance 12 mois</div>
             <ul class="g-price-feats gf-g">
-              <li>Analyse IA de vos photos existantes</li>
-              <li>Préparation et optimisation des images compatibles</li>
-              <li>Score attractivité IA pour chaque photo</li>
-              <li>Métadonnées descriptives SEO si applicable</li>
-              <li class="feat-region-bonus">Recommandations visuelles pour clients Canada</li>
+              <li>Liste de produits et services réécrite avec IA</li>
+              <li>Descriptions claires, mots-clés locaux et catégories</li>
+              <li>Optimisation des photos compatibles avec votre fiche</li>
+              <li>Assistance incluse pendant 12 mois sur les ajustements</li>
+              <li class="feat-region-bonus">Structure adaptée aux recherches Canada</li>
             </ul>
-            <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $390 CAD →</button>
+            <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $690 CAD →</button>
           </div>
 
           <div class="g-addon-card dyn-price-card"
-               data-ca-amount="149" data-ca-currency="CAD" data-ca-period="annuel · envoi mensuel"
-               data-eu-amount="99" data-eu-currency="€ HT" data-eu-period="annuel · envoi mensuel"
-               data-ca-period-en="annual · monthly delivery"
-               data-eu-period-en="annual · monthly delivery"
-               data-ca-name="IA · Annuel"
-               data-eu-name="IA · Annuel Europe"
-               data-ca-name-en="AI · Annual"
-               data-eu-name-en="AI · Annual Europe"
-               data-ca-title="Rapport IA performances Google Maps"
-               data-eu-title="Rapport IA performances Google Maps"
-               data-ca-title-en="AI Google Maps performance report"
-               data-eu-title-en="AI Google Maps performance report"
-               data-ca-desc="Chaque mois, l'IA prépare un rapport clair de vos performances Google Maps, compare les signaux clés et propose des actions prioritaires."
-               data-eu-desc="Chaque mois, l'IA prépare un rapport clair de vos performances Google Maps, compare les signaux clés et propose des actions prioritaires."
-               data-ca-desc-en="Every month, AI prepares a clear Google Maps performance report, compares key signals and suggests priority actions."
-               data-eu-desc-en="Every month, AI prepares a clear Google Maps performance report, compares key signals and suggests priority actions."
-               data-ca-modal="Rapport IA performances Google Maps 🇨🇦"
-               data-eu-modal="Rapport IA performances Google Maps 🇪🇺"
-               data-ca-modal-en="AI Google Maps performance report 🇨🇦"
-               data-eu-modal-en="AI Google Maps performance report 🇪🇺"
-               data-ca-feat-bonus="Lecture adaptée au marché Canada"
-               data-eu-feat-bonus="Lecture adaptée au marché Europe">
+               data-ca-amount="249" data-ca-currency="CAD" data-ca-period="paiement unique · audit actionnable"
+               data-eu-amount="179" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · actionable audit"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Audit Express"
+               data-eu-name="Audit Express Europe"
+               data-ca-name-en="Express Audit"
+               data-eu-name-en="Express Audit Europe"
+               data-ca-title="Audit express visibilité locale"
+               data-eu-title="Audit express visibilité locale"
+               data-ca-title-en="Local visibility express audit"
+               data-eu-title-en="Local visibility express audit"
+               data-ca-desc="Un diagnostic rapide pour savoir quoi corriger en priorité sur votre fiche Google, votre site, vos avis et vos points de conversion."
+               data-eu-desc="Un diagnostic rapide pour savoir quoi corriger en priorité sur votre fiche Google, votre site, vos avis et vos points de conversion."
+               data-ca-desc-en="A quick diagnosis to identify what to fix first on your Google listing, website, reviews and conversion points."
+               data-eu-desc-en="A quick diagnosis to identify what to fix first on your Google listing, website, reviews and conversion points."
+               data-ca-modal="Audit express visibilité locale 🇨🇦"
+               data-eu-modal="Audit express visibilité locale 🇪🇺"
+               data-ca-modal-en="Local visibility express audit 🇨🇦"
+               data-eu-modal-en="Local visibility express audit 🇪🇺"
+               data-ca-feat-bonus="Priorités adaptées au marché Canada"
+               data-eu-feat-bonus="Priorités adaptées au marché Europe">
             <span class="g-addon-badge ai">Propulsé par IA</span>
-            <div class="g-addon-icon gpi-b">📊</div>
-            <div class="g-price-name gpn-b">IA · Annuel</div>
-            <div class="g-price-title">Rapport IA performances Google Maps</div>
-            <div class="g-price-desc">Chaque mois, l'IA prépare un rapport clair de vos performances Google Maps, compare les signaux clés et propose des actions prioritaires.</div>
-            <div class="g-price-amount"><span class="amount-num">$149</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
-            <div class="g-price-period">annuel · envoi mensuel</div>
+            <div class="g-addon-icon gpi-b">🧪</div>
+            <div class="g-price-name gpn-b">Audit Express</div>
+            <div class="g-price-title">Audit express visibilité locale</div>
+            <div class="g-price-desc">Un diagnostic rapide pour savoir quoi corriger en priorité sur votre fiche Google, votre site, vos avis et vos points de conversion.</div>
+            <div class="g-price-amount"><span class="amount-num">$249</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · audit actionnable</div>
             <ul class="g-price-feats gf-b">
-              <li>Rapport IA mensuel vues, clics, appels et itinéraires</li>
-              <li>Comparaison automatique vs concurrents suivis</li>
-              <li>Recommandations IA personnalisées</li>
-              <li>Alertes si baisse de visibilité détectée</li>
-              <li class="feat-region-bonus">Lecture adaptée au marché Canada</li>
+              <li>Audit Google Business Profile et SEO local</li>
+              <li>Analyse rapide du site, des avis et du parcours devis</li>
+              <li>Liste priorisée des corrections à faire</li>
+              <li>Recommandations IA + lecture humaine</li>
+              <li class="feat-region-bonus">Priorités adaptées au marché Canada</li>
             </ul>
-            <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $149 CAD →</button>
+            <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $249 CAD →</button>
           </div>
 
           <div class="g-addon-card dyn-price-card" data-offer-id="maps-ai-posts"
@@ -2291,44 +2312,44 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-g" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $890 CAD →</button>
           </div>
 
-          <div class="g-addon-card dyn-price-card"
-               data-ca-amount="490" data-ca-currency="CAD" data-ca-period="annuel · renouvellement libre"
-               data-eu-amount="329" data-eu-currency="€ HT" data-eu-period="annuel · TVA selon pays"
-               data-ca-period-en="annual · free renewal"
-               data-eu-period-en="annual · VAT by country"
-               data-ca-name="Nouveau · Annuel"
-               data-eu-name="Nouveau · Annuel Europe"
-               data-ca-name-en="New · Annual"
-               data-eu-name-en="New · Annual Europe"
-               data-ca-title="Veille concurrentielle IA"
-               data-eu-title="Veille concurrentielle IA"
-               data-ca-title-en="AI competitor monitoring"
-               data-eu-title-en="AI competitor monitoring"
-               data-ca-desc="L'IA suit vos concurrents, repère les changements importants et prépare des alertes utiles pour mieux décider quoi améliorer."
-               data-eu-desc="L'IA suit vos concurrents, repère les changements importants et prépare des alertes utiles pour mieux décider quoi améliorer."
-               data-ca-desc-en="AI tracks your competitors, spots important changes and prepares useful alerts to help you decide what to improve."
-               data-eu-desc-en="AI tracks your competitors, spots important changes and prepares useful alerts to help you decide what to improve."
-               data-ca-modal="Veille concurrentielle IA 🇨🇦"
-               data-eu-modal="Veille concurrentielle IA 🇪🇺"
-               data-ca-modal-en="AI competitor monitoring 🇨🇦"
-               data-eu-modal-en="AI competitor monitoring 🇪🇺"
-               data-ca-feat-bonus="Lecture concurrentielle adaptée au Canada"
-               data-eu-feat-bonus="Lecture concurrentielle adaptée à l'Europe">
+          <div class="g-addon-card dyn-price-card" data-offer-id="crm-automation"
+               data-ca-amount="790" data-ca-currency="CAD" data-ca-period="paiement unique · système de leads"
+               data-eu-amount="590" data-eu-currency="€ HT" data-eu-period="paiement unique · TVA selon pays"
+               data-ca-period-en="one-time payment · lead system"
+               data-eu-period-en="one-time payment · VAT by country"
+               data-ca-name="Nouveau · Conversion"
+               data-eu-name="Nouveau · Conversion Europe"
+               data-ca-name-en="New · Conversion"
+               data-eu-name-en="New · Conversion Europe"
+               data-ca-title="Automatisation IA & CRM Lead Capture"
+               data-eu-title="Automatisation IA & CRM Lead Capture"
+               data-ca-title-en="AI automation & CRM lead capture"
+               data-eu-title-en="AI automation & CRM lead capture"
+               data-ca-desc="Un système simple pour capter les demandes du site, les qualifier, les envoyer au bon endroit et préparer les relances sans perdre les prospects."
+               data-eu-desc="Un système simple pour capter les demandes du site, les qualifier, les envoyer au bon endroit et préparer les relances sans perdre les prospects."
+               data-ca-desc-en="A simple system to capture website requests, qualify them, route them and prepare follow-ups without losing prospects."
+               data-eu-desc-en="A simple system to capture website requests, qualify them, route them and prepare follow-ups without losing prospects."
+               data-ca-modal="Automatisation IA & CRM Lead Capture 🇨🇦"
+               data-eu-modal="Automatisation IA & CRM Lead Capture 🇪🇺"
+               data-ca-modal-en="AI automation & CRM lead capture 🇨🇦"
+               data-eu-modal-en="AI automation & CRM lead capture 🇪🇺"
+               data-ca-feat-bonus="Flux adapté au marché Canada"
+               data-eu-feat-bonus="Flux adapté au marché Europe">
             <span class="g-addon-badge ai">Propulsé par IA</span>
-            <div class="g-addon-icon gpi-y">🔮</div>
-            <div class="g-price-name gpn-y">Nouveau · Annuel</div>
-            <div class="g-price-title">Veille concurrentielle IA</div>
-            <div class="g-price-desc">L'IA suit vos concurrents, repère les changements importants et prépare des alertes utiles pour mieux décider quoi améliorer.</div>
-            <div class="g-price-amount"><span class="amount-num">$490</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
-            <div class="g-price-period">annuel · renouvellement libre</div>
+            <div class="g-addon-icon gpi-y">⚡</div>
+            <div class="g-price-name gpn-y">Nouveau · Conversion</div>
+            <div class="g-price-title">Automatisation IA & CRM Lead Capture</div>
+            <div class="g-price-desc">Un système simple pour capter les demandes du site, les qualifier, les envoyer au bon endroit et préparer les relances sans perdre les prospects.</div>
+            <div class="g-price-amount"><span class="amount-num">$790</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD</span></div>
+            <div class="g-price-period">paiement unique · système de leads</div>
             <ul class="g-price-feats gf-y">
-              <li>Suivi IA de 10 concurrents prioritaires</li>
-              <li>Alertes sur variations de positions Google</li>
-              <li>Analyse IA des avis et publications concurrents</li>
-              <li>Rapport mensuel opportunités et risques</li>
-              <li class="feat-region-bonus">Lecture concurrentielle adaptée au Canada</li>
+              <li>Formulaire intelligent relié au suivi prospect</li>
+              <li>Qualification automatique par type de demande</li>
+              <li>Notification email ou webhook n8n si disponible</li>
+              <li>Modèles de relance et résumé IA de la demande</li>
+              <li class="feat-region-bonus">Flux adapté au marché Canada</li>
             </ul>
-            <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $490 CAD →</button>
+            <button class="g-price-btn gpb-y" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $790 CAD →</button>
           </div>
 
           <div class="g-addon-card dyn-price-card" data-offer-id="logo-design"
@@ -2516,7 +2537,7 @@ footer{background:#050505;}
       <div class="map-feat">
         <div class="map-feat-ic" style="background:linear-gradient(135deg,#EA4335,#C5221F);">🎯</div>
         <div class="map-feat-h">Géo-ciblage SEO</div>
-        <div class="map-feat-d">Mots-clés géolocalisés pour dominer votre quartier, ville et région.</div>
+        <div class="map-feat-d">Mots-clés géolocalisés pour renforcer votre visibilité dans votre quartier, ville et région.</div>
       </div>
     </div>
   </div>
@@ -2779,26 +2800,27 @@ footer{background:#050505;}
         <!-- SERVICE CA 9 -->
         <div class="srv-card">
           <div class="srv-top">
-            <div class="srv-icon-wrap srv-icon-red">⚙️</div>
-            <div class="srv-cat">Maintenance & Support</div>
-            <div class="srv-name">Maintenance & assistance technique premium</div>
-            <p class="srv-desc">Gardez votre site et votre fiche Google propres, à jour et sécurisés toute l'année. Cette offre couvre les ajustements courants, le suivi technique, les sauvegardes et une assistance prioritaire en jours ouvrés.</p>
+            <div class="srv-icon-wrap srv-icon-red">🎯</div>
+            <span class="srv-badge badge-hot">🔥 Leads</span>
+            <div class="srv-cat">Publicité & Acquisition</div>
+            <div class="srv-name">Campagnes Google Ads & Meta Ads</div>
+            <p class="srv-desc">Attirez des prospects plus rapidement avec des campagnes structurées, des messages adaptés au marché canadien et un suivi clair des demandes générées. Idéal pour compléter le SEO quand vous voulez accélérer.</p>
             <ul class="srv-feats">
-              <li>Suivi du domaine et hébergement sécurisé</li>
-              <li>Sauvegardes quotidiennes automatisées</li>
-              <li>Mises à jour produits, services et informations</li>
-              <li>Nettoyage des incohérences et doublons GBP</li>
-              <li>Reporting mensuel complet des performances</li>
-              <li>Support prioritaire en jours ouvrés Canada</li>
+              <li>Structure Google Search ou Meta selon objectif</li>
+              <li>Messages, audiences et zones géographiques ciblées</li>
+              <li>Suivi des leads, appels et demandes de devis</li>
+              <li>Optimisations mensuelles selon les données</li>
+              <li>Rapport clair : budget, clics, prospects et pistes</li>
+              <li>Budget publicitaire non inclus</li>
             </ul>
           </div>
           <div class="srv-bottom">
             <div>
-              <span class="srv-price-main">$449 CAD</span>
-              <div class="srv-price-period">annuel · renouvellement libre</div>
+              <span class="srv-price-main">$990 CAD</span>
+              <div class="srv-price-period">annuel · budget publicitaire non inclus</div>
             </div>
-            <button class="btn-order" onclick="openModal('Maintenance & assistance technique premium','449','290','ca')">
-              Sécuriser mon suivi <span class="arrow">→</span>
+            <button class="btn-order" onclick="openModal('Campagnes Google Ads & Meta Ads','990','690','ca')">
+              Lancer mes campagnes <span class="arrow">→</span>
             </button>
           </div>
         </div>
@@ -3012,26 +3034,27 @@ footer{background:#050505;}
         <!-- SERVICE EU 9 -->
         <div class="srv-card eu">
           <div class="srv-top">
-            <div class="srv-icon-wrap srv-icon-eu">⚙️</div>
-            <div class="srv-cat eu">Maintenance & Support</div>
-            <div class="srv-name">Maintenance & assistance technique premium</div>
-            <p class="srv-desc">Gardez votre site et votre fiche Google propres, à jour et sécurisés toute l'année. Cette offre couvre les ajustements courants, le suivi technique, les sauvegardes et une assistance prioritaire en jours ouvrés.</p>
+            <div class="srv-icon-wrap srv-icon-eu">🎯</div>
+            <span class="srv-badge badge-hot">🔥 Leads</span>
+            <div class="srv-cat eu">Publicité & Acquisition</div>
+            <div class="srv-name">Campagnes Google Ads & Meta Ads</div>
+            <p class="srv-desc">Attirez des prospects plus rapidement avec des campagnes structurées, des messages adaptés à l'Europe francophone et un suivi clair des demandes générées. Idéal pour compléter le SEO quand vous voulez accélérer.</p>
             <ul class="srv-feats">
-              <li class="eu">Suivi du domaine et hébergement sécurisé</li>
-              <li class="eu">Sauvegardes quotidiennes automatisées</li>
-              <li class="eu">Mises à jour produits, services et informations</li>
-              <li class="eu">Nettoyage des incohérences et doublons GBP</li>
-              <li class="eu">Reporting mensuel complet des performances</li>
-              <li class="eu">Support prioritaire en jours ouvrés Europe</li>
+              <li class="eu">Structure Google Search ou Meta selon objectif</li>
+              <li class="eu">Messages, audiences et pays ciblés</li>
+              <li class="eu">Suivi des leads, appels et demandes de devis</li>
+              <li class="eu">Optimisations mensuelles selon les données</li>
+              <li class="eu">Rapport clair : budget, clics, prospects et pistes</li>
+              <li class="eu">Budget publicitaire non inclus</li>
             </ul>
           </div>
           <div class="srv-bottom">
             <div>
-              <span class="srv-price-main">290 € HT</span>
-              <div class="srv-price-period">annuel · TVA selon pays</div>
+              <span class="srv-price-main">690 € HT</span>
+              <div class="srv-price-period">annuel · budget publicitaire non inclus</div>
             </div>
-            <button class="btn-order eu" onclick="openModal('Maintenance & assistance technique premium','449','290','eu')">
-              Sécuriser mon suivi <span class="arrow">→</span>
+            <button class="btn-order eu" onclick="openModal('Campagnes Google Ads & Meta Ads','990','690','eu')">
+              Lancer mes campagnes <span class="arrow">→</span>
             </button>
           </div>
         </div>

@@ -49,6 +49,17 @@ nav.scrolled {
   box-shadow: 0 1px 0 var(--gray-200), 0 4px 24px rgba(10,37,64,.06) !important;
   backdrop-filter: blur(16px) saturate(1.5);
 }
+.nav-logo-svg {
+  filter: drop-shadow(0 10px 22px rgba(10,37,64,.16)) !important;
+}
+.nav-logo-public {
+  fill: var(--navy) !important;
+  transition: fill .3s ease, filter .3s ease;
+}
+.nav-logo-map {
+  fill: var(--tech-blue-light) !important;
+  transition: fill .3s ease, filter .3s ease;
+}
 .nav-brand, .nav-brand span {
   color: var(--navy) !important;
 }
@@ -145,6 +156,19 @@ nav.scrolled {
 /* Nav over dark hero — make it readable */
 nav:not(.scrolled) .nav-brand { color: #FFFFFF !important; }
 nav:not(.scrolled) .nav-brand span { color: #6B95FF !important; }
+nav:not(.scrolled) .nav-logo-public {
+  fill: #FFFFFF !important;
+  filter: drop-shadow(0 2px 10px rgba(0,0,0,.35));
+}
+nav:not(.scrolled) .nav-logo-map {
+  fill: #6B95FF !important;
+}
+nav.scrolled .nav-logo-public {
+  fill: var(--navy) !important;
+}
+nav.scrolled .nav-logo-map {
+  fill: var(--tech-blue) !important;
+}
 nav:not(.scrolled) .nav-center a { color: rgba(255,255,255,.7) !important; }
 nav:not(.scrolled) .nav-center a:hover { color: #FFFFFF !important; }
 nav:not(.scrolled) .zone-toggle,
