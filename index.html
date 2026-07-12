@@ -107,8 +107,10 @@ body.eu-active #cur2{border-color:rgba(0,57,228,.5);}
 /* ─── NAV ─── */
 nav{position:fixed;top:0;left:0;right:0;z-index:700;padding:0 56px;height:68px;display:flex;align-items:center;justify-content:space-between;transition:background .4s,box-shadow .4s;}
 nav.scrolled{background:rgba(8,8,8,.97);backdrop-filter:blur(16px);box-shadow:0 1px 0 rgba(255,255,255,.06);}
-.nav-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--blanc);letter-spacing:.1em;text-decoration:none;}
+.nav-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--blanc);letter-spacing:.1em;text-decoration:none;display:inline-flex;align-items:center;}
 .nav-brand span{color:var(--rouge);}
+.nav-logo-img{display:block;width:auto;height:44px;max-width:226px;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(37,99,235,.12));transition:transform .25s ease,filter .25s ease;}
+.nav-brand:hover .nav-logo-img{transform:translateY(-1px);filter:drop-shadow(0 14px 28px rgba(37,99,235,.22));}
 .nav-center{display:flex;gap:36px;list-style:none;}
 .nav-center a{font-size:13px;font-weight:500;color:rgba(255,255,255,.6);text-decoration:none;letter-spacing:.04em;transition:color .2s;}
 .nav-center a:hover{color:var(--blanc);}
@@ -701,6 +703,7 @@ footer{background:#050505;}
   .zone-btn{flex:1;justify-content:center;padding:10px 12px;}
   .nav-cta{display:flex;justify-content:center;padding:14px 22px;font-size:14px;}
   .nav-brand{font-size:21px;letter-spacing:.06em;}
+  .nav-logo-img{height:39px;max-width:180px;}
   nav{padding:0 16px;height:64px;}
   .hero-content{padding:88px 20px 48px;gap:32px;}
   .hero{min-height:100svh;height:auto;}
@@ -758,6 +761,7 @@ footer{background:#050505;}
   .certs-grid{grid-template-columns:1fr;}
   .zone-btn span:not(.zone-btn img){font-size:11px;}
   .nav-brand{font-size:18px;}
+  .nav-logo-img{height:34px;max-width:158px;}
 }
 @media(hover:none),(pointer:coarse){
   #cur,#cur2{display:none!important;}
@@ -995,7 +999,9 @@ footer{background:#050505;}
 
 <!-- ═══ NAVIGATION ═══ -->
 <nav id="navbar">
-  <a href="#" class="nav-brand">PUBLIC-<span>MAP</span></a>
+  <a href="#" class="nav-brand" aria-label="PUBLIC-MAP accueil">
+    <img class="nav-logo-img" src="assets/images/public-map-logo.png" alt="PUBLIC-MAP" width="1546" height="538" decoding="async"/>
+  </a>
   <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-mobile-panel">
     <span class="nav-toggle-bar"></span>
     <span class="nav-toggle-bar"></span>
