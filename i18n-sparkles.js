@@ -59,7 +59,7 @@
 /* ─── FR/EN TRANSLATION SYSTEM ─── */
 const T = {
   // Meta / title
-  "🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital":"🌍 PUBLIC-MAP CANADA INC. — The Reference in Digital Marketing",
+  "🌍 PUBLIC-MAP — International Digital Agency":"🌍 PUBLIC-MAP — International Digital Agency",
   "Chargement de la plateforme…":"Loading the platform…",
 
   // Navigation
@@ -98,8 +98,8 @@ const T = {
   "Canada · France · Belgique · Suisse…":"Canada · France · Belgium · Switzerland…",
 
   // Trust ribbon
-  "🇨🇦 Corporations Canada":"🇨🇦 Corporations Canada",
-  "🇫🇷 Registre France INPI":"🇫🇷 France INPI Register",
+  "🌍 Agence digitale internationale":"🌍 International digital agency",
+  "🔒 Processus clair & sécurisé":"🔒 Clear & secure process",
   "🏆 Google Premier Partner":"🏆 Google Premier Partner",
   "⭐ 4.9/5 · 527 Avis Google":"⭐ 4.9/5 · 527 Google Reviews",
   "📲 QR Code + NFC":"📲 QR Code + NFC",
@@ -152,7 +152,7 @@ const T = {
   "+280% de trafic !":"+280% traffic!",
   "SEO National Canada":"National SEO Canada",
   "En seulement 3 mois 🚀":"In just 3 months 🚀",
-  "Partner Team — 🌍 PUBLIC-MAP CANADA INC.":"Partner Team — 🌍 PUBLIC-MAP CANADA INC.",
+  "Partner Team — 🌍 PUBLIC-MAP":"Partner Team — 🌍 PUBLIC-MAP",
   "✓ Certifié":"✓ Certified",
 
   // Service intro
@@ -529,7 +529,7 @@ const T = {
   "SEO / GEO International IA":"International SEO / GEO AI",
   "SEO + visibilité dans les moteurs IA":"SEO + visibility in AI search engines",
   "Pour préparer votre marque à Google, Google Maps et aux recherches assistées par IA dans plusieurs pays":"To prepare your brand for Google, Google Maps and AI-assisted searches in multiple countries",
-  "Stratégie SEO internationale Canada, Europe, UK, Maurice":"International SEO strategy for Canada, Europe, UK, Mauritius",
+  "Stratégie SEO internationale Canada, Europe, UK et marchés francophones":"International SEO strategy for Canada, Europe, UK and francophone markets",
   "Recherche de mots-clés FR/EN par marché":"FR/EN keyword research by market",
   "Optimisation GEO pour moteurs de recherche IA":"GEO optimization for AI search engines",
   "Pages ou briefs de contenu multi-pays":"Multi-country pages or content briefs",
@@ -897,34 +897,33 @@ const T = {
   "Pays":"Countries",
 
   // Credibility
-  "🌍 PUBLIC-MAP CANADA INC.":"🌍 PUBLIC-MAP CANADA INC.",
-  "Société Officiellement Enregistrée":"Officially Registered Company",
-  "Corporations Canada":"Corporations Canada",
-  "Registre fédéral canadien · Numéro sur demande":"Canadian federal register · Number on request",
-  "INPI France / KBIS":"INPI France / KBIS",
-  "Présence commerciale · SIRET disponible":"Commercial presence · SIRET available",
-  "Conformité Européenne":"European Compliance",
-  "RGPD · TVA intracommunautaire · e-Commerce EU":"GDPR · Intra-community VAT · EU e-Commerce",
-  "Siège Social — Canada":"Head Office — Canada",
-  "1000 De La Gauchetière O., Bureau 2400":"1000 De La Gauchetière W., Suite 2400",
-  "Montréal, Québec H3B 4W5":"Montreal, Quebec H3B 4W5",
+  "🌍 PUBLIC-MAP":"🌍 PUBLIC-MAP",
+  "International Digital Agency":"International Digital Agency",
+  "Helping businesses grow with SEO • Google Business Profile • AI Automation • Web Development":"Helping businesses grow with SEO • Google Business Profile • AI Automation • Web Development",
+  "Canada & Amérique du Nord":"Canada & North America",
+  "SEO local · Google Business Profile · campagnes adaptées":"Local SEO · Google Business Profile · tailored campaigns",
+  "Europe & marchés francophones":"Europe & francophone markets",
+  "Approche RGPD · contenus localisés · devis clair":"GDPR-aware approach · localized content · clear quote",
+  "Accompagnement international":"International support",
+  "Web, SEO, IA et automatisation pour une croissance globale":"Web, SEO, AI and automation for global growth",
+  "Marché Canada":"Canada market",
+  "Stratégie Google Business Profile, SEO local et visibilité digitale adaptée au marché canadien.":"Google Business Profile, local SEO and digital visibility strategy adapted to the Canadian market.",
   "Contact : contact@public-map.com":"Contact: contact@public-map.com",
-  "Bureau Europe — Paris":"Europe Office — Paris",
-  "25 Rue de la Paix, 2e étage":"25 Rue de la Paix, 2nd floor",
-  "75002 Paris, France":"75002 Paris, France",
+  "Marché Europe":"Europe market",
+  "Accompagnement en français pour la France, la Belgique, la Suisse et les marchés européens.":"French-language support for France, Belgium, Switzerland and European markets.",
   "Transparence Totale":"Total Transparency",
   "Votre sécurité,":"Your security,",
   "notre priorité":"our priority",
-  "🌍 PUBLIC-MAP CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.":"🌍 PUBLIC-MAP CANADA INC. is the only digital marketing agency officially registered in both Canada AND France — publicly verifiable in just a few clicks.",
+  "🌍 PUBLIC-MAP accompagne les entreprises avec une approche internationale, transparente et orientée performance : SEO, Google Business Profile, automatisation IA et développement web.":"🌍 PUBLIC-MAP helps businesses grow with an international, transparent and performance-focused approach: SEO, Google Business Profile, AI automation and web development.",
   "🔒 Aucune donnée bancaire":"🔒 No banking data",
   "🛡️ ISO 27001":"🛡️ ISO 27001",
   "📋 RGPD Compliant":"📋 GDPR Compliant",
   "📋 Devis détaillé":"📋 Detailed quote",
   "⭐ 4.9/5 Google":"⭐ 4.9/5 Google",
-  "✅ Société Vérifiable":"✅ Verifiable Company",
+  "✅ Processus Vérifiable":"✅ Verifiable Process",
   "🌍 18 Pays Desservis":"🌍 18 Countries Served",
   "Demander un devis →":"Request a quote →",
-  "Vérifiez notre enregistrement sur corporations.canada.ca":"Verify our registration on corporations.canada.ca",
+  "Devis clair, échanges documentés et accompagnement adapté à votre marché.":"Clear quote, documented communication and support adapted to your market.",
 
   // Certifications
   "Certifications professionnelles":"Professional Certifications",
@@ -939,7 +938,7 @@ const T = {
   "Certifications Officielles":"Official Certifications",
   "Notre expertise,":"Our expertise,",
   "certifiée et reconnue":"certified and recognized",
-  "🌍 PUBLIC-MAP CANADA INC. détient des certifications officielles délivrées par Google et les plus grandes autorités du SEO mondial. Chaque certification est le résultat d'examens rigoureux et d'une expertise terrain prouvée.":"🌍 PUBLIC-MAP CANADA INC. holds official certifications issued by Google and leading global SEO authorities. Every certification reflects rigorous exams and proven field expertise.",
+  "🌍 PUBLIC-MAP présente des certifications et références professionnelles en SEO, visibilité locale et marketing digital. Les justificatifs peuvent être communiqués sur demande.":"🌍 PUBLIC-MAP presents professional certifications and references in SEO, local visibility and digital marketing. Supporting documents can be shared on request.",
   "Nos Certifications":"Our Certifications",
   "Meta Community Manager":"Meta Community Manager",
   "Digital Marketing Master Licensed":"Digital Marketing Master Licensed",
@@ -962,9 +961,9 @@ const T = {
   "Questions fréquentes —":"FAQ —",
   "Toutes les réponses":"All the answers",
   "Nous répondons à chaque doute avec transparence et précision.":"We answer every doubt with transparency and precision.",
-  "🤔 🌍 PUBLIC-MAP est-elle une vraie entreprise enregistrée ?":"🤔 Is 🌍 PUBLIC-MAP a real registered company?",
-  "Oui, à 100%.":"Yes, 100%.",
-  "Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.":"Searchable on corporations.canada.ca (Canada) and via INPI in France. Our business number is provided on simple request. Zero opacity.",
+  "🤔 🌍 PUBLIC-MAP peut-elle accompagner des projets internationaux ?":"🤔 Can 🌍 PUBLIC-MAP support international projects?",
+  "Oui.":"Yes.",
+  "Nous accompagnons les entreprises avec des services SEO, Google Business Profile, automatisation IA et développement web pour des projets au Canada, en Europe et à l'international.":"We support businesses with SEO, Google Business Profile, AI automation and web development services for projects in Canada, Europe and internationally.",
   "📋 Comment recevoir mon devis ?":"📋 How do I receive my quote?",
   "Aucune donnée bancaire n'est demandée.":"No banking data is requested.",
   "Choisissez votre service, préparez votre courriel et envoyez votre demande depuis votre propre messagerie. Notre équipe vous recontacte pour confirmer le périmètre et les modalités.":"Choose your service, prepare your email and send your request from your own mailbox. Our team will contact you to confirm scope and terms.",
@@ -985,7 +984,7 @@ const T = {
   "Réseaux Sociaux :":"Social Networks:",
   "croissance mesurable dès la 2e semaine. Dashboard temps réel inclus.":"measurable growth from week 2. Real-time dashboard included.",
   "🏆 Comment vérifier vos certifications Google ?":"🏆 How to verify your Google certifications?",
-  "Recherchez \"🌍 PUBLIC-MAP CANADA\" sur":"Search \"🌍 PUBLIC-MAP CANADA\" on",
+  "Découvrez notre approche PUBLIC-MAP":"Discover the PUBLIC-MAP approach",
   ". Les autres accréditations techniques sont vérifiables sur demande. Liens envoyés sous 10 minutes.":". Other technical accreditations are verifiable on request. Links sent within 10 minutes.",
   "📞 Qui sera mon interlocuteur dédié ?":"📞 Who will be my dedicated contact?",
   "Un Chef de Projet dédié":"A dedicated Project Manager",
@@ -1036,7 +1035,7 @@ const T = {
   "Paris, France":"Paris, France",
   "Bureaux CA + Europe":"CA + Europe offices",
   "Ouvert : Lundi à Vendredi 09H - 17H":"Open: Monday to Friday 09:00 - 17:00",
-  "Copyright © 2026 PUBLIC-MAP CANADA INC. Tous droits réservés.":"Copyright © 2026 PUBLIC-MAP CANADA INC. All rights reserved.",
+  "Copyright © 2026 PUBLIC-MAP. Tous droits réservés.":"Copyright © 2026 PUBLIC-MAP. All rights reserved.",
   "SEO & Référencement":"SEO & Search",
   "E-Commerce":"E-Commerce",
   "Stratégie 360°":"360° Strategy",
@@ -1140,8 +1139,8 @@ function walkAndTranslate(targetLang){
   });
 
   // Update <title>
-  if(targetLang === 'en') document.title = T["🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital"] || document.title;
-  else document.title = "🌍 PUBLIC-MAP CANADA INC. — La Référence du Marketing Digital";
+  if(targetLang === 'en') document.title = T["🌍 PUBLIC-MAP — International Digital Agency"] || document.title;
+  else document.title = "🌍 PUBLIC-MAP — International Digital Agency";
 
   document.documentElement.lang = targetLang;
   CURRENT_LANG = targetLang;

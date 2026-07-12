@@ -64,7 +64,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    {"@type": "Question", "name": "PUBLIC-MAP est-elle une vraie entreprise enregistrée ?", "acceptedAnswer": {"@type": "Answer", "text": "Oui, à 100%. Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande."}},
+    {"@type": "Question", "name": "PUBLIC-MAP accompagne-t-elle des clients à l'international ?", "acceptedAnswer": {"@type": "Answer", "text": "Oui. PUBLIC-MAP accompagne les entreprises avec des services SEO, Google Business Profile, automatisation IA et développement web pour des projets au Canada, en Europe et à l'international."}},
     {"@type": "Question", "name": "Comment recevoir mon devis ?", "acceptedAnswer": {"@type": "Answer", "text": "Aucune donnée bancaire n'est demandée. Choisissez votre service, préparez votre courriel et envoyez votre demande. Notre équipe vous recontacte pour confirmer le périmètre et les modalités."}},
     {"@type": "Question", "name": "Comment suivez-vous les résultats ?", "acceptedAnswer": {"@type": "Answer", "text": "Nous définissons les objectifs, mesurons les actions réalisées et partageons un rapport clair : visibilité, trafic, demandes, avis et prochaines optimisations."}},
     {"@type": "Question", "name": "Puis-je annuler à tout moment ?", "acceptedAnswer": {"@type": "Answer", "text": "Oui, 30 jours de préavis suffit. Aucun engagement longue durée, aucune pénalité."}},
@@ -366,8 +366,11 @@ body.eu-active .rev-av{border-color:var(--bleu-eu);box-shadow:0 10px 24px rgba(0
 .cred-sec{background:#F8FAFE;padding:100px 56px;}
 .cred-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;}
 .cred-glass{background:#fff;border:1.5px solid #E8E8E8;border-radius:20px;padding:36px;box-shadow:0 8px 30px rgba(0,0,0,.06);}
-.cred-head{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:#1A1A1A;margin-bottom:6px;}
-.cred-sub{font-size:12px;color:#999;letter-spacing:.15em;text-transform:uppercase;margin-bottom:28px;}
+.cred-head{font-family:'Cormorant Garamond',serif;font-size:clamp(30px,3.6vw,48px);font-weight:700;color:#0A2540;margin-bottom:6px;letter-spacing:.03em;animation:credFadeIn .85s ease both;}
+.cred-sub{font-size:clamp(13px,1.35vw,16px);color:#2563EB;letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;font-weight:800;animation:credFadeIn .85s .1s ease both;}
+.cred-premium-sub{font-size:13px;color:#5D6B82;line-height:1.7;margin:0 0 26px;max-width:540px;animation:credFadeIn .85s .18s ease both;}
+@keyframes credFadeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){.cred-head,.cred-sub,.cred-premium-sub{animation:none;}}
 .cred-regs{display:flex;flex-direction:column;gap:14px;}
 .reg-row{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#F8FAFE;border-radius:10px;border:1px solid #E8E8E8;transition:border-color .3s;}
 .reg-row:hover{border-color:rgba(255,0,78,.3);}
@@ -1090,9 +1093,9 @@ footer{background:#050505;}
 
 <!-- TRUST RIBBON -->
 <div class="ribbon">
-  <div class="rib-item">🇨🇦 Corporations Canada</div>
-  <div class="rib-item">🇫🇷 Registre France INPI</div>
-  <div class="rib-item">🏆 Google Premier Partner</div>  <div class="rib-item">📈 SEO Premium</div>
+  <div class="rib-item">🌍 Agence digitale internationale</div>
+  <div class="rib-item">🔒 Processus clair & sécurisé</div>
+  <div class="rib-item">🏆 Expertise Google & SEO</div>  <div class="rib-item">📈 Croissance premium</div>
   <div class="rib-item">📋 Devis personnalisé</div>
 </div>
 
@@ -1372,8 +1375,8 @@ footer{background:#050505;}
              data-ca-amount="1990" data-ca-currency="CAD/an" data-ca-period="paiement annuel · visibilité multi-pays"
              data-eu-amount="1290" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · visibilité multi-pays"
              data-ca-modal="SEO / GEO International IA 🇨🇦" data-eu-modal="SEO / GEO International IA 🇪🇺"
-             data-ca-feat-bonus="Canada, USA, Europe, UK, Maurice et marchés francophones"
-             data-eu-feat-bonus="Europe, UK, Canada, USA, Maurice et marchés francophones"
+             data-ca-feat-bonus="Canada, USA, Europe, UK et marchés francophones"
+             data-eu-feat-bonus="Europe, UK, Canada, USA et marchés francophones"
              style="transition-delay:.25s">
           <div class="g-price-top gpt-yellow">
             <div class="g-price-icon gpi-y">🌍</div>
@@ -1384,11 +1387,11 @@ footer{background:#050505;}
           <div class="g-price-amount"><span class="amount-num">$1 990</span> <span class="amount-cur" style="font-size:18px;color:#999;">CAD/an</span></div>
           <div class="g-price-period">paiement annuel · visibilité multi-pays</div>
           <ul class="g-price-feats gf-y">
-            <li>Stratégie SEO internationale Canada, Europe, UK, Maurice</li>
+            <li>Stratégie SEO internationale Canada, Europe, UK et marchés francophones</li>
             <li>Recherche de mots-clés FR/EN par marché</li>
             <li>Optimisation GEO pour moteurs de recherche IA</li>
             <li>Pages ou briefs de contenu multi-pays</li>
-            <li class="feat-region-bonus">Canada, USA, Europe, UK, Maurice et marchés francophones</li>
+            <li class="feat-region-bonus">Canada, USA, Europe, UK et marchés francophones</li>
             <li>Suivi des positions et opportunités mensuelles</li>
             <li>Priorité aux marchés les plus rentables</li>
           </ul>
@@ -2521,7 +2524,7 @@ footer{background:#050505;}
       </div>
 
       <div class="contact-blue-hours">Ouvert : Lundi à Vendredi · 09H – 17H (EST + CET)</div>
-      <div class="contact-blue-copyright">Copyright © 2026 🌍 PUBLIC-MAP CANADA INC. Tous droits réservés.</div>
+      <div class="contact-blue-copyright">Copyright © 2026 🌍 PUBLIC-MAP. Tous droits réservés.</div>
     </div>
   </div>
 </section>
@@ -3071,27 +3074,28 @@ footer{background:#050505;}
     <div class="cred-inner">
       <div class="rv-l">
         <div class="cred-glass">
-          <div class="cred-head">🌍 PUBLIC-MAP CANADA INC.</div>
-          <div class="cred-sub">Société Officiellement Enregistrée</div>
+          <div class="cred-head">🌍 PUBLIC-MAP</div>
+          <div class="cred-sub">International Digital Agency</div>
+          <p class="cred-premium-sub">Helping businesses grow with SEO • Google Business Profile • AI Automation • Web Development</p>
           <div class="cred-regs">
-            <div class="reg-row"><img src="https://flagcdn.com/w40/ca.png" alt="CA" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Corporations Canada</h5><p>Registre fédéral canadien · Numéro sur demande</p></div><span class="reg-ok">✅</span></div>
-            <div class="reg-row"><img src="https://flagcdn.com/w40/fr.png" alt="FR" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>INPI France / KBIS</h5><p>Présence commerciale · SIRET disponible</p></div><span class="reg-ok">✅</span></div>
-            <div class="reg-row"><img src="https://flagcdn.com/w40/eu.png" alt="EU" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Conformité Européenne</h5><p>RGPD · TVA intracommunautaire · e-Commerce EU</p></div><span class="reg-ok">✅</span></div>
+            <div class="reg-row"><img src="https://flagcdn.com/w40/ca.png" alt="CA" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Canada & Amérique du Nord</h5><p>SEO local · Google Business Profile · campagnes adaptées</p></div><span class="reg-ok">✅</span></div>
+            <div class="reg-row"><img src="https://flagcdn.com/w40/eu.png" alt="EU" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Europe & marchés francophones</h5><p>Approche RGPD · contenus localisés · devis clair</p></div><span class="reg-ok">✅</span></div>
+            <div class="reg-row"><span class="reg-flag" style="display:inline-flex;align-items:center;justify-content:center;background:#EEF4FF;font-size:22px;">🌍</span><div class="reg-info"><h5>Accompagnement international</h5><p>Web, SEO, IA et automatisation pour une croissance globale</p></div><span class="reg-ok">✅</span></div>
           </div>
           <div class="addr-block" style="margin-top:24px;">
-            <div class="addr-row"><span class="addr-ico">🇨🇦</span><div><div class="addr-lab">Siège Social — Canada</div><div class="addr-txt">1000 De La Gauchetière O., Bureau 2400<br>Montréal, Québec H3B 4W5<br>Contact : contact@public-map.com</div></div></div>
+            <div class="addr-row"><span class="addr-ico">🇨🇦</span><div><div class="addr-lab">Marché Canada</div><div class="addr-txt">Stratégie Google Business Profile, SEO local et visibilité digitale adaptée au marché canadien.<br>Contact : contact@public-map.com</div></div></div>
             <div style="height:1px;background:rgba(255,255,255,.06);"></div>
-            <div class="addr-row"><span class="addr-ico">🇫🇷</span><div><div class="addr-lab eu">Bureau Europe — Paris</div><div class="addr-txt">25 Rue de la Paix, 2e étage<br>75002 Paris, France<br>Contact : contact@public-map.com</div></div></div>
+            <div class="addr-row"><span class="addr-ico">🇫🇷</span><div><div class="addr-lab eu">Marché Europe</div><div class="addr-txt">Accompagnement en français pour la France, la Belgique, la Suisse et les marchés européens.<br>Contact : contact@public-map.com</div></div></div>
           </div>
         </div>
       </div>
       <div class="cred-text rv-r">
         <span class="sec-tag" style="background:rgba(255,0,78,.2);border-color:rgba(255,0,78,.4);color:#ff7ca5;">Transparence Totale</span>
         <h2 class="sec-h" style="color:var(--blanc);margin-top:12px;">Votre sécurité,<br><em>notre priorité</em></h2>
-        <p class="sec-sub">🌍 PUBLIC-MAP CANADA INC. est la seule agence de marketing digital officiellement enregistrée au Canada ET en France — vérifiable publiquement en quelques clics.</p>
+        <p class="sec-sub">🌍 PUBLIC-MAP accompagne les entreprises avec une approche internationale, transparente et orientée performance : SEO, Google Business Profile, automatisation IA et développement web.</p>
         <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;">
           <a href="#services" class="btn-red" style="align-self:flex-start;">Demander un devis →</a>
-          <p style="font-size:12px;color:rgba(255,255,255,.35);">Vérifiez notre enregistrement sur corporations.canada.ca</p>
+          <p style="font-size:12px;color:rgba(255,255,255,.35);">Devis clair, échanges documentés et accompagnement adapté à votre marché.</p>
         </div>
       </div>
     </div>
@@ -3109,7 +3113,7 @@ footer{background:#050505;}
       </div>
     </div>
     <div class="faq-list">
-      <div class="faq-it rv" style="transition-delay:.05s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🤔 🌍 PUBLIC-MAP est-elle une vraie entreprise enregistrée ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Oui, à 100%.</strong> Consultable sur corporations.canada.ca (Canada) et via l'INPI en France. Notre numéro d'entreprise est communiqué sur simple demande. Zéro opacité.</div></div></div>
+      <div class="faq-it rv" style="transition-delay:.05s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">🤔 🌍 PUBLIC-MAP peut-elle accompagner des projets internationaux ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Oui.</strong> Nous accompagnons les entreprises avec des services SEO, Google Business Profile, automatisation IA et développement web pour des projets au Canada, en Europe et à l'international.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.1s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">📋 Comment recevoir mon devis ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Aucune donnée bancaire n'est demandée.</strong> Choisissez votre service, préparez votre courriel et envoyez votre demande depuis votre propre messagerie. Notre équipe vous recontacte pour confirmer le périmètre et les modalités.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.15s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt">📈 Comment suivez-vous les résultats ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in"><strong>Suivi transparent dès les 90 premiers jours.</strong> Nous définissons les objectifs, mesurons les actions réalisées et partageons un rapport clair : visibilité, trafic, demandes, avis et prochaines optimisations.</div></div></div>
       <div class="faq-it rv" style="transition-delay:.2s"><div class="faq-q" onclick="toggleFaq(this)"><span class="faq-qt" id="region-faq-title">🇨🇦 Je suis au Canada — comment ça fonctionne ?</span><span class="faq-ic">+</span></div><div class="faq-ans"><div class="faq-ans-in" id="region-faq-answer"><strong>Notre bureau Montréal</strong> assure le suivi en heure canadienne EST/PST. Facturation en dollars canadiens, accompagnement bilingue FR/EN et stratégie adaptée au marché canadien.</div></div></div>
@@ -3216,7 +3220,7 @@ footer{background:#050505;}
     </div>
     <div class="footer-hours">Ouvert : Lundi à Vendredi 09H - 17H</div>
     <div class="foot-bot">
-      <p>Copyright © 2026 PUBLIC-MAP CANADA INC. Tous droits réservés.</p>
+      <p>Copyright © 2026 PUBLIC-MAP. Tous droits réservés.</p>
       <div class="foot-legal"><a href="/privacy-policy">Confidentialité</a><a href="/terms-and-conditions">CGV</a><a href="/terms-and-conditions">Légal</a></div>
     </div>
   </div>
@@ -3731,7 +3735,6 @@ const PHONE_COUNTRIES=[
   {iso:'BE',name:'Belgium',code:'+32'},
   {iso:'CH',name:'Switzerland',code:'+41'},
   {iso:'LU',name:'Luxembourg',code:'+352'},
-  {iso:'MU',name:'Mauritius',code:'+230'},
   {iso:'MQ',name:'Martinique',code:'+596'},
   {iso:'DE',name:'Germany',code:'+49'},
   {iso:'ES',name:'Spain',code:'+34'},
