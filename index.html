@@ -976,7 +976,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="mobile-and-layout-fixes.css?v=2026053101"/>
 <link rel="stylesheet" href="hero-premium-title.css?v=2026061401"/>
 <link rel="stylesheet" href="round-certs-and-footer.css?v=2026071301"/>
-<link rel="stylesheet" href="final-polish.css?v=2026071321"/>
+<link rel="stylesheet" href="final-polish.css?v=2026071322"/>
 <link rel="stylesheet" href="auth-common.css?v=2026071203"/>
 <link rel="stylesheet" href="mobile-ux-fixes.css?v=2026061401"/>
 <link rel="stylesheet" href="hero-no-video.css?v=2026060606"/>
@@ -1583,7 +1583,7 @@ footer{background:#050505;}
           <h5>Ou composez votre solution à la carte</h5>
           <p>Pour un besoin précis, choisissez un service individuel et complétez-le quand votre activité évolue.</p>
         </div>
-        <div class="g-addon-grid">
+        <div class="g-addon-grid addon-collapsed" id="addonGrid">
           <div class="g-addon-card dyn-price-card" data-offer-id="ai-visibility"
                data-ca-amount="890" data-ca-currency="CAD/an" data-ca-period="paiement annuel · suivi trimestriel"
                data-eu-amount="590" data-eu-currency="€ HT/an" data-eu-period="paiement annuel · TVA selon pays"
@@ -2340,6 +2340,7 @@ footer{background:#050505;}
             <button class="g-price-btn gpb-b" onclick="window.openDynModal(this)" style="cursor:pointer;">Demander un devis — $690 CAD →</button>
           </div>
         </div>
+        <button type="button" class="addon-more-btn" onclick="var g=document.getElementById('addonGrid'),open=!g.classList.toggle('addon-collapsed'),en=document.documentElement.lang==='en';this.textContent=open?(en?'Show fewer services ↑':'Réduire les services ↑'):(en?'View all services (+13) →':'Voir tous les services (+13) →');">Voir tous les services (+13) →</button>
         <p class="g-addon-note">Ces services sont parfaits pour une intervention ciblée. Pour une stratégie complète avec SEO, avis, contenu, IA et suivi mensuel, choisissez plutôt un pack annuel.</p>
       </div>
 
@@ -4164,7 +4165,7 @@ function subscribeNewsletter(event){
 window.subscribeNewsletter=subscribeNewsletter;
 document.getElementById('newsletter-form')?.addEventListener('submit',subscribeNewsletter);
 </script>
-<script src="i18n-sparkles.js?v=2026071321"></script>
+<script src="i18n-sparkles.js?v=2026071322"></script>
 <script src="hero-search.js?v=2026071302" defer></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>

@@ -358,3 +358,20 @@ footer.foot-bar-rounded {
   .g-reassure{ gap:8px 16px; }
   .g-reassure-item{ font-size:12px; }
 }
+
+/* ════════════════════════════════════════════
+   À-LA-CARTE FOLD (choice-overload reduction — CRO)
+   Show 6, collapse the rest behind a toggle. Cards stay in DOM
+   so combos / cart keep working when hidden.
+   ════════════════════════════════════════════ */
+.g-addon-grid.addon-collapsed .g-addon-card:nth-child(n+7){ display:none; }
+.addon-more-btn{
+  display:block; margin:26px auto 0; padding:13px 30px;
+  font-family:'Outfit',sans-serif; font-weight:700; font-size:14px; letter-spacing:.02em;
+  color:#1B5BFF; background:#fff; border:1.5px solid #1B5BFF; border-radius:12px;
+  cursor:pointer; transition:transform .25s ease, background .25s ease, color .25s ease, box-shadow .25s ease;
+}
+.addon-more-btn:hover{
+  background:#1B5BFF; color:#fff; transform:translateY(-2px);
+  box-shadow:0 12px 26px -8px rgba(27,91,255,.55);
+}
