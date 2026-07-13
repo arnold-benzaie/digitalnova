@@ -975,7 +975,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="marquee-and-contact.css?v=2026071301"/>
 <link rel="stylesheet" href="mobile-and-layout-fixes.css?v=2026053101"/>
 <link rel="stylesheet" href="hero-premium-title.css?v=2026061401"/>
-<link rel="stylesheet" href="round-certs-and-footer.css?v=2026053101"/>
+<link rel="stylesheet" href="round-certs-and-footer.css?v=2026071301"/>
 <link rel="stylesheet" href="final-polish.css?v=2026071106"/>
 <link rel="stylesheet" href="auth-common.css?v=2026071203"/>
 <link rel="stylesheet" href="mobile-ux-fixes.css?v=2026061401"/>
@@ -3285,7 +3285,36 @@ footer{background:#050505;}
 <footer class="foot-bar-rounded">
   <div class="footer-wave-inner">
     <div class="footer-wave-brand">
-      <div class="ft-brand-name">PUBLIC-<span>MAP</span></div>
+      <a href="#" class="footer-logo-link" aria-label="PUBLIC-MAP accueil">
+        <svg class="footer-logo-svg" viewBox="0 0 360 92" role="img" aria-labelledby="footer-public-map-logo-title">
+          <title id="footer-public-map-logo-title">PUBLIC-MAP</title>
+          <defs>
+            <linearGradient id="footerMapBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#60A5FA"/>
+              <stop offset="55%" stop-color="#2563EB"/>
+              <stop offset="100%" stop-color="#1D4ED8"/>
+            </linearGradient>
+            <linearGradient id="footerArrowGold" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#F59E0B"/>
+              <stop offset="58%" stop-color="#FBBF24"/>
+              <stop offset="100%" stop-color="#FFE08A"/>
+            </linearGradient>
+            <filter id="footerLogoShadow" x="-20%" y="-20%" width="140%" height="150%">
+              <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#0A2540" flood-opacity=".18"/>
+            </filter>
+          </defs>
+          <g filter="url(#footerLogoShadow)">
+            <circle cx="49" cy="42" r="29" fill="#EAF3FF" stroke="url(#footerMapBlue)" stroke-width="8"/>
+            <path d="M49 27c-8 0-14 6.2-14 14 0 10.5 14 25 14 25s14-14.5 14-25c0-7.8-6-14-14-14z" fill="url(#footerMapBlue)"/>
+            <circle cx="49" cy="40" r="6.5" fill="#FFFFFF"/>
+            <path d="M71 64l25 24" stroke="url(#footerMapBlue)" stroke-width="10" stroke-linecap="round"/>
+            <text x="112" y="57" font-family="Outfit, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.3" fill="#0A2540">PUBLIC</text>
+            <text x="242" y="57" font-family="Outfit, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.3" fill="#2563EB">-MAP</text>
+            <path d="M316 67 C330 54 340 34 344 17" fill="none" stroke="url(#footerArrowGold)" stroke-width="9" stroke-linecap="round"/>
+            <path d="M343 15 L349 42 L324 31 Z" fill="url(#footerArrowGold)"/>
+          </g>
+        </svg>
+      </a>
       <span class="ft-brand-sub">Solution pour développer votre visibilité locale</span>
     </div>
     <div class="footer-contact-grid">
