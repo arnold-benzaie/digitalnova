@@ -340,3 +340,21 @@ footer.foot-bar-rounded {
 @media (prefers-reduced-motion: reduce) {
   .credential-track { animation: none !important; }
 }
+
+/* ════════════════════════════════════════════
+   RISK-REVERSAL REASSURANCE STRIP (pricing decision point — CRO)
+   ════════════════════════════════════════════ */
+.g-reassure{
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:center;
+  gap:10px 24px; margin:22px auto 0; max-width:920px;
+}
+.g-reassure-item{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'Outfit',sans-serif; font-size:13.5px; font-weight:600; color:#0A2540;
+  white-space:nowrap;
+}
+.g-reassure-item svg{ width:17px; height:17px; flex:0 0 auto; }
+@media (max-width:768px){
+  .g-reassure{ gap:8px 16px; }
+  .g-reassure-item{ font-size:12px; }
+}
