@@ -283,6 +283,13 @@
   box-shadow: 0 20px 50px rgba(27,91,255,.6);
 }
 
+@media (max-width: 768px) {
+  .scroll-top-btn,
+  .scroll-top-btn.visible {
+    display: none !important;
+  }
+}
+
 /* Hide the OLD contact-grid since we're using the blue layout now */
 .contact-block .sec-h,
 .contact-block > .sec-sub,
