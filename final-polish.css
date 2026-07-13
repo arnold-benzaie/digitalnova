@@ -375,3 +375,34 @@ footer.foot-bar-rounded {
   background:#1B5BFF; color:#fff; transform:translateY(-2px);
   box-shadow:0 12px 26px -8px rgba(27,91,255,.55);
 }
+
+/* ════════════════════════════════════════════
+   PLATEFORMES MAÎTRISÉES — honest social-proof band
+   Recognizable platform wordmarks (no false partnership claim)
+   ════════════════════════════════════════════ */
+.platforms-band{
+  background:#fff; padding:34px 24px;
+  border-top:1px solid #EDF1F7; border-bottom:1px solid #EDF1F7;
+}
+.platforms-inner{ max-width:1120px; margin:0 auto; text-align:center; }
+.platforms-kicker{
+  font-family:'Outfit',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:.14em; text-transform:uppercase; color:#8A94A6; margin:0 0 22px;
+}
+.platforms-row{
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:20px 46px;
+}
+.pf-logo{
+  font-family:'Outfit',sans-serif; font-weight:700; font-size:23px; letter-spacing:-.01em;
+  color:#9AA6B8; transition:color .3s ease, transform .3s ease; cursor:default; white-space:nowrap;
+}
+.pf-logo:hover{ color:#2A3648; transform:translateY(-2px); }
+.pf-google{ opacity:.96; }
+.pf-google .g-b{color:#4285F4;} .pf-google .g-r{color:#EA4335;}
+.pf-google .g-y{color:#FBBC05;} .pf-google .g-g{color:#34A853;}
+@media (max-width:768px){
+  .platforms-band{ padding:26px 18px; }
+  .platforms-row{ gap:14px 28px; }
+  .pf-logo{ font-size:17px; }
+  .platforms-kicker{ font-size:11px; letter-spacing:.10em; }
+}
