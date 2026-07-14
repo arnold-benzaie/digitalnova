@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.15",
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.110.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",

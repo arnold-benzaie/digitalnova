@@ -1,7 +1,9 @@
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { getDevRole } from "@/lib/dev-role";
 
+// Clerk is temporarily disabled (no valid API keys in .env.local yet) —
+// route by the dev-role cookie instead of a real session until auth is back.
 export default async function Home() {
-  const { userId } = await auth();
-  redirect(userId ? "/dashboard" : "/sign-in");
+  const role = await getDevRole();
+  redirect(role === "client" ? "/dashboard" : "/admin");
 }
