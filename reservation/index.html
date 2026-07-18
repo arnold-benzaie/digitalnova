@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Réserver un appel stratégique | PUBLIC-MAP</title>
+  <meta name="description" content="Préparez une demande d’appel stratégique avec PUBLIC-MAP pour votre visibilité locale, votre site web, votre SEO ou vos automatisations."/>
+  <link rel="canonical" href="https://www.public-map.com/reservation"/>
+  <link rel="icon" href="/assets/images/public-map-logo.png" type="image/png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/reservation/reservation.css?v=2026071603"/>
+</head>
+<body>
+  <header class="booking-header">
+    <a class="booking-brand" href="/" aria-label="PUBLIC-MAP — retour à l’accueil">
+      <img src="/assets/images/public-map-logo.png" width="220" height="77" alt="PUBLIC-MAP"/>
+    </a>
+    <div class="booking-header-actions">
+      <a href="/#projects" class="booking-back" data-fr="← Voir les projets" data-en="← View projects">← Voir les projets</a>
+      <div class="booking-language" role="group" aria-label="Choix de la langue">
+        <button type="button" data-language="fr" aria-pressed="true">FR</button>
+        <button type="button" data-language="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="booking-main">
+    <section class="booking-intro" aria-labelledby="booking-title">
+      <span class="booking-kicker" data-fr="Appel stratégique" data-en="Strategy call">Appel stratégique</span>
+      <h1 id="booking-title" data-fr="Parlons de votre prochaine étape digitale." data-en="Let’s discuss your next digital step.">Parlons de votre prochaine étape digitale.</h1>
+      <p class="booking-lead" data-fr="Présentez votre besoin afin que PUBLIC-MAP puisse préparer un échange utile, adapté à votre marché, vos priorités et votre budget." data-en="Tell us about your needs so PUBLIC-MAP can prepare a useful conversation suited to your market, priorities and budget.">Présentez votre besoin afin que PUBLIC-MAP puisse préparer un échange utile, adapté à votre marché, vos priorités et votre budget.</p>
+
+      <div class="booking-location">
+        <span aria-hidden="true">🌍</span>
+        <p data-fr="PUBLIC-MAP est une activité indépendante basée à Maurice et accompagne des projets à l’international." data-en="PUBLIC-MAP is an independent business based in Mauritius, supporting projects internationally.">PUBLIC-MAP est une activité indépendante basée à Maurice et accompagne des projets à l’international.</p>
+      </div>
+
+      <div class="booking-process" aria-labelledby="booking-process-title">
+        <h2 id="booking-process-title" data-fr="Comment cela fonctionne" data-en="How it works">Comment cela fonctionne</h2>
+        <ol>
+          <li><span>01</span><div><strong data-fr="Vous décrivez votre besoin" data-en="You describe your needs">Vous décrivez votre besoin</strong><p data-fr="Les informations servent uniquement à préparer l’échange." data-en="The information is used solely to prepare the conversation.">Les informations servent uniquement à préparer l’échange.</p></div></li>
+          <li><span>02</span><div><strong data-fr="La demande est examinée" data-en="The request is reviewed">La demande est examinée</strong><p data-fr="Aucun créneau n’est confirmé automatiquement." data-en="No time slot is confirmed automatically.">Aucun créneau n’est confirmé automatiquement.</p></div></li>
+          <li><span>03</span><div><strong data-fr="PUBLIC-MAP vous recontacte" data-en="PUBLIC-MAP contacts you">PUBLIC-MAP vous recontacte</strong><p data-fr="La date et le canal sont validés avec vous." data-en="The date and channel are agreed with you.">La date et le canal sont validés avec vous.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="booking-form-panel" aria-labelledby="booking-form-title">
+      <div class="booking-form-heading">
+        <span data-fr="Demande non contractuelle" data-en="Non-binding request">Demande non contractuelle</span>
+        <h2 id="booking-form-title" data-fr="Préparer ma demande d’appel" data-en="Prepare my call request">Préparer ma demande d’appel</h2>
+        <p data-fr="Les champs marqués d’un astérisque sont obligatoires." data-en="Fields marked with an asterisk are required.">Les champs marqués d’un astérisque sont obligatoires.</p>
+        <p class="booking-availability-note" data-fr="L’envoi automatique est en cours de configuration. Si le service est indisponible, aucune demande ne sera enregistrée et un contact par e-mail vous sera proposé." data-en="Automated submission is being configured. If the service is unavailable, no request will be stored and you will be offered an email contact option.">L’envoi automatique est en cours de configuration. Si le service est indisponible, aucune demande ne sera enregistrée et un contact par e-mail vous sera proposé.</p>
+      </div>
+
+      <form id="reservation-form" novalidate>
+        <div class="booking-honeypot" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off"/>
+        </div>
+        <input type="hidden" id="startedAt" name="startedAt"/>
+
+        <div class="booking-form-grid">
+          <div class="booking-field booking-field-wide">
+            <label for="fullName" data-fr="Nom complet *" data-en="Full name *">Nom complet *</label>
+            <input id="fullName" name="fullName" type="text" required minlength="2" maxlength="100" autocomplete="name" data-placeholder-fr="Votre nom complet" data-placeholder-en="Your full name" placeholder="Votre nom complet"/>
+          </div>
+
+          <div class="booking-field">
+            <label for="email" data-fr="Adresse e-mail *" data-en="Email address *">Adresse e-mail *</label>
+            <input id="email" name="email" type="email" required maxlength="160" autocomplete="email" data-placeholder-fr="vous@entreprise.com" data-placeholder-en="you@company.com" placeholder="vous@entreprise.com"/>
+          </div>
+
+          <div class="booking-field">
+            <label for="phone" data-fr="Téléphone (facultatif)" data-en="Phone (optional)">Téléphone (facultatif)</label>
+            <input id="phone" name="phone" type="tel" maxlength="40" autocomplete="tel" data-placeholder-fr="Indicatif et numéro" data-placeholder-en="Country code and number" placeholder="Indicatif et numéro"/>
+          </div>
+
+          <div class="booking-field">
+            <label for="company" data-fr="Entreprise *" data-en="Company *">Entreprise *</label>
+            <input id="company" name="company" type="text" required maxlength="120" autocomplete="organization" data-placeholder-fr="Nom de votre activité" data-placeholder-en="Your business name" placeholder="Nom de votre activité"/>
+          </div>
+
+          <div class="booking-field">
+            <label for="country" data-fr="Pays *" data-en="Country *">Pays *</label>
+            <select id="country" name="country" required autocomplete="country-name">
+              <option value="" data-fr="Sélectionnez un pays" data-en="Select a country">Sélectionnez un pays</option>
+              <option value="MU" data-fr="Maurice" data-en="Mauritius">Maurice</option>
+              <option value="FR" data-fr="France" data-en="France">France</option>
+              <option value="CA" data-fr="Canada" data-en="Canada">Canada</option>
+              <option value="BE" data-fr="Belgique" data-en="Belgium">Belgique</option>
+              <option value="CH" data-fr="Suisse" data-en="Switzerland">Suisse</option>
+              <option value="GB" data-fr="Royaume-Uni" data-en="United Kingdom">Royaume-Uni</option>
+              <option value="OTHER" data-fr="Autre pays" data-en="Other country">Autre pays</option>
+            </select>
+          </div>
+
+          <div class="booking-field">
+            <label for="service" data-fr="Service recherché *" data-en="Service required *">Service recherché *</label>
+            <select id="service" name="service" required>
+              <option value="" data-fr="Choisissez un service" data-en="Choose a service">Choisissez un service</option>
+              <option value="google-business" data-fr="Google Business Profile" data-en="Google Business Profile">Google Business Profile</option>
+              <option value="seo-local" data-fr="SEO local" data-en="Local SEO">SEO local</option>
+              <option value="website" data-fr="Création de sites web" data-en="Website creation">Création de sites web</option>
+              <option value="google-ads" data-fr="Google Ads" data-en="Google Ads">Google Ads</option>
+              <option value="automation" data-fr="Automatisation n8n" data-en="n8n automation">Automatisation n8n</option>
+              <option value="audit" data-fr="Audit digital" data-en="Digital audit">Audit digital</option>
+              <option value="other" data-fr="Autre besoin" data-en="Other need">Autre besoin</option>
+            </select>
+          </div>
+
+          <div class="booking-field">
+            <label for="budget" data-fr="Budget indicatif — devise confirmée dans le devis *" data-en="Indicative budget — currency confirmed in the quote *">Budget indicatif — devise confirmée dans le devis *</label>
+            <select id="budget" name="budget" required>
+              <option value="" data-fr="Sélectionnez une fourchette" data-en="Select a range">Sélectionnez une fourchette</option>
+              <option value="to-define" data-fr="À définir ensemble" data-en="To be discussed">À définir ensemble</option>
+              <option value="under-1000" data-fr="Moins de 1 000 — devise à confirmer" data-en="Under 1,000 — currency to be confirmed">Moins de 1 000 — devise à confirmer</option>
+              <option value="1000-3000" data-fr="1 000 – 3 000 — devise à confirmer" data-en="1,000–3,000 — currency to be confirmed">1 000 – 3 000 — devise à confirmer</option>
+              <option value="3000-7000" data-fr="3 000 – 7 000 — devise à confirmer" data-en="3,000–7,000 — currency to be confirmed">3 000 – 7 000 — devise à confirmer</option>
+              <option value="over-7000" data-fr="Plus de 7 000 — devise à confirmer" data-en="Over 7,000 — currency to be confirmed">Plus de 7 000 — devise à confirmer</option>
+            </select>
+          </div>
+
+          <div class="booking-field">
+            <label for="preferredDate" data-fr="Date souhaitée *" data-en="Preferred date *">Date souhaitée *</label>
+            <input id="preferredDate" name="preferredDate" type="date" required/>
+          </div>
+
+          <div class="booking-field">
+            <label for="timeSlot" data-fr="Créneau horaire *" data-en="Preferred time *">Créneau horaire *</label>
+            <select id="timeSlot" name="timeSlot" required>
+              <option value="" data-fr="Sélectionnez un créneau" data-en="Select a time slot">Sélectionnez un créneau</option>
+              <option value="morning" data-fr="Matin — 09h à 12h" data-en="Morning — 9:00 to 12:00">Matin — 09h à 12h</option>
+              <option value="afternoon" data-fr="Après-midi — 13h à 17h" data-en="Afternoon — 13:00 to 17:00">Après-midi — 13h à 17h</option>
+            </select>
+          </div>
+
+          <div class="booking-field booking-field-wide">
+            <label for="message" data-fr="Message *" data-en="Message *">Message *</label>
+            <textarea id="message" name="message" required minlength="20" maxlength="2000" rows="6" data-placeholder-fr="Décrivez votre activité, votre objectif et le principal défi à résoudre." data-placeholder-en="Describe your business, objective and the main challenge to solve." placeholder="Décrivez votre activité, votre objectif et le principal défi à résoudre."></textarea>
+            <span class="booking-counter" id="message-counter">0 / 2000</span>
+          </div>
+        </div>
+
+        <label class="booking-consent">
+          <input type="checkbox" id="consent" name="consent" value="accepted" required/>
+          <span data-fr="J’accepte que PUBLIC-MAP utilise ces informations afin de me recontacter au sujet de ma demande. *" data-en="I agree that PUBLIC-MAP may use this information to contact me about my request. *">J’accepte que PUBLIC-MAP utilise ces informations afin de me recontacter au sujet de ma demande. *</span>
+        </label>
+
+        <button class="booking-submit" type="submit">
+          <span data-submit-label data-fr="Envoyer ma demande d’appel" data-en="Send my call request">Envoyer ma demande d’appel</span>
+          <span aria-hidden="true">→</span>
+        </button>
+
+        <div class="booking-status" id="reservation-status" role="status" aria-live="polite"></div>
+        <p class="booking-privacy"><span data-fr="Aucune donnée de carte ou information de paiement n’est demandée. Consultez notre" data-en="No card data or payment information is requested. Read our">Aucune donnée de carte ou information de paiement n’est demandée. Consultez notre</span> <a href="/privacy" data-fr="politique de confidentialité" data-en="privacy policy">politique de confidentialité</a>.</p>
+        <noscript><p class="booking-noscript">JavaScript est nécessaire pour valider le formulaire. Vous pouvez écrire directement à <a href="mailto:contact@public-map.com">contact@public-map.com</a>.</p></noscript>
+      </form>
+    </section>
+  </main>
+
+  <footer class="booking-footer">
+    <p>© 2026 PUBLIC-MAP</p>
+    <div><a href="/privacy">Confidentialité</a><a href="/terms">Conditions</a><a href="/contact">Contact</a></div>
+  </footer>
+
+  <script src="/reservation/reservation.js?v=2026071601" defer></script>
+</body>
+</html>

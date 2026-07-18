@@ -3,7 +3,7 @@
    - Détecte chaque carte service et ajoute un bouton "Panier"
    - Drawer latéral droit avec liste, quantités, total
    - Persistance localStorage (survit aux rechargements)
-   - Multi-devise (CAD/EUR selon zone active)
+   - Une seule devise par panier (CAD ou EUR)
    - Bilingue FR/EN
    - Animation "fly to cart" au clic
    - Checkout → ouvre la demande de devis avec le total
@@ -318,20 +318,30 @@
 /* ─── CART STATE ─── */
 const CART = {
   items: [],
+  resetMixedOnLoad: false,
   load(){
     try {
       const raw = localStorage.getItem('digitalnova-cart');
       this.items = raw ? JSON.parse(raw) : [];
+      const zones = new Set(this.items.map(item => item.zone).filter(zone => zone === 'ca' || zone === 'eu'));
+      if(zones.size > 1){
+        this.items = [];
+        this.resetMixedOnLoad = true;
+        this.save();
+      }
     } catch(e) { this.items = []; }
   },
   save(){
     localStorage.setItem('digitalnova-cart', JSON.stringify(this.items));
   },
   add(item){
+    const currentZone = this.items[0]?.zone;
+    if(currentZone && currentZone !== item.zone) return false;
     const ex = this.items.find(i => i.id === item.id && i.zone === item.zone);
     if(ex) ex.qty += 1;
     else this.items.push({ ...item, qty: 1 });
     this.save();
+    return true;
   },
   remove(id, zone){
     this.items = this.items.filter(i => !(i.id === id && i.zone === zone));
@@ -424,19 +434,22 @@ window.addOfferPairToCart = function(pairId){
     const id = `${zone}-${name.replace(/\s+/g,'-').toLowerCase().slice(0,40)}`;
     if(CART.items.some(item => item.id === id && item.zone === zone)) return;
 
-    CART.add({
+    const wasAdded = CART.add({
       id,
       name,
       icon: iconEl?.textContent.trim() || '📦',
       price,
       zone
     });
-    added += 1;
+    if(wasAdded) added += 1;
   });
 
   renderCart();
   if(added){
     showToast(t(`✓ ${added} services ajoutés au panier`, `✓ ${added} services added to cart`));
+    openCart();
+  } else if(CART.items.length && CART.items[0].zone !== zone) {
+    showToast(t('Votre panier contient déjà des services dans une autre devise. Videz-le avant de changer de région.','Your cart already contains services in another currency. Empty it before changing region.'));
     openCart();
   } else {
     showToast(t('Ces services sont déjà dans votre panier','These services are already in your cart'));
@@ -472,7 +485,12 @@ function injectCartButtons(){
       const icon = cartBtn.dataset.icon;
       const price = Number(cartBtn.dataset.price);
       const zone = cartBtn.dataset.zone;
-      CART.add({ id, name, icon, price, zone });
+      const wasAdded = CART.add({ id, name, icon, price, zone });
+      if(!wasAdded){
+        showToast(t('Une seule devise est autorisée par panier. Videz le panier avant de changer de région.','Only one currency is allowed per cart. Empty the cart before changing region.'));
+        openCart();
+        return;
+      }
       renderCart();
       flyToCart(cartBtn);
       cartBtn.classList.add('added');
@@ -574,17 +592,17 @@ function renderCart(){
       </div>
     </div>`).join('');
 
-  // Totals (separated by zone since currencies differ)
-  const totalCA = CART.items.filter(i => i.zone === 'ca').reduce((s,i)=>s+i.price*i.qty,0);
-  const totalEU = CART.items.filter(i => i.zone === 'eu').reduce((s,i)=>s+i.price*i.qty,0);
+  // One cart = one region/currency. CART.add rejects cross-zone items.
+  const zone = CART.items[0].zone;
+  const total = CART.items.reduce((sum,item)=>sum+item.price*item.qty,0);
+  const totalLabel = zone === 'eu' ? `${total.toLocaleString()} €` : `$${total.toLocaleString()} CAD`;
   const totalsHtml = `
     <div class="cart-totals">
-      ${totalCA ? `<div class="cart-line"><span>${t('Sous-total Canada','Canada subtotal')}</span><strong>$${totalCA.toLocaleString()} CAD</strong></div>` : ''}
-      ${totalEU ? `<div class="cart-line"><span>${t('Sous-total Europe','Europe subtotal')}</span><strong>${totalEU.toLocaleString()} €</strong></div>` : ''}
+      <div class="cart-line"><span>${t('Sous-total','Subtotal')}</span><strong>${totalLabel}</strong></div>
       <div class="cart-line"><span>${t('Taxes applicables','Applicable taxes')}</span><span>${t('Précisées dans le devis','Detailed in the quote')}</span></div>
       <div class="cart-line total">
         <span>${t('Total','Total')}</span>
-        <span class="amount">${totalCA && totalEU ? '$'+totalCA.toLocaleString()+' + '+totalEU.toLocaleString()+'€' : totalCA ? '$'+totalCA.toLocaleString()+' CAD' : totalEU.toLocaleString()+' €'}</span>
+        <span class="amount">${totalLabel}</span>
       </div>
     </div>
     <button class="cart-checkout" id="cart-checkout">
@@ -614,20 +632,16 @@ function renderCart(){
   const checkoutBtn = document.getElementById('cart-checkout');
   if(checkoutBtn){
     checkoutBtn.addEventListener('click', () => {
-      // Open the quote modal with the current cart total
-      const grandTotal = totalCA + totalEU;
-      const summary = CART.items.map(i => `${i.qty}× ${i.name}`).join(', ');
-      const zone = totalEU > totalCA ? 'eu' : 'ca';
-      const displayPrice = zone === 'eu' ? totalEU : totalCA;
+      // Open the quote modal with the single-currency cart total.
       if(typeof window.openModal === 'function'){
         window.openModal(
           t('Panier 🌍 PUBLIC-MAP','🌍 PUBLIC-MAP Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
-          displayPrice,
-          displayPrice,
+          total,
+          total,
           zone
         );
       } else {
-        alert(t('Total: ','Total: ') + fmt(grandTotal));
+        alert(t('Total : ','Total: ') + totalLabel);
       }
       closeCart();
     });
@@ -649,6 +663,9 @@ function closeCart(){
 /* ─── Init ─── */
 window.addEventListener('DOMContentLoaded', () => {
   CART.load();
+  if(CART.resetMixedOnLoad){
+    showToast(t('Un ancien panier mélangeait CAD et EUR : il a été vidé pour éviter un total incorrect.','A previous cart mixed CAD and EUR, so it was cleared to prevent an incorrect total.'));
+  }
 
   // Cart button in nav
   const navRight = document.querySelector('.nav-right');
@@ -676,7 +693,7 @@ window.addEventListener('DOMContentLoaded', () => {
       <button class="cart-close" aria-label="Close">×</button>
     </div>
     <div class="cart-zone-banner">
-      📍 ${t('Devises automatiques selon zone','Currencies match selected zone')} · CAD 🇨🇦 · EUR 🇪🇺
+      📍 ${t('Une seule devise par panier','One currency per cart')} · CAD 🇨🇦 · EUR 🇪🇺
     </div>
     <div class="cart-body" id="cart-body"></div>
     <div class="cart-footer" id="cart-footer"></div>
