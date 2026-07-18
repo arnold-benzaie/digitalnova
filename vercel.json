@@ -4,15 +4,20 @@
   "redirects": [
     { "source": "/auth", "destination": "/login", "permanent": false },
     { "source": "/sign-in", "destination": "/login", "permanent": false },
-    { "source": "/connexion", "destination": "/login", "permanent": false }
+    { "source": "/connexion", "destination": "/login", "permanent": false },
+    { "source": "/privacy-policy", "destination": "/privacy", "permanent": true },
+    { "source": "/terms-and-conditions", "destination": "/terms", "permanent": true }
   ],
   "rewrites": [
     { "source": "/login", "destination": "/login/index.html" },
     { "source": "/auth/callback", "destination": "/auth/callback/index.html" },
     { "source": "/dashboard", "destination": "/dashboard/index.html" },
-    { "source": "/privacy-policy", "destination": "/privacy-policy/index.html" },
-    { "source": "/terms-and-conditions", "destination": "/terms-and-conditions/index.html" },
-    { "source": "/refund-policy", "destination": "/refund-policy/index.html" }
+    { "source": "/refund-policy", "destination": "/refund-policy/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/delivery-policy", "destination": "/delivery-policy/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/reservation", "destination": "/reservation/index.html" }
   ],
   "headers": [
     {

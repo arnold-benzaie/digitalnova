@@ -3,34 +3,41 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Refund Policy — PUBLIC-MAP</title>
-  <meta name="description" content="Politique de remboursement de PUBLIC-MAP : remboursement avant démarrage, services commencés ou livrés, demande et contact."/>
-  <link rel="canonical" href="https://public-map.com/refund-policy"/>
+  <title>Remboursement et annulation — PUBLIC-MAP</title>
+  <meta name="description" content="Politique bilingue de remboursement et d’annulation de PUBLIC-MAP pour les services numériques ponctuels ou récurrents."/>
+  <meta name="robots" content="index, follow"/>
+  <link rel="canonical" href="https://www.public-map.com/refund-policy"/>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='40' cy='40' r='30' fill='%23E8F4FD' stroke='%231B5BFF' stroke-width='3.5'/%3E%3Cpath d='M40 22 C32 22 26 28 26 36 C26 44 40 56 40 56 C40 56 54 44 54 36 C54 28 48 22 40 22 Z' fill='%23EA4335'/%3E%3Ccircle cx='40' cy='35' r='5' fill='%23fff'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%231B5BFF' stroke-width='12' stroke-linecap='round'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"/>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="../legal-pages.css"/>
+  <link rel="stylesheet" href="../legal-pages.css?v=2026071801"/>
 </head>
 <body>
   <header class="legal-nav">
     <a class="brand" href="/">PUBLIC-<span>MAP</span></a>
     <nav class="legal-nav-links" aria-label="Navigation légale">
-      <a href="/">Accueil</a>
-      <a href="/#services">Services</a>
-      <a href="/privacy-policy">Confidentialité</a>
-      <a href="/terms-and-conditions">CGV</a>
-      <a href="/refund-policy">Remboursement</a>
-      <a class="legal-cta" href="mailto:contact@public-map.com">Contact</a>
+      <a href="/" data-fr="Accueil" data-en="Home">Accueil</a>
+      <a href="/privacy" data-fr="Confidentialité" data-en="Privacy">Confidentialité</a>
+      <a href="/terms" data-fr="Conditions" data-en="Terms">Conditions</a>
+      <a href="/refund-policy" data-fr="Remboursement" data-en="Refunds">Remboursement</a>
+      <a href="/delivery-policy" data-fr="Livraison" data-en="Delivery">Livraison</a>
+      <a class="legal-cta" href="/contact">Contact</a>
     </nav>
+    <div class="lang-toggle" role="group" aria-label="Langue / Language">
+      <button type="button" class="active" data-lang="fr">FR</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
   </header>
 
   <section class="legal-hero">
     <div class="legal-wrap">
-      <div class="legal-kicker">Refund Policy</div>
-      <h1 class="legal-title">Politique de <em>remboursement</em></h1>
-      <p class="legal-sub">Cette politique explique dans quels cas un remboursement peut être demandé pour les services digitaux PUBLIC-MAP.</p>
+      <div class="legal-kicker" data-fr="Annulation et remboursement" data-en="Cancellation and refunds">Annulation et remboursement</div>
+      <h1 class="legal-title" data-lang-content="fr">Politique de <em>remboursement</em></h1>
+      <h1 class="legal-title" data-lang-content="en" hidden><em>Refund</em> Policy</h1>
+      <p class="legal-sub" data-lang-content="fr">Cette politique explique comment sont examinées les annulations et demandes de remboursement pour les prestations numériques PUBLIC-MAP.</p>
+      <p class="legal-sub" data-lang-content="en" hidden>This policy explains how cancellations and refund requests for PUBLIC-MAP digital services are reviewed.</p>
       <div class="legal-meta">
-        <span class="legal-pill">Dernière mise à jour : 21 juin 2026</span>
-        <span class="legal-pill">Contact : contact@public-map.com</span>
+        <span class="legal-pill" data-fr="Mise à jour : 18 juillet 2026" data-en="Updated: July 18, 2026">Mise à jour : 18 juillet 2026</span>
+        <span class="legal-pill">contact@public-map.com</span>
       </div>
     </div>
   </section>
@@ -38,48 +45,84 @@
   <main class="legal-main">
     <article class="legal-card">
       <div class="legal-grid">
-        <aside class="legal-toc" aria-label="Sommaire">
+        <aside class="legal-toc" data-lang-content="fr" aria-label="Sommaire">
           <strong>Sommaire</strong>
-          <a href="#principe">Principe général</a>
-          <a href="#avant">Avant démarrage</a>
-          <a href="#commence">Service commencé</a>
-          <a href="#livre">Service livré</a>
-          <a href="#demande">Faire une demande</a>
+          <a href="#avant">1. Avant le début</a>
+          <a href="#commence">2. Service commencé</a>
+          <a href="#livre">3. Service livré</a>
+          <a href="#recurrent">4. Services récurrents</a>
+          <a href="#demande">5. Demande</a>
+          <a href="#traitement">6. Traitement</a>
+        </aside>
+        <aside class="legal-toc" data-lang-content="en" aria-label="Table of contents" hidden>
+          <strong>Contents</strong>
+          <a href="#before-en">1. Before work starts</a>
+          <a href="#started-en">2. Work started</a>
+          <a href="#delivered-en">3. Work delivered</a>
+          <a href="#recurring-en">4. Recurring services</a>
+          <a href="#request-en">5. Request</a>
+          <a href="#processing-en">6. Processing</a>
         </aside>
 
-        <div class="legal-content">
-          <section id="principe">
-            <h2>1. Principe général</h2>
-            <p>PUBLIC-MAP vend principalement des services personnalisés : SEO, Google Business Profile, Google Ads, création de sites web, landing pages, CRM, automatisations n8n/IA, audit, conseil et accompagnement digital.</p>
-            <p>Comme ces services demandent du temps humain, de la stratégie, de la configuration et parfois des livrables sur mesure, les remboursements sont évalués selon l'avancement réel du projet.</p>
-          </section>
-
+        <div class="legal-content" data-lang-content="fr">
           <section id="avant">
-            <h2>2. Remboursement avant démarrage</h2>
-            <p>Un remboursement peut être possible si la demande est faite avant le démarrage effectif du service, avant la réservation de ressources importantes ou avant la livraison d'un premier travail substantiel.</p>
-            <p>Dans ce cas, PUBLIC-MAP peut rembourser le paiement reçu, sous réserve des frais de transaction non récupérables imposés par les prestataires de paiement.</p>
+            <h2>1. Annulation avant le début d’une prestation</h2>
+            <p>Une demande d’annulation reçue avant le début effectif du travail est examinée en tenant compte du devis accepté, des dispositions impératives applicables et des éventuels coûts déjà engagés avec l’accord du client. Lorsqu’aucun travail ni coût autorisé n’a commencé, un remboursement peut être accordé.</p>
           </section>
-
           <section id="commence">
-            <h2>3. Services déjà commencés</h2>
-            <p>Les services déjà commencés ne sont généralement pas remboursables en totalité. Cela inclut notamment l'audit, la recherche, la stratégie, la configuration de comptes, la rédaction, la création de maquettes, le développement, l'automatisation, l'optimisation SEO ou la préparation de campagnes.</p>
-            <p>Si une partie significative du travail n'a pas encore été réalisée, PUBLIC-MAP peut proposer un remboursement partiel, un avoir, une adaptation du service ou une solution raisonnable selon la situation.</p>
+            <h2>2. Prestation déjà commencée</h2>
+            <p>Lorsque la prestation a commencé, PUBLIC-MAP peut retenir la part correspondant au travail effectivement réalisé et aux coûts autorisés déjà engagés. Selon la situation, un remboursement partiel, un avoir ou une adaptation du périmètre peut être proposé. Aucun remboursement total n’est promis automatiquement.</p>
           </section>
-
           <section id="livre">
-            <h2>4. Services livrés ou actifs digitaux transmis</h2>
-            <p>Une fois le service livré, publié, configuré ou transmis au client, le paiement n'est généralement pas remboursable. Les actifs digitaux livrés peuvent inclure un site, une landing page, un rapport, une fiche optimisée, une campagne, un workflow, des contenus ou des recommandations stratégiques.</p>
-            <p>Si un problème technique dépend directement d'une erreur PUBLIC-MAP, nous privilégions d'abord la correction, l'ajustement ou l'assistance raisonnable.</p>
+            <h2>3. Prestation livrée</h2>
+            <p>Après livraison d’un rapport, fichier, accès, configuration, site web ou autre livrable accepté, une demande est évaluée au regard du devis, des défauts signalés et des droits impératifs applicables. Lorsqu’une correction relève directement de PUBLIC-MAP, une correction raisonnable est privilégiée avant toute autre solution.</p>
           </section>
-
+          <section id="recurrent">
+            <h2>4. Services récurrents</h2>
+            <p>Si un service récurrent est proposé, les modalités de renouvellement, d’annulation et la date d’effet figurent dans le devis ou la confirmation. Une annulation met fin aux périodes futures selon ces modalités ; elle ne rembourse pas automatiquement une période déjà commencée ou exécutée.</p>
+          </section>
           <section id="demande">
-            <h2>5. Comment demander un remboursement</h2>
-            <p>Pour demander un remboursement, contactez-nous par email avec votre nom, votre entreprise, le service concerné, la date de paiement, le montant payé et la raison de la demande.</p>
-            <p>Si le paiement a été effectué par l'intermédiaire d'un prestataire de paiement, le remboursement peut être traité selon les règles, délais et moyens techniques du prestataire concerné.</p>
+            <h2>5. Faire une demande</h2>
+            <p>Envoyez un email indiquant le nom du client, le service, la référence du devis ou de la commande, la date, le montant et la raison de la demande. N’envoyez jamais de numéro complet de carte ou de donnée bancaire sensible.</p>
             <div class="contact-box">
-              <p>Contact remboursement :</p>
               <a href="mailto:contact@public-map.com?subject=Demande%20de%20remboursement%20PUBLIC-MAP">contact@public-map.com</a>
             </div>
+          </section>
+          <section id="traitement">
+            <h2>6. Examen et traitement</h2>
+            <p>Les demandes sont examinées dans les meilleurs délais et une estimation du délai de traitement est communiquée par email.</p>
+            <p>Lorsqu’un paiement a été effectué par un prestataire autorisé, le remboursement approuvé est retourné par le moyen disponible selon les règles techniques de ce prestataire. Aucun frais propre à une solution bancaire non activée n’est annoncé sur ce site.</p>
+          </section>
+        </div>
+
+        <div class="legal-content" data-lang-content="en" hidden>
+          <section id="before-en">
+            <h2>1. Cancellation before work starts</h2>
+            <p>A cancellation request received before work effectively starts is reviewed in light of the accepted quote, mandatory applicable provisions and any costs already incurred with the customer’s approval. Where no work or authorised cost has begun, a refund may be granted.</p>
+          </section>
+          <section id="started-en">
+            <h2>2. Service already started</h2>
+            <p>Once work has started, PUBLIC-MAP may retain the portion corresponding to work actually completed and authorised costs already incurred. Depending on the circumstances, a partial refund, credit or scope adjustment may be offered. A full refund is not automatically promised.</p>
+          </section>
+          <section id="delivered-en">
+            <h2>3. Service delivered</h2>
+            <p>After delivery of a report, file, access credential, configuration, website or other accepted deliverable, a request is assessed against the quote, reported defects and mandatory applicable rights. Where a correction is directly PUBLIC-MAP’s responsibility, a reasonable correction is prioritised before another remedy.</p>
+          </section>
+          <section id="recurring-en">
+            <h2>4. Recurring services</h2>
+            <p>If a recurring service is offered, renewal, cancellation and effective-date terms appear in the quote or confirmation. Cancellation ends future periods in accordance with those terms; it does not automatically refund a period already started or performed.</p>
+          </section>
+          <section id="request-en">
+            <h2>5. Making a request</h2>
+            <p>Email the customer name, service, quote or order reference, date, amount and reason for the request. Never send a full card number or sensitive banking data.</p>
+            <div class="contact-box">
+              <a href="mailto:contact@public-map.com?subject=PUBLIC-MAP%20refund%20request">contact@public-map.com</a>
+            </div>
+          </section>
+          <section id="processing-en">
+            <h2>6. Review and processing</h2>
+            <p>Requests are reviewed as soon as reasonably possible, and an estimated processing timeframe is communicated by email.</p>
+            <p>Where payment was made through an authorised provider, an approved refund is returned using the available method under that provider’s technical rules. This site does not announce fees for any banking solution that has not been activated.</p>
           </section>
         </div>
       </div>
@@ -88,12 +131,26 @@
 
   <footer class="legal-footer">
     <a class="brand" href="/">PUBLIC-<span>MAP</span></a>
-    <p>Une politique claire : remboursement possible avant démarrage, service commencé ou livré généralement non remboursable.</p>
+    <p data-fr="Chaque demande est examinée selon l’avancement réel et les droits applicables." data-en="Each request is reviewed according to actual progress and applicable rights.">Chaque demande est examinée selon l’avancement réel et les droits applicables.</p>
     <div class="legal-footer-links">
-      <a href="/privacy-policy">Confidentialité</a>
-      <a href="/terms-and-conditions">CGV</a>
-      <a href="/refund-policy">Remboursement</a>
+      <a href="/privacy" data-fr="Confidentialité" data-en="Privacy">Confidentialité</a>
+      <a href="/terms" data-fr="Conditions" data-en="Terms">Conditions</a>
+      <a href="/delivery-policy" data-fr="Livraison" data-en="Delivery">Livraison</a>
+      <a href="/contact">Contact</a>
     </div>
   </footer>
+  <script>
+    (function(){
+      function applyLang(lang){
+        document.documentElement.lang=lang;
+        document.querySelectorAll('[data-fr]').forEach(function(el){var text=lang==='en'?(el.dataset.en||el.dataset.fr):el.dataset.fr;if(text)el.textContent=text;});
+        document.querySelectorAll('[data-lang-content]').forEach(function(el){el.hidden=el.dataset.langContent!==lang;});
+        document.querySelectorAll('.lang-toggle button').forEach(function(b){b.classList.toggle('active',b.dataset.lang===lang);});
+        try{localStorage.setItem('digitalnova-lang',lang);}catch(e){}
+      }
+      document.querySelectorAll('.lang-toggle button').forEach(function(b){b.addEventListener('click',function(){applyLang(b.dataset.lang);});});
+      var saved;try{saved=localStorage.getItem('digitalnova-lang');}catch(e){saved=null;}if(saved==='en')applyLang('en');
+    })();
+  </script>
 </body>
 </html>

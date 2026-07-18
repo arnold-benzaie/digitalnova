@@ -94,11 +94,14 @@
     const qbEu = document.getElementById('qb-eu');
     if(!flag || !title || !sub) return;
 
+    const isEnglish = document.documentElement.lang === 'en';
     if(zone === 'eu'){
       flag.textContent = '🇫🇷/🇪🇺';
       title.style.color = '#003399';
-      title.textContent = 'Affichage en Euro (EUR)';
-      sub.textContent = 'Conformité RGPD · Bureau Paris CET · TVA selon l’offre · Cliquez sur Canada pour basculer en CAD';
+      title.textContent = isEnglish ? 'Prices in Euro (EUR)' : 'Affichage en Euro (EUR)';
+      sub.textContent = isEnglish
+        ? 'Remote services from Mauritius · Taxes according to the quote · Select Canada to switch to CAD'
+        : 'Services à distance depuis Maurice · Taxes selon le devis · Cliquez sur Canada pour basculer en CAD';
       if(qbCa){
         qbCa.style.background = '#fff';
         qbCa.style.color = '#1B5BFF';
@@ -112,8 +115,10 @@
     } else {
       flag.textContent = '🇨🇦';
       title.style.color = '#1B5BFF';
-      title.textContent = 'Affichage en Dollar Canadien (CAD)';
-      sub.textContent = 'Bureau Montréal · Support jours ouvrés EST/PST · Cliquez sur Europe pour basculer en EUR';
+      title.textContent = isEnglish ? 'Prices in Canadian Dollar (CAD)' : 'Affichage en Dollar Canadien (CAD)';
+      sub.textContent = isEnglish
+        ? 'Remote services from Mauritius · Support during published hours · Select Europe to switch to EUR'
+        : 'Services à distance depuis Maurice · Assistance aux horaires publiés · Cliquez sur Europe pour basculer en EUR';
       if(qbCa){
         qbCa.style.background = '#1B5BFF';
         qbCa.style.color = '#fff';

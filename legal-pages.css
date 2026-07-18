@@ -353,3 +353,43 @@ a {
     font-size: clamp(40px, 13vw, 58px);
   }
 }
+
+/* ─── FR/EN toggle (privacy + terms pages) ─── */
+.lang-toggle {
+  display: flex;
+  background: rgba(27, 91, 255, .07);
+  border: 1px solid rgba(27, 91, 255, .16);
+  border-radius: 24px;
+  padding: 3px;
+}
+
+.lang-toggle button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 20px;
+  background: transparent;
+  color: rgba(13, 27, 47, .55);
+  font-family: "Outfit", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: all .25s;
+}
+
+.lang-toggle button.active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(27, 91, 255, .3);
+}
+
+/* Visibility is toggled via the native `hidden` attribute (set in JS), not
+   CSS display rules — that way each element's own display type (flex,
+   grid, block…) applies unmodified whichever language is shown, instead of
+   fighting per-component display values here. */
+
+@media (max-width: 860px) {
+  .lang-toggle {
+    margin-top: 10px;
+  }
+}
