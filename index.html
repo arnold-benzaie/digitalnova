@@ -3230,10 +3230,14 @@ footer{background:#050505;}
   <div style="position:relative;z-index:2;max-width:680px;margin:0 auto;">
     <h2 class="nl-title">Rejoignez nos<br><em>abonnés professionnels</em></h2>
     <p class="nl-sub">Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.</p>
-    <form class="nl-form" id="newsletter-form" novalidate>
+    <form class="nl-form" id="newsletter-form" method="post" action="" novalidate>
       <input type="email" class="nl-inp" id="nl-email" placeholder="votre@courriel.com" autocomplete="email"/>
       <button class="nl-btn" type="submit" onclick="subscribeNewsletter(event)">S'inscrire →</button>
     </form>
+    <noscript>
+      <style>#newsletter-form{display:none!important;}</style>
+      <p class="nl-sub" style="margin-top:16px;color:rgba(255,255,255,.78)!important;">JavaScript est nécessaire pour utiliser ce formulaire. Pour recevoir des informations de PUBLIC-MAP, écrivez à <a href="mailto:contact@public-map.com" style="color:inherit;text-decoration:underline;">contact@public-map.com</a>.</p>
+    </noscript>
     <div class="nl-msg" id="nl-msg" aria-live="polite"></div>
     <p style="color:rgba(255,255,255,.4);font-size:11px;margin-top:14px;text-align:center;">Désinscription libre · RGPD & LPRPDE compliant</p>
   </div>
