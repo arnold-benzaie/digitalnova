@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="184" viewBox="0 0 160 184" role="img" aria-labelledby="title desc">
+  <title id="title">Badge PUBLIC-MAP Premium Plus</title>
+  <desc id="desc">Sceau vectoriel bleu royal, platine et or rose pour l'offre Premium Plus.</desc>
+  <defs>
+    <linearGradient id="platinum" x1="15" y1="12" x2="146" y2="168" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#53677d"/><stop offset=".14" stop-color="#f7fbff"/><stop offset=".3" stop-color="#a9b8ca"/>
+      <stop offset=".46" stop-color="#ffffff"/><stop offset=".61" stop-color="#788ba2"/><stop offset=".79" stop-color="#e8eff7"/><stop offset="1" stop-color="#485a70"/>
+    </linearGradient>
+    <linearGradient id="rose" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#7c3d2b"/><stop offset=".22" stop-color="#f0b192"/><stop offset=".44" stop-color="#ffd8bd"/>
+      <stop offset=".66" stop-color="#b8664b"/><stop offset=".84" stop-color="#f5b99a"/><stop offset="1" stop-color="#6e3528"/>
+    </linearGradient>
+    <linearGradient id="royal" x1="40" y1="25" x2="122" y2="149" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3978ff"/><stop offset=".36" stop-color="#123fb5"/><stop offset=".72" stop-color="#081d62"/><stop offset="1" stop-color="#030a25"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="21" y1="0" x2="139" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3b4d65"/><stop offset=".14" stop-color="#e5eef8"/><stop offset=".29" stop-color="#9badc1"/>
+      <stop offset=".48" stop-color="#fff"/><stop offset=".66" stop-color="#8fa2b8"/><stop offset=".84" stop-color="#eef5fc"/><stop offset="1" stop-color="#40526a"/>
+    </linearGradient>
+    <radialGradient id="core" cx="36%" cy="26%" r="80%"><stop stop-color="#4b8cff"/><stop offset=".48" stop-color="#143fae"/><stop offset="1" stop-color="#071746"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-25%" width="160%" height="165%"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#071536" flood-opacity=".32"/></filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M80 7 102 18l24-1 8 22 18 16-8 23 4 24-20 13-10 22-24 1-14 19-14-19-24-1-10-22-20-13 4-24-8-23 18-16 8-22 24 1Z" fill="url(#platinum)" stroke="#f6fbff" stroke-width="1.4"/>
+    <path d="M80 18 100 27l21-1 7 19 15 13-7 21 3 19-17 11-9 19-20 1-13 16-13-16-20-1-9-19-17-11 3-19-7-21 15-13 7-19 21 1Z" fill="url(#royal)" stroke="url(#rose)" stroke-width="1.8"/>
+    <path d="M30 47c30-23 70-25 101-4-27-8-65-3-94 15Z" fill="#fff" opacity=".16"/>
+    <circle cx="80" cy="72" r="37" fill="url(#core)" stroke="url(#rose)" stroke-width="3.4"/>
+    <circle cx="80" cy="72" r="29.5" fill="none" stroke="#dceaff" stroke-opacity=".48"/>
+    <path d="M66 70h28M80 56v28" stroke="#fff4ef" stroke-width="4" stroke-linecap="round"/>
+    <path d="m80 43 3.2 6.8 6.8 3.2-6.8 3.2L80 63l-3.2-6.8L70 53l6.8-3.2Z" fill="url(#rose)"/>
+    <circle cx="80" cy="70" r="7.5" fill="#102d84" stroke="#f6c5ab" stroke-width="1.3"/>
+    <text x="80" y="37" text-anchor="middle" fill="#eaf3ff" font-family="Arial,Helvetica,sans-serif" font-size="6.4" font-weight="700" letter-spacing="1.45">PUBLIC-MAP</text>
+    <path d="m21 102 19-8h80l19 8-10 18 10 13-34-8H55l-34 8 10-13Z" fill="url(#ribbon)" stroke="#f8fcff" stroke-opacity=".78"/>
+    <path d="m21 102 19 8-9 10Z" fill="#354760"/><path d="m139 102-19 8 9 10Z" fill="#354760"/>
+    <path d="M38 94h84v31H38Z" fill="#0b2b87" stroke="url(#rose)" stroke-width="1.7"/>
+    <path d="M43 98h74" stroke="#a9c8ff" stroke-opacity=".5"/>
+    <text x="80" y="109" text-anchor="middle" fill="#fff5ed" font-family="Arial,Helvetica,sans-serif" font-size="10.3" font-weight="800" letter-spacing=".55">PREMIUM PLUS</text>
+    <text x="80" y="120" text-anchor="middle" fill="#dfeaff" font-family="Arial,Helvetica,sans-serif" font-size="5.3" font-weight="700" letter-spacing="1.1">SOLUTION AVANCÉE</text>
+    <path d="M59 139h42" stroke="#d79778"/><circle cx="72" cy="139" r="2" fill="#f7c4a8"/><circle cx="80" cy="139" r="2.7" fill="#fff"/><circle cx="88" cy="139" r="2" fill="#f7c4a8"/>
+  </g>
+</svg>

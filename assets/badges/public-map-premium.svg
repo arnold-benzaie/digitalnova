@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="184" viewBox="0 0 160 184" role="img" aria-labelledby="title desc">
+  <title id="title">Badge PUBLIC-MAP Premium</title>
+  <desc id="desc">Sceau vectoriel champagne, or et bleu nuit pour l'offre Premium.</desc>
+  <defs>
+    <linearGradient id="gold" x1="14" y1="15" x2="146" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7e5410"/><stop offset=".12" stop-color="#f9db77"/><stop offset=".27" stop-color="#fff4b3"/>
+      <stop offset=".42" stop-color="#b67813"/><stop offset=".57" stop-color="#ffe58d"/><stop offset=".74" stop-color="#9b6513"/><stop offset=".9" stop-color="#f7d56d"/><stop offset="1" stop-color="#6f470b"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="43" y1="27" x2="119" y2="148" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#203b70"/><stop offset=".4" stop-color="#0b1d3d"/><stop offset="1" stop-color="#020713"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="21" y1="0" x2="139" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8f5a0a"/><stop offset=".13" stop-color="#f4c857"/><stop offset=".3" stop-color="#fff2a3"/>
+      <stop offset=".48" stop-color="#c68716"/><stop offset=".64" stop-color="#fff1a0"/><stop offset=".84" stop-color="#d89c2b"/><stop offset="1" stop-color="#754806"/>
+    </linearGradient>
+    <radialGradient id="core" cx="38%" cy="28%" r="78%"><stop stop-color="#294b85"/><stop offset=".48" stop-color="#0d2146"/><stop offset="1" stop-color="#030915"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-25%" width="160%" height="165%"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#161006" flood-opacity=".34"/></filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M80 7 102 18l24-1 8 22 18 16-8 23 4 24-20 13-10 22-24 1-14 19-14-19-24-1-10-22-20-13 4-24-8-23 18-16 8-22 24 1Z" fill="url(#gold)" stroke="#fff0a4" stroke-width="1.4"/>
+    <path d="M80 18 100 27l21-1 7 19 15 13-7 21 3 19-17 11-9 19-20 1-13 16-13-16-20-1-9-19-17-11 3-19-7-21 15-13 7-19 21 1Z" fill="url(#navy)" stroke="#d5a840" stroke-width="1.5"/>
+    <path d="M31 45c26-20 64-24 98-4-30-8-64-3-91 14Z" fill="#fff" opacity=".12"/>
+    <circle cx="80" cy="72" r="37" fill="url(#core)" stroke="url(#gold)" stroke-width="3.4"/>
+    <circle cx="80" cy="72" r="29.5" fill="none" stroke="#f7d873" stroke-opacity=".42"/>
+    <path d="m80 45 6.2 12.5L100 59.5l-10 9.8 2.4 13.8L80 76.6 67.6 83l2.4-13.7-10-9.8 13.8-2Z" fill="url(#gold)" stroke="#fff3ae" stroke-width=".8"/>
+    <circle cx="80" cy="65" r="7" fill="#0b1b36" stroke="#ffe78c"/>
+    <text x="80" y="37" text-anchor="middle" fill="#f8dfa0" font-family="Arial,Helvetica,sans-serif" font-size="6.4" font-weight="700" letter-spacing="1.45">PUBLIC-MAP</text>
+    <path d="m21 102 19-8h80l19 8-10 18 10 13-34-8H55l-34 8 10-13Z" fill="url(#ribbon)" stroke="#ffefa2" stroke-opacity=".75"/>
+    <path d="m21 102 19 8-9 10Z" fill="#654007"/><path d="m139 102-19 8 9 10Z" fill="#654007"/>
+    <path d="M39 94h82v31H39Z" fill="url(#navy)" stroke="url(#gold)" stroke-width="1.6"/>
+    <path d="M43 98h74" stroke="#fff5bd" stroke-opacity=".32"/>
+    <text x="80" y="111" text-anchor="middle" fill="#ffe78e" font-family="Arial,Helvetica,sans-serif" font-size="12.5" font-weight="800" letter-spacing=".8">PREMIUM</text>
+    <text x="80" y="121" text-anchor="middle" fill="#f6f0dd" font-family="Arial,Helvetica,sans-serif" font-size="5.4" font-weight="700" letter-spacing="1.15">SERVICE SÉLECTION</text>
+    <path d="M61 139h38" stroke="#dba83c"/><path d="m80 135 4 4-4 4-4-4Z" fill="#ffe88f"/>
+  </g>
+</svg>
