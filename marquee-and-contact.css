@@ -183,7 +183,7 @@
 /* 3 columns */
 .contact-blue-grid {
   display: grid;
-  grid-template-columns: 1fr auto 1fr auto 1fr;
+  grid-template-columns: 1fr auto 1fr;
   gap: 32px;
   align-items: center;
   max-width: 1100px;
