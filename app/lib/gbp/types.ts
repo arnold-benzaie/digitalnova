@@ -3,6 +3,8 @@ export type GbpLocation = {
   name: string;
   address: string;
   category: string;
+  phone?: string;
+  websiteUrl?: string;
 };
 
 export type GbpDailyMetric = {
@@ -25,4 +27,9 @@ export interface GbpProvider {
   listLocations(): Promise<GbpLocation[]>;
   getMetrics(googleLocationId: string, days: number): Promise<GbpDailyMetric[]>;
   getReviews(googleLocationId: string): Promise<GbpReview[]>;
+  /** Posts an owner reply to a review. Real Google Business Profile API:
+   * PUT accounts/{}/locations/{}/reviews/{}/reply — see
+   * https://developers.google.com/my-business/reference/rest when wiring a
+   * real provider; the mock just accepts anything. */
+  replyToReview(googleReviewId: string, replyText: string): Promise<void>;
 }

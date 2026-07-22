@@ -1,58 +1,142 @@
-import { asc, desc } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { crmClients, tasks } from "@/db/schema";
 import { TASK_STATUS_OPTIONS } from "@/components/crm/badges";
 import { CreateTaskForm } from "@/components/crm/create-task-form";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
+import { DeleteTaskButton, EditTaskForm } from "@/components/crm/task-actions";
 import { updateTaskStatus } from "@/lib/actions/crm-tasks";
 import { requireStaffRole } from "@/lib/dev-role";
 
-export default async function CrmTasksPage() {
-  await requireStaffRole();
+const STATUS_VALUES = TASK_STATUS_OPTIONS.map((o) => o.value);
+const PAGE_SIZE = 20;
 
-  const [allTasks, allClients] = await Promise.all([
-    db.select().from(tasks).orderBy(desc(tasks.createdAt)),
+type Params = { q?: string; status?: string; page?: string };
+
+function buildHref(params: Params, overrides: Partial<Record<keyof Params, string | undefined>>) {
+  const merged: Record<string, string> = {};
+  for (const [key, value] of Object.entries({ ...params, ...overrides })) {
+    if (value) merged[key] = value;
+  }
+  const qs = new URLSearchParams(merged).toString();
+  return qs ? `/admin/crm/tasks?${qs}` : "/admin/crm/tasks";
+}
+
+export default async function CrmTasksPage({ searchParams }: { searchParams: Promise<Params> }) {
+  await requireStaffRole();
+  const params = await searchParams;
+
+  const q = params.q?.trim() ?? "";
+  const status = params.status && STATUS_VALUES.includes(params.status) ? params.status : "";
+  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+
+  const conditions = [];
+  if (q) conditions.push(ilike(tasks.title, `%${q}%`));
+  if (status) conditions.push(eq(tasks.status, status));
+  const whereClause = conditions.length ? and(...conditions) : undefined;
+
+  const [allTasks, allClients, [{ count: totalCount }], [{ count: overallCount }]] = await Promise.all([
+    db
+      .select()
+      .from(tasks)
+      .where(whereClause)
+      .orderBy(desc(tasks.createdAt))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
     db.select().from(crmClients).orderBy(asc(crmClients.name)),
+    db.select({ count: sql<number>`count(*)::int` }).from(tasks).where(whereClause),
+    db.select({ count: sql<number>`count(*)::int` }).from(tasks),
   ]);
 
   const clientNameById = new Map(allClients.map((c) => [c.id, c.name]));
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasFilters = Boolean(q || status);
 
   return (
     <>
       <h1 className="font-serif text-3xl font-semibold text-pm-noir">Tâches</h1>
-      <p className="mt-2 text-sm text-pm-gris">{allTasks.length} tâche(s).</p>
+      <p className="mt-2 text-sm text-pm-gris">
+        {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""}
+      </p>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
         <CreateTaskForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} />
       </div>
 
+      <form action="/admin/crm/tasks" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Rechercher par titre…"
+          aria-label="Rechercher une tâche"
+          className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
+        />
+        <select name="status" defaultValue={status} aria-label="Filtrer par statut" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">Tous les statuts</option>
+          {TASK_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2">
+          Filtrer
+        </button>
+        {hasFilters && <a href="/admin/crm/tasks" className="text-xs text-pm-gris underline">Réinitialiser</a>}
+      </form>
+
       {allTasks.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">Aucune tâche</p>
+          <p className="font-serif text-lg font-semibold text-pm-noir">
+            {overallCount === 0 ? "Aucune tâche" : "Aucun résultat"}
+          </p>
         </div>
       ) : (
-        <div className="mt-6 flex flex-col gap-3">
-          {allTasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
-              <div>
-                <p className="font-medium text-pm-noir">{task.title}</p>
-                <p className="text-xs text-pm-gris">
-                  {task.clientId ? (
-                    <Link href={`/admin/crm/clients/${task.clientId}`} className="hover:underline">
-                      {clientNameById.get(task.clientId) ?? "—"}
-                    </Link>
-                  ) : (
-                    "Interne"
-                  )}
-                  {task.assignee ? ` · ${task.assignee}` : ""}
-                  {task.dueDate ? ` · échéance ${new Date(task.dueDate).toLocaleDateString("fr-FR")}` : ""}
-                </p>
+        <>
+          <div className="mt-6 flex flex-col gap-3">
+            {allTasks.map((task) => (
+              <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+                <div>
+                  <p className="font-medium text-pm-noir">{task.title}</p>
+                  <p className="text-xs text-pm-gris">
+                    {task.clientId ? (
+                      <Link href={`/admin/crm/clients/${task.clientId}`} className="hover:underline">
+                        {clientNameById.get(task.clientId) ?? "—"}
+                      </Link>
+                    ) : (
+                      "Interne"
+                    )}
+                    {task.assignee ? ` · ${task.assignee}` : ""}
+                    {task.dueDate ? ` · échéance ${new Date(task.dueDate).toLocaleDateString("fr-FR")}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <InlineStatusSelect value={task.status} options={TASK_STATUS_OPTIONS} action={updateTaskStatus.bind(null, task.id)} />
+                  <EditTaskForm task={task} />
+                  <DeleteTaskButton id={task.id} />
+                </div>
               </div>
-              <InlineStatusSelect value={task.status} options={TASK_STATUS_OPTIONS} action={updateTaskStatus.bind(null, task.id)} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <a
+                href={buildHref(params, { page: page > 1 ? String(page - 1) : undefined })}
+                className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
+              >
+                Précédent
+              </a>
+              <span className="text-pm-gris">Page {page} / {totalPages}</span>
+              <a
+                href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
+                className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
+              >
+                Suivant
+              </a>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </>
   );

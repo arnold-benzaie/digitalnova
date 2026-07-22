@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
-import { logAudit } from "@/lib/audit";
+import { logCrmAudit } from "@/lib/audit";
 
 const STATUSES = ["planning", "in_progress", "completed", "on_hold"] as const;
 
@@ -30,10 +30,11 @@ export async function createProject(formData: FormData) {
     })
     .returning();
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.project_created",
     targetType: "project",
     targetId: project.id,
+    clientId,
     metadata: { name: project.name },
   });
 
@@ -49,14 +50,68 @@ export async function updateProjectStatus(id: string, status: string) {
 
   const [project] = await db.update(projects).set({ status }).where(eq(projects.id, id)).returning();
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.project_status_changed",
     targetType: "project",
     targetId: id,
+    clientId: project?.clientId,
     metadata: { status },
   });
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/projects");
   if (project) revalidatePath(`/admin/crm/clients/${project.clientId}`);
+}
+
+/** Full edit — name/description/dates; use updateProjectStatus for status. */
+export async function updateProject(id: string, formData: FormData) {
+  const name = formData.get("name");
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("Nom du projet requis.");
+  }
+
+  const startDateRaw = formData.get("startDate");
+  const dueDateRaw = formData.get("dueDate");
+
+  const [project] = await db
+    .update(projects)
+    .set({
+      name: name.trim(),
+      description: (formData.get("description") as string) || null,
+      startDate: typeof startDateRaw === "string" && startDateRaw ? new Date(startDateRaw) : null,
+      dueDate: typeof dueDateRaw === "string" && dueDateRaw ? new Date(dueDateRaw) : null,
+    })
+    .where(eq(projects.id, id))
+    .returning();
+  if (!project) throw new Error("Projet introuvable.");
+
+  await logCrmAudit({
+    action: "crm.project_updated",
+    targetType: "project",
+    targetId: id,
+    clientId: project.clientId,
+    metadata: { name: project.name },
+  });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/projects");
+  revalidatePath(`/admin/crm/clients/${project.clientId}`);
+  return project;
+}
+
+export async function deleteProject(id: string) {
+  const [project] = await db.delete(projects).where(eq(projects.id, id)).returning();
+  if (!project) throw new Error("Projet introuvable.");
+
+  await logCrmAudit({
+    action: "crm.project_deleted",
+    targetType: "project",
+    targetId: id,
+    clientId: project.clientId,
+    metadata: { name: project.name },
+  });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/projects");
+  revalidatePath(`/admin/crm/clients/${project.clientId}`);
 }

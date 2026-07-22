@@ -1,27 +1,36 @@
-import { asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
-
-const DEMO_ORG_NAME = "Organisation Démo";
+import { getCurrentSession } from "@/lib/session";
+import { isQaBypassActive } from "@/lib/qa-bypass";
 
 /**
- * Clerk is temporarily disabled (see lib/dev-role.ts), so there's no real
- * signed-in user/membership to scope organization-owned data (GBP
- * connection, locations, audits) to. This ensures a single demo
- * organization exists and returns it — replace with the real session's
- * organizationId (via memberships) once auth is back, and delete this file.
+ * Returns the organization the signed-in user belongs to, resolved from
+ * their `memberships` row (via lib/session.ts) rather than "the first
+ * organization in the table" — this is also what closes the cross-tenant
+ * read that existed while this function was a single-org placeholder.
+ * Throws for unauthenticated or unprovisioned callers, same rationale as
+ * lib/dev-role.ts.
  */
 export async function getOrCreateDevOrganization() {
-  const [existing] = await db
+  // TEMPORARY QA-ONLY BYPASS — removed before this session's work is done. See lib/qa-bypass.ts.
+  if (await isQaBypassActive()) {
+    return { id: "00000000-0000-0000-0000-000000000000", name: "[DÉMO] QA", emailNotificationsEnabled: false, createdAt: new Date() };
+  }
+  const session = await getCurrentSession();
+  if (!session) {
+    throw new Error(
+      "Accès refusé : aucun rôle n'est associé à ce compte. Contactez un administrateur Public Maps.",
+    );
+  }
+
+  const [org] = await db
     .select()
     .from(organizations)
-    .orderBy(asc(organizations.createdAt))
+    .where(eq(organizations.id, session.organizationId))
     .limit(1);
-  if (existing) return existing;
-
-  const [created] = await db
-    .insert(organizations)
-    .values({ name: DEMO_ORG_NAME })
-    .returning();
-  return created;
+  if (!org) {
+    throw new Error("Organisation introuvable pour ce compte.");
+  }
+  return org;
 }

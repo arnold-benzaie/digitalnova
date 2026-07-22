@@ -50,3 +50,19 @@
 body {
   font-family: var(--font-outfit), sans-serif;
 }
+
+/* Lightweight enter animation for conditionally-mounted panels (accordions,
+   dropdowns) — a CSS animation fires on mount even for freshly-inserted
+   nodes, unlike a transition (which needs the property to change AFTER
+   first paint), so this works with plain {condition && <Panel />} without
+   keeping collapsed content mounted (see components/gbp-audit/). */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-panel-in {
+  animation: panel-in 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-panel-in { animation: none; }
+}

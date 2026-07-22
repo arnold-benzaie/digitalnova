@@ -12,7 +12,7 @@ import {
   tasks,
   tickets,
 } from "@/db/schema";
-import { logAudit } from "@/lib/audit";
+import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 
 const STAGES = ["lead", "prospect", "client", "churned"] as const;
@@ -41,10 +41,11 @@ export async function createClient(formData: FormData) {
     })
     .returning();
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.client_created",
     targetType: "crm_client",
     targetId: client.id,
+    clientId: client.id,
     metadata: { name: client.name, stage: client.stage },
   });
 
@@ -62,10 +63,11 @@ export async function updateClientStage(id: string, stage: string) {
 
   await db.update(crmClients).set({ stage }).where(eq(crmClients.id, id));
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.client_stage_changed",
     targetType: "crm_client",
     targetId: id,
+    clientId: id,
     metadata: { stage },
   });
 
@@ -74,13 +76,103 @@ export async function updateClientStage(id: string, stage: string) {
   revalidatePath(`/admin/crm/clients/${id}`);
 }
 
+/** Full edit — everything createClient can set, except stage (see ClientStageSelect). */
+export async function updateClient(id: string, formData: FormData) {
+  const name = formData.get("name");
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("Le nom du client est requis.");
+  }
+
+  const [client] = await db
+    .update(crmClients)
+    .set({
+      name: name.trim(),
+      contactName: (formData.get("contactName") as string) || null,
+      email: (formData.get("email") as string) || null,
+      phone: (formData.get("phone") as string) || null,
+      address: (formData.get("address") as string) || null,
+      source: (formData.get("source") as string) || null,
+      ownerName: (formData.get("ownerName") as string) || null,
+      notes: (formData.get("notes") as string) || null,
+    })
+    .where(eq(crmClients.id, id))
+    .returning();
+  if (!client) throw new Error("Client introuvable.");
+
+  await logCrmAudit({
+    action: "crm.client_updated",
+    targetType: "crm_client",
+    targetId: id,
+    clientId: id,
+    metadata: { name: client.name },
+  });
+
+  await dispatchWebhookEvent("client.updated", { clientId: id, name: client.name });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/clients");
+  revalidatePath(`/admin/crm/clients/${id}`);
+  return client;
+}
+
+/**
+ * Soft-archive — hides the client from the default list view without
+ * touching its sales `stage` or deleting any related deals/tickets/etc.
+ * Reversible via unarchiveClient, unlike deleteClient.
+ */
+export async function archiveClient(id: string) {
+  const [client] = await db
+    .update(crmClients)
+    .set({ archivedAt: new Date() })
+    .where(eq(crmClients.id, id))
+    .returning();
+  if (!client) throw new Error("Client introuvable.");
+
+  await logCrmAudit({
+    action: "crm.client_archived",
+    targetType: "crm_client",
+    targetId: id,
+    clientId: id,
+  });
+
+  await dispatchWebhookEvent("client.archived", { clientId: id, name: client.name });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/clients");
+  revalidatePath(`/admin/crm/clients/${id}`);
+}
+
+export async function unarchiveClient(id: string) {
+  const [client] = await db
+    .update(crmClients)
+    .set({ archivedAt: null })
+    .where(eq(crmClients.id, id))
+    .returning();
+  if (!client) throw new Error("Client introuvable.");
+
+  await logCrmAudit({
+    action: "crm.client_unarchived",
+    targetType: "crm_client",
+    targetId: id,
+    clientId: id,
+  });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/clients");
+  revalidatePath(`/admin/crm/clients/${id}`);
+}
+
+/** Permanent — cascades to every deal/ticket/task/project/event/interaction/contract
+ * tied to this client. Prefer archiveClient() unless the data must actually
+ * be gone (e.g. a mistaken entry, or a legal deletion request). */
 export async function deleteClient(id: string) {
   await db.delete(crmClients).where(eq(crmClients.id, id));
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.client_deleted",
     targetType: "crm_client",
     targetId: id,
+    clientId: id,
   });
 
   revalidatePath("/admin/crm");
@@ -342,7 +434,7 @@ export async function seedDemoCrmData() {
     },
   ]);
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.demo_data_seeded",
     targetType: "crm",
     metadata: { clientCount: seededClients.length },

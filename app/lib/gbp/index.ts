@@ -1,14 +1,17 @@
-import { MockGbpProvider } from "./mock-provider";
+import { RealGbpProvider } from "./real-provider";
 import type { GbpProvider } from "./types";
 
 /**
- * No real Google OAuth credentials or GBP API access exist yet (empty
- * GOOGLE_CLIENT_ID/SECRET, API access request not filed — see README
- * "Accounts you need to create"). Always resolves to the mock provider for
- * now; swap in a real Google-backed GbpProvider here once both are in place.
+ * Mock mode has been permanently removed for GBP (per explicit request,
+ * once real Google Cloud credentials/scopes were confirmed configured) —
+ * this always resolves to the real Google-backed provider now. If the
+ * organization hasn't connected a Google account yet, or the business.manage
+ * scope wasn't actually granted, the real provider's calls fail with a
+ * clear, sanitized error (see lib/gbp/real-provider.ts and
+ * lib/actions/gbp.ts) instead of silently substituting demo data.
  */
-export function getGbpProvider(): GbpProvider {
-  return new MockGbpProvider();
+export async function getGbpProvider(organizationId: string): Promise<GbpProvider> {
+  return new RealGbpProvider(organizationId);
 }
 
 export type { GbpDailyMetric, GbpLocation, GbpProvider, GbpReview } from "./types";

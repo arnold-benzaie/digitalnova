@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
-import { getDevRole } from "@/lib/dev-role";
+import { getCurrentSession } from "@/lib/session";
 
-// Clerk is temporarily disabled (no valid API keys in .env.local yet) —
-// route by the dev-role cookie instead of a real session until auth is back.
+// proxy.ts already requires a valid Clerk session to reach this route;
+// getCurrentSession() throws if that session has no membership yet
+// (see lib/session.ts) rather than silently guessing a role.
 export default async function Home() {
-  const role = await getDevRole();
-  redirect(role === "client" ? "/dashboard" : "/admin");
+  const session = await getCurrentSession();
+  if (!session) {
+    throw new Error(
+      "Accès refusé : aucun rôle n'est associé à ce compte. Contactez un administrateur Public Maps.",
+    );
+  }
+  redirect(session.role === "client" ? "/dashboard" : "/admin");
 }

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { contracts } from "@/db/schema";
-import { logAudit } from "@/lib/audit";
+import { logCrmAudit } from "@/lib/audit";
 import { getESignProvider } from "@/lib/esign";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 
@@ -30,15 +30,55 @@ export async function createContract(formData: FormData) {
     })
     .returning();
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.contract_created",
     targetType: "contract",
     targetId: contract.id,
+    clientId,
     metadata: { title: contract.title },
   });
 
   revalidatePath(`/admin/crm/clients/${clientId}`);
   revalidatePath("/admin/crm/contracts");
+}
+
+/** Only draft contracts can be edited — once sent/signed, the e-sign
+ * provider already has that exact content, so editing here would silently
+ * desync from what the signer actually saw. */
+export async function updateContract(id: string, formData: FormData) {
+  const title = formData.get("title");
+  const content = formData.get("content");
+  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
+  if (typeof content !== "string" || !content.trim()) throw new Error("Contenu requis.");
+
+  const [existing] = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
+  if (!existing) throw new Error("Contrat introuvable.");
+  if (existing.status !== "draft") {
+    throw new Error("Seuls les contrats en brouillon peuvent être modifiés.");
+  }
+
+  const [contract] = await db
+    .update(contracts)
+    .set({
+      title: title.trim(),
+      content: content.trim(),
+      signerName: (formData.get("signerName") as string) || null,
+      signerEmail: (formData.get("signerEmail") as string) || null,
+    })
+    .where(eq(contracts.id, id))
+    .returning();
+
+  await logCrmAudit({
+    action: "crm.contract_updated",
+    targetType: "contract",
+    targetId: id,
+    clientId: contract.clientId,
+    metadata: { title: contract.title },
+  });
+
+  revalidatePath(`/admin/crm/clients/${contract.clientId}`);
+  revalidatePath("/admin/crm/contracts");
+  return contract;
 }
 
 export async function sendContractForSignature(id: string) {
@@ -61,10 +101,11 @@ export async function sendContractForSignature(id: string) {
     .set({ status: "sent", sentAt: new Date(), providerRequestId: request.providerRequestId })
     .where(eq(contracts.id, id));
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.contract_sent",
     targetType: "contract",
     targetId: id,
+    clientId: contract.clientId,
   });
 
   await dispatchWebhookEvent("contract.sent", { contractId: id, clientId: contract.clientId });
@@ -73,7 +114,6 @@ export async function sendContractForSignature(id: string) {
   revalidatePath("/admin/crm/contracts");
 }
 
-/** Demo-only: no real signer ever signs the mock request, so this simulates it. */
 export async function simulateContractSignature(id: string) {
   const [contract] = await db
     .update(contracts)
@@ -82,10 +122,11 @@ export async function simulateContractSignature(id: string) {
     .returning();
   if (!contract) throw new Error("Contrat introuvable.");
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.contract_signed",
     targetType: "contract",
     targetId: id,
+    clientId: contract.clientId,
   });
 
   await dispatchWebhookEvent("contract.signed", { contractId: id, clientId: contract.clientId });

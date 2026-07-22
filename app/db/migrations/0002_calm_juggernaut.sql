@@ -1,0 +1,23 @@
+CREATE INDEX "audit_issues_audit_id_idx" ON "audit_issues" USING btree ("audit_id");--> statement-breakpoint
+CREATE INDEX "audit_log_organization_id_idx" ON "audit_log" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "audit_log_actor_user_id_idx" ON "audit_log" USING btree ("actor_user_id");--> statement-breakpoint
+CREATE INDEX "audits_organization_id_idx" ON "audits" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "audits_location_id_idx" ON "audits" USING btree ("location_id");--> statement-breakpoint
+CREATE INDEX "calendar_events_client_id_idx" ON "calendar_events" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "contracts_client_id_idx" ON "contracts" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "contracts_deal_id_idx" ON "contracts" USING btree ("deal_id");--> statement-breakpoint
+CREATE INDEX "crm_clients_organization_id_idx" ON "crm_clients" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "deals_client_id_idx" ON "deals" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "documents_organization_id_idx" ON "documents" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "interactions_client_id_idx" ON "interactions" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "invitations_email_idx" ON "invitations" USING btree ("email");--> statement-breakpoint
+CREATE INDEX "invitations_org_status_idx" ON "invitations" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "invoices_organization_id_idx" ON "invoices" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "invoices_subscription_id_idx" ON "invoices" USING btree ("subscription_id");--> statement-breakpoint
+CREATE INDEX "memberships_org_role_idx" ON "memberships" USING btree ("organization_id","role_id");--> statement-breakpoint
+CREATE INDEX "messages_organization_id_idx" ON "messages" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "notifications_organization_id_idx" ON "notifications" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "projects_client_id_idx" ON "projects" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "reviews_location_id_idx" ON "reviews" USING btree ("location_id");--> statement-breakpoint
+CREATE INDEX "tasks_client_id_idx" ON "tasks" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "tickets_client_id_idx" ON "tickets" USING btree ("client_id");

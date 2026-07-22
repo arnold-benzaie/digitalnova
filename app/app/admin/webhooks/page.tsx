@@ -8,6 +8,24 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Échec",
   skipped_not_configured: "Non configuré",
 };
+const EVENT_LABEL: Record<string, string> = {
+  "lead.created": "Nouveau lead",
+  "client.updated": "Fiche client modifiée",
+  "client.archived": "Client archivé",
+  "contract.sent": "Contrat envoyé pour signature",
+  "contract.signed": "Contrat signé",
+  "ticket.created": "Ticket ouvert",
+  "subscription.created": "Abonnement souscrit",
+  "subscription.canceled": "Abonnement annulé",
+  "gbp.connected": "Google Business Profile connecté",
+  "gbp.review_replied": "Réponse à un avis publiée",
+  "gbp.reviews_received": "Nouveaux avis reçus",
+  "search_console.connected": "Google Search Console connecté",
+  "analytics.connected": "Google Analytics connecté",
+  "seo.audit_created": "Audit SEO créé",
+  "seo.audit_updated": "Audit SEO mis à jour",
+  "seo.audit_completed": "Audit SEO terminé",
+};
 const STATUS_CLASS: Record<string, string> = {
   sent: "bg-pm-g-green/10 text-pm-g-green",
   failed: "bg-pm-rouge/10 text-pm-rouge-2",
@@ -55,7 +73,10 @@ export default async function WebhooksPage() {
             <tbody>
               {deliveries.map((delivery) => (
                 <tr key={delivery.id} className="border-t border-pm-gris-2">
-                  <td className="px-5 py-3 font-medium text-pm-noir">{delivery.event}</td>
+                  <td className="px-5 py-3 text-pm-noir">
+                    <p className="font-medium">{EVENT_LABEL[delivery.event] ?? "Événement"}</p>
+                    <p className="mt-0.5 font-mono text-[10px] text-pm-gris">{delivery.event}</p>
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_CLASS[delivery.status] ?? ""}`}>
                       {STATUS_LABEL[delivery.status] ?? delivery.status}

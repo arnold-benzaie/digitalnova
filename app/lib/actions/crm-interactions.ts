@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { interactions } from "@/db/schema";
-import { logAudit } from "@/lib/audit";
+import { logCrmAudit } from "@/lib/audit";
 
 export async function createInteraction(formData: FormData) {
   const clientId = formData.get("clientId");
@@ -27,11 +27,12 @@ export async function createInteraction(formData: FormData) {
     })
     .returning();
 
-  await logAudit({
+  await logCrmAudit({
     action: "crm.interaction_logged",
     targetType: "interaction",
     targetId: interaction.id,
-    metadata: { type: interaction.type },
+    clientId,
+    metadata: { type: interaction.type, summary: interaction.summary },
   });
 
   revalidatePath(`/admin/crm/clients/${clientId}`);

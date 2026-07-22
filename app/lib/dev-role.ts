@@ -1,22 +1,24 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getCurrentSession, type AppRole } from "@/lib/session";
 
-export type DevRole = "client" | "staff" | "admin";
-
-export const DEV_ROLE_COOKIE = "pm_dev_role";
-const DEFAULT_ROLE: DevRole = "client";
+export type DevRole = AppRole;
 
 /**
- * Clerk is temporarily disabled (no valid API keys in .env.local yet), so
- * there is no real signed-in user/role to read. This cookie-based switcher
- * stands in for the real Clerk session + roles/memberships DB lookup until
- * auth comes back online — replace this with that lookup then, and delete
- * this file, dev-role-actions.ts, and <RoleSwitcher>.
+ * Returns the signed-in user's real role (admin/staff/client), resolved
+ * from Clerk + the `memberships` table via lib/session.ts. Throws — rather
+ * than silently defaulting to "client" — when the caller is authenticated
+ * with Clerk but has no membership row yet: there is no self-service role
+ * assignment in this app, so "no membership" must never fall back to any
+ * access at all.
  */
 export async function getDevRole(): Promise<DevRole> {
-  const store = await cookies();
-  const value = store.get(DEV_ROLE_COOKIE)?.value;
-  return value === "staff" || value === "admin" ? value : DEFAULT_ROLE;
+  const session = await getCurrentSession();
+  if (!session) {
+    throw new Error(
+      "Accès refusé : aucun rôle n'est associé à ce compte. Contactez un administrateur Public Maps.",
+    );
+  }
+  return session.role;
 }
 
 /**
@@ -29,6 +31,19 @@ export async function requireStaffRole(): Promise<Exclude<DevRole, "client">> {
   const role = await getDevRole();
   if (role === "client") {
     redirect("/dashboard");
+  }
+  return role;
+}
+
+/**
+ * User/role management (invite, change role, revoke access) is admin-only —
+ * staff can see the rest of the CRM but must not be able to grant
+ * themselves or others elevated access.
+ */
+export async function requireAdminRole(): Promise<"admin"> {
+  const role = await requireStaffRole();
+  if (role !== "admin") {
+    redirect("/admin");
   }
   return role;
 }

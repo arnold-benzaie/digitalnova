@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, Cormorant_Garamond } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -26,13 +27,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="fr"
-      className={`${outfit.variable} ${cormorant.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-pm-blanc text-pm-noir font-sans">
-        {children}
-      </body>
-    </html>
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
+      <html
+        lang="fr"
+        className={`${outfit.variable} ${cormorant.variable} h-full antialiased`}
+      >
+        <body className="min-h-full flex flex-col bg-pm-blanc text-pm-noir font-sans">
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

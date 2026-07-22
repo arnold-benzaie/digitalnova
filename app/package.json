@@ -7,9 +7,16 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs lib/qa-bypass.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "audit:db:generate": "drizzle-kit generate --config=drizzle-audit.config.ts",
+    "audit:db:studio": "drizzle-kit studio --config=drizzle-audit.config.ts",
+    "audit:db:migrate": "tsx scripts/audit-db-migrate.mjs",
+    "audit:db:post-migrate-setup": "tsx scripts/audit-db-post-migrate-setup.mjs",
+    "test:e2e": "playwright test",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.15",
@@ -17,12 +24,17 @@
     "@supabase/supabase-js": "^2.110.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "googleapis": "^173.0.0",
     "next": "16.2.10",
     "pg": "^8.22.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
+    "server-only": "^0.0.1",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
@@ -31,7 +43,9 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "pdf-parse": "^2.4.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

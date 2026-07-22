@@ -1,11 +1,9 @@
-// Clerk is temporarily disabled (no valid API keys in .env.local yet) —
-// restore the <SignIn /> component here once real keys are set.
+import { SignIn } from "@clerk/nextjs";
+
 export default function SignInPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-pm-blanc">
-      <p className="text-sm text-pm-gris">
-        Authentification désactivée temporairement (clés Clerk manquantes).
-      </p>
+      <SignIn />
     </main>
   );
 }

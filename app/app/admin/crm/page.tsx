@@ -1,4 +1,4 @@
-import { desc, gte, inArray, ne } from "drizzle-orm";
+import { desc, gte, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { calendarEvents, crmClients, deals, interactions, projects, tasks, tickets } from "@/db/schema";
@@ -18,9 +18,10 @@ const DEAL_STAGE_ORDER = ["new", "contacted", "qualified", "proposal", "won", "l
 export default async function CrmDashboardPage() {
   await requireStaffRole();
 
-  const [allClients, allDeals, openTickets, upcomingTasks, activeProjects, recentInteractions, upcomingEvents] =
+  const [allClients, archivedClients, allDeals, openTickets, upcomingTasks, activeProjects, recentInteractions, upcomingEvents] =
     await Promise.all([
-      db.select().from(crmClients),
+      db.select().from(crmClients).where(isNull(crmClients.archivedAt)),
+      db.select().from(crmClients).where(isNotNull(crmClients.archivedAt)),
       db.select().from(deals),
       db.select().from(tickets).where(inArray(tickets.status, ["open", "in_progress"])),
       db
@@ -39,7 +40,7 @@ export default async function CrmDashboardPage() {
         .limit(5),
     ]);
 
-  if (allClients.length === 0) {
+  if (allClients.length === 0 && archivedClients.length === 0) {
     return (
       <>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">CRM</h1>
@@ -78,7 +79,7 @@ export default async function CrmDashboardPage() {
   }, {});
   const maxStageCount = Math.max(1, ...Object.values(dealCountByStage));
 
-  const clientNameById = new Map(allClients.map((c) => [c.id, c.name]));
+  const clientNameById = new Map([...allClients, ...archivedClients].map((c) => [c.id, c.name]));
 
   return (
     <>
@@ -96,6 +97,7 @@ export default async function CrmDashboardPage() {
           <p className="mt-1 text-xs text-pm-gris">
             {clientsByStage.client ?? 0} actifs · {clientsByStage.lead ?? 0} leads · {clientsByStage.prospect ?? 0}{" "}
             prospects
+            {archivedClients.length > 0 && ` · ${archivedClients.length} archivé(s)`}
           </p>
         </div>
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">

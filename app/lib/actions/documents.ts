@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
@@ -55,7 +55,15 @@ export async function uploadDocument(formData: FormData) {
 
 export async function deleteDocument(id: string) {
   const org = await getOrCreateDevOrganization();
-  await db.delete(documents).where(eq(documents.id, id));
+  const [deleted] = await db
+    .delete(documents)
+    .where(and(eq(documents.id, id), eq(documents.organizationId, org.id)))
+    .returning({ id: documents.id });
+  if (!deleted) {
+    // Either it never existed, or it belongs to a different organization —
+    // don't distinguish the two in the error, same as a 404 would.
+    throw new Error("Document introuvable.");
+  }
 
   await logAudit({
     organizationId: org.id,
