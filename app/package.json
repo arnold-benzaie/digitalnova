@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs lib/qa-bypass.test.mjs",
+    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs lib/qa-bypass.test.mjs scripts/preview-schema-migration-validator.test.mjs scripts/preview-schema-migration-transformer.test.mjs scripts/preview-schema-execution-engine.test.mjs scripts/preview-schema-preflight.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
@@ -15,6 +15,8 @@
     "audit:db:studio": "drizzle-kit studio --config=drizzle-audit.config.ts",
     "audit:db:migrate": "tsx scripts/audit-db-migrate.mjs",
     "audit:db:post-migrate-setup": "tsx scripts/audit-db-post-migrate-setup.mjs",
+    "preview-schema:setup": "tsx scripts/setup-preview-schema.mjs",
+    "preview-schema:preflight": "tsx scripts/preview-schema-preflight-report.mjs",
     "test:e2e": "playwright test",
     "prepare": "git config core.hooksPath .githooks || true"
   },
