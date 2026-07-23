@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { createProspectBusinessAndAudit } from "@/lib/actions/gbp-audit";
 import { GBP_PROFILE_STATUS_OPTIONS } from "@/lib/gbp-audit/checklist";
 import { Field, Input, Select, Textarea } from "@/components/gbp-audit/ui/field";
@@ -18,9 +19,14 @@ export function CreateAuditForm() {
           try {
             await createProspectBusinessAndAudit(formData);
           } catch (err) {
-            // A successful call redirect()s and never reaches here (Next throws a
-            // control-flow signal for that, not a real error) — this only fires
-            // for genuine validation/DB failures.
+            // redirect() throws a Next.js control-flow signal, not a real error —
+            // but because this action is invoked through a manual try/catch
+            // (rather than passed directly as the form's `action`), that signal
+            // lands here like any other thrown error and must be re-thrown so
+            // Next.js can still perform the navigation. See unstable_rethrow's
+            // docs: "Only use ... if your caught exceptions may include both
+            // application errors and framework-controlled exceptions."
+            unstable_rethrow(err);
             toast.error("Impossible de créer l'audit", err instanceof Error ? err.message : undefined);
           }
         })
