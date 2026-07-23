@@ -176,7 +176,7 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
       )}
 
       <section className="mt-6">
-        <QuoteRequestForm auditId={audit.id} offers={activeOffers} />
+        <QuoteRequestForm token={token} offers={activeOffers} />
       </section>
 
       <footer className="mt-10 border-t border-pm-gris-2 pt-6 text-center text-xs text-pm-gris">

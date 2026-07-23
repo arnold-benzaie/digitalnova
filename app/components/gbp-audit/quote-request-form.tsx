@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { submitPortalQuoteRequest } from "@/lib/actions/gbp-audit-portal";
 
-export function QuoteRequestForm({ auditId, offers }: { auditId: string; offers: { id: string; label: string }[] }) {
+export function QuoteRequestForm({ token, offers }: { token: string; offers: { id: string; label: string }[] }) {
   const [message, setMessage] = useState("");
   const [serviceOfferId, setServiceOfferId] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -53,7 +53,7 @@ export function QuoteRequestForm({ auditId, offers }: { auditId: string; offers:
           startTransition(async () => {
             setError(null);
             try {
-              await submitPortalQuoteRequest(auditId, serviceOfferId || null, message);
+              await submitPortalQuoteRequest(token, serviceOfferId || null, message);
               setDone(true);
             } catch (err) {
               setError(err instanceof Error ? err.message : "Une erreur est survenue.");

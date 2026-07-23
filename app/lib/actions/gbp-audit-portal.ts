@@ -85,7 +85,29 @@ export async function resolveReportByToken(token: string) {
   };
 }
 
-export async function submitPortalQuoteRequest(auditId: string, serviceOfferId: string | null, message: string) {
+/**
+ * Re-validates a portal token the same way resolveReportByToken() does
+ * (link exists, not locked/revoked/expired) but without its view-recording
+ * side effect — used by write actions that must derive `auditId` from the
+ * token itself, never trust one supplied directly by the client. Without
+ * this, submitPortalQuoteRequest previously took a raw `auditId` argument:
+ * since every Server Action is a public POST endpoint, anyone who guessed
+ * or observed any audit's id (e.g. from an admin URL) could have filed a
+ * quote request against it with no token at all.
+ */
+async function resolveAuditIdFromToken(token: string): Promise<string> {
+  const [link] = await auditDb.select().from(gbpReportAccessLinks).where(eq(gbpReportAccessLinks.token, token)).limit(1);
+  if (!link) throw new Error("Ce lien n'est pas valide.");
+  if (link.failedAttempts >= link.maxAttempts) throw new Error("Ce lien est verrouillé.");
+  if (link.revokedAt) throw new Error("Ce lien a été désactivé.");
+  if (link.expiresAt && link.expiresAt.getTime() < Date.now()) throw new Error("Ce lien a expiré.");
+
+  const [report] = await auditDb.select({ auditId: gbpAuditReports.auditId }).from(gbpAuditReports).where(eq(gbpAuditReports.id, link.reportId)).limit(1);
+  if (!report) throw new Error("Cet audit est introuvable.");
+  return report.auditId;
+}
+
+export async function submitPortalQuoteRequest(token: string, serviceOfferId: string | null, message: string) {
   const hdrs = await headers();
   const ip = clientIpFromHeaders(hdrs);
 
@@ -96,10 +118,8 @@ export async function submitPortalQuoteRequest(auditId: string, serviceOfferId: 
   const rate = await checkRateLimit("portal_quote_request", ip, settings.rateLimitQuoteRequestsPerHour, 3600);
   if (!rate.allowed) throw new Error("Trop de demandes envoyées. Réessayez plus tard.");
 
-  // The FK on gbpQuoteRequests.auditId would already reject a nonexistent
-  // audit at the DB level, but with a raw Postgres constraint-violation
-  // message — check first so a stale/tampered portal page state gets a
-  // clean error instead.
+  const auditId = await resolveAuditIdFromToken(token);
+
   const [businessRow] = await auditDb
     .select({ legalName: auditBusinesses.legalName, prospectId: gbpAudits.prospectId })
     .from(gbpAudits)

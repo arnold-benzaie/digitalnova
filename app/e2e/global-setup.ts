@@ -7,7 +7,8 @@
  */
 import { E2E_AUDIT_DATABASE_URL, auditDb } from "./helpers/audit-db";
 import { assertNotMainProductionDatabase } from "../db/guard-main-production";
-import { sql } from "drizzle-orm";
+import { auditRateLimitHits } from "../db/audit-schema";
+import { like, sql } from "drizzle-orm";
 
 export default async function globalSetup() {
   // db/audit-index.ts already ran this once at import time (via
@@ -42,6 +43,15 @@ export default async function globalSetup() {
       "Le serveur dev (http://localhost:3600) ne répond pas. Démarrer `npm run dev` (avec QA_BYPASS_AUDIT_AUTH=1) avant de lancer ce test.",
     );
   }
+
+  // The public portal actions (resolveReportByToken, submitPortalQuoteRequest)
+  // are rate-limited per IP (see lib/gbp-audit/rate-limit.ts). Every local
+  // suite run hits them from the same loopback address, so counts accumulate
+  // run over run within the same hour and can eventually fail full-lifecycle
+  // for reasons that have nothing to do with the code under test. Safe to
+  // reset unconditionally here — this only ever runs against
+  // "public_map_audit_test", already verified above.
+  await auditDb.delete(auditRateLimitHits).where(like(auditRateLimitHits.key, "portal_%"));
 
   console.log(`[e2e/global-setup] Cible confirmée : base "${dbName}" sur localhost:5433, schéma Audit présent, serveur dev prêt.`);
 }
