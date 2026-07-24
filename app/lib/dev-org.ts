@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
-import { isQaBypassActive } from "@/lib/qa-bypass";
 
 /**
  * Returns the organization the signed-in user belongs to, resolved from
@@ -13,10 +12,6 @@ import { isQaBypassActive } from "@/lib/qa-bypass";
  * lib/dev-role.ts.
  */
 export async function getOrCreateDevOrganization() {
-  // TEMPORARY QA-ONLY BYPASS — removed before this session's work is done. See lib/qa-bypass.ts.
-  if (await isQaBypassActive()) {
-    return { id: "00000000-0000-0000-0000-000000000000", name: "[DÉMO] QA", emailNotificationsEnabled: false, createdAt: new Date() };
-  }
   const session = await getCurrentSession();
   if (!session) {
     throw new Error(

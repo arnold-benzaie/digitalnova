@@ -37,28 +37,28 @@ export default async function globalSetup() {
     );
   }
 
-  const devServer = await fetch("http://localhost:3600/admin/audit/nouveau").catch(() => null);
-  if (!devServer || !devServer.ok) {
+  // /api/gbp-audit/e2e-db-target is a public route (its own NODE_ENV/VERCEL
+  // guard, not Clerk) — reachable with no session, so it doubles as both the
+  // "server responds" check and the "server points at the right database"
+  // check. A plain fetch of an authenticated page here would just redirect
+  // to /sign-in and "succeed" with the wrong content, hiding a dead server.
+  const dbTargetRes = await fetch("http://localhost:3600/api/gbp-audit/e2e-db-target").catch(() => null);
+  if (!dbTargetRes) {
     throw new Error(
-      "Le serveur dev (http://localhost:3600) ne répond pas. Démarrer `npm run dev` (avec QA_BYPASS_AUDIT_AUTH=1) avant de lancer ce test.",
+      "Le serveur dev (http://localhost:3600) ne répond pas. Démarrer `npm run dev` avec DATABASE_URL sur le schéma preview et AUDIT_DATABASE_URL sur Docker — voir e2e/README.md.",
     );
   }
-
-  // The dev server resolves its own AUDIT_DATABASE_URL independently of this
-  // test harness (see e2e/helpers/env.ts) — nothing above proves the two
-  // agree. Without this check, a server started without the Docker override
-  // silently writes UI-created fixtures to the real Supabase Audit project
-  // while every assertion here reads from Docker, producing confusing
-  // failures (duplicated fixtures, "audit introuvable en base") deep inside
-  // individual tests instead of one clear error up front.
-  const dbTargetRes = await fetch("http://localhost:3600/api/gbp-audit/e2e-db-target").catch(() => null);
-  const dbTarget = dbTargetRes && dbTargetRes.ok ? ((await dbTargetRes.json()) as { database: string }).database : null;
+  const dbTarget = dbTargetRes.ok ? ((await dbTargetRes.json()) as { database: string }).database : null;
   if (dbTarget !== "public_map_audit_test") {
     throw new Error(
       `Le serveur dev n'est pas connecté à la base de test locale (cible détectée : "${dbTarget ?? "indéterminée"}", attendu "public_map_audit_test"). ` +
-        "Il pointe probablement vers le vrai projet Supabase Audit — voir e2e/README.md. " +
-        'Relancer avec : AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" QA_BYPASS_AUDIT_AUTH=1 npm run dev',
+        "Il pointe probablement vers le vrai projet Supabase Audit — voir e2e/README.md pour la commande de démarrage exacte.",
     );
+  }
+
+  const authFile = await import("node:fs").then((fs) => fs.existsSync("playwright/.auth/local-admin.json")).catch(() => false);
+  if (!authFile) {
+    throw new Error("playwright/.auth/local-admin.json introuvable. Lancer `node e2e/auth-setup.mjs` (serveur dev déjà démarré) avant la suite.");
   }
 
   // The public portal actions (resolveReportByToken, submitPortalQuoteRequest)

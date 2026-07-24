@@ -122,14 +122,12 @@ function sectionKeyForPath(sections: NavSection[], pathname: string): string | n
 export function AppShellClient({
   role,
   badges,
-  isDemoMode,
   recentNotifications,
   unreadCount,
   children,
 }: {
   role: DevRole;
   badges: NavBadgeCounts;
-  isDemoMode: boolean;
   recentNotifications: { id: string; title: string; body: string | null; read: boolean; createdAt: Date }[];
   unreadCount: number;
   children: ReactNode;
@@ -182,11 +180,6 @@ export function AppShellClient({
           </button>
         )}
       </div>
-      {isDemoMode && !collapsed && (
-        <div className="mb-4 rounded-lg bg-pm-or/15 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-pm-or-2">
-          Mode démonstration
-        </div>
-      )}
       <nav aria-label="Navigation principale" className="flex flex-1 flex-col gap-3 overflow-y-auto">
         {sections.map((section) => (
           <SectionBlock
@@ -264,11 +257,6 @@ export function AppShellClient({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            {isDemoMode && (
-              <span className="hidden rounded-full bg-pm-or/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-pm-or-2 sm:inline-block">
-                Mode démonstration
-              </span>
-            )}
             <span className="hidden rounded-full bg-pm-gris-2/40 px-3 py-1 text-xs font-medium uppercase tracking-wide text-pm-gris sm:inline-block">
               {role === "client" ? "Espace client" : "Espace agence"}
             </span>

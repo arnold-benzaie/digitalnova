@@ -3,7 +3,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
-import { isQaBypassActive } from "@/lib/qa-bypass";
 
 export type AppRole = "admin" | "staff" | "client";
 
@@ -29,19 +28,6 @@ export type CurrentSession = {
  * Clerk/Postgres separately.
  */
 export const getCurrentSession = cache(async (): Promise<CurrentSession | null> => {
-  // TEMPORARY QA-ONLY BYPASS — removed before this session's work is done. Needed because app/admin/layout.tsx (shared, wraps /admin/audit too) calls this via lib/dev-role.ts.
-  // See lib/qa-bypass.ts — throws (blocking every request) if this flag is ever set outside genuine local `next dev`.
-  if (await isQaBypassActive()) {
-    return {
-      userId: "00000000-0000-0000-0000-000000000001",
-      clerkUserId: "qa-demo-clerk-user",
-      email: "qa@public-map.com",
-      fullName: "[DÉMO] QA Admin",
-      organizationId: "00000000-0000-0000-0000-000000000000",
-      organizationName: "QA",
-      role: "admin",
-    };
-  }
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) return null;
 

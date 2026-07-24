@@ -8,9 +8,9 @@ import { computeFullAuditScore } from "../lib/gbp-audit/checklist";
  * user (prospect -> quote request), steps numbered to match exactly.
  * Single serial scenario: each step depends on state the previous one
  * created, so it's one test with test.step() markers, not 23 independent
- * tests. QA_BYPASS_AUDIT_ROLE is unset -> defaults to "admin" in
- * lib/gbp-audit/session.ts, which already satisfies "supervisor or admin"
- * for the approval step — no separate role/context switch needed.
+ * tests. The real test account (see e2e/auth-setup.mjs) already has the
+ * "admin" role in audit_staff_memberships, which satisfies "supervisor or
+ * admin" for the approval step — no separate role/context switch needed.
  *
  * Every fixture is prefixed [E2E] or uses the fixed jean.dupont+e2e@...
  * address the user specified. Cleanup runs in afterAll unconditionally
@@ -249,8 +249,9 @@ test("parcours complet PUBLIC-MAP Audit : prospect -> devis", async ({ page, bro
     await page.waitForURL(/\/rapport$/);
     await page.getByRole("button", { name: "Soumettre pour validation" }).click();
     await expect(page.getByText("Audit soumis pour validation")).toBeVisible();
-    // Admin role (QA bypass default) -> the approval form renders directly,
-    // not the "en attente de validation" message shown to non-supervisor roles.
+    // Real test account has the "admin" role -> the approval form renders
+    // directly, not the "en attente de validation" message shown to
+    // non-supervisor roles.
     await expect(page.getByLabel("Résumé pour le client")).toBeVisible();
   });
 

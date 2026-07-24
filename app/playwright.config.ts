@@ -22,6 +22,11 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: "http://localhost:3600",
+    // Real Clerk session for the existing admin account (contact@public-map.com),
+    // established once by e2e/auth-setup.mjs — see e2e/README.md for the
+    // required dev-server startup command (DATABASE_URL on the "preview"
+    // schema + a matching audit_staff_memberships row in the local Docker DB).
+    storageState: "playwright/.auth/local-admin.json",
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

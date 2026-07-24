@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs lib/qa-bypass.test.mjs scripts/preview-schema-migration-validator.test.mjs scripts/preview-schema-migration-transformer.test.mjs scripts/preview-schema-execution-engine.test.mjs scripts/preview-schema-preflight.test.mjs",
+    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs scripts/preview-schema-migration-validator.test.mjs scripts/preview-schema-migration-transformer.test.mjs scripts/preview-schema-execution-engine.test.mjs scripts/preview-schema-preflight.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

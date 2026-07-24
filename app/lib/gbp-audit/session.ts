@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { auditDb } from "@/db/audit-index";
 import { auditStaffInvitations, auditStaffMemberships, auditStaffRoles, auditStaffUsers } from "@/db/audit-schema";
-import { isQaBypassActive } from "@/lib/qa-bypass";
 
 export type AuditStaffRole = "admin" | "supervisor" | "staff";
 
@@ -26,11 +25,6 @@ export type AuditStaffSession = {
  * callers must not default the latter to any access.
  */
 export const getAuditStaffSession = cache(async (): Promise<AuditStaffSession | null> => {
-  // TEMPORARY QA-ONLY BYPASS — removed before this session's work is done. See lib/qa-bypass.ts, proxy.ts, lib/session.ts, lib/dev-org.ts.
-  if (await isQaBypassActive()) {
-    const role = (process.env.QA_BYPASS_AUDIT_ROLE as AuditStaffRole) || "admin";
-    return { userId: "00000000-0000-0000-0000-000000000001", clerkUserId: "qa-demo-clerk-user", email: "qa@public-map.com", fullName: "[DÉMO] QA Admin", role };
-  }
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) return null;
 

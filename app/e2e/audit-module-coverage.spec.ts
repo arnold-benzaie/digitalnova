@@ -7,7 +7,7 @@ import { eq, like, sql } from "drizzle-orm";
  * Broad coverage pass over every /admin/audit/** page not already exercised
  * step-by-step by full-lifecycle.spec.ts: Tableau de bord, Audits (liste),
  * Rapports, Offres, Équipe, Notifications, Paramètres — plus a couple of
- * error/empty-state checks. Runs under the same QA bypass admin session as
+ * error/empty-state checks. Runs under the same real admin session as
  * the rest of the suite (see e2e/README.md). All fixtures are prefixed
  * "[E2E-COVERAGE]" (a distinct prefix from full-lifecycle's "[E2E]", so the
  * two suites' cleanups/assertions never collide) or use a dedicated
@@ -207,7 +207,7 @@ test("Erreur 404 : un identifiant d'audit inexistant affiche la page 404, ne pla
   await expect(page.getByText("This page could not be found.")).toBeVisible();
 });
 
-test("Permissions : le rôle admin (bypass QA) voit les pages réservées admin sans redirection", async ({ page }) => {
+test("Permissions : le rôle admin voit les pages réservées admin sans redirection", async ({ page }) => {
   for (const path of ["/admin/audit/offres", "/admin/audit/equipe", "/admin/audit/parametres"]) {
     const res = await page.goto(path);
     expect(res?.status(), `${path} devrait être accessible à l'admin`).toBe(200);

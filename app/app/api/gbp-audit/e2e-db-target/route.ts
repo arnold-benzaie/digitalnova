@@ -8,11 +8,10 @@ import { auditDb } from "@/db/audit-index";
  * AUDIT_DATABASE_URL overridden to the local Docker test database — the
  * server and the Playwright test harness each resolve AUDIT_DATABASE_URL
  * independently (see e2e/helpers/env.ts), so nothing previously caught the
- * case where they silently point at two different databases. Reachable only
- * under proxy.ts's existing QA-bypass gate (isAuditRoute + qaBypassAllowed),
- * itself already restricted to genuine local `next dev`; the check below is
- * a second, independent guard on top of that, matching the belt-and-suspenders
- * pattern used elsewhere in this codebase (see lib/qa-bypass.ts).
+ * case where they silently point at two different databases. Listed in
+ * proxy.ts's isPublicRoute (no Clerk session exists yet when global-setup
+ * runs) — safe because the check below refuses anything outside genuine
+ * local `next dev`, independent of the middleware.
  */
 export async function GET() {
   if (process.env.NODE_ENV !== "development" || process.env.VERCEL) {

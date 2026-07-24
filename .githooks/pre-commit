@@ -26,12 +26,16 @@ fi
 echo "[pre-commit] Fichiers app/ modifiés détectés — vérification de non-régression PUBLIC-MAP Audit..."
 cd "$APP_DIR"
 
-DEV_URL="http://localhost:3600/admin/audit/nouveau"
+# /api/gbp-audit/e2e-db-target is a public route (own NODE_ENV/VERCEL guard,
+# not Clerk) — reachable with no session, so it doubles as the "server
+# responds" check. Checking an authenticated page here would just redirect
+# to /sign-in and "succeed" with the wrong content.
+DEV_URL="http://localhost:3600/api/gbp-audit/e2e-db-target"
 HTTP_STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DEV_URL")" || HTTP_STATUS="000"
 if [ "$HTTP_STATUS" != "200" ]; then
   echo ""
   echo "[pre-commit] ÉCHEC : le serveur dev PUBLIC-MAP Audit ne répond pas sur $DEV_URL (HTTP $HTTP_STATUS)."
-  echo "  Démarre-le avant de commiter : QA_BYPASS_AUDIT_AUTH=1 npm run dev"
+  echo "  Démarre-le avant de commiter — voir app/e2e/README.md pour la commande exacte."
   echo "  Commit bloqué."
   exit 1
 fi
@@ -40,6 +44,17 @@ if ! docker ps --filter "name=public-map-audit-test-db" --filter "status=running
   echo ""
   echo "[pre-commit] ÉCHEC : le conteneur Docker public-map-audit-test-db n'est pas démarré."
   echo "  Démarre-le avant de commiter (docker start public-map-audit-test-db, ou voir app/e2e/README.md)."
+  echo "  Commit bloqué."
+  exit 1
+fi
+
+# Clerk dev-instance session JWTs are short-lived — regenerate a fresh one
+# right before every run rather than trusting a possibly-stale saved file.
+echo "[pre-commit] Rafraîchissement de la session Clerk réelle (e2e/auth-setup.mjs)..."
+if ! node e2e/auth-setup.mjs; then
+  echo ""
+  echo "[pre-commit] ÉCHEC : impossible d'établir une session Clerk réelle contre le serveur dev."
+  echo "  Voir app/e2e/README.md."
   echo "  Commit bloqué."
   exit 1
 fi

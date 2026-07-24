@@ -4,16 +4,23 @@ Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, 
 
 ## Prérequis avant de lancer la suite
 
-1. Le serveur dev tourne avec le QA Bypass actif **et** pointé sur la base Docker locale — les deux variables sont indispensables, pas seulement la première :
+1. Le serveur dev tourne avec `DATABASE_URL` pointé sur le schéma `preview` de la base principale **et** `AUDIT_DATABASE_URL` sur la base Docker locale — les deux variables sont indispensables :
    ```
-   AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" QA_BYPASS_AUDIT_AUTH=1 npm run dev
+   DATABASE_URL="<valeur de .env.local>?options=-c%20search_path%3Dpreview" \
+   AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" \
+   npm run dev
    ```
-   Sans cet override, `.env.local` fait pointer `AUDIT_DATABASE_URL` vers le vrai projet Supabase Audit (cloud) — le serveur démarre normalement et le QA Bypass fonctionne, donc rien ne signale l'erreur immédiatement, mais toute création faite depuis l'UI atterrit alors dans Supabase pendant que `e2e/helpers/env.ts` force l'harnais de test (assertions, `afterAll`) vers Docker : les deux ne se voient plus. Symptômes typiques : fixtures qui semblent dupliquées d'un run à l'autre, ou « audit introuvable en base juste après création ».
+   Le schéma `preview` de la base principale porte déjà un membership admin réel pour le compte de test (contact@public-map.com — le même utilisé par `e2e-preview/`). Sans cet override, `DATABASE_URL` cible le schéma `public` réel — la suite ne doit jamais créer de données de test dans la vraie base de production. Sans l'override `AUDIT_DATABASE_URL`, `.env.local` pointe vers le vrai projet Supabase Audit (cloud) : toute création faite depuis l'UI y atterrirait pendant que `e2e/helpers/env.ts` force l'harnais de test vers Docker — les deux ne se verraient plus. Symptômes typiques : fixtures qui semblent dupliquées d'un run à l'autre, ou « audit introuvable en base juste après création ».
 2. Le conteneur Docker de test est démarré :
    ```
    docker start public-map-audit-test-db
    ```
    (base `public_map_audit_test`, port 5433 — jamais le projet Supabase cloud, voir `e2e/global-setup.ts` qui le vérifie explicitement à chaque run via `db/guard-main-production.ts`. Cette vérification porte sur l'harnais de test lui-même, pas sur le serveur dev déjà lancé — voir le point 1.)
+3. Une session Clerk réelle est établie pour ce compte, une fois le serveur dev prêt :
+   ```
+   node e2e/auth-setup.mjs
+   ```
+   Génère un jeton de connexion Clerk réel (API Backend Clerk, pas de mot de passe) et enregistre la session dans `playwright/.auth/local-admin.json`, réutilisée par toute la suite (`playwright.config.ts`). Le compte doit avoir un membership `admin` dans `audit_staff_memberships` sur la base Docker — voir `scripts/audit-bootstrap-first-admin.mjs` si besoin de le recréer après une réinitialisation du conteneur.
 
 ## Lancer la suite
 
