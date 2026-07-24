@@ -65,7 +65,7 @@
         <p class="booking-availability-note" data-fr="L’envoi automatique est en cours de configuration. Si le service est indisponible, aucune demande ne sera enregistrée et un contact par e-mail vous sera proposé." data-en="Automated submission is being configured. If the service is unavailable, no request will be stored and you will be offered an email contact option.">L’envoi automatique est en cours de configuration. Si le service est indisponible, aucune demande ne sera enregistrée et un contact par e-mail vous sera proposé.</p>
       </div>
 
-      <form id="reservation-form" novalidate>
+      <form id="reservation-form" method="post" action="" novalidate>
         <div class="booking-honeypot" aria-hidden="true">
           <label for="website">Website</label>
           <input id="website" name="website" type="text" tabindex="-1" autocomplete="off"/>
@@ -166,8 +166,11 @@
 
         <div class="booking-status" id="reservation-status" role="status" aria-live="polite"></div>
         <p class="booking-privacy"><span data-fr="Aucune donnée de carte ou information de paiement n’est demandée. Consultez notre" data-en="No card data or payment information is requested. Read our">Aucune donnée de carte ou information de paiement n’est demandée. Consultez notre</span> <a href="/privacy" data-fr="politique de confidentialité" data-en="privacy policy">politique de confidentialité</a>.</p>
-        <noscript><p class="booking-noscript">JavaScript est nécessaire pour valider le formulaire. Vous pouvez écrire directement à <a href="mailto:contact@public-map.com">contact@public-map.com</a>.</p></noscript>
       </form>
+      <noscript>
+        <style>#reservation-form{display:none!important;}</style>
+        <p class="booking-noscript">JavaScript est nécessaire pour envoyer la demande. Le formulaire est désactivé afin de protéger vos données. Vous pouvez écrire directement à <a href="mailto:contact@public-map.com">contact@public-map.com</a>.</p>
+      </noscript>
     </section>
   </main>
 
