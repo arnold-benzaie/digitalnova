@@ -4,15 +4,16 @@ Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, 
 
 ## Prérequis avant de lancer la suite
 
-1. Le serveur dev tourne avec le QA Bypass actif :
+1. Le serveur dev tourne avec le QA Bypass actif **et** pointé sur la base Docker locale — les deux variables sont indispensables, pas seulement la première :
    ```
-   QA_BYPASS_AUDIT_AUTH=1 npm run dev
+   AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" QA_BYPASS_AUDIT_AUTH=1 npm run dev
    ```
+   Sans cet override, `.env.local` fait pointer `AUDIT_DATABASE_URL` vers le vrai projet Supabase Audit (cloud) — le serveur démarre normalement et le QA Bypass fonctionne, donc rien ne signale l'erreur immédiatement, mais toute création faite depuis l'UI atterrit alors dans Supabase pendant que `e2e/helpers/env.ts` force l'harnais de test (assertions, `afterAll`) vers Docker : les deux ne se voient plus. Symptômes typiques : fixtures qui semblent dupliquées d'un run à l'autre, ou « audit introuvable en base juste après création ».
 2. Le conteneur Docker de test est démarré :
    ```
    docker start public-map-audit-test-db
    ```
-   (base `public_map_audit_test`, port 5433 — jamais le projet Supabase cloud, voir `e2e/global-setup.ts` qui le vérifie explicitement à chaque run via `db/guard-main-production.ts`.)
+   (base `public_map_audit_test`, port 5433 — jamais le projet Supabase cloud, voir `e2e/global-setup.ts` qui le vérifie explicitement à chaque run via `db/guard-main-production.ts`. Cette vérification porte sur l'harnais de test lui-même, pas sur le serveur dev déjà lancé — voir le point 1.)
 
 ## Lancer la suite
 
