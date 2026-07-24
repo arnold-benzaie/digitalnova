@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Pre-commit gate for the PUBLIC-MAP Audit Playwright suite (app/e2e/).
+#
+# This repo's root also hosts an unrelated static marketing site (index.html,
+# cart.js, etc.) with no relationship to the Next.js app or to Playwright —
+# so this hook only runs when the commit actually touches something under
+# app/. A commit that only edits root-level marketing files skips it
+# entirely and commits immediately.
+#
+# Installed via `core.hooksPath` (see app/package.json's "prepare" script,
+# or run `git config core.hooksPath .githooks` once by hand). Not a husky
+# setup — there is no root package.json for husky to hang off of.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+APP_DIR="$REPO_ROOT/app"
+cd "$REPO_ROOT"
+
+STAGED_APP_FILES="$(git diff --cached --name-only --diff-filter=ACMR -- app/ || true)"
+
+if [ -z "$STAGED_APP_FILES" ]; then
+  echo "[pre-commit] Aucun fichier sous app/ dans ce commit — suite Playwright Audit ignorée."
+  exit 0
+fi
+
+echo "[pre-commit] Fichiers app/ modifiés détectés — vérification de non-régression PUBLIC-MAP Audit..."
+cd "$APP_DIR"
+
+# /api/gbp-audit/e2e-db-target is a public route (own NODE_ENV/VERCEL guard,
+# not Clerk) — reachable with no session, so it doubles as the "server
+# responds" check. Checking an authenticated page here would just redirect
+# to /sign-in and "succeed" with the wrong content.
+DEV_URL="http://localhost:3600/api/gbp-audit/e2e-db-target"
+HTTP_STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DEV_URL")" || HTTP_STATUS="000"
+if [ "$HTTP_STATUS" != "200" ]; then
+  echo ""
+  echo "[pre-commit] ÉCHEC : le serveur dev PUBLIC-MAP Audit ne répond pas sur $DEV_URL (HTTP $HTTP_STATUS)."
+  echo "  Démarre-le avant de commiter — voir app/e2e/README.md pour la commande exacte."
+  echo "  Commit bloqué."
+  exit 1
+fi
+
+if ! docker ps --filter "name=public-map-audit-test-db" --filter "status=running" --format '{{.Names}}' | grep -q .; then
+  echo ""
+  echo "[pre-commit] ÉCHEC : le conteneur Docker public-map-audit-test-db n'est pas démarré."
+  echo "  Démarre-le avant de commiter (docker start public-map-audit-test-db, ou voir app/e2e/README.md)."
+  echo "  Commit bloqué."
+  exit 1
+fi
+
+# Clerk dev-instance session JWTs are short-lived — regenerate a fresh one
+# right before every run rather than trusting a possibly-stale saved file.
+echo "[pre-commit] Rafraîchissement de la session Clerk réelle (e2e/auth-setup.mjs)..."
+if ! node e2e/auth-setup.mjs; then
+  echo ""
+  echo "[pre-commit] ÉCHEC : impossible d'établir une session Clerk réelle contre le serveur dev."
+  echo "  Voir app/e2e/README.md."
+  echo "  Commit bloqué."
+  exit 1
+fi
+
+if npx playwright test; then
+  echo ""
+  echo "[pre-commit] OK — suite Playwright Audit verte. Commit autorisé."
+  exit 0
+else
+  echo ""
+  echo "[pre-commit] ÉCHEC : au moins un test Playwright a échoué. Commit bloqué."
+  echo "  Rapport HTML   : npx playwright show-report e2e/report"
+  echo "  Captures/vidéo : app/test-results/ (générées uniquement pour les tests en échec)"
+  exit 1
+fi

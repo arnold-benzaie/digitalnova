@@ -1,0 +1,2 @@
+CREATE INDEX "gbp_audits_assigned_agent_name_idx" ON "gbp_audits" USING btree ("assigned_agent_name");--> statement-breakpoint
+CREATE INDEX "gbp_audits_created_at_idx" ON "gbp_audits" USING btree ("created_at");

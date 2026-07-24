@@ -1,48 +1,34 @@
-import { UserButton } from "@clerk/nextjs";
+import { desc, eq } from "drizzle-orm";
 import type { ReactNode } from "react";
-
-const NAV_ITEMS = [
-  { label: "Tableau de bord", href: "/dashboard" },
-  { label: "Google Business Profile", href: "/dashboard/gbp" },
-  { label: "Audits", href: "/dashboard/audits" },
-  { label: "Documents", href: "/dashboard/documents" },
-];
+import { db } from "@/db";
+import { notifications as notificationsTable } from "@/db/schema";
+import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import type { DevRole } from "@/lib/dev-role";
+import { getNavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
+import { AppShellClient } from "@/components/app-shell-client";
 
 /**
- * Phase 0 shell: fixed sidebar + header, brand tokens only (see
- * app/globals.css). Role-aware nav (client vs staff vs admin) lands in
- * Phase 1 once membership/role lookups exist.
+ * Phase 0/1 shell: fixed sidebar + header, brand tokens only (see
+ * app/globals.css). Nav is role-aware (client portal vs staff/admin area);
+ * `role` comes from the real Clerk session + DB membership (see
+ * lib/session.ts, resolved via lib/dev-role.ts). All interactive bits
+ * (collapsible sections, mobile drawer, collapsed-width toggle) live in
+ * AppShellClient — this stays a Server Component so it can fetch org,
+ * notifications and badge counts directly.
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export async function AppShell({ children, role }: { children: ReactNode; role: DevRole }) {
+  const org = await getOrCreateDevOrganization();
+  const [recentNotifications, badges] = await Promise.all([
+    db.select().from(notificationsTable).where(eq(notificationsTable.organizationId, org.id)).orderBy(desc(notificationsTable.createdAt)).limit(8),
+    role === "client"
+      ? Promise.resolve({ auditUnreadNotifications: 0, auditPendingInvitations: 0, auditPendingQuoteRequests: 0, crmOpenTickets: 0 })
+      : getNavBadgeCounts(),
+  ]);
+  const unreadCount = recentNotifications.filter((n) => !n.read).length;
+
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-pm-gris-2 bg-white p-6 md:flex">
-        <div className="mb-10 font-serif text-2xl font-semibold text-pm-noir">
-          Public<span className="text-pm-rouge">Maps</span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="rounded-lg px-3 py-2 text-sm text-pm-gris transition hover:bg-pm-gris-2/40 hover:text-pm-noir"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-      </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-pm-gris-2 bg-white px-6">
-          <div className="font-serif text-lg font-semibold text-pm-noir md:hidden">
-            Public<span className="text-pm-rouge">Maps</span>
-          </div>
-          <div className="ml-auto">
-            <UserButton />
-          </div>
-        </header>
-        <main className="flex-1 bg-pm-blanc p-6">{children}</main>
-      </div>
-    </div>
+    <AppShellClient role={role} badges={badges} recentNotifications={recentNotifications} unreadCount={unreadCount}>
+      {children}
+    </AppShellClient>
   );
 }

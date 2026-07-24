@@ -79,3 +79,32 @@ the dashboard rather than guessed at automatically:
 Tell me once this is done (or paste the project name/ID) and I can verify
 the deployment the same way I verified the marketing site's — checking
 `get_deployment`/`list_deployments` and curling the live subdomain.
+
+## PUBLIC-MAP Audit — separate database, separate deploy steps
+
+The `/admin/audit/*` module (Google Business Profile audits) runs against
+its **own, isolated Supabase project** — deliberately never the same
+database as the rest of this app (see `db/audit-schema.ts` header comment
+and `db/guard-main-production.ts`). It has its own env vars
+(`AUDIT_DATABASE_URL`, `NEXT_PUBLIC_AUDIT_SUPABASE_URL`,
+`NEXT_PUBLIC_AUDIT_SUPABASE_ANON_KEY`, `AUDIT_SUPABASE_SERVICE_ROLE_KEY` —
+see `.env.example`) and its own migration/setup sequence, which does
+**not** happen automatically:
+
+```bash
+npm run audit:db:migrate              # applies db/audit-migrations/*.sql (schema only)
+npm run audit:db:post-migrate-setup   # seeds audit_staff_roles + applies RLS — REQUIRED, not automatic
+```
+
+Both steps in `post-migrate-setup` are idempotent — safe to re-run after
+every future migration, not just the first one. Skipping the second command
+after a fresh migration leaves the project with **zero usable staff roles**
+and **no RLS policies** (every table readable via the Data API by anyone
+holding the anon key) — this actually happened once mid-session; see the
+comments in `db/audit-migrations/rls-policies.sql` and
+`scripts/audit-db-seed-roles.mjs` for the full story.
+
+Before granting the first real admin, invite them from **Équipe** inside
+the audit module (`/admin/audit/equipe`) — there is no other in-app way to
+bootstrap the first account; it must be an email that will sign in via
+Clerk after being invited.

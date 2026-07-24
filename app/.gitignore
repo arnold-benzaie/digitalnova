@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# playwright — generated per run, never a source of truth
+/e2e/report
+/test-results
+/playwright-report
+/blob-report
+
 # next.js
 /.next/
 /out/

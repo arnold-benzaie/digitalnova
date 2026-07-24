@@ -1,0 +1,1 @@
+ALTER TABLE "crm_clients" ADD COLUMN "archived_at" timestamp with time zone;

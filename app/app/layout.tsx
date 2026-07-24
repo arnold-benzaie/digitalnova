@@ -27,7 +27,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      // Pinned to work around a real, reproducible sign-in failure: this
+      // SDK version always requests the Clerk JS script with
+      // crossOrigin="anonymous" (forcing a CORS preflight), but Clerk's CDN
+      // 307-redirects the unpinned "@clerk/clerk-js@6/..." URL to the exact
+      // patch version — and a preflight response is never allowed to be a
+      // redirect, so every browser fails to load Clerk entirely ("Failed to
+      // load Clerk JS", code failed_to_load_clerk_js). Requesting the exact
+      // version directly skips the redirect. See Clerk's own guidance on
+      // pinning: https://clerk.com/docs/pinning — bump this if @clerk/nextjs
+      // is upgraded to a newer default clerk-js version.
+      // @ts-expect-error — works at runtime (confirmed in @clerk/nextjs's own
+      // source, see clerk-script-tags.js), just not part of the public prop types.
+      __internal_clerkJSVersion="6.25.3"
+    >
       <html
         lang="fr"
         className={`${outfit.variable} ${cormorant.variable} h-full antialiased`}

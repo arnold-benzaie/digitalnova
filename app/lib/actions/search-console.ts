@@ -1,0 +1,141 @@
+"use server";
+
+import { and, eq, notInArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { db } from "@/db";
+import { organizations, searchConsoleMetrics, searchConsoleProperties } from "@/db/schema";
+import { logAudit } from "@/lib/audit";
+import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
+import { notify } from "@/lib/notifications";
+import { getSearchConsoleProvider, type SearchConsoleProperty } from "@/lib/searchconsole";
+import { dispatchWebhookEvent } from "@/lib/webhooks";
+
+/** Same pattern as lib/actions/gbp.ts::resolveOrganization. */
+async function resolveOrganization(organizationId?: string) {
+  if (!organizationId) return getOrCreateDevOrganization();
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  if (!org) throw new Error("Organisation introuvable.");
+  return org;
+}
+
+export async function connectSearchConsole(organizationId?: string) {
+  const org = await resolveOrganization(organizationId);
+
+  const googleConnection = await getGoogleConnection(org.id);
+  if (!googleConnection) {
+    throw new Error("Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».");
+  }
+
+  const provider = getSearchConsoleProvider(org.id);
+
+  let remoteProperties: SearchConsoleProperty[] = [];
+  let propertiesError: ReturnType<typeof sanitizeGoogleError> | undefined;
+  try {
+    remoteProperties = await provider.listProperties();
+  } catch (err) {
+    propertiesError = sanitizeGoogleError(err);
+  }
+
+  for (const property of remoteProperties) {
+    await db
+      .insert(searchConsoleProperties)
+      .values({ organizationId: org.id, siteUrl: property.siteUrl, permissionLevel: property.permissionLevel })
+      .onConflictDoUpdate({
+        target: [searchConsoleProperties.organizationId, searchConsoleProperties.siteUrl],
+        set: { permissionLevel: property.permissionLevel },
+      });
+  }
+
+  // Same authoritative-replace rule as GBP: only prune stale properties on
+  // a successful fetch, never on error.
+  if (!propertiesError) {
+    const currentUrls = remoteProperties.map((p) => p.siteUrl);
+    await db.delete(searchConsoleProperties).where(
+      currentUrls.length > 0
+        ? and(eq(searchConsoleProperties.organizationId, org.id), notInArray(searchConsoleProperties.siteUrl, currentUrls))
+        : eq(searchConsoleProperties.organizationId, org.id),
+    );
+  }
+
+  if (propertiesError) {
+    await logAudit({
+      organizationId: org.id,
+      action: "search_console.connect_error",
+      targetType: "organization",
+      targetId: org.id,
+      metadata: propertiesError,
+    });
+  }
+
+  await logAudit({
+    organizationId: org.id,
+    action: "search_console.connected",
+    targetType: "organization",
+    targetId: org.id,
+    metadata: { propertyCount: remoteProperties.length },
+  });
+
+  await dispatchWebhookEvent("search_console.connected", { organizationId: org.id, propertyCount: remoteProperties.length });
+
+  await syncSearchConsoleData(org.id);
+}
+
+export async function syncSearchConsoleData(organizationId?: string) {
+  const org = await resolveOrganization(organizationId);
+  const provider = getSearchConsoleProvider(org.id);
+
+  const orgProperties = await db.select().from(searchConsoleProperties).where(eq(searchConsoleProperties.organizationId, org.id));
+
+  let metricsUnavailable = false;
+  let lastError: ReturnType<typeof sanitizeGoogleError> | undefined;
+
+  for (const property of orgProperties) {
+    try {
+      const metrics = await provider.getPerformance(property.siteUrl, 30);
+      for (const day of metrics) {
+        const ctrBasisPoints = Math.round(day.ctr * 10000);
+        const averagePositionCentiles = Math.round(day.position * 100);
+        await db
+          .insert(searchConsoleMetrics)
+          .values({
+            propertyId: property.id,
+            date: new Date(day.date),
+            clicks: day.clicks,
+            impressions: day.impressions,
+            ctrBasisPoints,
+            averagePositionCentiles,
+          })
+          .onConflictDoUpdate({
+            target: [searchConsoleMetrics.propertyId, searchConsoleMetrics.date],
+            set: { clicks: day.clicks, impressions: day.impressions, ctrBasisPoints, averagePositionCentiles },
+          });
+      }
+    } catch (err) {
+      metricsUnavailable = true;
+      lastError = sanitizeGoogleError(err);
+    }
+  }
+
+  await logAudit({
+    organizationId: org.id,
+    action: "search_console.synced",
+    targetType: "organization",
+    targetId: org.id,
+    metadata: { propertyCount: orgProperties.length, metricsUnavailable, lastError },
+  });
+
+  await notify({
+    organizationId: org.id,
+    type: "search_console.synced",
+    title: "Synchronisation Google Search Console effectuée",
+    body: metricsUnavailable
+      ? `${orgProperties.length} propriété(s) mise(s) à jour (données indisponibles — ${lastError?.message ?? "erreur inconnue"}).`
+      : `${orgProperties.length} propriété(s) mise(s) à jour.`,
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/search-console");
+  revalidatePath("/dashboard/notifications");
+  revalidatePath("/admin/notifications");
+}
