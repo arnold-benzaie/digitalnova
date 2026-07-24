@@ -8,19 +8,20 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Next dev's Hot Module Reload re-evaluates this module on every edit, which
-// would otherwise create a brand new pg Pool (and leak its connections) each
-// time — the Supabase session pooler caps at 15 clients total, so a handful
-// of reloads was enough to exhaust it (EMAXCONNSESSION). Stashing the pool
-// on globalThis lets it survive HMR in development; `max` is also kept low
-// so a handful of concurrent serverless instances in production can't
-// exhaust the same shared limit either.
+// Cached on globalThis in every environment, not just dev: Next dev's Hot
+// Module Reload re-evaluates this module on every edit, which would
+// otherwise create a brand new pg Pool (and leak its connections) each
+// time; on Vercel, the same caching lets a warm Fluid Compute instance
+// reuse one pool across invocations instead of opening a fresh one per
+// request. `max` is left at 5 deliberately — lowering it was measured to
+// add real query-queuing latency locally with no corresponding safety
+// benefit once DATABASE_URL points at Supabase's transaction-mode pooler
+// (port 6543), which multiplexes far more concurrent connections than the
+// session-mode pooler ever did.
 const globalForDb = globalThis as unknown as { pgPool?: Pool };
 
 const pool = globalForDb.pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pgPool = pool;
-}
+globalForDb.pgPool = pool;
 
 export const db = drizzle(pool, { schema });

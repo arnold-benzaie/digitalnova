@@ -18,13 +18,13 @@ if (!process.env.AUDIT_DATABASE_URL) {
 
 assertNotMainProductionDatabase(process.env.AUDIT_DATABASE_URL, "AUDIT_DATABASE_URL");
 
+// Cached on globalThis in every environment, not just dev — see db/index.ts
+// for the full rationale (HMR reuse locally, warm Fluid Compute instance
+// reuse on Vercel, and why `max` is left at 5 rather than lowered).
 const globalForAuditDb = globalThis as unknown as { auditPgPool?: Pool };
 
-const auditPool =
-  globalForAuditDb.auditPgPool ?? new Pool({ connectionString: process.env.AUDIT_DATABASE_URL, max: 5 });
+const auditPool = globalForAuditDb.auditPgPool ?? new Pool({ connectionString: process.env.AUDIT_DATABASE_URL, max: 5 });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForAuditDb.auditPgPool = auditPool;
-}
+globalForAuditDb.auditPgPool = auditPool;
 
 export const auditDb = drizzle(auditPool, { schema: auditSchema });
