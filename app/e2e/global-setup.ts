@@ -44,6 +44,23 @@ export default async function globalSetup() {
     );
   }
 
+  // The dev server resolves its own AUDIT_DATABASE_URL independently of this
+  // test harness (see e2e/helpers/env.ts) — nothing above proves the two
+  // agree. Without this check, a server started without the Docker override
+  // silently writes UI-created fixtures to the real Supabase Audit project
+  // while every assertion here reads from Docker, producing confusing
+  // failures (duplicated fixtures, "audit introuvable en base") deep inside
+  // individual tests instead of one clear error up front.
+  const dbTargetRes = await fetch("http://localhost:3600/api/gbp-audit/e2e-db-target").catch(() => null);
+  const dbTarget = dbTargetRes && dbTargetRes.ok ? ((await dbTargetRes.json()) as { database: string }).database : null;
+  if (dbTarget !== "public_map_audit_test") {
+    throw new Error(
+      `Le serveur dev n'est pas connecté à la base de test locale (cible détectée : "${dbTarget ?? "indéterminée"}", attendu "public_map_audit_test"). ` +
+        "Il pointe probablement vers le vrai projet Supabase Audit — voir e2e/README.md. " +
+        'Relancer avec : AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" QA_BYPASS_AUDIT_AUTH=1 npm run dev',
+    );
+  }
+
   // The public portal actions (resolveReportByToken, submitPortalQuoteRequest)
   // are rate-limited per IP (see lib/gbp-audit/rate-limit.ts). Every local
   // suite run hits them from the same loopback address, so counts accumulate
