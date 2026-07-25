@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { and, desc, eq } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
 
@@ -63,6 +64,35 @@ export const getCurrentSession = cache(async (): Promise<CurrentSession | null> 
     role: membership.roleName as AppRole,
   };
 });
+
+/**
+ * Redirect-based gate for Server Components/Actions: never throws, so no
+ * raw "Accès refusé" error or Next's generic Server Components crash
+ * screen can surface. Distinguishes the two states getCurrentSession()
+ * deliberately collapses into `null` (see its own doc comment):
+ * unauthenticated → /sign-in (defensive — proxy.ts's clerkMiddleware
+ * already redirects unauthenticated requests before this ever runs on a
+ * real protected route, but this must not assume that's the only caller);
+ * authenticated with no membership → /access-pending, the dedicated
+ * "waiting for a role" page. Access decisions themselves are unchanged —
+ * this only changes how "no access" is presented to the user.
+ */
+export async function requireSession(): Promise<CurrentSession> {
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) {
+    redirect("/sign-in");
+  }
+
+  const session = await getCurrentSession();
+  if (!session) {
+    console.warn(
+      `[access-control] Clerk user ${clerkUserId} is authenticated but has no membership — redirecting to /access-pending`,
+    );
+    redirect("/access-pending");
+  }
+
+  return session;
+}
 
 type ResolvedMembership = {
   organizationId: string;

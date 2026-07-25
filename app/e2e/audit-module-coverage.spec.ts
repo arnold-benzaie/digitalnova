@@ -186,7 +186,13 @@ test("Paramètres : les 6 onglets s'ouvrent, régression du bug gbp_audit_settin
   const visiblePanel = page.locator('[role="tabpanel"]:not([hidden])');
   await visiblePanel.getByLabel(/[Nn]ote/).fill(testNote);
   await visiblePanel.getByRole("button", { name: "Enregistrer" }).click();
-  await expect(page.getByText("Paramètres généraux enregistrés")).toBeVisible();
+  // Widened from the default 10s: sonner's toast auto-dismisses after 4s
+  // (see components/gbp-audit/ui/toast.tsx, no custom `duration`), and this
+  // route's first Server Action round-trip (webpack first-compile, not
+  // Turbopack) can occasionally eat into that window under the cumulative
+  // load of a full suite run — flaky here, not reproducible in isolation,
+  // confirmed via 3 standalone runs before this change.
+  await expect(page.getByText("Paramètres généraux enregistrés")).toBeVisible({ timeout: 15000 });
 
   await page.reload();
   await page.getByRole("tab", { name: "Général" }).click();

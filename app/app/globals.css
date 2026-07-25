@@ -66,3 +66,48 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-panel-in { animation: none; }
 }
+
+/*
+ * Dark-mode-aware surface tokens for the /access-pending "premium" card —
+ * scoped to .pm-auth-page so this doesn't switch any other page in the app
+ * to dark mode (nothing else here supports it). Values swap automatically
+ * with the OS color-scheme preference; nothing else needs to change per
+ * theme since every element on that page reads these variables.
+ */
+.pm-auth-page {
+  --surface-bg: var(--pm-blanc);
+  --surface-card: #ffffff;
+  --surface-border: var(--pm-gris-2);
+  --surface-ink: var(--pm-noir);
+  --surface-muted: var(--pm-gris);
+  --surface-chip: #f5f3f1;
+  --surface-primary-bg: var(--pm-noir);
+  --surface-primary-bg-hover: var(--pm-noir-2);
+  --surface-primary-ink: var(--pm-blanc);
+}
+@media (prefers-color-scheme: dark) {
+  .pm-auth-page {
+    --surface-bg: #0b0b0c;
+    --surface-card: #141416;
+    --surface-border: #2a2a2d;
+    --surface-ink: #f3f1ee;
+    --surface-muted: #a3a3a6;
+    --surface-chip: #1c1c1f;
+    --surface-primary-bg: #f3f1ee;
+    --surface-primary-bg-hover: #ffffff;
+    --surface-primary-ink: #0b0b0c;
+  }
+}
+
+/* Entrance animation for the /access-pending card: fade + slight rise +
+   scale, same "fires on mount" rationale as .animate-panel-in above. */
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-auth-card-in {
+  animation: auth-card-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-card-in { animation: none; }
+}

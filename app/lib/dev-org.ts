@@ -1,23 +1,22 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
-import { getCurrentSession } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 
 /**
  * Returns the organization the signed-in user belongs to, resolved from
  * their `memberships` row (via lib/session.ts) rather than "the first
  * organization in the table" — this is also what closes the cross-tenant
  * read that existed while this function was a single-org placeholder.
- * Throws for unauthenticated or unprovisioned callers, same rationale as
- * lib/dev-role.ts.
+ * Redirects (never throws) for unauthenticated or unprovisioned callers —
+ * see requireSession() — same rationale as lib/dev-role.ts. The
+ * "Organisation introuvable" throw below is a different case entirely: a
+ * resolved session pointing at an org row that doesn't exist, which should
+ * never happen given the FK, so it stays a hard error rather than a
+ * redirect.
  */
 export async function getOrCreateDevOrganization() {
-  const session = await getCurrentSession();
-  if (!session) {
-    throw new Error(
-      "Accès refusé : aucun rôle n'est associé à ce compte. Contactez un administrateur Public Maps.",
-    );
-  }
+  const session = await requireSession();
 
   const [org] = await db
     .select()

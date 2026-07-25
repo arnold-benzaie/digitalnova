@@ -102,14 +102,34 @@ async function claimPendingInvitation(userId: string, email: string): Promise<{ 
   });
 }
 
-export async function requireAuditStaffRole(): Promise<AuditStaffSession> {
+/**
+ * Redirect-based gate, mirroring lib/session.ts's requireSession(): never
+ * throws, so no raw error or Next's generic Server Components crash screen
+ * can surface. Unauthenticated → /sign-in (defensive — proxy.ts's
+ * clerkMiddleware already redirects before this normally runs); signed in
+ * with no audit_staff_memberships row → /access-pending, the same shared
+ * "waiting for a role" page the main app uses. Access decisions themselves
+ * are unchanged — this only changes how "no access" is presented.
+ */
+export async function requireAuditSession(): Promise<AuditStaffSession> {
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) {
+    redirect("/sign-in");
+  }
+
   const session = await getAuditStaffSession();
   if (!session) {
-    throw new Error(
-      "Accès refusé : ce compte n'a pas d'accès à PUBLIC-MAP Audit. Contactez un administrateur pour être invité (Équipe → Inviter un membre).",
+    console.warn(
+      `[access-control] Clerk user ${clerkUserId} is authenticated but has no PUBLIC-MAP Audit membership — redirecting to /access-pending`,
     );
+    redirect("/access-pending");
   }
+
   return session;
+}
+
+export async function requireAuditStaffRole(): Promise<AuditStaffSession> {
+  return requireAuditSession();
 }
 
 /** Review/approve a report before it reaches a prospect — agents build audits but can't self-approve. */

@@ -4,8 +4,23 @@ Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, 
 
 ## Prérequis avant de lancer la suite
 
-1. Le serveur dev tourne avec `DATABASE_URL` pointé sur le schéma `preview` de la base principale **et** `AUDIT_DATABASE_URL` sur la base Docker locale — les deux variables sont indispensables :
+0. **Une seule fois** : créer `.env.e2e.local` à la racine de `app/` (déjà ignoré par git via `.env*`) à partir de `.env.e2e.local.example`, avec les clés de l'instance Clerk **Development** — jamais les clés Production de `.env.local`. Clerk refuse par conception toute opération d'authentification navigateur depuis `localhost` avec des clés Production (« Production Keys are only allowed for domain ... ») ; c'est une protection Clerk volontaire, pas un bug, et il ne faut ni la contourner (pas de domaine `localhost` ajouté aux origines autorisées de l'instance Production) ni utiliser les clés Production en local. Une instance Development existe déjà pour ce projet — récupérer ses clés :
    ```
+   vercel env pull /tmp/preview-env.env --environment=preview --git-branch=preview/public-map-audit
+   grep -E "^(CLERK_SECRET_KEY|NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)=" /tmp/preview-env.env
+   # copier les deux valeurs (sk_test_... / pk_test_...) dans .env.e2e.local, puis :
+   shred -u /tmp/preview-env.env   # ou `rm -f` si shred indisponible — ne jamais laisser le fichier temporaire
+   ```
+   (Ces clés `sk_test_`/`pk_test_` sont déjà celles utilisées par l'environnement Preview de Vercel pour la branche `preview/public-map-audit` — aucune nouvelle instance Clerk à créer.) Alternative : Clerk Dashboard → sélectionner l'instance **Development** → API Keys.
+   `e2e/auth-setup.mjs` charge `.env.e2e.local` en priorité sur `.env.local` et refuse de s'exécuter si la clé résolue est une clé Production (`sk_live_...`) — donc une clé Production ne peut jamais être utilisée localement, même par erreur de configuration.
+1. Le serveur dev tourne avec les clés Clerk **Development** ci-dessus, `DATABASE_URL` pointé sur le schéma `preview` de la base principale, **et** `AUDIT_DATABASE_URL` sur la base Docker locale — toutes indispensables. Le plus simple, une fois `.env.e2e.local` rempli (voir point 0, en y ajoutant aussi `DATABASE_URL` avec le suffixe `preview` ci-dessous) :
+   ```
+   set -a && source .env.e2e.local && set +a && npm run dev
+   ```
+   ou, sans consolider dans `.env.e2e.local` :
+   ```
+   CLERK_SECRET_KEY="sk_test_..." \
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..." \
    DATABASE_URL="<valeur de .env.local>?options=-c%20search_path%3Dpreview" \
    AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" \
    npm run dev
@@ -16,11 +31,11 @@ Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, 
    docker start public-map-audit-test-db
    ```
    (base `public_map_audit_test`, port 5433 — jamais le projet Supabase cloud, voir `e2e/global-setup.ts` qui le vérifie explicitement à chaque run via `db/guard-main-production.ts`. Cette vérification porte sur l'harnais de test lui-même, pas sur le serveur dev déjà lancé — voir le point 1.)
-3. Une session Clerk réelle est établie pour ce compte, une fois le serveur dev prêt :
+3. Une session Clerk réelle est établie pour ce compte, une fois le serveur dev prêt (démarré avec les clés Development du point 1 — sinon la session serait établie sur une instance et validée sur une autre) :
    ```
    node e2e/auth-setup.mjs
    ```
-   Génère un jeton de connexion Clerk réel (API Backend Clerk, pas de mot de passe) et enregistre la session dans `playwright/.auth/local-admin.json`, réutilisée par toute la suite (`playwright.config.ts`). Le compte doit avoir un membership `admin` dans `audit_staff_memberships` sur la base Docker — voir `scripts/audit-bootstrap-first-admin.mjs` si besoin de le recréer après une réinitialisation du conteneur.
+   Résout dynamiquement l'utilisateur Clerk par e-mail (`contact@public-map.com` — voir `e2e/helpers/clerk-admin.mjs`, jamais un id codé en dur : un id fige une instance Clerk précise, et devient silencieusement invalide dès que l'instance change), génère un jeton de connexion Clerk réel (API Backend Clerk, pas de mot de passe) et enregistre la session dans `playwright/.auth/local-admin.json`, réutilisée par toute la suite (`playwright.config.ts`). Le compte doit avoir un membership `admin` dans `audit_staff_memberships` sur la base Docker — voir `scripts/audit-bootstrap-first-admin.mjs` si besoin de le recréer après une réinitialisation du conteneur.
 
 ## Lancer la suite
 
@@ -42,7 +57,7 @@ Rien de tout cela n'est généré pour les tests qui passent — uniquement en c
 
 Un hook Git bloque tout commit touchant `app/**` tant que cette suite n'est pas verte — voir `../../.githooks/pre-commit` à la racine du dépôt. Il est activé automatiquement par `npm install` (script `prepare` dans `package.json`, qui exécute `git config core.hooksPath .githooks`). Un commit qui ne touche que le site vitrine à la racine du dépôt n'est pas concerné et n'attend pas ce hook.
 
-Si le serveur dev ou le conteneur Docker ne tournent pas, le hook bloque le commit avec un message explicite plutôt que d'ignorer silencieusement la vérification.
+Si le serveur dev ou le conteneur Docker ne tournent pas, le hook bloque le commit avec un message explicite plutôt que d'ignorer silencieusement la vérification. Le hook appelle `node e2e/auth-setup.mjs`, qui échoue explicitement (voir point 0 des prérequis) si `.env.e2e.local` est absent/incomplet ou si la clé résolue est une clé Clerk Production — dans ce cas, le serveur dev tourne probablement encore avec les clés de `.env.local` : l'arrêter et le relancer avec les clés Development (point 1).
 
 ## Étendre la suite
 
