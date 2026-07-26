@@ -3,8 +3,12 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteDocument, uploadDocument } from "@/lib/actions/documents";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-export function UploadDocumentForm() {
+export function UploadDocumentForm({ locale = "fr" }: { locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.documents;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -22,7 +26,7 @@ export function UploadDocumentForm() {
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : tCommon.error);
           }
         })
       }
@@ -38,14 +42,16 @@ export function UploadDocumentForm() {
         disabled={isPending}
         className="shrink-0 rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Envoi..." : "Ajouter"}
+        {isPending ? t.uploading : t.add}
       </button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>
   );
 }
 
-export function DeleteDocumentButton({ id }: { id: string }) {
+export function DeleteDocumentButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.documents;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -61,7 +67,7 @@ export function DeleteDocumentButton({ id }: { id: string }) {
       }
       className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
     >
-      {isPending ? "Suppression..." : "Supprimer"}
+      {isPending ? t.deleting : tCommon.delete}
     </button>
   );
 }

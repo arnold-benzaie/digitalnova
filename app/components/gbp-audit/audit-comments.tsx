@@ -8,20 +8,24 @@ import { Button } from "@/components/gbp-audit/ui/button";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
 export type AuditComment = { id: string; authorName: string; body: string; createdAt: string };
 
-export function AuditComments({ auditId, comments }: { auditId: string; comments: AuditComment[] }) {
+export function AuditComments({ auditId, comments, locale = "fr" }: { auditId: string; comments: AuditComment[]; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.comments;
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
-  const { confirm, dialog } = useConfirmDialog();
+  const { confirm, dialog } = useConfirmDialog(locale);
 
   return (
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
       {dialog}
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">Discussion interne</h2>
-      <p className="mt-1 text-xs text-pm-gris">Visible uniquement par l&rsquo;équipe PUBLIC-MAP — jamais par le prospect.</p>
+      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+      <p className="mt-1 text-xs text-pm-gris">{t.visibility}</p>
 
       {comments.length === 0 ? (
         <div className="mt-4">
@@ -31,8 +35,8 @@ export function AuditComments({ auditId, comments }: { auditId: string; comments
                 <path d="M4 5h16v11H8l-4 4V5z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             }
-            title="Aucun commentaire"
-            description="Laissez une note pour le reste de l'équipe."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
           />
         </div>
       ) : (
@@ -42,27 +46,27 @@ export function AuditComments({ auditId, comments }: { auditId: string; comments
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium text-pm-noir">{c.authorName}</p>
-                  <p className="text-[10px] text-pm-gris">{new Date(c.createdAt).toLocaleString("fr-FR")}</p>
+                  <p className="text-[10px] text-pm-gris">{formatDateTime(c.createdAt, locale)}</p>
                 </div>
                 <button
                   type="button"
                   disabled={isPending}
                   onClick={async () => {
-                    const ok = await confirm({ title: "Supprimer ce commentaire ?", description: "Cette action est définitive.", confirmLabel: "Supprimer" });
+                    const ok = await confirm({ title: t.deleteConfirmTitle, description: t.deleteConfirmDescription, confirmLabel: t.deleteConfirmLabel });
                     if (!ok) return;
                     startTransition(async () => {
                       try {
                         await deleteAuditComment(c.id, auditId);
-                        toast.success("Commentaire supprimé");
+                        toast.success(t.deleted);
                         router.refresh();
                       } catch (err) {
-                        toast.error("Impossible de supprimer", err instanceof Error ? err.message : undefined);
+                        toast.error(t.deleteError, err instanceof Error ? err.message : undefined);
                       }
                     });
                   }}
                   className="text-[10px] text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
                 >
-                  Supprimer
+                  {t.delete}
                 </button>
               </div>
               <p className="mt-2 text-sm text-pm-noir">{c.body}</p>
@@ -81,15 +85,15 @@ export function AuditComments({ auditId, comments }: { auditId: string; comments
               formRef.current?.reset();
               router.refresh();
             } catch (err) {
-              toast.error("Impossible d'ajouter ce commentaire", err instanceof Error ? err.message : undefined);
+              toast.error(t.addError, err instanceof Error ? err.message : undefined);
             }
           })
         }
       >
-        <Textarea name="body" placeholder="Écrire un commentaire pour l'équipe…" rows={2} required aria-label="Nouveau commentaire" />
+        <Textarea name="body" placeholder={t.placeholder} rows={2} required aria-label={t.newCommentAriaLabel} />
         <div>
           <Button type="submit" size="sm" loading={isPending}>
-            Publier
+            {t.publish}
           </Button>
         </div>
       </form>

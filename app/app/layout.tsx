@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Outfit, Cormorant_Garamond } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { frFR, enUS } from "@clerk/localizations";
+import { APP_NAME } from "@/lib/brand";
+import { clerkAppearance } from "@/lib/clerk-appearance";
+import { getLocale } from "@/lib/i18n/locale";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -16,20 +20,25 @@ const cormorant = Cormorant_Garamond({
   style: ["normal", "italic"],
 });
 
-export const metadata: Metadata = {
-  title: "Public Maps — Plateforme",
-  description: "Gérez, optimisez et suivez votre présence Google Business Profile.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return locale === "en"
+    ? { title: `${APP_NAME} — Platform`, description: "Manage, optimize, and track your Google Business Profile presence." }
+    : { title: `${APP_NAME} — Plateforme`, description: "Gérez, optimisez et suivez votre présence Google Business Profile." };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
     <ClerkProvider
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
+      appearance={clerkAppearance}
+      localization={locale === "en" ? enUS : frFR}
       // Pinned to work around a real, reproducible sign-in failure: this
       // SDK version always requests the Clerk JS script with
       // crossOrigin="anonymous" (forcing a CORS preflight), but Clerk's CDN
@@ -45,7 +54,7 @@ export default function RootLayout({
       __internal_clerkJSVersion="6.25.3"
     >
       <html
-        lang="fr"
+        lang={locale}
         className={`${outfit.variable} ${cormorant.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col bg-pm-blanc text-pm-noir font-sans">

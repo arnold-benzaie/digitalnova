@@ -12,6 +12,8 @@ import { replyToReviewForClient } from "@/lib/actions/crm-gbp";
 import { computeGbpStats } from "@/lib/gbp/stats";
 import { requireStaffRole } from "@/lib/dev-role";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection, isGoogleOAuthConfigured } from "@/lib/google/oauth";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function CrmClientGbpPage({
   params,
@@ -21,15 +23,15 @@ export default async function CrmClientGbpPage({
   searchParams: Promise<{ google?: string; reason?: string }>;
 }) {
   await requireStaffRole();
-  const { id } = await params;
-  const { google, reason } = await searchParams;
+  const [{ id }, { google, reason }, locale] = await Promise.all([params, searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.googleTabs;
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) notFound();
 
   const backLink = (
     <Link href={`/admin/crm/clients/${id}`} className="text-xs text-pm-gris underline">
-      ← Retour à la fiche client
+      {t.backToClient}
     </Link>
   );
 
@@ -38,7 +40,7 @@ export default async function CrmClientGbpPage({
       href={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/gbp`}
       className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
     >
-      Connecter un compte Google
+      {t.connectButton}
     </a>
   ) : null;
 
@@ -47,14 +49,12 @@ export default async function CrmClientGbpPage({
       <>
         {backLink}
         <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
-          <GoogleOAuthBanner flag={google} reason={reason} />
+          <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
           <p className="font-serif text-xl font-semibold text-pm-noir">
-            Connecter Google Business Profile pour {client.name}
+            {t.gbp.connectTitle(client.name)}
           </p>
           <p className="mt-2 text-sm text-pm-gris">
-            {isGoogleOAuthConfigured()
-              ? "Connectez un compte Google (crée automatiquement l'espace plateforme de ce client si nécessaire) pour récupérer ses établissements, statistiques et avis réels."
-              : "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ne sont pas configurés dans .env.local — demandez à un administrateur de les renseigner avant de pouvoir connecter un compte Google."}
+            {isGoogleOAuthConfigured() ? t.gbp.connectDescription : t.envMissing}
           </p>
           {realConnectLink && <div className="mt-4">{realConnectLink}</div>}
         </div>
@@ -76,15 +76,16 @@ export default async function CrmClientGbpPage({
       <>
         {backLink}
         <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
-          <GoogleOAuthBanner flag={google} reason={reason} />
+          <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
           {isGoogleOAuthConfigured() && (
             <GoogleConnectionStatus
               organizationId={client.organizationId}
               reconnectHref={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/gbp`}
+              locale={locale}
             />
           )}
           <p className="font-serif text-xl font-semibold text-pm-noir">
-            Connecter Google Business Profile pour {client.name}
+            {t.gbp.connectTitle(client.name)}
           </p>
           {realConnectLink && <div className="mt-4">{realConnectLink}</div>}
         </div>
@@ -113,29 +114,30 @@ export default async function CrmClientGbpPage({
   return (
     <>
       {backLink}
-      <GoogleOAuthBanner flag={google} reason={reason} />
+      <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
       {isGoogleOAuthConfigured() && (
         <GoogleConnectionStatus
           organizationId={client.organizationId}
           reconnectHref={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/gbp`}
+          locale={locale}
         />
       )}
       <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Google Business Profile — {client.name}</h1>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.gbp.heading(client.name)}</h1>
           <p className="mt-1 text-sm text-pm-gris">
-            Connecté en tant que {connection.googleAccountEmail}
-            {!hasRealGbp && " — autorisations Google Business Profile manquantes, voir le statut ci-dessous"}.
+            {t.connectedAsPrefix} {connection.googleAccountEmail}
+            {!hasRealGbp && t.gbp.missingScopesSuffix}.
           </p>
         </div>
-        <SyncGbpForClientButton clientId={id} />
+        <SyncGbpForClientButton clientId={id} locale={locale} />
       </div>
 
       <div className="mt-6">
-        <GbpStats stats={stats} />
+        <GbpStats stats={stats} locale={locale} />
       </div>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Établissements</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.gbp.locationsTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {orgLocations.map((location) => (
           <div key={location.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
@@ -150,12 +152,12 @@ export default async function CrmClientGbpPage({
             <p className="mt-2 text-xs uppercase tracking-wide text-pm-gris">{location.category}</p>
           </div>
         ))}
-        {orgLocations.length === 0 && <p className="text-sm text-pm-gris">Aucun établissement.</p>}
+        {orgLocations.length === 0 && <p className="text-sm text-pm-gris">{t.gbp.noLocations}</p>}
       </div>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Avis récents</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.gbp.reviewsTitle}</h2>
       {allReviews.length === 0 ? (
-        <p className="mt-3 text-sm text-pm-gris">Aucun avis synchronisé pour le moment.</p>
+        <p className="mt-3 text-sm text-pm-gris">{t.gbp.noReviews}</p>
       ) : (
         <div className="mt-3 flex flex-col gap-3">
           {allReviews.slice(0, 10).map((review) => (
@@ -169,6 +171,7 @@ export default async function CrmClientGbpPage({
                 reviewId={review.id}
                 existingReply={review.replyText}
                 action={replyToReviewForClient.bind(null, id)}
+                locale={locale}
               />
             </div>
           ))}

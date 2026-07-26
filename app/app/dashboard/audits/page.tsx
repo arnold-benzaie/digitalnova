@@ -4,9 +4,11 @@ import { db } from "@/db";
 import { auditIssues, audits, gbpConnections } from "@/db/schema";
 import { RunAuditButton } from "@/components/audit-actions";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 } as const;
-const PRIORITY_LABEL: Record<string, string> = { high: "Priorité haute", medium: "Priorité moyenne", low: "Priorité basse" };
 const PRIORITY_CLASS: Record<string, string> = {
   high: "bg-pm-rouge/10 text-pm-rouge-2",
   medium: "bg-pm-or/10 text-pm-or-2",
@@ -14,7 +16,9 @@ const PRIORITY_CLASS: Record<string, string> = {
 };
 
 export default async function AuditsPage() {
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
+  const t = dictionaries[locale].dashboard.audits;
+  const priorityLabel: Record<string, string> = t.priority;
 
   const [connection] = await db
     .select()
@@ -25,18 +29,13 @@ export default async function AuditsPage() {
   if (!connection || connection.status !== "connected") {
     return (
       <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-        <p className="font-serif text-lg font-semibold text-pm-noir">
-          Connectez Google Business Profile pour lancer un audit
-        </p>
-        <p className="mt-1 text-sm text-pm-gris">
-          L&apos;audit IA s&apos;appuie sur les métriques et les avis de vos
-          établissements.
-        </p>
+        <p className="font-serif text-lg font-semibold text-pm-noir">{t.notConnectedTitle}</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.notConnectedBody}</p>
         <Link
           href="/dashboard/gbp"
           className="mt-4 inline-block rounded-lg bg-pm-noir px-4 py-2 text-xs font-medium uppercase tracking-wide text-white transition hover:bg-pm-noir-2"
         >
-          Aller à la connexion GBP
+          {t.goToGbp}
         </Link>
       </div>
     );
@@ -59,26 +58,23 @@ export default async function AuditsPage() {
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Audits IA</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            Score et recommandations générés (données simulées — voir
-            README pour la mise en production).
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.lead}</p>
         </div>
-        <RunAuditButton />
+        <RunAuditButton locale={locale} />
       </div>
 
       {!latestAudit ? (
         <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">Aucun audit pour le moment</p>
-          <p className="mt-1 text-sm text-pm-gris">Lancez votre premier audit pour obtenir un score et des recommandations.</p>
+          <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
+          <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
         </div>
       ) : (
         <>
           <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Score global</div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.globalScore}</div>
                 <div className="mt-1 font-serif text-4xl font-bold text-pm-noir">{latestAudit.score}/100</div>
               </div>
               <p className="text-sm text-pm-gris">{latestAudit.summary}</p>
@@ -87,24 +83,24 @@ export default async function AuditsPage() {
               href="/api/reports/audit"
               className="shrink-0 self-start rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-xs font-medium uppercase tracking-wide text-pm-noir transition hover:bg-pm-gris-2/40"
             >
-              Télécharger le rapport PDF
+              {t.downloadPdf}
             </a>
           </div>
 
-          <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Recommandations</h2>
+          <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.recommendationsTitle}</h2>
           <div className="mt-3 flex flex-col gap-3">
             {sortedIssues.map((issue) => (
               <div key={issue.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
                 <div className="flex items-center justify-between gap-4">
                   <p className="font-medium text-pm-noir">{issue.title}</p>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${PRIORITY_CLASS[issue.priority] ?? ""}`}>
-                    {PRIORITY_LABEL[issue.priority] ?? issue.priority}
+                    {priorityLabel[issue.priority] ?? issue.priority}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-pm-gris">{issue.description}</p>
                 {issue.recommendation && (
                   <p className="mt-2 text-sm text-pm-noir">
-                    <span className="font-medium">Recommandation : </span>
+                    <span className="font-medium">{t.recommendationPrefix}</span>
                     {issue.recommendation}
                   </p>
                 )}
@@ -114,21 +110,19 @@ export default async function AuditsPage() {
 
           {previousAudits.length > 1 && (
             <>
-              <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Historique</h2>
+              <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.historyTitle}</h2>
               <div className="mt-3 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                     <tr>
-                      <th className="px-5 py-3">Date</th>
-                      <th className="px-5 py-3">Score</th>
+                      <th className="px-5 py-3">{t.columns.date}</th>
+                      <th className="px-5 py-3">{t.columns.score}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previousAudits.map((audit) => (
                       <tr key={audit.id} className="border-t border-pm-gris-2">
-                        <td className="px-5 py-3 text-pm-gris">
-                          {new Date(audit.createdAt).toLocaleString("fr-FR")}
-                        </td>
+                        <td className="px-5 py-3 text-pm-gris">{formatDateTime(audit.createdAt, locale)}</td>
                         <td className="px-5 py-3 font-medium text-pm-noir">{audit.score}/100</td>
                       </tr>
                     ))}

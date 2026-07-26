@@ -7,14 +7,35 @@ import { contracts } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { getESignProvider } from "@/lib/esign";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: {
+    clientRequired: "Client requis.",
+    titleRequired: "Titre requis.",
+    contentRequired: "Contenu requis.",
+    contractNotFound: "Contrat introuvable.",
+    onlyDraftCanBeEdited: "Seuls les contrats en brouillon peuvent être modifiés.",
+    signerRequired: "Renseignez le nom et l'email du signataire avant l'envoi.",
+  },
+  en: {
+    clientRequired: "Client required.",
+    titleRequired: "Title required.",
+    contentRequired: "Content required.",
+    contractNotFound: "Contract not found.",
+    onlyDraftCanBeEdited: "Only draft contracts can be edited.",
+    signerRequired: "Enter the signer's name and email before sending.",
+  },
+} as const;
 
 export async function createContract(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
   const content = formData.get("content");
-  if (typeof clientId !== "string" || !clientId) throw new Error("Client requis.");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
-  if (typeof content !== "string" || !content.trim()) throw new Error("Contenu requis.");
+  if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
+  if (typeof content !== "string" || !content.trim()) throw new Error(MESSAGES[locale].contentRequired);
 
   const dealId = formData.get("dealId");
 
@@ -46,15 +67,16 @@ export async function createContract(formData: FormData) {
  * provider already has that exact content, so editing here would silently
  * desync from what the signer actually saw. */
 export async function updateContract(id: string, formData: FormData) {
+  const locale = await getLocale();
   const title = formData.get("title");
   const content = formData.get("content");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
-  if (typeof content !== "string" || !content.trim()) throw new Error("Contenu requis.");
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
+  if (typeof content !== "string" || !content.trim()) throw new Error(MESSAGES[locale].contentRequired);
 
   const [existing] = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
-  if (!existing) throw new Error("Contrat introuvable.");
+  if (!existing) throw new Error(MESSAGES[locale].contractNotFound);
   if (existing.status !== "draft") {
-    throw new Error("Seuls les contrats en brouillon peuvent être modifiés.");
+    throw new Error(MESSAGES[locale].onlyDraftCanBeEdited);
   }
 
   const [contract] = await db
@@ -82,10 +104,11 @@ export async function updateContract(id: string, formData: FormData) {
 }
 
 export async function sendContractForSignature(id: string) {
+  const locale = await getLocale();
   const [contract] = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
-  if (!contract) throw new Error("Contrat introuvable.");
+  if (!contract) throw new Error(MESSAGES[locale].contractNotFound);
   if (!contract.signerName || !contract.signerEmail) {
-    throw new Error("Renseignez le nom et l'email du signataire avant l'envoi.");
+    throw new Error(MESSAGES[locale].signerRequired);
   }
 
   const provider = getESignProvider();
@@ -115,12 +138,13 @@ export async function sendContractForSignature(id: string) {
 }
 
 export async function simulateContractSignature(id: string) {
+  const locale = await getLocale();
   const [contract] = await db
     .update(contracts)
     .set({ status: "signed", signedAt: new Date() })
     .where(eq(contracts.id, id))
     .returning();
-  if (!contract) throw new Error("Contrat introuvable.");
+  if (!contract) throw new Error(MESSAGES[locale].contractNotFound);
 
   await logCrmAudit({
     action: "crm.contract_signed",

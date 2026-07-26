@@ -1,11 +1,16 @@
 import {
   DEAL_STAGE_OPTIONS,
+  DEAL_STAGE_OPTIONS_EN,
   PROJECT_STATUS_OPTIONS,
+  PROJECT_STATUS_OPTIONS_EN,
   TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTIONS_EN,
   TICKET_STATUS_OPTIONS,
+  TICKET_STATUS_OPTIONS_EN,
 } from "@/components/crm/badges";
-import { INVOICE_STATUS_OPTIONS, QUOTE_STATUS_OPTIONS } from "@/lib/crm-billing";
-import { SEO_ISSUE_STATUS_OPTIONS } from "@/lib/seo-shared";
+import { INVOICE_STATUS_OPTIONS, INVOICE_STATUS_OPTIONS_EN, QUOTE_STATUS_OPTIONS, QUOTE_STATUS_OPTIONS_EN } from "@/lib/crm-billing";
+import { SEO_ISSUE_STATUS_OPTIONS, SEO_ISSUE_STATUS_OPTIONS_EN } from "@/lib/seo-shared";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 const DEAL_STAGE_LABEL = Object.fromEntries(DEAL_STAGE_OPTIONS.map((o) => [o.value, o.label]));
 const TICKET_STATUS_LABEL = Object.fromEntries(TICKET_STATUS_OPTIONS.map((o) => [o.value, o.label]));
@@ -19,6 +24,20 @@ const CLIENT_STAGE_LABEL: Record<string, string> = {
   prospect: "Prospect",
   client: "Client",
   churned: "Perdu",
+};
+
+const DEAL_STAGE_LABEL_EN = Object.fromEntries(DEAL_STAGE_OPTIONS_EN.map((o) => [o.value, o.label]));
+const TICKET_STATUS_LABEL_EN = Object.fromEntries(TICKET_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const TASK_STATUS_LABEL_EN = Object.fromEntries(TASK_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const PROJECT_STATUS_LABEL_EN = Object.fromEntries(PROJECT_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const QUOTE_STATUS_LABEL_EN = Object.fromEntries(QUOTE_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const INVOICE_STATUS_LABEL_EN = Object.fromEntries(INVOICE_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const SEO_ISSUE_STATUS_LABEL_EN = Object.fromEntries(SEO_ISSUE_STATUS_OPTIONS_EN.map((o) => [o.value, o.label]));
+const CLIENT_STAGE_LABEL_EN: Record<string, string> = {
+  lead: "Lead",
+  prospect: "Prospect",
+  client: "Client",
+  churned: "Churned",
 };
 
 export type AuditEntry = {
@@ -43,6 +62,24 @@ export const AUDIT_CATEGORY_LABEL: Record<string, string> = {
   audit: "Audit IA",
 };
 
+export const AUDIT_CATEGORY_LABEL_EN: Record<string, string> = {
+  crm: "CRM",
+  user: "Users",
+  billing: "Billing",
+  gbp: "Google Business Profile",
+  search_console: "Google Search Console",
+  analytics: "Google Analytics",
+  document: "Documents (portal)",
+  organization: "Organization",
+  onboarding: "Onboarding",
+  report: "Reports",
+  audit: "AI Audit",
+};
+
+export function getAuditCategoryLabel(locale: Locale): Record<string, string> {
+  return locale === "en" ? AUDIT_CATEGORY_LABEL_EN : AUDIT_CATEGORY_LABEL;
+}
+
 export function categoryOf(action: string): string {
   return action.split(".")[0] ?? action;
 }
@@ -53,10 +90,7 @@ export function clientIdOf(entry: AuditEntry): string | undefined {
   return typeof m.clientId === "string" ? m.clientId : undefined;
 }
 
-/** Human-readable, French description of a logAudit() entry — shared between
- * the CRM client activity timeline and the global audit log page so the two
- * views never drift apart. */
-export function describeAuditEntry(entry: AuditEntry): string {
+function describeAuditEntryFr(entry: AuditEntry): string {
   const m = (entry.metadata ?? {}) as Record<string, unknown>;
   switch (entry.action) {
     case "audit.generated":
@@ -208,4 +242,168 @@ export function describeAuditEntry(entry: AuditEntry): string {
     default:
       return entry.action;
   }
+}
+
+function describeAuditEntryEn(entry: AuditEntry): string {
+  const m = (entry.metadata ?? {}) as Record<string, unknown>;
+  switch (entry.action) {
+    case "audit.generated":
+      return `AI audit generated — score ${m.score}/100`;
+    case "billing.canceled":
+      return "Subscription canceled";
+    case "billing.subscribed":
+      return `Subscribed to plan: ${m.plan} (€${m.priceEuros})`;
+    case "crm.client_archived":
+      return "Client archived";
+    case "crm.client_created":
+      return `Client created: ${m.name ?? ""}`;
+    case "crm.client_deleted":
+      return "Client deleted";
+    case "crm.client_stage_changed":
+      return `Client stage changed: ${CLIENT_STAGE_LABEL_EN[m.stage as string] ?? m.stage}`;
+    case "crm.client_unarchived":
+      return "Client unarchived";
+    case "crm.client_updated":
+      return `Client record updated: ${m.name ?? ""}`;
+    case "crm.quote_created":
+      return `Quote created: ${m.quoteNumber} — ${m.title}`;
+    case "crm.quote_updated":
+      return `Quote updated: ${m.quoteNumber}`;
+    case "crm.quote_status_changed":
+      return `Quote ${m.quoteNumber} — status: ${QUOTE_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "crm.quote_deleted":
+      return `Quote deleted: ${m.quoteNumber}`;
+    case "crm.invoice_created":
+      return `Invoice created: ${m.invoiceNumber} — ${m.title}`;
+    case "crm.invoice_created_from_quote":
+      return `Invoice ${m.invoiceNumber} created from quote ${m.quoteNumber}`;
+    case "crm.invoice_updated":
+      return `Invoice updated: ${m.invoiceNumber}`;
+    case "crm.invoice_status_changed":
+      return `Invoice ${m.invoiceNumber} — status: ${INVOICE_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "crm.invoice_deleted":
+      return `Invoice deleted: ${m.invoiceNumber}`;
+    case "crm.contract_created":
+      return `Contract created: ${m.title}`;
+    case "crm.contract_updated":
+      return `Contract updated: ${m.title}`;
+    case "crm.contract_sent":
+      return "Contract sent for signature";
+    case "crm.contract_signed":
+      return "Contract signed";
+    case "crm.deal_created":
+      return `Deal created: ${m.title}`;
+    case "crm.deal_deleted":
+      return `Deal deleted: ${m.title}`;
+    case "crm.deal_stage_changed":
+      return `Deal stage changed: ${DEAL_STAGE_LABEL_EN[m.stage as string] ?? m.stage}`;
+    case "crm.deal_updated":
+      return `Deal updated: ${m.title}`;
+    case "crm.demo_data_seeded":
+      return "Demo data seeded";
+    case "crm.document_deleted":
+      return `CRM file deleted: ${m.fileName}`;
+    case "crm.document_uploaded":
+      return `CRM file added: ${m.fileName}`;
+    case "crm.event_created":
+      return `Event created: ${m.title}`;
+    case "crm.event_updated":
+      return `Event updated: ${m.title}`;
+    case "crm.event_deleted":
+      return `Event deleted: ${m.title}`;
+    case "crm.interaction_logged":
+      return m.summary ? `Interaction (${m.type}): ${m.summary}` : `Interaction logged (${m.type})`;
+    case "crm.project_created":
+      return `Project created: ${m.name}`;
+    case "crm.project_updated":
+      return `Project updated: ${m.name}`;
+    case "crm.project_deleted":
+      return `Project deleted: ${m.name}`;
+    case "crm.project_status_changed":
+      return `Project status changed: ${PROJECT_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "crm.task_created":
+      return `Task created: ${m.title}`;
+    case "crm.task_updated":
+      return `Task updated: ${m.title}`;
+    case "crm.task_deleted":
+      return `Task deleted: ${m.title}`;
+    case "crm.task_status_changed":
+      return `Task status changed: ${TASK_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "crm.ticket_created":
+      return `Ticket opened: ${m.subject}`;
+    case "crm.ticket_updated":
+      return `Ticket updated: ${m.subject}`;
+    case "crm.ticket_deleted":
+      return `Ticket deleted: ${m.subject}`;
+    case "crm.ticket_status_changed":
+      return `Ticket status changed: ${TICKET_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "document.deleted":
+      return "Document (portal) deleted";
+    case "document.uploaded":
+      return `Document (portal) added${entry.targetId ? `: ${entry.targetId}` : ""}`;
+    case "gbp.connected":
+      return `Google Business Profile connected (${m.locationCount ?? 0} location(s))`;
+    case "gbp.synced":
+      return `GBP sync (${m.locationCount ?? 0} location(s), ${m.newReviewCount ?? 0} new review)`;
+    case "gbp.review_replied":
+      return "Reply posted to a Google review";
+    case "gbp.connect_error":
+      return `Google Business Profile error: ${m.message ?? "unknown error"}`;
+    case "search_console.connected":
+      return `Google Search Console connected (${m.propertyCount ?? 0} propert(y/ies))`;
+    case "search_console.synced":
+      return `Search Console sync (${m.propertyCount ?? 0} propert(y/ies))`;
+    case "search_console.connect_error":
+      return `Google Search Console error: ${m.message ?? "unknown error"}`;
+    case "analytics.connected":
+      return `Google Analytics connected (${m.propertyCount ?? 0} propert(y/ies))`;
+    case "analytics.synced":
+      return `Google Analytics sync (${m.propertyCount ?? 0} propert(y/ies))`;
+    case "analytics.connect_error":
+      return `Google Analytics error: ${m.message ?? "unknown error"}`;
+    case "crm.client_linked_to_organization":
+      return "Client linked to a platform space (for Google Business Profile)";
+    case "crm.website_added":
+      return `Website added: ${m.url ?? ""}`;
+    case "crm.website_updated":
+      return `Website updated: ${m.url ?? ""}`;
+    case "crm.website_deleted":
+      return `Website deleted: ${m.url ?? ""}`;
+    case "crm.seo_audit_completed":
+      return `SEO audit completed (${m.url ?? ""}) — score ${m.score}/100, ${m.issueCount ?? 0} recommendation(s)`;
+    case "crm.seo_issue_status_changed":
+      return `SEO recommendation "${m.title ?? ""}" — status: ${SEO_ISSUE_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
+    case "crm.seo_keyword_added":
+      return `SEO keyword added to tracking: ${m.keyword ?? ""}`;
+    case "crm.seo_keyword_deleted":
+      return `SEO keyword removed from tracking: ${m.keyword ?? ""}`;
+    case "crm.seo_keywords_refreshed":
+      return `Keyword rankings refreshed (${m.keywordCount ?? 0} keyword(s))`;
+    case "onboarding.completed":
+      return "Onboarding questionnaire completed";
+    case "organization.renamed":
+      return `Organization renamed: ${m.name}`;
+    case "report.auto_generated":
+      return "Automatic report generated";
+    case "user.access_removed":
+      return "User access removed";
+    case "user.invitation_revoked":
+      return "Invitation revoked";
+    case "user.invited":
+      return `User invited: ${m.email} (${m.role})`;
+    case "user.role_changed":
+      return `User role changed: ${m.newRole}`;
+    default:
+      return entry.action;
+  }
+}
+
+/** Human-readable description of a logAudit() entry — shared between the
+ * CRM client activity timeline and the global audit log page so the two
+ * views never drift apart. `locale` translates the surrounding sentence
+ * chrome only; interpolated values (client names, titles, amounts) are
+ * always the stored business data, verbatim, in whatever language they
+ * were originally entered. */
+export function describeAuditEntry(entry: AuditEntry, locale: Locale = "fr"): string {
+  return locale === "en" ? describeAuditEntryEn(entry) : describeAuditEntryFr(entry);
 }

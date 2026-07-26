@@ -3,13 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setEmailNotificationsEnabled, updateOrganizationName, updateProfile } from "@/lib/actions/settings";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-function SavedHint({ show }: { show: boolean }) {
+function SavedHint({ show, locale }: { show: boolean; locale: Locale }) {
   if (!show) return null;
-  return <span className="text-xs text-pm-gris">Enregistré ✓</span>;
+  return <span className="text-xs text-pm-gris">{dictionaries[locale].settings.saved}</span>;
 }
 
-export function ProfileForm({ fullName, email }: { fullName: string; email: string }) {
+export function ProfileForm({ fullName, email, locale = "fr" }: { fullName: string; email: string; locale?: Locale }) {
+  const t = dictionaries[locale].settings;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -26,7 +30,7 @@ export function ProfileForm({ fullName, email }: { fullName: string; email: stri
       }
     >
       <div>
-        <label className="text-xs font-medium text-pm-gris">Nom complet</label>
+        <label className="text-xs font-medium text-pm-gris">{t.profile.fullName}</label>
         <input
           name="fullName"
           defaultValue={fullName}
@@ -35,7 +39,7 @@ export function ProfileForm({ fullName, email }: { fullName: string; email: stri
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-pm-gris">Email</label>
+        <label className="text-xs font-medium text-pm-gris">{t.profile.email}</label>
         <input
           name="email"
           type="email"
@@ -50,15 +54,17 @@ export function ProfileForm({ fullName, email }: { fullName: string; email: stri
           disabled={isPending}
           className="self-start rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
-          {isPending ? "Enregistrement..." : "Enregistrer"}
+          {isPending ? tCommon.saving : tCommon.save}
         </button>
-        <SavedHint show={saved && !isPending} />
+        <SavedHint show={saved && !isPending} locale={locale} />
       </div>
     </form>
   );
 }
 
-export function OrganizationForm({ name }: { name: string }) {
+export function OrganizationForm({ name, locale = "fr" }: { name: string; locale?: Locale }) {
+  const t = dictionaries[locale].settings;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -75,7 +81,7 @@ export function OrganizationForm({ name }: { name: string }) {
       }
     >
       <div>
-        <label className="text-xs font-medium text-pm-gris">Nom de l&apos;organisation</label>
+        <label className="text-xs font-medium text-pm-gris">{t.organization.name}</label>
         <input
           name="name"
           defaultValue={name}
@@ -89,25 +95,24 @@ export function OrganizationForm({ name }: { name: string }) {
           disabled={isPending}
           className="self-start rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
-          {isPending ? "Enregistrement..." : "Enregistrer"}
+          {isPending ? tCommon.saving : tCommon.save}
         </button>
-        <SavedHint show={saved && !isPending} />
+        <SavedHint show={saved && !isPending} locale={locale} />
       </div>
     </form>
   );
 }
 
-export function NotificationToggle({ enabled }: { enabled: boolean }) {
+export function NotificationToggle({ enabled, locale = "fr" }: { enabled: boolean; locale?: Locale }) {
+  const t = dictionaries[locale].settings;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   return (
     <label className="flex cursor-pointer items-center justify-between gap-4">
       <div>
-        <p className="text-sm font-medium text-pm-noir">Notifications par email</p>
-        <p className="text-xs text-pm-gris">
-          Recevoir un email pour les audits, messages et documents (nécessite un fournisseur email — voir README).
-        </p>
+        <p className="text-sm font-medium text-pm-noir">{t.notifications.emailTitle}</p>
+        <p className="text-xs text-pm-gris">{t.notifications.emailBody}</p>
       </div>
       <input
         type="checkbox"

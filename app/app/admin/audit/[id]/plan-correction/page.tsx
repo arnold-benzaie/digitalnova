@@ -6,16 +6,14 @@ import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AuditTabs } from "@/components/gbp-audit/audit-tabs";
 import { CorrectionTaskForm } from "@/components/gbp-audit/correction-task-form";
 import { CorrectionTaskRow } from "@/components/gbp-audit/correction-task-row";
-
-const PHASES = [
-  { phase: 1, title: "Phase 1 — Urgences", description: "Propriété, suspension, doublons, erreurs d'adresse, conformité." },
-  { phase: 2, title: "Phase 2 — Optimisations principales", description: "Catégories, description, services, horaires, attributs, photos, avis." },
-  { phase: 3, title: "Phase 3 — Croissance locale", description: "Publications, avis, citations, contenu local, suivi mensuel." },
-];
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function CorrectionPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.correctionPlan;
 
   const [audit] = await auditDb
     .select({ id: gbpAudits.id, businessName: auditBusinesses.legalName })
@@ -34,24 +32,24 @@ export default async function CorrectionPlanPage({ params }: { params: Promise<{
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Plan de correction en 3 phases.</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
       </div>
-      <AuditTabs auditId={id} active="plan-correction" />
+      <AuditTabs auditId={id} active="plan-correction" locale={locale} />
 
       <div className="mt-6 flex flex-col gap-6">
-        {PHASES.map((p) => {
-          const phaseTasks = tasks.filter((t) => t.phase === p.phase);
+        {t.phases.map((p) => {
+          const phaseTasks = tasks.filter((task) => task.phase === p.phase);
           return (
             <div key={p.phase} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
               <h2 className="font-serif text-lg font-semibold text-pm-noir">{p.title}</h2>
               <p className="mt-1 text-xs text-pm-gris">{p.description}</p>
               <div className="mt-4 flex flex-col gap-2">
-                {phaseTasks.map((t) => (
-                  <CorrectionTaskRow key={t.id} auditId={id} task={t} offers={offers} />
+                {phaseTasks.map((task) => (
+                  <CorrectionTaskRow key={task.id} auditId={id} task={task} offers={offers} locale={locale} />
                 ))}
               </div>
               <div className="mt-4">
-                <CorrectionTaskForm auditId={id} defaultPhase={p.phase} offers={offers} />
+                <CorrectionTaskForm auditId={id} defaultPhase={p.phase} offers={offers} locale={locale} />
               </div>
             </div>
           );

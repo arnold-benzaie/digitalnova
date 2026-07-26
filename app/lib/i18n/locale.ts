@@ -10,13 +10,22 @@ import { LOCALE_COOKIE, isLocale } from "@/lib/i18n/shared";
  * that can't detect a language just get "fr", same as today.
  */
 export async function getLocale(): Promise<Locale> {
-  const cookieStore = await cookies();
-  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value;
-  if (isLocale(cookieLocale)) return cookieLocale;
+  // Server actions imported and called directly from a Node test runner
+  // (e.g. lib/actions/user-approval.test.mjs) execute outside any Next.js
+  // request scope, so cookies()/headers() throw rather than returning
+  // empty — caught here so the "never throws" contract above holds in that
+  // context too, same as the documented cookie/header-missing case.
+  try {
+    const cookieStore = await cookies();
+    const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value;
+    if (isLocale(cookieLocale)) return cookieLocale;
 
-  const headerList = await headers();
-  const acceptLanguage = headerList.get("accept-language");
-  return localeFromAcceptLanguage(acceptLanguage);
+    const headerList = await headers();
+    const acceptLanguage = headerList.get("accept-language");
+    return localeFromAcceptLanguage(acceptLanguage);
+  } catch {
+    return "fr";
+  }
 }
 
 export function localeFromAcceptLanguage(acceptLanguage: string | null | undefined): Locale {

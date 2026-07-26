@@ -7,12 +7,19 @@ import { organizations, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getOrCreateDevUser } from "@/lib/dev-user";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { nameAndEmailRequired: "Nom et email requis.", organizationNameRequired: "Le nom de l'organisation est requis." },
+  en: { nameAndEmailRequired: "Name and email required.", organizationNameRequired: "Organization name is required." },
+} as const;
 
 export async function updateProfile(formData: FormData) {
+  const locale = await getLocale();
   const fullName = formData.get("fullName");
   const email = formData.get("email");
   if (typeof fullName !== "string" || typeof email !== "string" || !email.trim()) {
-    throw new Error("Nom et email requis.");
+    throw new Error(MESSAGES[locale].nameAndEmailRequired);
   }
 
   const user = await getOrCreateDevUser();
@@ -25,9 +32,10 @@ export async function updateProfile(formData: FormData) {
 }
 
 export async function updateOrganizationName(formData: FormData) {
+  const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
-    throw new Error("Le nom de l'organisation est requis.");
+    throw new Error(MESSAGES[locale].organizationNameRequired);
   }
 
   const org = await getOrCreateDevOrganization();

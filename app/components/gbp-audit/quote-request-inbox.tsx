@@ -7,14 +7,10 @@ import { InlineStatusSelect } from "@/components/crm/inline-status-select";
 import { Badge } from "@/components/crm/badges";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
-const STATUS_OPTIONS = [
-  { value: "new", label: "Nouveau" },
-  { value: "contacted", label: "Contacté" },
-  { value: "won", label: "Converti" },
-  { value: "lost", label: "Perdu" },
-];
-const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
 const STATUS_CLASS: Record<string, string> = {
   new: "bg-pm-or/10 text-pm-or-2",
   contacted: "bg-pm-gris-2/60 text-pm-gris",
@@ -32,7 +28,15 @@ type QuoteRequest = {
   createdAt: string;
 };
 
-export function QuoteRequestInbox({ requests }: { requests: QuoteRequest[] }) {
+export function QuoteRequestInbox({ requests, locale = "fr" }: { requests: QuoteRequest[]; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.quotes.inbox;
+  const STATUS_OPTIONS = [
+    { value: "new", label: t.status.new },
+    { value: "contacted", label: t.status.contacted },
+    { value: "won", label: t.status.won },
+    { value: "lost", label: t.status.lost },
+  ];
+  const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
 
   const filtered = useMemo(
@@ -45,20 +49,18 @@ export function QuoteRequestInbox({ requests }: { requests: QuoteRequest[] }) {
   return (
     <>
       <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">Demandes de devis</h1>
-        <p className="mt-1 text-sm text-pm-gris">
-          {requests.length} demande(s) au total · {newCount} nouvelle(s)
-        </p>
+        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+        <p className="mt-1 text-sm text-pm-gris">{t.countSummary(requests.length, newCount)}</p>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Filtrer par statut">
+      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label={t.filterAriaLabel}>
         <button
           type="button"
           onClick={() => setStatusFilter("all")}
           aria-pressed={statusFilter === "all"}
           className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${statusFilter === "all" ? "bg-pm-noir text-white" : "bg-pm-gris-2/50 text-pm-gris hover:bg-pm-gris-2"}`}
         >
-          Toutes
+          {t.all}
         </button>
         {STATUS_OPTIONS.map((o) => (
           <button
@@ -81,8 +83,8 @@ export function QuoteRequestInbox({ requests }: { requests: QuoteRequest[] }) {
                 <path d="M4 6h16v12H4z" /><path d="M4 6l8 7 8-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             }
-            title={requests.length === 0 ? "Aucune demande de devis pour le moment" : "Aucun résultat"}
-            description={requests.length === 0 ? "Les demandes soumises depuis le portail client apparaîtront ici." : "Essayez un autre filtre."}
+            title={requests.length === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
+            description={requests.length === 0 ? t.emptyNoneDescription : t.emptyFilteredDescription}
           />
         </div>
       ) : (
@@ -94,21 +96,21 @@ export function QuoteRequestInbox({ requests }: { requests: QuoteRequest[] }) {
                   <Link href={`/admin/audit/${r.auditId}`} className="font-medium text-pm-noir underline-offset-2 hover:underline">
                     {r.businessName}
                   </Link>
-                  {r.offerLabel && <p className="mt-0.5 text-xs text-pm-gris">Offre : {r.offerLabel}</p>}
+                  {r.offerLabel && <p className="mt-0.5 text-xs text-pm-gris">{t.offerPrefix}{r.offerLabel}</p>}
                   {r.message && <p className="mt-2 text-sm text-pm-noir">{r.message}</p>}
-                  <p className="mt-2 text-[10px] text-pm-gris">Reçue le {new Date(r.createdAt).toLocaleDateString("fr-FR")}</p>
+                  <p className="mt-2 text-[10px] text-pm-gris">{t.receivedOn(formatDate(r.createdAt, locale))}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Badge label={STATUS_LABEL[r.status] ?? "Demande"} className={STATUS_CLASS[r.status] ?? ""} />
+                  <Badge label={STATUS_LABEL[r.status] ?? t.statusFallback} className={STATUS_CLASS[r.status] ?? ""} />
                   <InlineStatusSelect
                     value={r.status}
                     options={STATUS_OPTIONS}
                     action={async (status) => {
                       try {
                         await updateQuoteRequestStatus(r.id, status);
-                        toast.success("Statut mis à jour");
+                        toast.success(t.statusUpdated);
                       } catch (err) {
-                        toast.error("Impossible de mettre à jour", err instanceof Error ? err.message : undefined);
+                        toast.error(t.statusUpdateError, err instanceof Error ? err.message : undefined);
                       }
                     }}
                     className="rounded-lg border border-pm-gris-2 bg-white px-2 py-1 text-xs text-pm-noir"

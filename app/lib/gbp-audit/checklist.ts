@@ -1,4 +1,5 @@
 import { GBP_AUDIT_SECTION_CODES } from "@/db/audit-schema";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 export type GbpAuditSectionCode = (typeof GBP_AUDIT_SECTION_CODES)[number];
 
@@ -305,7 +306,21 @@ export function computeAuditScore(
   return Math.max(0, Math.min(100, score));
 }
 
-export function scoreBand(score: number): { label: string; description: string } {
+const SCORE_BANDS_EN: { min: number; label: string; description: string }[] = [
+  { min: 90, label: "Excellent", description: "Very well optimized profile." },
+  { min: 75, label: "Satisfactory", description: "Satisfactory profile with room for improvement." },
+  { min: 50, label: "Significant weaknesses", description: "Several significant weaknesses to fix." },
+  { min: 25, label: "Largely incomplete", description: "Largely incomplete or poorly configured profile." },
+  { min: -Infinity, label: "Critical", description: "Critical situation requiring priority action." },
+];
+
+/** `locale` defaults to "fr" so existing callers (PDF report generation,
+ * still French-only pending the Reports/PDF phase) keep working unchanged. */
+export function scoreBand(score: number, locale: Locale = "fr"): { label: string; description: string } {
+  if (locale === "en") {
+    const band = SCORE_BANDS_EN.find((b) => score >= b.min)!;
+    return { label: band.label, description: band.description };
+  }
   if (score >= 90) return { label: "Excellent", description: "Profil très bien optimisé." };
   if (score >= 75) return { label: "Satisfaisant", description: "Profil satisfaisant avec améliorations possibles." };
   if (score >= 50) return { label: "Faiblesses importantes", description: "Plusieurs faiblesses importantes à corriger." };
@@ -371,4 +386,280 @@ export function computeFullAuditScore(
     result[key] = bySubscore[key].length > 0 ? computeAuditScore(bySubscore[key], severityPenalty) : 100;
   }
   return result;
+}
+
+/**
+ * English mirror of the section/check catalog above, plus locale-aware
+ * accessors (getAuditSections/getAuditChecksBySection/getFindingResultLabel/
+ * getSeverityLabel/getAuditStatusLabel/getCorrectionStatusLabel/
+ * getProfileStatusOptions/getSubscoreLabel).
+ *
+ * The plain exports above (GBP_AUDIT_SECTIONS, GBP_AUDIT_CHECKS,
+ * GBP_FINDING_RESULT_LABEL, GBP_SEVERITY_LABEL, GBP_AUDIT_STATUS_LABEL,
+ * GBP_CORRECTION_STATUS_LABEL, GBP_PROFILE_STATUS_OPTIONS, SUBSCORE_LABEL)
+ * stay untouched and always French — they're still used as-is by
+ * lib/gbp-audit/report-data.ts (PDF report generation) and by
+ * lib/actions/gbp-audit*.ts (enum validation against GBP_FINDING_RESULTS/
+ * GBP_SEVERITIES/GBP_CORRECTION_STATUSES, which are stable keys, not
+ * display text), both out of scope for this phase (PDF/reports is a later
+ * phase). Every UI surface translated in this phase calls the locale-aware
+ * functions below instead.
+ */
+export const GBP_AUDIT_SECTIONS_EN: GbpAuditSectionDefinition[] = [
+  { code: "ownership", letter: "A", title: "Ownership and profile status" },
+  { code: "business_name", letter: "B", title: "Business name" },
+  { code: "categories", letter: "C", title: "Primary and secondary categories" },
+  { code: "address_service_area", letter: "D", title: "Address and service area" },
+  { code: "contact_info", letter: "E", title: "Contact information" },
+  { code: "hours", letter: "F", title: "Hours" },
+  { code: "description", letter: "G", title: "Business description" },
+  { code: "services_products", letter: "H", title: "Services and products" },
+  { code: "photos_branding", letter: "I", title: "Photos, logo, and branding" },
+  { code: "reviews", letter: "J", title: "Customer reviews" },
+  { code: "questions_answers", letter: "K", title: "Questions and answers" },
+  { code: "posts", letter: "L", title: "Google posts" },
+  { code: "attributes", letter: "M", title: "Attributes" },
+  { code: "links_features", letter: "N", title: "Links and features" },
+  { code: "website_consistency", letter: "O", title: "Website and local consistency" },
+  { code: "citations", letter: "P", title: "Citations and local presence" },
+  { code: "duplicates_conflicts", letter: "Q", title: "Duplicates and conflicts" },
+  { code: "competition", letter: "R", title: "Local competition" },
+  { code: "suspension_risk", letter: "S", title: "Suspension risk and compliance" },
+];
+
+export const GBP_AUDIT_CHECKS_EN: Record<GbpAuditSectionCode, GbpAuditCheckDefinition[]> = {
+  ownership: [
+    { key: "profile_claimed", label: "The profile is claimed", guidance: "Ownership status in GBP" },
+    { key: "primary_owner_identified", label: "The primary owner is identified", guidance: "Profile users" },
+    { key: "unknown_users_access", label: "No unknown user has access", guidance: "List of managers" },
+    { key: "verification_completed", label: "Google verification is complete", guidance: "Verification status" },
+    { key: "not_suspended", label: "The profile is not suspended", guidance: "Profile status" },
+    { key: "not_disabled", label: "The profile is not disabled", guidance: "Profile status" },
+    { key: "no_pending_edits", label: "No blocking pending edits", guidance: "Edit history" },
+    { key: "no_duplicate_profiles", label: "No duplicate profile for the same business", guidance: "Google Maps search" },
+  ],
+  business_name: [
+    { key: "name_matches_real_business", label: "The name matches the business's real name", guidance: "Compare against website/registry" },
+    { key: "no_keyword_stuffing", label: "No artificial keywords added to the name", guidance: "GBP listing" },
+    { key: "no_unauthorized_city_service", label: "No city/service added to the name unless part of the official name", guidance: "GBP listing" },
+    { key: "name_consistent_with_website", label: "Name consistent with the website and other platforms", guidance: "Website, social media" },
+    { key: "name_suspension_risk", label: "The name does not present a suspension risk", guidance: "Google Business Profile rules" },
+  ],
+  categories: [
+    { key: "primary_category_relevant", label: "Relevant primary category", guidance: "GBP listing" },
+    { key: "secondary_categories_useful", label: "Useful secondary categories present", guidance: "GBP listing" },
+    { key: "no_incorrect_categories", label: "No incorrect category", guidance: "GBP listing" },
+    { key: "no_overly_generic_categories", label: "No overly generic category", guidance: "GBP listing" },
+    { key: "missing_category_opportunities", label: "Missing category opportunities identified", guidance: "Competitor comparison" },
+  ],
+  address_service_area: [
+    { key: "address_accurate", label: "Accurate address", guidance: "Field check / Maps" },
+    { key: "address_consistent_with_website", label: "Address consistent with the website", guidance: "Website contact page" },
+    { key: "no_unauthorized_virtual_address", label: "No virtual or unauthorized address", guidance: "Google rules" },
+    { key: "service_area_correct", label: "Correct service area", guidance: "GBP listing" },
+    { key: "no_duplicate_at_address", label: "No duplicate at the same address", guidance: "Google Maps search" },
+    { key: "map_pin_accurate", label: "Accurate map pin placement", guidance: "Google Maps" },
+    { key: "service_area_business_compliant", label: "Compliant for service-area businesses", guidance: "Google rules (SAB)" },
+  ],
+  contact_info: [
+    { key: "primary_phone_correct", label: "Primary number correct and working", guidance: "Test call" },
+    { key: "phone_numbers_consistent", label: "Consistent numbers (listing, website, social media)", guidance: "Multi-source comparison" },
+    { key: "website_url_correct", label: "Correct website address, no redirect error", guidance: "Link test" },
+    { key: "utm_parameters_used", label: "UTM parameters used correctly", guidance: "Website URL on the listing" },
+    { key: "location_specific_landing_page", label: "Link to a page matching the location", guidance: "Website" },
+  ],
+  hours: [
+    { key: "regular_hours_present", label: "Regular hours filled in", guidance: "GBP listing" },
+    { key: "special_hours_updated", label: "Special hours / holidays up to date", guidance: "GBP listing" },
+    { key: "hours_not_contradictory", label: "No inconsistent hours", guidance: "GBP listing" },
+    { key: "hours_consistent_with_website", label: "Consistent with the website and social media", guidance: "Multi-source comparison" },
+  ],
+  description: [
+    { key: "description_present", label: "Description present", guidance: "GBP listing" },
+    { key: "description_clear", label: "Clear, error-free description", guidance: "GBP listing" },
+    { key: "no_promotional_content", label: "No prohibited promotional content", guidance: "Google rules" },
+    { key: "no_misleading_claims", label: "No misleading claims", guidance: "GBP listing" },
+    { key: "description_matches_activity", label: "Consistent with the actual activity", guidance: "GBP listing vs. reality" },
+  ],
+  services_products: [
+    { key: "main_services_listed", label: "Main services present", guidance: "GBP listing" },
+    { key: "service_descriptions_quality", label: "Quality descriptions", guidance: "GBP listing" },
+    { key: "no_obsolete_services", label: "No obsolete service", guidance: "GBP listing" },
+    { key: "product_images_present", label: "Product/service images present", guidance: "GBP listing" },
+    { key: "strategic_services_missing", label: "Missing strategic services identified", guidance: "Competitor comparison" },
+  ],
+  photos_branding: [
+    { key: "logo_present", label: "Logo present and up to date", guidance: "GBP listing" },
+    { key: "cover_photo_quality", label: "Good-quality cover photo", guidance: "GBP listing" },
+    { key: "interior_exterior_photos", label: "Interior and exterior photos present", guidance: "GBP listing" },
+    { key: "no_blurry_outdated_photos", label: "No blurry or outdated photo", guidance: "GBP listing" },
+    { key: "no_stock_photos", label: "No stock photo library image", guidance: "GBP listing" },
+    { key: "photo_upload_frequency", label: "Sufficient photo upload frequency", guidance: "Photo history" },
+  ],
+  reviews: [
+    { key: "review_count_volume", label: "Sufficient total review count", guidance: "GBP listing" },
+    { key: "average_rating", label: "Average rating", guidance: "GBP listing" },
+    { key: "review_recency", label: "Review recency", guidance: "GBP listing" },
+    { key: "response_rate", label: "Review response rate", guidance: "GBP listing" },
+    { key: "response_quality", label: "Response quality (not generic)", guidance: "GBP listing" },
+    { key: "negative_reviews_untreated", label: "Untreated negative reviews identified", guidance: "GBP listing" },
+    { key: "review_authenticity_signals", label: "Signals requiring human review (never an automatic claim)", guidance: "Manual analysis" },
+    { key: "review_request_link", label: "Direct review request link configured", guidance: "GBP listing" },
+  ],
+  questions_answers: [
+    { key: "unanswered_questions", label: "Unanswered questions identified", guidance: "GBP listing" },
+    { key: "incorrect_answers", label: "Incorrect answers identified", guidance: "GBP listing" },
+    { key: "outdated_info_in_qa", label: "Outdated information in answers", guidance: "GBP listing" },
+    { key: "anticipated_questions_missing", label: "Important questions that could be anticipated", guidance: "Manual analysis" },
+  ],
+  posts: [
+    { key: "posts_present", label: "Posts present", guidance: "GBP listing" },
+    { key: "posting_frequency", label: "Posting frequency", guidance: "GBP listing" },
+    { key: "last_post_date", label: "Date of the last post", guidance: "GBP listing" },
+    { key: "no_expired_promotions", label: "No expired promotion displayed", guidance: "GBP listing" },
+    { key: "editorial_calendar_exists", label: "Editorial calendar in place", guidance: "Agency process" },
+  ],
+  attributes: [
+    { key: "payment_methods_set", label: "Payment methods filled in", guidance: "GBP listing" },
+    { key: "accessibility_set", label: "Accessibility filled in", guidance: "GBP listing" },
+    { key: "delivery_pickup_set", label: "Delivery / pickup options filled in", guidance: "GBP listing" },
+    { key: "sector_attributes_set", label: "Sector-specific attributes filled in", guidance: "GBP listing" },
+  ],
+  links_features: [
+    { key: "booking_link_works", label: "Booking link works", guidance: "Link test" },
+    { key: "order_link_works", label: "Order link works", guidance: "Link test" },
+    { key: "menu_link_works", label: "Menu link works (if relevant)", guidance: "Link test" },
+    { key: "whatsapp_link_relevant", label: "WhatsApp link present if relevant", guidance: "GBP listing" },
+    { key: "no_broken_links", label: "No broken link", guidance: "Link test" },
+    { key: "links_secure_https", label: "Secure links (HTTPS)", guidance: "Link test" },
+  ],
+  website_consistency: [
+    { key: "nap_consistency", label: "Name / address / phone (NAP) consistency", guidance: "Website vs. listing" },
+    { key: "contact_page_present", label: "Contact page present", guidance: "Website" },
+    { key: "mobile_compatible", label: "Mobile-compatible website", guidance: "Responsive test" },
+    { key: "https_enabled", label: "HTTPS enabled", guidance: "Website test" },
+    { key: "local_business_structured_data", label: "LocalBusiness structured data present", guidance: "Website source code" },
+    { key: "no_404_errors", label: "No 404 error on key pages", guidance: "Link test" },
+  ],
+  citations: [
+    { key: "facebook_consistency", label: "NAP consistency on Facebook", guidance: "Manual check" },
+    { key: "instagram_consistency", label: "NAP consistency on Instagram", guidance: "Manual check" },
+    { key: "bing_places_consistency", label: "NAP consistency on Bing Places", guidance: "Manual check" },
+    { key: "apple_maps_consistency", label: "NAP consistency on Apple Business Connect / Apple Maps", guidance: "Manual check" },
+    { key: "local_directories_consistency", label: "NAP consistency on relevant local directories", guidance: "Manual check" },
+  ],
+  duplicates_conflicts: [
+    { key: "no_duplicate_profiles_conflict", label: "No duplicate profile", guidance: "Google Maps search" },
+    { key: "no_old_closed_locations", label: "No old / closed location attached", guidance: "Google Maps" },
+    { key: "no_third_party_created_profile", label: "Profile not created by an unauthorized third party", guidance: "Ownership history" },
+    { key: "no_similar_name_competitor", label: "No competitor listing with a deceptively similar name", guidance: "Google Maps search" },
+  ],
+  competition: [
+    { key: "competitor_rating_compared", label: "Average rating compared against competitors", guidance: "See the Competition tab" },
+    { key: "competitor_review_count_compared", label: "Review count compared", guidance: "See the Competition tab" },
+    { key: "competitor_response_rate_compared", label: "Response rate compared", guidance: "See the Competition tab" },
+    { key: "competitor_content_compared", label: "Photos / posts compared", guidance: "See the Competition tab" },
+  ],
+  suspension_risk: [
+    { key: "risk_keyword_stuffed_name", label: "Keyword-stuffed name", guidance: "GBP listing" },
+    { key: "risk_fake_address", label: "Fake address or non-compliant virtual office", guidance: "Field check" },
+    { key: "risk_misleading_categories", label: "Misleading categories", guidance: "GBP listing" },
+    { key: "risk_duplicate_listings", label: "Duplicate listings", guidance: "Google Maps" },
+    { key: "risk_inconsistent_phone", label: "Inconsistent numbers across sources", guidance: "Multi-source comparison" },
+    { key: "risk_frequent_contradictory_edits", label: "Frequent, contradictory edits", guidance: "Edit history" },
+    { key: "risk_brand_impersonation", label: "Brand impersonation", guidance: "Google search" },
+    { key: "risk_insufficient_documents", label: "Insufficient documents in case of a Google review", guidance: "Verification file" },
+  ],
+};
+
+export const GBP_FINDING_RESULT_LABEL_EN: Record<(typeof GBP_FINDING_RESULTS)[number], string> = {
+  compliant: "Compliant",
+  improvement_recommended: "Improvement recommended",
+  major_issue: "Major issue",
+  critical_issue: "Critical issue",
+  not_verifiable: "Not verifiable",
+  not_applicable: "Not applicable",
+};
+
+export const GBP_SEVERITY_LABEL_EN: Record<(typeof GBP_SEVERITIES)[number], string> = {
+  critical: "Critical",
+  important: "Important",
+  moderate: "Moderate",
+  opportunity: "Opportunity",
+};
+
+export const GBP_AUDIT_STATUS_LABEL_EN: Record<string, string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  pending_review: "Pending review",
+  changes_requested: "Changes requested",
+  approved: "Approved",
+  sent: "Sent",
+};
+
+export const GBP_CORRECTION_STATUS_LABEL_EN: Record<(typeof GBP_CORRECTION_STATUSES)[number], string> = {
+  detected: "Detected",
+  to_verify: "To verify",
+  confirmed: "Confirmed",
+  fix_proposed: "Fix proposed",
+  waiting_client: "Waiting on client",
+  in_progress: "In progress",
+  fixed: "Fixed",
+  sent_to_google: "Sent to Google",
+  waiting_google: "Waiting on Google",
+  resolved: "Resolved",
+  not_resolved: "Not resolved",
+  not_applicable: "Not applicable",
+};
+
+export const GBP_PROFILE_STATUS_OPTIONS_EN: { value: string; label: string }[] = [
+  { value: "unknown", label: "Unknown" },
+  { value: "claimed", label: "Claimed" },
+  { value: "unclaimed", label: "Unclaimed" },
+  { value: "suspended", label: "Suspended" },
+  { value: "disabled", label: "Disabled" },
+  { value: "duplicate", label: "Duplicate" },
+];
+
+export const SUBSCORE_LABEL_EN: Record<SubscoreKey, string> = {
+  compliance: "Profile compliance",
+  completeness: "Completeness",
+  reputation: "Reputation",
+  content: "Content",
+  localConsistency: "Local consistency",
+  visibility: "Visibility",
+  suspensionRisk: "Suspension risk",
+  userExperience: "User experience",
+};
+
+export function getAuditSections(locale: Locale): GbpAuditSectionDefinition[] {
+  return locale === "en" ? GBP_AUDIT_SECTIONS_EN : GBP_AUDIT_SECTIONS;
+}
+
+export function getAuditChecksBySection(locale: Locale): Record<GbpAuditSectionCode, GbpAuditCheckDefinition[]> {
+  return locale === "en" ? GBP_AUDIT_CHECKS_EN : GBP_AUDIT_CHECKS;
+}
+
+export function getFindingResultLabel(locale: Locale): Record<(typeof GBP_FINDING_RESULTS)[number], string> {
+  return locale === "en" ? GBP_FINDING_RESULT_LABEL_EN : GBP_FINDING_RESULT_LABEL;
+}
+
+export function getSeverityLabel(locale: Locale): Record<(typeof GBP_SEVERITIES)[number], string> {
+  return locale === "en" ? GBP_SEVERITY_LABEL_EN : GBP_SEVERITY_LABEL;
+}
+
+export function getAuditStatusLabel(locale: Locale): Record<string, string> {
+  return locale === "en" ? GBP_AUDIT_STATUS_LABEL_EN : GBP_AUDIT_STATUS_LABEL;
+}
+
+export function getCorrectionStatusLabel(locale: Locale): Record<(typeof GBP_CORRECTION_STATUSES)[number], string> {
+  return locale === "en" ? GBP_CORRECTION_STATUS_LABEL_EN : GBP_CORRECTION_STATUS_LABEL;
+}
+
+export function getProfileStatusOptions(locale: Locale): { value: string; label: string }[] {
+  return locale === "en" ? GBP_PROFILE_STATUS_OPTIONS_EN : GBP_PROFILE_STATUS_OPTIONS;
+}
+
+export function getSubscoreLabel(locale: Locale): Record<SubscoreKey, string> {
+  return locale === "en" ? SUBSCORE_LABEL_EN : SUBSCORE_LABEL;
 }

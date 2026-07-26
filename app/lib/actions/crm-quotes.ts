@@ -7,31 +7,59 @@ import { crmInvoiceItems, crmInvoices, crmQuoteItems, crmQuotes } from "@/db/sch
 import { logCrmAudit } from "@/lib/audit";
 import { CURRENCY_VALUES, computeTotals, parseLineItems, QUOTE_STATUS_VALUES } from "@/lib/crm-billing";
 import { nextDocumentNumber } from "@/lib/crm-document-number";
+import { getLocale } from "@/lib/i18n/locale";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
-function parseTaxRateBasisPoints(formData: FormData) {
+const MESSAGES = {
+  fr: {
+    clientRequired: "Client requis.",
+    titleRequired: "Titre requis.",
+    invalidCurrency: "Devise invalide.",
+    invalidStatus: "Statut invalide.",
+    quoteNotFound: "Devis introuvable.",
+    onlyDraftCanBeEdited: "Seuls les devis en brouillon peuvent être modifiés.",
+    onlyDraftCanBeDeleted: "Seuls les devis en brouillon peuvent être supprimés.",
+    onlyAcceptedCanConvert: "Seul un devis accepté peut être converti en facture.",
+  },
+  en: {
+    clientRequired: "Client required.",
+    titleRequired: "Title required.",
+    invalidCurrency: "Invalid currency.",
+    invalidStatus: "Invalid status.",
+    quoteNotFound: "Quote not found.",
+    onlyDraftCanBeEdited: "Only draft quotes can be edited.",
+    onlyDraftCanBeDeleted: "Only draft quotes can be deleted.",
+    onlyAcceptedCanConvert: "Only an accepted quote can be converted to an invoice.",
+  },
+} as const;
+
+function parseTaxRateBasisPoints(formData: FormData, locale: Locale) {
   const raw = formData.get("taxRateBasisPoints");
   if (typeof raw !== "string" || !raw.trim()) return 0;
   const percent = Number(raw);
-  if (!Number.isFinite(percent) || percent < 0) throw new Error("Taux de taxe invalide.");
+  if (!Number.isFinite(percent) || percent < 0) {
+    throw new Error(locale === "en" ? "Invalid tax rate." : "Taux de taxe invalide.");
+  }
   return Math.round(percent * 100);
 }
 
 export async function createQuote(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
-  if (typeof clientId !== "string" || !clientId) throw new Error("Client requis.");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
+  if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
 
   const currency = formData.get("currency");
-  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error("Devise invalide.");
+  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
 
   const dealId = formData.get("dealId");
   const taxLabel = (formData.get("taxLabel") as string) || null;
-  const taxRateBasisPoints = parseTaxRateBasisPoints(formData);
+  const taxRateBasisPoints = parseTaxRateBasisPoints(formData, locale);
   const validUntilRaw = formData.get("validUntil");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"));
+  const items = parseLineItems(formData.get("items"), locale);
   const totals = computeTotals(items, taxRateBasisPoints);
   const quoteNumber = await nextDocumentNumber(crmQuotes, crmQuotes.quoteNumber, "DEV");
 
@@ -77,21 +105,22 @@ export async function createQuote(formData: FormData) {
 /** Only draft quotes can be edited — once sent, the client has seen a
  * specific number/total; changing it silently would be misleading. */
 export async function updateQuote(id: string, formData: FormData) {
+  const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
-  if (!existing) throw new Error("Devis introuvable.");
-  if (existing.status !== "draft") throw new Error("Seuls les devis en brouillon peuvent être modifiés.");
+  if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
+  if (existing.status !== "draft") throw new Error(MESSAGES[locale].onlyDraftCanBeEdited);
 
   const title = formData.get("title");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
   const currency = formData.get("currency");
-  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error("Devise invalide.");
+  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
 
   const taxLabel = (formData.get("taxLabel") as string) || null;
-  const taxRateBasisPoints = parseTaxRateBasisPoints(formData);
+  const taxRateBasisPoints = parseTaxRateBasisPoints(formData, locale);
   const validUntilRaw = formData.get("validUntil");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"));
+  const items = parseLineItems(formData.get("items"), locale);
   const totals = computeTotals(items, taxRateBasisPoints);
 
   const [quote] = await db
@@ -133,14 +162,15 @@ export async function updateQuote(id: string, formData: FormData) {
 }
 
 export async function updateQuoteStatus(id: string, status: string) {
-  if (!QUOTE_STATUS_VALUES.includes(status)) throw new Error("Statut invalide.");
+  const locale = await getLocale();
+  if (!QUOTE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
 
   const patch: Record<string, unknown> = { status };
   if (status === "sent") patch.sentAt = new Date();
   if (status === "accepted" || status === "declined") patch.respondedAt = new Date();
 
   const [quote] = await db.update(crmQuotes).set(patch).where(eq(crmQuotes.id, id)).returning();
-  if (!quote) throw new Error("Devis introuvable.");
+  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await logCrmAudit({
     action: "crm.quote_status_changed",
@@ -155,9 +185,10 @@ export async function updateQuoteStatus(id: string, status: string) {
 }
 
 export async function deleteQuote(id: string) {
+  const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
-  if (!existing) throw new Error("Devis introuvable.");
-  if (existing.status !== "draft") throw new Error("Seuls les devis en brouillon peuvent être supprimés.");
+  if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
+  if (existing.status !== "draft") throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
 
   await db.delete(crmQuotes).where(eq(crmQuotes.id, id));
 
@@ -174,9 +205,10 @@ export async function deleteQuote(id: string) {
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
+  const locale = await getLocale();
   const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
-  if (!quote) throw new Error("Devis introuvable.");
-  if (quote.status !== "accepted") throw new Error("Seul un devis accepté peut être converti en facture.");
+  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
+  if (quote.status !== "accepted") throw new Error(MESSAGES[locale].onlyAcceptedCanConvert);
 
   const items = await db.select().from(crmQuoteItems).where(eq(crmQuoteItems.quoteId, quoteId));
   const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");

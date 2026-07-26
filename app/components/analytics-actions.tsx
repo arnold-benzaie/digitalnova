@@ -3,8 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { connectAnalytics } from "@/lib/actions/analytics";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-export function SyncAnalyticsButton() {
+export function SyncAnalyticsButton({ locale = "fr" }: { locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.googleIntegration.sync;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +25,13 @@ export function SyncAnalyticsButton() {
               await connectAnalytics();
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : tCommon.error);
             }
           });
         }}
         className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/40 disabled:opacity-50"
       >
-        {isPending ? "Synchronisation..." : "Synchroniser Analytics"}
+        {isPending ? t.syncing : t.syncAnalytics}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

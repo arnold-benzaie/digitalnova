@@ -7,6 +7,7 @@ import { getAuditStaffSession } from "@/lib/gbp-audit/session";
 import { AuditToaster } from "@/components/gbp-audit/ui/toast";
 import { CommandPalette } from "@/components/gbp-audit/command-palette";
 import { AuditNotificationBell } from "@/components/gbp-audit/audit-notification-bell";
+import { getLocale } from "@/lib/i18n/locale";
 
 export const metadata: Metadata = {
   title: { template: "%s — PUBLIC-MAP Audit", default: "PUBLIC-MAP Audit" },
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
  * session yet rather than throwing ahead of the page's own check.
  */
 export default async function GbpAuditLayout({ children }: { children: ReactNode }) {
-  const session = await getAuditStaffSession();
+  const [session, locale] = await Promise.all([getAuditStaffSession(), getLocale()]);
 
   const notifications = session
     ? await auditDb
@@ -38,11 +39,12 @@ export default async function GbpAuditLayout({ children }: { children: ReactNode
   return (
     <>
       <div className="flex items-center justify-end gap-2">
-        <CommandPalette />
+        <CommandPalette locale={locale} />
         {session && (
           <AuditNotificationBell
             notifications={notifications.map((n) => ({ id: n.id, title: n.title, body: n.body, href: n.href, read: n.readAt !== null, createdAt: n.createdAt }))}
             unreadCount={unreadCount}
+            locale={locale}
           />
         )}
       </div>

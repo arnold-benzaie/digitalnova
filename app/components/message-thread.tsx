@@ -1,3 +1,7 @@
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
+
 type Message = {
   id: string;
   senderRole: string;
@@ -6,12 +10,14 @@ type Message = {
   createdAt: Date;
 };
 
-export function MessageThread({ messages }: { messages: Message[] }) {
+export function MessageThread({ messages, locale = "fr" }: { messages: Message[]; locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.messages;
+
   if (messages.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-        <p className="font-serif text-lg font-semibold text-pm-noir">Aucun message pour le moment</p>
-        <p className="mt-1 text-sm text-pm-gris">Démarrez la conversation ci-dessous.</p>
+        <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
       </div>
     );
   }
@@ -32,12 +38,7 @@ export function MessageThread({ messages }: { messages: Message[] }) {
                   {message.senderName}
                 </p>
                 <p className={`text-xs ${isStaff ? "text-white/50" : "text-pm-gris"}`}>
-                  {new Date(message.createdAt).toLocaleString("fr-FR", {
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatDate(message.createdAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-sm">{message.body}</p>

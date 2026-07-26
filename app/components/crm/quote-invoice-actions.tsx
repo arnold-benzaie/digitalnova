@@ -4,35 +4,37 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { convertQuoteToInvoice, deleteQuote, updateQuoteStatus } from "@/lib/actions/crm-quotes";
 import { deleteInvoice, updateInvoiceStatus } from "@/lib/actions/crm-invoices";
-import { QUOTE_STATUS_OPTIONS, INVOICE_STATUS_OPTIONS } from "@/lib/crm-billing";
+import { getQuoteStatusOptions, getInvoiceStatusOptions } from "@/lib/crm-billing";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
-export function QuoteStatusSelect({ id, status }: { id: string; status: string }) {
+export function QuoteStatusSelect({ id, status, locale = "fr" }: { id: string; status: string; locale?: Locale }) {
   return (
     <InlineStatusSelect
       value={status}
-      options={QUOTE_STATUS_OPTIONS}
+      options={getQuoteStatusOptions(locale)}
       action={updateQuoteStatus.bind(null, id)}
       className="rounded-lg border border-pm-gris-2 bg-white px-2 py-1 text-xs text-pm-noir disabled:opacity-50"
     />
   );
 }
 
-export function InvoiceStatusSelect({ id, status }: { id: string; status: string }) {
+export function InvoiceStatusSelect({ id, status, locale = "fr" }: { id: string; status: string; locale?: Locale }) {
   return (
     <InlineStatusSelect
       value={status}
-      options={INVOICE_STATUS_OPTIONS}
+      options={getInvoiceStatusOptions(locale)}
       action={updateInvoiceStatus.bind(null, id)}
       className="rounded-lg border border-pm-gris-2 bg-white px-2 py-1 text-xs text-pm-noir disabled:opacity-50"
     />
   );
 }
 
-export function DeleteQuoteButton({ id }: { id: string }) {
+export function DeleteQuoteButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.quotes;
 
   return (
     <div>
@@ -40,30 +42,31 @@ export function DeleteQuoteButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Supprimer ce devis ?")) return;
+          if (!confirm(t.deleteConfirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await deleteQuote(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "..." : "Supprimer"}
+        {isPending ? t.deleting : t.deleteButton}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>
   );
 }
 
-export function DeleteInvoiceButton({ id }: { id: string }) {
+export function DeleteInvoiceButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.invoices;
 
   return (
     <div>
@@ -71,30 +74,31 @@ export function DeleteInvoiceButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Supprimer cette facture ?")) return;
+          if (!confirm(t.deleteConfirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await deleteInvoice(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "..." : "Supprimer"}
+        {isPending ? t.deleting : t.deleteButton}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>
   );
 }
 
-export function ConvertQuoteToInvoiceButton({ id }: { id: string }) {
+export function ConvertQuoteToInvoiceButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.quotes;
 
   return (
     <div>
@@ -108,13 +112,13 @@ export function ConvertQuoteToInvoiceButton({ id }: { id: string }) {
               await convertQuoteToInvoice(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="rounded-lg bg-pm-noir px-3 py-1.5 text-xs font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Conversion..." : "Convertir en facture"}
+        {isPending ? t.converting : t.convertButton}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

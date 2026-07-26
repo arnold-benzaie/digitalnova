@@ -10,24 +10,44 @@ import { getGbpProvider, type GbpLocation } from "@/lib/gbp";
 import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+import type { Locale } from "@/lib/i18n/dictionaries";
+
+const MESSAGES = {
+  fr: {
+    organizationNotFound: "Organisation introuvable.",
+    noGoogleConnection: "Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».",
+    replyRequired: "La réponse ne peut pas être vide.",
+    reviewNotFound: "Avis introuvable.",
+    locationNotFound: "Établissement introuvable.",
+  },
+  en: {
+    organizationNotFound: "Organization not found.",
+    noGoogleConnection: "No Google account connected for this organization. Use the \"Connect a Google account\" button.",
+    replyRequired: "The reply cannot be empty.",
+    reviewNotFound: "Review not found.",
+    locationNotFound: "Location not found.",
+  },
+} as const;
 
 /** Defaults to the signed-in session's own organization (the client-portal
  * use case at /dashboard/gbp) when no id is given — pass one explicitly for
  * the CRM use case (lib/actions/crm-gbp.ts), where staff act on a specific
  * client's organization rather than their own session. */
-async function resolveOrganization(organizationId?: string) {
+async function resolveOrganization(organizationId: string | undefined, locale: Locale) {
   if (!organizationId) return getOrCreateDevOrganization();
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  if (!org) throw new Error("Organisation introuvable.");
+  if (!org) throw new Error(MESSAGES[locale].organizationNotFound);
   return org;
 }
 
 export async function connectGbp(organizationId?: string) {
-  const org = await resolveOrganization(organizationId);
+  const locale = await getLocale();
+  const org = await resolveOrganization(organizationId, locale);
 
   const googleConnection = await getGoogleConnection(org.id);
   if (!googleConnection) {
-    throw new Error("Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».");
+    throw new Error(MESSAGES[locale].noGoogleConnection);
   }
 
   const provider = await getGbpProvider(org.id);
@@ -126,7 +146,8 @@ export async function connectGbp(organizationId?: string) {
 }
 
 export async function syncGbpData(organizationId?: string) {
-  const org = await resolveOrganization(organizationId);
+  const locale = await getLocale();
+  const org = await resolveOrganization(organizationId, locale);
   const provider = await getGbpProvider(org.id);
 
   const orgLocations = await db.select().from(locations).where(eq(locations.organizationId, org.id));
@@ -202,12 +223,7 @@ export async function syncGbpData(organizationId?: string) {
   await notify({
     organizationId: org.id,
     type: "gbp.synced",
-    title: "Synchronisation Google Business Profile effectuée",
-    body: metricsUnavailable
-      ? `${orgLocations.length} établissement(s) mis à jour (statistiques Google indisponibles — ${lastError?.message ?? "erreur inconnue"}).`
-      : reviewsUnavailable
-        ? `${orgLocations.length} établissement(s) mis à jour (avis Google non disponibles — accès partenaire requis).`
-        : `${orgLocations.length} établissement(s) mis à jour.`,
+    metadata: { locationCount: orgLocations.length, metricsUnavailable, reviewsUnavailable, errorMessage: lastError?.message },
   });
 
   revalidatePath("/dashboard");
@@ -218,13 +234,14 @@ export async function syncGbpData(organizationId?: string) {
 }
 
 export async function replyToReview(reviewId: string, replyText: string) {
-  if (!replyText.trim()) throw new Error("La réponse ne peut pas être vide.");
+  const locale = await getLocale();
+  if (!replyText.trim()) throw new Error(MESSAGES[locale].replyRequired);
 
   const [review] = await db.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
-  if (!review) throw new Error("Avis introuvable.");
+  if (!review) throw new Error(MESSAGES[locale].reviewNotFound);
 
   const [location] = await db.select().from(locations).where(eq(locations.id, review.locationId)).limit(1);
-  if (!location) throw new Error("Établissement introuvable.");
+  if (!location) throw new Error(MESSAGES[locale].locationNotFound);
 
   const provider = await getGbpProvider(location.organizationId);
   await provider.replyToReview(review.googleReviewId, replyText.trim());

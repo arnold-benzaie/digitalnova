@@ -7,6 +7,11 @@ import { test, expect } from "@playwright/test";
  * size, and there's no need to triple that data churn just to re-check
  * layout at 2 more widths.
  */
+// Deterministic French assertions below (getLocale() falls back to the
+// browser's Accept-Language, which Playwright's default context does not
+// pin to French) — same fix already established for this reason in
+// e2e/access-pending.spec.ts.
+test.use({ locale: "fr-FR" });
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "tablet", width: 768, height: 1024 },

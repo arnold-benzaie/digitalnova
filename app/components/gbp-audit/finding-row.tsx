@@ -3,17 +3,19 @@
 import { useState, useTransition } from "react";
 import { saveFinding, updateFindingCorrectionStatus } from "@/lib/actions/gbp-audit-findings";
 import {
-  GBP_CORRECTION_STATUS_LABEL,
   GBP_CORRECTION_STATUSES,
   GBP_FINDING_RESULTS,
-  GBP_FINDING_RESULT_LABEL,
   GBP_SEVERITIES,
-  GBP_SEVERITY_LABEL,
+  getCorrectionStatusLabel,
+  getFindingResultLabel,
+  getSeverityLabel,
   type GbpAuditCheckDefinition,
 } from "@/lib/gbp-audit/checklist";
 import { Field, Input, Select, Textarea } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export type FindingState = {
   id: string | null;
@@ -55,12 +57,18 @@ export function FindingRow({
   sectionCode,
   check,
   initial,
+  locale = "fr",
 }: {
   auditId: string;
   sectionCode: string;
   check: GbpAuditCheckDefinition;
   initial: FindingState | null;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].auditModule.findingRow;
+  const resultLabel = getFindingResultLabel(locale);
+  const severityLabel = getSeverityLabel(locale);
+  const correctionStatusLabel = getCorrectionStatusLabel(locale);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<FindingState>(initial ?? EMPTY);
   const [state, setState] = useState<FindingState>(initial ?? EMPTY);
@@ -91,7 +99,7 @@ export function FindingRow({
         setJustSaved(true);
         setTimeout(() => setJustSaved(false), 2500);
       } catch (err) {
-        toast.error("Impossible d'enregistrer ce contrôle", err instanceof Error ? err.message : undefined);
+        toast.error(t.saveError, err instanceof Error ? err.message : undefined);
       }
     });
   }
@@ -104,9 +112,9 @@ export function FindingRow({
         await updateFindingCorrectionStatus(findingId, auditId, status);
         setSaved((s) => ({ ...s, correctionStatus: status }));
         setState((s) => ({ ...s, correctionStatus: status }));
-        toast.success("Statut de correction mis à jour");
+        toast.success(t.correctionStatusUpdated);
       } catch (err) {
-        toast.error("Impossible de mettre à jour le statut de correction", err instanceof Error ? err.message : undefined);
+        toast.error(t.correctionStatusUpdateError, err instanceof Error ? err.message : undefined);
       }
     });
   }
@@ -124,45 +132,45 @@ export function FindingRow({
           <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${RESULT_DOT[state.result] ?? "bg-pm-gris-2"}`} aria-hidden="true" />
           <span className="truncate text-sm font-medium text-pm-noir">{check.label}</span>
           {state.evidenceCount > 0 && (
-            <span className="shrink-0 rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] text-pm-gris">{state.evidenceCount} preuve(s)</span>
+            <span className="shrink-0 rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] text-pm-gris">{t.evidenceCount(state.evidenceCount)}</span>
           )}
-          {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pm-or" title="Modifications non enregistrées" aria-label="Modifications non enregistrées" />}
+          {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pm-or" title={t.unsavedChanges} aria-label={t.unsavedChanges} />}
         </div>
-        <span className="shrink-0 text-xs text-pm-gris">{GBP_FINDING_RESULT_LABEL[state.result as keyof typeof GBP_FINDING_RESULT_LABEL] ?? "Non évalué"}</span>
+        <span className="shrink-0 text-xs text-pm-gris">{resultLabel[state.result as keyof typeof resultLabel] ?? t.resultFallback}</span>
       </button>
 
       {open && (
         <div id={`${check.key}-panel`} className="animate-panel-in border-t border-pm-gris-2 p-4">
           <p className="mb-3 text-xs text-pm-gris">{check.guidance}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Résultat" htmlFor={`${check.key}-result`}>
+            <Field label={t.result} htmlFor={`${check.key}-result`}>
               <Select id={`${check.key}-result`} value={state.result} onChange={(e) => setState((s) => ({ ...s, result: e.target.value }))}>
                 {GBP_FINDING_RESULTS.map((r) => (
-                  <option key={r} value={r}>{GBP_FINDING_RESULT_LABEL[r]}</option>
+                  <option key={r} value={r}>{resultLabel[r]}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Gravité" htmlFor={`${check.key}-severity`}>
+            <Field label={t.severity} htmlFor={`${check.key}-severity`}>
               <Select id={`${check.key}-severity`} value={state.severity ?? ""} onChange={(e) => setState((s) => ({ ...s, severity: e.target.value || null }))}>
                 <option value="">—</option>
                 {GBP_SEVERITIES.map((sev) => (
-                  <option key={sev} value={sev}>{GBP_SEVERITY_LABEL[sev]}</option>
+                  <option key={sev} value={sev}>{severityLabel[sev]}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Explication" className="sm:col-span-2" htmlFor={`${check.key}-explanation`}>
+            <Field label={t.explanation} className="sm:col-span-2" htmlFor={`${check.key}-explanation`}>
               <Textarea id={`${check.key}-explanation`} rows={2} value={state.explanation ?? ""} onChange={(e) => setState((s) => ({ ...s, explanation: e.target.value || null }))} />
             </Field>
-            <Field label="Source" htmlFor={`${check.key}-source`}>
+            <Field label={t.source} htmlFor={`${check.key}-source`}>
               <Input id={`${check.key}-source`} value={state.source ?? ""} onChange={(e) => setState((s) => ({ ...s, source: e.target.value || null }))} />
             </Field>
-            <Field label="Responsable" htmlFor={`${check.key}-owner`}>
+            <Field label={t.owner} htmlFor={`${check.key}-owner`}>
               <Input id={`${check.key}-owner`} value={state.ownerName ?? ""} onChange={(e) => setState((s) => ({ ...s, ownerName: e.target.value || null }))} />
             </Field>
-            <Field label="Recommandation" className="sm:col-span-2" htmlFor={`${check.key}-recommendation`}>
+            <Field label={t.recommendation} className="sm:col-span-2" htmlFor={`${check.key}-recommendation`}>
               <Textarea id={`${check.key}-recommendation`} rows={2} value={state.recommendation ?? ""} onChange={(e) => setState((s) => ({ ...s, recommendation: e.target.value || null }))} />
             </Field>
-            <Field label="Délai estimé (jours)" htmlFor={`${check.key}-eta`}>
+            <Field label={t.etaDays} htmlFor={`${check.key}-eta`}>
               <Input
                 id={`${check.key}-eta`}
                 type="number"
@@ -173,9 +181,9 @@ export function FindingRow({
             </Field>
             {state.result !== "compliant" && state.result !== "not_applicable" && (
               <Field
-                label="Statut de correction"
+                label={t.correctionStatus}
                 htmlFor={`${check.key}-correction-status`}
-                hint={!state.id ? "Enregistrez d'abord ce contrôle pour pouvoir suivre sa correction." : undefined}
+                hint={!state.id ? t.correctionStatusHint : undefined}
               >
                 <Select
                   id={`${check.key}-correction-status`}
@@ -184,7 +192,7 @@ export function FindingRow({
                   onChange={(e) => changeCorrectionStatus(e.target.value)}
                 >
                   {GBP_CORRECTION_STATUSES.map((s) => (
-                    <option key={s} value={s}>{GBP_CORRECTION_STATUS_LABEL[s]}</option>
+                    <option key={s} value={s}>{correctionStatusLabel[s]}</option>
                   ))}
                 </Select>
               </Field>
@@ -192,12 +200,12 @@ export function FindingRow({
           </div>
           <div className="mt-4 flex items-center gap-3">
             <Button size="sm" loading={isPending} disabled={!dirty && !isPending} onClick={save}>
-              Enregistrer
+              {t.save}
             </Button>
             {justSaved && !isPending && (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg>
-                Enregistré
+                {t.saved}
               </span>
             )}
           </div>

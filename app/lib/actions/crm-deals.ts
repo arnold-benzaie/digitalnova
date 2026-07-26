@@ -6,17 +6,24 @@ import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { clientRequired: "Client requis.", titleRequired: "Titre requis.", invalidStage: "Étape invalide.", dealNotFound: "Opportunité introuvable." },
+  en: { clientRequired: "Client required.", titleRequired: "Title required.", invalidStage: "Invalid stage.", dealNotFound: "Deal not found." },
+} as const;
 
 const STAGES = ["new", "contacted", "qualified", "proposal", "won", "lost"] as const;
 
 export async function createDeal(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
   if (typeof clientId !== "string" || !clientId) {
-    throw new Error("Client requis.");
+    throw new Error(MESSAGES[locale].clientRequired);
   }
   if (typeof title !== "string" || !title.trim()) {
-    throw new Error("Titre requis.");
+    throw new Error(MESSAGES[locale].titleRequired);
   }
 
   const valueRaw = formData.get("valueEuros");
@@ -48,8 +55,9 @@ export async function createDeal(formData: FormData) {
 }
 
 export async function updateDealStage(id: string, stage: string) {
+  const locale = await getLocale();
   if (!STAGES.includes(stage as (typeof STAGES)[number])) {
-    throw new Error("Étape invalide.");
+    throw new Error(MESSAGES[locale].invalidStage);
   }
 
   const [deal] = await db.update(deals).set({ stage }).where(eq(deals.id, id)).returning();
@@ -72,9 +80,10 @@ export async function updateDealStage(id: string, stage: string) {
 }
 
 export async function updateDeal(id: string, formData: FormData) {
+  const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
-    throw new Error("Titre requis.");
+    throw new Error(MESSAGES[locale].titleRequired);
   }
 
   const valueRaw = formData.get("valueEuros");
@@ -90,7 +99,7 @@ export async function updateDeal(id: string, formData: FormData) {
     })
     .where(eq(deals.id, id))
     .returning();
-  if (!deal) throw new Error("Opportunité introuvable.");
+  if (!deal) throw new Error(MESSAGES[locale].dealNotFound);
 
   await logCrmAudit({
     action: "crm.deal_updated",
@@ -107,8 +116,9 @@ export async function updateDeal(id: string, formData: FormData) {
 }
 
 export async function deleteDeal(id: string) {
+  const locale = await getLocale();
   const [deal] = await db.delete(deals).where(eq(deals.id, id)).returning();
-  if (!deal) throw new Error("Opportunité introuvable.");
+  if (!deal) throw new Error(MESSAGES[locale].dealNotFound);
 
   await logCrmAudit({
     action: "crm.deal_deleted",

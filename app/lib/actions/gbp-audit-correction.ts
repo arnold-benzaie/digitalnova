@@ -8,6 +8,12 @@ import { logAuditActivity } from "@/lib/gbp-audit/activity";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { dispatchAuditWebhookEvent } from "@/lib/gbp-audit/webhooks";
 import { GBP_SEVERITIES } from "@/lib/gbp-audit/checklist";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { titleAndAuditRequired: "Titre et audit requis.", titleRequired: "Le titre est requis.", invalidStatus: "Statut invalide.", taskNotFound: "Cette action est introuvable pour cet audit." },
+  en: { titleAndAuditRequired: "Title and audit required.", titleRequired: "Title is required.", invalidStatus: "Invalid status.", taskNotFound: "This action could not be found for this audit." },
+} as const;
 
 const PHASES = [1, 2, 3];
 const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
@@ -32,11 +38,11 @@ function parseEtaDays(formData: FormData): number | null {
 }
 
 export async function createCorrectionTask(formData: FormData) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const auditId = String(formData.get("auditId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  if (!auditId || !title) throw new Error("Titre et audit requis.");
+  if (!auditId || !title) throw new Error(MESSAGES[locale].titleAndAuditRequired);
 
   const phase = PHASES.includes(Number(formData.get("phase"))) ? Number(formData.get("phase")) : 1;
 
@@ -61,10 +67,10 @@ export async function createCorrectionTask(formData: FormData) {
 }
 
 export async function updateCorrectionTask(taskId: string, auditId: string, formData: FormData) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const title = String(formData.get("title") ?? "").trim();
-  if (!title) throw new Error("Le titre est requis.");
+  if (!title) throw new Error(MESSAGES[locale].titleRequired);
 
   const { rowCount } = await auditDb
     .update(gbpCorrectionTasks)
@@ -77,21 +83,21 @@ export async function updateCorrectionTask(taskId: string, auditId: string, form
       recommendedServiceOfferId: (formData.get("recommendedServiceOfferId") as string) || null,
     })
     .where(and(eq(gbpCorrectionTasks.id, taskId), eq(gbpCorrectionTasks.auditId, auditId)));
-  if (rowCount === 0) throw new Error("Cette action est introuvable pour cet audit.");
+  if (rowCount === 0) throw new Error(MESSAGES[locale].taskNotFound);
 
   await logAuditActivity({ action: "correction_task_updated", targetType: "gbp_correction_task", targetId: taskId, metadata: { auditId, title } });
   revalidatePath(`/admin/audit/${auditId}/plan-correction`);
 }
 
 export async function updateCorrectionTaskStatus(taskId: string, auditId: string, status: string) {
-  await requireAuditStaffRole();
-  if (!TASK_STATUSES.includes(status as (typeof TASK_STATUSES)[number])) throw new Error("Statut invalide.");
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
+  if (!TASK_STATUSES.includes(status as (typeof TASK_STATUSES)[number])) throw new Error(MESSAGES[locale].invalidStatus);
 
   const { rowCount } = await auditDb
     .update(gbpCorrectionTasks)
     .set({ status })
     .where(and(eq(gbpCorrectionTasks.id, taskId), eq(gbpCorrectionTasks.auditId, auditId)));
-  if (rowCount === 0) throw new Error("Cette action est introuvable pour cet audit.");
+  if (rowCount === 0) throw new Error(MESSAGES[locale].taskNotFound);
 
   await logAuditActivity({ action: "correction_task_status_changed", targetType: "gbp_correction_task", targetId: taskId, metadata: { auditId, status } });
   await dispatchAuditWebhookEvent("gbp_audit.correction_task_status_changed", { taskId, auditId, status });
@@ -99,8 +105,8 @@ export async function updateCorrectionTaskStatus(taskId: string, auditId: string
 }
 
 export async function deleteCorrectionTask(taskId: string, auditId: string) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
   const { rowCount } = await auditDb.delete(gbpCorrectionTasks).where(and(eq(gbpCorrectionTasks.id, taskId), eq(gbpCorrectionTasks.auditId, auditId)));
-  if (rowCount === 0) throw new Error("Cette action est introuvable pour cet audit.");
+  if (rowCount === 0) throw new Error(MESSAGES[locale].taskNotFound);
   revalidatePath(`/admin/audit/${auditId}/plan-correction`);
 }

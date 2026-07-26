@@ -3,6 +3,12 @@ import { PDFParse } from "pdf-parse";
 import { cleanupE2EAudit, countLingeringE2EFixtures, resolveAuditIds } from "./helpers/audit-db";
 import { computeFullAuditScore } from "../lib/gbp-audit/checklist";
 
+// Deterministic French assertions below (getLocale() falls back to the
+// browser's Accept-Language, which Playwright's default context does not
+// pin to French) — same fix already established for this reason in
+// e2e/access-pending.spec.ts.
+test.use({ locale: "fr-FR" });
+
 /**
  * Full lifecycle E2E — mirrors the manual recette checklist handed to the
  * user (prospect -> quote request), steps numbered to match exactly.

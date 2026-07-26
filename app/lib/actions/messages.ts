@@ -6,17 +6,25 @@ import { messages } from "@/db/schema";
 import { getDevRole } from "@/lib/dev-role";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { notify } from "@/lib/notifications";
+import { APP_NAME } from "@/lib/brand";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { emptyMessage: "Le message ne peut pas être vide." },
+  en: { emptyMessage: "The message cannot be empty." },
+} as const;
 
 export async function sendMessage(formData: FormData) {
+  const locale = await getLocale();
   const body = formData.get("body");
   if (typeof body !== "string" || body.trim().length === 0) {
-    throw new Error("Le message ne peut pas être vide.");
+    throw new Error(MESSAGES[locale].emptyMessage);
   }
 
   const org = await getOrCreateDevOrganization();
   const role = await getDevRole();
   const senderRole = role === "client" ? "client" : "staff";
-  const senderName = senderRole === "client" ? "Vous (client)" : "Votre conseiller Public Maps";
+  const senderName = senderRole === "client" ? "Vous (client)" : `Votre conseiller ${APP_NAME}`;
 
   await db.insert(messages).values({
     organizationId: org.id,
@@ -28,8 +36,8 @@ export async function sendMessage(formData: FormData) {
   await notify({
     organizationId: org.id,
     type: "message.received",
-    title: senderRole === "client" ? "Nouveau message du client" : "Nouveau message de votre conseiller",
-    body: body.trim().slice(0, 140),
+    metadata: { senderRole },
+    rawBody: body.trim().slice(0, 140),
   });
 
   revalidatePath("/dashboard/messages");

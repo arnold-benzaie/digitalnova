@@ -4,9 +4,14 @@ import { crmClients, deals } from "@/db/schema";
 import { CreateDealForm } from "@/components/crm/create-deal-form";
 import { PipelineBoard } from "@/components/crm/pipeline-board";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatNumber } from "@/lib/i18n/format";
 
 export default async function CrmPipelinePage() {
   await requireStaffRole();
+  const locale = await getLocale();
+  const t = dictionaries[locale].crm.pipeline;
 
   const [allDeals, allClients] = await Promise.all([
     db.select().from(deals).orderBy(asc(deals.createdAt)),
@@ -17,20 +22,19 @@ export default async function CrmPipelinePage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Pipeline commercial</h1>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
       <p className="mt-2 text-sm text-pm-gris">
-        {allDeals.length} opportunité(s) —{" "}
-        {allDeals.reduce((sum, d) => sum + d.valueEuros, 0).toLocaleString("fr-FR")} € au total. Glissez une carte
-        vers une autre colonne pour changer son étape.
+        {t.summary(allDeals.length, formatNumber(allDeals.reduce((sum, d) => sum + d.valueEuros, 0), locale))}
       </p>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <CreateDealForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} />
+        <CreateDealForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} locale={locale} />
       </div>
 
       <PipelineBoard
         deals={allDeals.map((d) => ({ ...d, expectedCloseDate: d.expectedCloseDate?.toISOString() ?? null }))}
         clientNameById={clientNameById}
+        locale={locale}
       />
     </>
   );

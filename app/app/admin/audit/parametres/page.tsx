@@ -5,7 +5,8 @@ import { requireAuditAdminRole } from "@/lib/gbp-audit/session";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
 import { Badge } from "@/components/crm/badges";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
-import { WEBHOOK_EVENT_LABEL } from "@/lib/gbp-audit/activity-labels";
+import { getWebhookEventLabel } from "@/lib/gbp-audit/activity-labels";
+import { getSubscoreLabel } from "@/lib/gbp-audit/checklist";
 import { Tabs } from "@/components/gbp-audit/ui/tabs";
 import {
   GeneralSettingsForm,
@@ -15,38 +16,14 @@ import {
   SecuritySettingsForm,
   WebhookSettingsForm,
 } from "@/components/gbp-audit/settings-forms";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Administrateur", supervisor: "Superviseur", staff: "Staff" };
-
-const STATUS_LABEL: Record<string, string> = {
-  sent: "Envoyé",
-  failed: "Échec",
-  skipped_not_configured: "Ignoré (non configuré)",
-  skipped_disabled: "Ignoré (désactivé)",
-};
-const STATUS_CLASS: Record<string, string> = {
-  sent: "bg-pm-g-green/10 text-pm-g-green",
-  failed: "bg-pm-rouge/10 text-pm-rouge-2",
-  skipped_not_configured: "bg-pm-gris-2/60 text-pm-gris",
-  skipped_disabled: "bg-pm-gris-2/60 text-pm-gris",
-};
-
-const SUBSCORES = [
-  "Conformité du profil", "Complétude", "Réputation", "Contenu",
-  "Cohérence locale", "Visibilité", "Risque de suspension", "Expérience utilisateur",
-];
-const SCORE_BANDS = [
-  { range: "90 – 100", label: "Excellent" },
-  { range: "75 – 89", label: "Satisfaisant" },
-  { range: "50 – 74", label: "Faiblesses importantes" },
-  { range: "25 – 49", label: "Fortement incomplet" },
-  { range: "0 – 24", label: "Critique" },
-];
-
-function ConfigState({ configured }: { configured: boolean }) {
+function ConfigState({ configured, label }: { configured: boolean; label: { configured: string; notConfigured: string } }) {
   return (
     <Badge
-      label={configured ? "Configuré" : "Non configuré"}
+      label={configured ? label.configured : label.notConfigured}
       className={configured ? "bg-pm-g-green/10 text-pm-g-green" : "bg-pm-gris-2/60 text-pm-gris"}
     />
   );
@@ -54,6 +31,9 @@ function ConfigState({ configured }: { configured: boolean }) {
 
 export default async function AuditSettingsPage() {
   const session = await requireAuditAdminRole();
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.settings;
+  const webhookEventLabel = getWebhookEventLabel(locale);
 
   const [settings, deliveries, [{ total: reportsTotal, withPdf: reportsWithPdf }]] = await Promise.all([
     getAuditSettings(),
@@ -68,34 +48,35 @@ export default async function AuditSettingsPage() {
   const webhookConfigured = Boolean(process.env.N8N_WEBHOOK_URL);
   const storageConfigured = Boolean(process.env.AUDIT_SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_AUDIT_SUPABASE_URL);
   const notConfiguredDeliveries = deliveries.length > 0 && deliveries.every((d) => d.status === "skipped_not_configured");
+  const configuredLabel = { configured: t.configured, notConfigured: t.notConfigured };
 
   const generalTab = (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Mon compte</h2>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.general.accountTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">Nom</dt>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.general.name}</dt>
             <dd className="mt-0.5 text-pm-noir">{session.fullName ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">E-mail</dt>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.general.email}</dt>
             <dd className="mt-0.5 text-pm-noir">{session.email}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">Rôle</dt>
-            <dd className="mt-0.5 text-pm-noir">{ROLE_LABEL[session.role] ?? "Membre"}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.general.role}</dt>
+            <dd className="mt-0.5 text-pm-noir">{t.role[session.role as keyof typeof t.role] ?? t.memberFallback}</dd>
           </div>
         </dl>
         <p className="mt-4 text-xs text-pm-gris">
-          Pour gérer les membres de l&rsquo;équipe et leurs rôles, rendez-vous dans <span className="font-medium text-pm-noir">Équipe</span>.
+          {t.general.teamHint}<span className="font-medium text-pm-noir">{t.general.teamLink}</span>.
         </p>
       </div>
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Contact prospect</h2>
-        <p className="mt-1 text-sm text-pm-gris">Affiché sur le portail client et en pied de rapport PDF.</p>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.general.contactTitle}</h2>
+        <p className="mt-1 text-sm text-pm-gris">{t.general.contactLead}</p>
         <div className="mt-4">
-          <GeneralSettingsForm settings={settings} />
+          <GeneralSettingsForm settings={settings} locale={locale} />
         </div>
       </div>
     </div>
@@ -104,30 +85,30 @@ export default async function AuditSettingsPage() {
   const scoringTab = (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Pénalités par gravité</h2>
-        <p className="mt-1 text-sm text-pm-gris">Chaque contrôle non conforme retire des points du score sur 100, selon sa gravité.</p>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.penaltiesTitle}</h2>
+        <p className="mt-1 text-sm text-pm-gris">{t.scoring.penaltiesLead}</p>
         <div className="mt-4">
-          <ScoringSettingsForm settings={settings} />
+          <ScoringSettingsForm settings={settings} locale={locale} />
         </div>
       </div>
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Sous-scores (19 catégories → 8 axes)</h2>
-        <p className="mt-1 text-sm text-pm-gris">Les 19 catégories de contrôles alimentent 8 sous-scores affichés sur la fiche d&rsquo;audit — structure fixe, non modifiable.</p>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.subscoresTitle}</h2>
+        <p className="mt-1 text-sm text-pm-gris">{t.scoring.subscoresLead}</p>
         <ul className="mt-4 grid grid-cols-2 gap-2 text-sm text-pm-noir sm:grid-cols-4">
-          {SUBSCORES.map((s) => (
+          {Object.values(getSubscoreLabel(locale)).map((s) => (
             <li key={s} className="rounded-lg bg-pm-gris-2/30 px-3 py-2">{s}</li>
           ))}
         </ul>
       </div>
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Bandes de score</h2>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.bandsTitle}</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-pm-gris">
-              <tr><th className="py-2 pr-4">Score</th><th className="py-2">Appréciation</th></tr>
+              <tr><th className="py-2 pr-4">{t.scoring.scoreColumn}</th><th className="py-2">{t.scoring.appreciationColumn}</th></tr>
             </thead>
             <tbody>
-              {SCORE_BANDS.map((b) => (
+              {t.scoring.bands.map((b) => (
                 <tr key={b.label} className="border-t border-pm-gris-2">
                   <td className="py-2 pr-4 tabular-nums text-pm-noir">{b.range}</td>
                   <td className="py-2 text-pm-gris">{b.label}</td>
@@ -142,40 +123,40 @@ export default async function AuditSettingsPage() {
 
   const pdfTab = (
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">Rapports PDF et liens sécurisés</h2>
-      <p className="mt-1 text-sm text-pm-gris">Le PDF est généré automatiquement à l&rsquo;approbation d&rsquo;un audit.</p>
+      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.pdf.title}</h2>
+      <p className="mt-1 text-sm text-pm-gris">{t.pdf.lead}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-pm-gris-2 p-3 text-center">
-          <dt className="text-xs font-medium text-pm-gris">Rapports générés</dt>
+          <dt className="text-xs font-medium text-pm-gris">{t.pdf.reportsGenerated}</dt>
           <dd className="mt-1 text-xl font-semibold text-pm-noir tabular-nums">{reportsTotal ?? 0}</dd>
         </div>
         <div className="rounded-xl border border-pm-gris-2 p-3 text-center">
-          <dt className="text-xs font-medium text-pm-gris">Avec PDF stocké</dt>
+          <dt className="text-xs font-medium text-pm-gris">{t.pdf.withStoredPdf}</dt>
           <dd className="mt-1 text-xl font-semibold text-pm-noir tabular-nums">{reportsWithPdf ?? 0}</dd>
         </div>
         <div className="rounded-xl border border-pm-gris-2 p-3 text-center">
-          <dt className="text-xs font-medium text-pm-gris">Stockage Supabase</dt>
-          <dd className="mt-1"><ConfigState configured={storageConfigured} /></dd>
+          <dt className="text-xs font-medium text-pm-gris">{t.pdf.supabaseStorage}</dt>
+          <dd className="mt-1"><ConfigState configured={storageConfigured} label={configuredLabel} /></dd>
         </div>
       </dl>
       <div className="mt-6 border-t border-pm-gris-2 pt-6">
-        <ReportSettingsForm settings={settings} />
+        <ReportSettingsForm settings={settings} locale={locale} />
       </div>
       <p className="mt-4 text-xs text-pm-gris">
-        Voir la liste complète dans <span className="font-medium text-pm-noir">Rapports</span>.
+        {t.pdf.seeFullListPrefix}<span className="font-medium text-pm-noir">{t.pdf.reportsLink}</span>.
       </p>
     </div>
   );
 
   const notificationsTab = (
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">Notifications automatiques</h2>
-      <p className="mt-1 text-sm text-pm-gris">Choisissez quels événements créent une notification interne pour l&rsquo;équipe.</p>
+      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.notifications.title}</h2>
+      <p className="mt-1 text-sm text-pm-gris">{t.notifications.lead}</p>
       <div className="mt-4">
-        <NotificationSettingsForm settings={settings} />
+        <NotificationSettingsForm settings={settings} locale={locale} />
       </div>
       <p className="mt-4 text-xs text-pm-gris">
-        Consultez l&rsquo;historique dans <span className="font-medium text-pm-noir">Notifications</span>.
+        {t.notifications.historyHintPrefix}<span className="font-medium text-pm-noir">{t.notifications.historyLink}</span>.
       </p>
     </div>
   );
@@ -184,21 +165,21 @@ export default async function AuditSettingsPage() {
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Intégration webhook (n8n)</h2>
-          <ConfigState configured={webhookConfigured} />
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.webhooks.integrationTitle}</h2>
+          <ConfigState configured={webhookConfigured} label={configuredLabel} />
         </div>
         <div className="mt-4">
-          <WebhookSettingsForm settings={settings} />
+          <WebhookSettingsForm settings={settings} locale={locale} />
         </div>
       </div>
 
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h3 className="font-serif text-base font-semibold text-pm-noir">Dernières livraisons</h3>
-        <p className="mt-1 text-sm text-pm-gris">Les 50 dernières tentatives d&rsquo;envoi.</p>
+        <h3 className="font-serif text-base font-semibold text-pm-noir">{t.webhooks.recentDeliveriesTitle}</h3>
+        <p className="mt-1 text-sm text-pm-gris">{t.webhooks.recentDeliveriesLead}</p>
 
         {notConfiguredDeliveries && (
           <div className="mt-4 rounded-xl border border-pm-or/40 bg-pm-or/10 p-3 text-sm text-pm-or-2">
-            L&rsquo;intégration n&rsquo;est pas configurée — tous les événements sont enregistrés mais aucun n&rsquo;est réellement envoyé.
+            {t.webhooks.notConfiguredWarning}
           </div>
         )}
 
@@ -210,8 +191,8 @@ export default async function AuditSettingsPage() {
                   <path d="M4 12h6l2-4 4 8 2-4h4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               }
-              title="Aucune livraison pour le moment"
-              description="Les événements (création d'audit, approbation, demande de devis…) apparaîtront ici dès qu'ils se produisent."
+              title={t.webhooks.emptyTitle}
+              description={t.webhooks.emptyDescription}
             />
           </div>
         ) : (
@@ -219,24 +200,26 @@ export default async function AuditSettingsPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                 <tr>
-                  <th className="px-5 py-3">Événement</th>
-                  <th className="px-5 py-3">Statut</th>
-                  <th className="px-5 py-3">Code HTTP</th>
-                  <th className="px-5 py-3">Quand</th>
+                  <th className="px-5 py-3">{t.webhooks.columns.event}</th>
+                  <th className="px-5 py-3">{t.webhooks.columns.status}</th>
+                  <th className="px-5 py-3">{t.webhooks.columns.httpCode}</th>
+                  <th className="px-5 py-3">{t.webhooks.columns.when}</th>
                 </tr>
               </thead>
               <tbody>
                 {deliveries.map((d) => (
                   <tr key={d.id} className="border-t border-pm-gris-2">
                     <td className="px-5 py-3 text-pm-noir">
-                      <p>{WEBHOOK_EVENT_LABEL[d.event] ?? "Événement"}</p>
+                      <p>{webhookEventLabel[d.event] ?? t.webhooks.eventFallback}</p>
                       <p className="mt-0.5 font-mono text-[10px] text-pm-gris">{d.event}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <Badge label={STATUS_LABEL[d.status] ?? "Statut inconnu"} className={STATUS_CLASS[d.status] ?? "bg-pm-gris-2/60 text-pm-gris"} />
+                      <Badge label={t.webhooks.statusLabel[d.status as keyof typeof t.webhooks.statusLabel] ?? t.webhooks.statusFallback} className={
+                        d.status === "sent" ? "bg-pm-g-green/10 text-pm-g-green" : d.status === "failed" ? "bg-pm-rouge/10 text-pm-rouge-2" : "bg-pm-gris-2/60 text-pm-gris"
+                      } />
                     </td>
                     <td className="px-5 py-3 text-pm-gris tabular-nums">{d.responseStatus ?? "—"}</td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(d.createdAt).toLocaleString("fr-FR")}</td>
+                    <td className="px-5 py-3 text-pm-gris">{formatDateTime(d.createdAt, locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -250,47 +233,45 @@ export default async function AuditSettingsPage() {
   const securityTab = (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Limites anti-abus (portail public)</h2>
-        <p className="mt-1 text-sm text-pm-gris">Par adresse IP, sur les surfaces publiques non authentifiées.</p>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.rateLimitsTitle}</h2>
+        <p className="mt-1 text-sm text-pm-gris">{t.security.rateLimitsLead}</p>
         <div className="mt-4">
-          <SecuritySettingsForm settings={settings} />
+          <SecuritySettingsForm settings={settings} locale={locale} />
         </div>
       </div>
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Liens sécurisés (portail client)</h2>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.secureLinksTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-pm-gris-2 p-3">
-            <dt className="text-xs font-medium text-pm-gris">Expiration par défaut</dt>
-            <dd className="mt-1 text-sm font-semibold text-pm-noir">{settings.reportLinkDefaultExpiryDays} jour(s)</dd>
+            <dt className="text-xs font-medium text-pm-gris">{t.security.defaultExpiry}</dt>
+            <dd className="mt-1 text-sm font-semibold text-pm-noir">{t.security.defaultExpiryValue(settings.reportLinkDefaultExpiryDays)}</dd>
           </div>
           <div className="rounded-xl border border-pm-gris-2 p-3">
-            <dt className="text-xs font-medium text-pm-gris">Verrouillage</dt>
-            <dd className="mt-1 text-sm font-semibold text-pm-noir">Après {settings.reportLinkMaxAttempts} tentatives échouées</dd>
+            <dt className="text-xs font-medium text-pm-gris">{t.security.lockout}</dt>
+            <dd className="mt-1 text-sm font-semibold text-pm-noir">{t.security.lockoutValue(settings.reportLinkMaxAttempts)}</dd>
           </div>
           <div className="rounded-xl border border-pm-gris-2 p-3">
-            <dt className="text-xs font-medium text-pm-gris">Révocation</dt>
-            <dd className="mt-1 text-sm font-semibold text-pm-noir">Manuelle, depuis l&rsquo;onglet Rapport</dd>
+            <dt className="text-xs font-medium text-pm-gris">{t.security.revocation}</dt>
+            <dd className="mt-1 text-sm font-semibold text-pm-noir">{t.security.revocationValue}</dd>
           </div>
         </dl>
         <p className="mt-3 text-xs text-pm-gris">
-          Modifiables dans <span className="font-medium text-pm-noir">Rapports PDF</span>.
+          {t.security.editableHintPrefix}<span className="font-medium text-pm-noir">{t.security.editableHintLink}</span>.
         </p>
       </div>
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Configuration technique</h2>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.technicalTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-xl border border-pm-gris-2 p-3">
-            <dt className="text-sm text-pm-noir">Stockage des preuves (Supabase)</dt>
-            <dd><ConfigState configured={storageConfigured} /></dd>
+            <dt className="text-sm text-pm-noir">{t.security.evidenceStorage}</dt>
+            <dd><ConfigState configured={storageConfigured} label={configuredLabel} /></dd>
           </div>
           <div className="flex items-center justify-between rounded-xl border border-pm-gris-2 p-3">
-            <dt className="text-sm text-pm-noir">Webhook n8n</dt>
-            <dd><ConfigState configured={webhookConfigured} /></dd>
+            <dt className="text-sm text-pm-noir">{t.security.webhook}</dt>
+            <dd><ConfigState configured={webhookConfigured} label={configuredLabel} /></dd>
           </div>
         </dl>
-        <p className="mt-4 text-xs text-pm-gris">
-          Les valeurs des clés et jetons de connexion ne sont jamais affichées ici — seul leur état de configuration l&rsquo;est.
-        </p>
+        <p className="mt-4 text-xs text-pm-gris">{t.security.secretsNote}</p>
       </div>
     </div>
   );
@@ -298,22 +279,24 @@ export default async function AuditSettingsPage() {
   return (
     <>
       <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">Paramètres</h1>
-        <p className="mt-1 text-sm text-pm-gris">Votre compte et la configuration de PUBLIC-MAP Audit.</p>
+        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
       </div>
 
       <div className="mt-6">
         <Tabs
+          ariaLabel={t.pageTitle}
           tabs={[
-            { key: "general", label: "Général", content: generalTab },
-            { key: "scoring", label: "Scoring", content: scoringTab },
-            { key: "pdf", label: "Rapports PDF", content: pdfTab },
-            { key: "notifications", label: "Notifications", content: notificationsTab },
-            { key: "webhooks", label: "Webhooks", content: webhooksTab },
-            { key: "security", label: "Sécurité", content: securityTab },
+            { key: "general", label: t.tabs.general, content: generalTab },
+            { key: "scoring", label: t.tabs.scoring, content: scoringTab },
+            { key: "pdf", label: t.tabs.pdf, content: pdfTab },
+            { key: "notifications", label: t.tabs.notifications, content: notificationsTab },
+            { key: "webhooks", label: t.tabs.webhooks, content: webhooksTab },
+            { key: "security", label: t.tabs.security, content: securityTab },
           ]}
         />
       </div>
     </>
   );
 }
+

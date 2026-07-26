@@ -7,31 +7,61 @@ import { crmInvoiceItems, crmInvoices } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { computeTotals, CURRENCY_VALUES, INVOICE_STATUS_VALUES, parseLineItems } from "@/lib/crm-billing";
 import { nextDocumentNumber } from "@/lib/crm-document-number";
+import { getLocale } from "@/lib/i18n/locale";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
-function parseTaxRateBasisPoints(formData: FormData) {
+const MESSAGES = {
+  fr: {
+    clientRequired: "Client requis.",
+    titleRequired: "Titre requis.",
+    invalidCurrency: "Devise invalide.",
+    invalidStatus: "Statut invalide.",
+    invoiceNotFound: "Facture introuvable.",
+    onlyDraftCanBeEdited: "Seules les factures en brouillon peuvent être modifiées.",
+    refundedCannotChange: "Une facture remboursée ne peut plus changer de statut.",
+    onlyPaidCanBeRefunded: "Seule une facture payée peut être remboursée.",
+    onlyDraftCanBeDeleted: "Seules les factures en brouillon peuvent être supprimées — annulez une facture envoyée.",
+  },
+  en: {
+    clientRequired: "Client required.",
+    titleRequired: "Title required.",
+    invalidCurrency: "Invalid currency.",
+    invalidStatus: "Invalid status.",
+    invoiceNotFound: "Invoice not found.",
+    onlyDraftCanBeEdited: "Only draft invoices can be edited.",
+    refundedCannotChange: "A refunded invoice can no longer change status.",
+    onlyPaidCanBeRefunded: "Only a paid invoice can be refunded.",
+    onlyDraftCanBeDeleted: "Only draft invoices can be deleted — cancel a sent invoice instead.",
+  },
+} as const;
+
+function parseTaxRateBasisPoints(formData: FormData, locale: Locale) {
   const raw = formData.get("taxRateBasisPoints");
   if (typeof raw !== "string" || !raw.trim()) return 0;
   const percent = Number(raw);
-  if (!Number.isFinite(percent) || percent < 0) throw new Error("Taux de taxe invalide.");
+  if (!Number.isFinite(percent) || percent < 0) {
+    throw new Error(locale === "en" ? "Invalid tax rate." : "Taux de taxe invalide.");
+  }
   return Math.round(percent * 100);
 }
 
 export async function createInvoice(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
-  if (typeof clientId !== "string" || !clientId) throw new Error("Client requis.");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
+  if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
 
   const currency = formData.get("currency");
-  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error("Devise invalide.");
+  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
 
   const dealId = formData.get("dealId");
   const taxLabel = (formData.get("taxLabel") as string) || null;
-  const taxRateBasisPoints = parseTaxRateBasisPoints(formData);
+  const taxRateBasisPoints = parseTaxRateBasisPoints(formData, locale);
   const dueAtRaw = formData.get("dueAt");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"));
+  const items = parseLineItems(formData.get("items"), locale);
   const totals = computeTotals(items, taxRateBasisPoints);
   const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
 
@@ -78,21 +108,22 @@ export async function createInvoice(formData: FormData) {
  * document, changing it silently after the fact would be bad accounting
  * practice. Use updateInvoiceStatus (cancel/refund) instead. */
 export async function updateInvoice(id: string, formData: FormData) {
+  const locale = await getLocale();
   const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!existing) throw new Error("Facture introuvable.");
-  if (existing.status !== "draft") throw new Error("Seules les factures en brouillon peuvent être modifiées.");
+  if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
+  if (existing.status !== "draft") throw new Error(MESSAGES[locale].onlyDraftCanBeEdited);
 
   const title = formData.get("title");
-  if (typeof title !== "string" || !title.trim()) throw new Error("Titre requis.");
+  if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
   const currency = formData.get("currency");
-  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error("Devise invalide.");
+  if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
 
   const taxLabel = (formData.get("taxLabel") as string) || null;
-  const taxRateBasisPoints = parseTaxRateBasisPoints(formData);
+  const taxRateBasisPoints = parseTaxRateBasisPoints(formData, locale);
   const dueAtRaw = formData.get("dueAt");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"));
+  const items = parseLineItems(formData.get("items"), locale);
   const totals = computeTotals(items, taxRateBasisPoints);
 
   const [invoice] = await db
@@ -134,13 +165,14 @@ export async function updateInvoice(id: string, formData: FormData) {
 }
 
 export async function updateInvoiceStatus(id: string, status: string) {
-  if (!INVOICE_STATUS_VALUES.includes(status)) throw new Error("Statut invalide.");
+  const locale = await getLocale();
+  if (!INVOICE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
 
   const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!existing) throw new Error("Facture introuvable.");
-  if (existing.status === "refunded") throw new Error("Une facture remboursée ne peut plus changer de statut.");
+  if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
+  if (existing.status === "refunded") throw new Error(MESSAGES[locale].refundedCannotChange);
   if (status === "refunded" && existing.status !== "paid") {
-    throw new Error("Seule une facture payée peut être remboursée.");
+    throw new Error(MESSAGES[locale].onlyPaidCanBeRefunded);
   }
 
   const patch: Record<string, unknown> = { status };
@@ -166,10 +198,11 @@ export async function updateInvoiceStatus(id: string, status: string) {
 /** Only a draft invoice can be permanently deleted — a sent/paid/canceled/
  * refunded one must remain in the record for accounting continuity. */
 export async function deleteInvoice(id: string) {
+  const locale = await getLocale();
   const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!existing) throw new Error("Facture introuvable.");
+  if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
   if (existing.status !== "draft") {
-    throw new Error("Seules les factures en brouillon peuvent être supprimées — annulez une facture envoyée.");
+    throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
   }
 
   await db.delete(crmInvoices).where(eq(crmInvoices.id, id));

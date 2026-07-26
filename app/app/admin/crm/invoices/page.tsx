@@ -3,10 +3,13 @@ import Link from "next/link";
 import { db } from "@/db";
 import { crmClients, crmInvoices } from "@/db/schema";
 import { createInvoice } from "@/lib/actions/crm-invoices";
-import { formatMoney, INVOICE_STATUS_OPTIONS, INVOICE_STATUS_VALUES } from "@/lib/crm-billing";
+import { formatMoney, getInvoiceStatusOptions, INVOICE_STATUS_VALUES } from "@/lib/crm-billing";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import { DeleteInvoiceButton, InvoiceStatusSelect } from "@/components/crm/quote-invoice-actions";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 const PAGE_SIZE = 20;
 
@@ -23,7 +26,9 @@ function buildHref(params: Params, overrides: Partial<Record<keyof Params, strin
 
 export default async function CrmInvoicesPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.invoices;
+  const invoiceStatusOptions = getInvoiceStatusOptions(locale);
 
   const q = params.q?.trim() ?? "";
   const status = params.status && INVOICE_STATUS_VALUES.includes(params.status) ? params.status : "";
@@ -60,20 +65,21 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Factures</h1>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
       <p className="mt-2 text-sm text-pm-gris">
-        {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""}
+        {t.resultsSummary(totalCount, overallCount, hasFilters)}
         {paidByCurrency.length > 0 && (
-          <> — encaissé : {paidByCurrency.map((p) => formatMoney(p.sum, p.currency)).join(" + ")}</>
+          <> — {t.collectedPrefix} {paidByCurrency.map((p) => formatMoney(p.sum, p.currency, locale)).join(" + ")}</>
         )}
       </p>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
         <BillingDocumentForm
           action={createInvoice}
-          submitLabel="Créer la facture"
+          submitLabel={t.createSubmitLabel}
           clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))}
-          dateField={{ name: "dueAt", label: "Échéance" }}
+          dateField={{ name: "dueAt", label: t.dueLabel }}
+          locale={locale}
         />
       </div>
 
@@ -82,26 +88,26 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par titre…"
-          aria-label="Rechercher une facture"
+          placeholder={t.searchPlaceholder}
+          aria-label={t.searchAriaLabel}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
-        <select name="status" defaultValue={status} aria-label="Filtrer par statut" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Tous les statuts</option>
-          {INVOICE_STATUS_OPTIONS.map((o) => (
+        <select name="status" defaultValue={status} aria-label={t.statusFilterAriaLabel} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">{t.allStatuses}</option>
+          {invoiceStatusOptions.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2">
-          Filtrer
+          {dictionaries[locale].common.filter}
         </button>
-        {hasFilters && <a href="/admin/crm/invoices" className="text-xs text-pm-gris underline">Réinitialiser</a>}
+        {hasFilters && <a href="/admin/crm/invoices" className="text-xs text-pm-gris underline">{t.reset}</a>}
       </form>
 
       {allInvoices.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucune facture" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
         </div>
       ) : (
@@ -115,8 +121,8 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
                       {invoice.invoiceNumber} — {invoice.title}
                     </Link>
                     <p className="text-xs text-pm-gris">
-                      {clientNameById.get(invoice.clientId) ?? "—"} · {formatMoney(invoice.totalCents, invoice.currency)}
-                      {invoice.dueAt && ` · échéance ${new Date(invoice.dueAt).toLocaleDateString("fr-FR")}`}
+                      {clientNameById.get(invoice.clientId) ?? t.noValue} · {formatMoney(invoice.totalCents, invoice.currency, locale)}
+                      {invoice.dueAt && ` · ${t.duePrefix} ${formatDate(invoice.dueAt, locale)}`}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -124,14 +130,14 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
                       href={`/api/crm/invoices/${invoice.id}/pdf`}
                       className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
                     >
-                      PDF
+                      {t.pdfLabel}
                     </a>
-                    <InvoiceStatusSelect id={invoice.id} status={invoice.status} />
+                    <InvoiceStatusSelect id={invoice.id} status={invoice.status} locale={locale} />
                   </div>
                 </div>
                 {invoice.status === "draft" && (
                   <div className="mt-2">
-                    <DeleteInvoiceButton id={invoice.id} />
+                    <DeleteInvoiceButton id={invoice.id} locale={locale} />
                   </div>
                 )}
               </div>
@@ -144,14 +150,14 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
                 href={buildHref(params, { page: page > 1 ? String(page - 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Précédent
+                {dictionaries[locale].common.previous}
               </a>
-              <span className="text-pm-gris">Page {page} / {totalPages}</span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <a
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Suivant
+                {dictionaries[locale].common.next}
               </a>
             </div>
           )}

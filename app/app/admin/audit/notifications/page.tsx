@@ -4,9 +4,13 @@ import { auditNotifications } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { NotificationRow } from "@/components/gbp-audit/notification-row";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function AuditNotificationsPage() {
   const session = await requireAuditStaffRole();
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.notificationsPage;
 
   const items = await auditDb
     .select()
@@ -17,8 +21,8 @@ export default async function AuditNotificationsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Notifications</h1>
-      <p className="mt-2 text-sm text-pm-gris">Historique complet de vos notifications PUBLIC-MAP Audit.</p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
 
       {items.length === 0 ? (
         <div className="mt-8">
@@ -29,8 +33,8 @@ export default async function AuditNotificationsPage() {
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             }
-            title="Aucune notification"
-            description="Vous serez notifié ici des nouvelles demandes de devis et des changements de statut d'audit."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
           />
         </div>
       ) : (
@@ -39,6 +43,7 @@ export default async function AuditNotificationsPage() {
             <NotificationRow
               key={item.id}
               item={{ id: item.id, title: item.title, body: item.body, href: item.href, read: item.readAt !== null, createdAt: item.createdAt.toISOString() }}
+              locale={locale}
             />
           ))}
         </div>

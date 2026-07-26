@@ -3,12 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCrmDocument, uploadCrmDocument } from "@/lib/actions/crm-documents";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
-export function UploadCrmDocumentForm({ clientId }: { clientId: string }) {
+export function UploadCrmDocumentForm({ clientId, locale = "fr" }: { clientId: string; locale?: Locale }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.documents;
 
   return (
     <form
@@ -22,7 +24,7 @@ export function UploadCrmDocumentForm({ clientId }: { clientId: string }) {
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         })
       }
@@ -40,7 +42,7 @@ export function UploadCrmDocumentForm({ clientId }: { clientId: string }) {
           disabled={isPending}
           className="shrink-0 rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
-          {isPending ? "Envoi..." : "Ajouter le fichier"}
+          {isPending ? t.uploading : t.uploadButton}
         </button>
         {error && <p className="text-sm text-pm-rouge">{error}</p>}
       </div>
@@ -48,10 +50,11 @@ export function UploadCrmDocumentForm({ clientId }: { clientId: string }) {
   );
 }
 
-export function DeleteCrmDocumentButton({ id }: { id: string }) {
+export function DeleteCrmDocumentButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.documents;
 
   return (
     <div>
@@ -59,20 +62,20 @@ export function DeleteCrmDocumentButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Supprimer ce fichier ?")) return;
+          if (!confirm(t.deleteConfirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await deleteCrmDocument(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "Suppression..." : "Supprimer"}
+        {isPending ? t.deleting : t.deleteButton}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

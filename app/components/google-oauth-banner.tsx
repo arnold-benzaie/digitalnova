@@ -1,38 +1,35 @@
-const REASON_LABEL: Record<string, string> = {
-  gbp_sync_failed:
-    "Le compte Google a été connecté, mais la récupération des données Google Business Profile a échoué (l'accès à l'API n'est peut-être pas encore approuvé par Google).",
-  token_exchange_failed: "L'échange du code d'autorisation avec Google a échoué.",
-  invalid_state: "La demande de connexion a expiré ou est invalide — merci de réessayer.",
-  invalid_request: "Requête de connexion Google invalide.",
-};
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-export function GoogleOAuthBanner({ flag, reason }: { flag?: string; reason?: string }) {
+export function GoogleOAuthBanner({ flag, reason, locale = "fr" }: { flag?: string; reason?: string; locale?: Locale }) {
   if (!flag) return null;
+  const t = dictionaries[locale].dashboard.googleIntegration.oauthBanner;
+  const reasonLabel = reason ? t.reasons[reason] : undefined;
 
   if (flag === "connected") {
     return (
       <div className="mb-4 rounded-xl border border-pm-g-green/30 bg-pm-g-green/10 px-4 py-3 text-sm text-pm-noir">
-        Compte Google connecté avec succès.
+        {t.connected}
       </div>
     );
   }
   if (flag === "partial") {
     return (
       <div className="mb-4 rounded-xl border border-pm-or/30 bg-pm-or/10 px-4 py-3 text-sm text-pm-noir">
-        {(reason && REASON_LABEL[reason]) || "Compte Google connecté, mais une partie de la synchronisation a échoué."}
+        {reasonLabel || t.partial}
       </div>
     );
   }
   if (flag === "denied") {
     return (
       <div className="mb-4 rounded-xl border border-pm-gris-2 bg-pm-gris-2/30 px-4 py-3 text-sm text-pm-noir">
-        Connexion Google annulée.
+        {t.denied}
       </div>
     );
   }
   return (
     <div className="mb-4 rounded-xl border border-pm-rouge/30 bg-pm-rouge/10 px-4 py-3 text-sm text-pm-noir">
-      {(reason && REASON_LABEL[reason]) || "La connexion au compte Google a échoué."}
+      {reasonLabel || t.failed}
     </div>
   );
 }

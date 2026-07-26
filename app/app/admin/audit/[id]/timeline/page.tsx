@@ -4,16 +4,23 @@ import { auditDb } from "@/db/audit-index";
 import { auditActivityLog, auditBusinesses, gbpAuditFindings, gbpAudits, gbpFindingStatusHistory } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AuditTabs } from "@/components/gbp-audit/audit-tabs";
-import { GBP_AUDIT_CHECKS, GBP_AUDIT_SECTIONS } from "@/lib/gbp-audit/checklist";
-import { ACTIVITY_ACTION_LABEL } from "@/lib/gbp-audit/activity-labels";
-
-const CHECK_LABEL = Object.fromEntries(
-  GBP_AUDIT_SECTIONS.flatMap((s) => GBP_AUDIT_CHECKS[s.code].map((c) => [`${s.code}:${c.key}`, c.label])),
-);
+import { getAuditChecksBySection, getAuditSections } from "@/lib/gbp-audit/checklist";
+import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
 export default async function AuditTimelinePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.timeline;
+  const activityLabel = getActivityActionLabel(locale);
+  const sections = getAuditSections(locale);
+  const checksBySection = getAuditChecksBySection(locale);
+  const CHECK_LABEL = Object.fromEntries(
+    sections.flatMap((s) => checksBySection[s.code].map((c) => [`${s.code}:${c.key}`, c.label])),
+  );
 
   const [audit] = await auditDb
     .select({ id: gbpAudits.id, businessName: auditBusinesses.legalName })
@@ -40,7 +47,7 @@ export default async function AuditTimelinePage({ params }: { params: Promise<{ 
     auditDb.select({ id: gbpAuditFindings.id, sectionCode: gbpAuditFindings.sectionCode, checkKey: gbpAuditFindings.checkKey }).from(gbpAuditFindings).where(eq(gbpAuditFindings.auditId, id)),
   ]);
   const findingIds = findings.map((f) => f.id);
-  const findingLabelById = new Map(findings.map((f) => [f.id, CHECK_LABEL[`${f.sectionCode}:${f.checkKey}`] ?? "Contrôle archivé"]));
+  const findingLabelById = new Map(findings.map((f) => [f.id, CHECK_LABEL[`${f.sectionCode}:${f.checkKey}`] ?? t.archivedFinding]));
 
   const statusHistory = findingIds.length
     ? await auditDb.select().from(gbpFindingStatusHistory).where(inArray(gbpFindingStatusHistory.findingId, findingIds)).orderBy(desc(gbpFindingStatusHistory.createdAt))
@@ -49,13 +56,13 @@ export default async function AuditTimelinePage({ params }: { params: Promise<{ 
   const entries: Entry[] = [
     ...activity.map((a) => ({
       at: a.createdAt,
-      label: ACTIVITY_ACTION_LABEL[a.action] ?? "Action système",
+      label: activityLabel[a.action] ?? t.systemAction,
       detail: a.targetType === "gbp_audit_finding" && a.targetId ? (findingLabelById.get(a.targetId) ?? "") : "",
     })),
     ...statusHistory.map((h) => ({
       at: h.createdAt,
-      label: "Statut de correction",
-      detail: `${findingLabelById.get(h.findingId) ?? "Contrôle"} : ${h.fromStatus ?? "—"} → ${h.toStatus}`,
+      label: t.correctionStatusLabel,
+      detail: t.correctionDetail(findingLabelById.get(h.findingId) ?? t.findingFallback, h.fromStatus ?? "—", h.toStatus),
     })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -63,13 +70,13 @@ export default async function AuditTimelinePage({ params }: { params: Promise<{ 
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Historique complet de l&rsquo;audit.</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
       </div>
-      <AuditTabs auditId={id} active="timeline" />
+      <AuditTabs auditId={id} active="timeline" locale={locale} />
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
         {entries.length === 0 ? (
-          <p className="text-sm text-pm-gris">Aucune activité pour le moment.</p>
+          <p className="text-sm text-pm-gris">{t.empty}</p>
         ) : (
           <ol className="flex flex-col gap-4">
             {entries.map((entry, i) => (
@@ -81,7 +88,7 @@ export default async function AuditTimelinePage({ params }: { params: Promise<{ 
                 <div className="pb-4">
                   <p className="text-sm font-medium text-pm-noir">{entry.label}</p>
                   {entry.detail && <p className="text-xs text-pm-gris">{entry.detail}</p>}
-                  <p className="mt-0.5 text-[10px] text-pm-gris">{new Date(entry.at).toLocaleString("fr-FR")}</p>
+                  <p className="mt-0.5 text-[10px] text-pm-gris">{formatDateTime(entry.at, locale)}</p>
                 </div>
               </li>
             ))}

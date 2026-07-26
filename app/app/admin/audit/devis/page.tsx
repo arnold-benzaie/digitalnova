@@ -3,9 +3,11 @@ import { auditDb } from "@/db/audit-index";
 import { auditBusinesses, gbpAudits, gbpQuoteRequests, gbpServiceOffers } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { QuoteRequestInbox } from "@/components/gbp-audit/quote-request-inbox";
+import { getLocale } from "@/lib/i18n/locale";
 
 export default async function AuditQuoteRequestsPage() {
   await requireAuditStaffRole();
+  const locale = await getLocale();
 
   const rows = await auditDb
     .select({
@@ -27,6 +29,7 @@ export default async function AuditQuoteRequestsPage() {
   return (
     <QuoteRequestInbox
       requests={rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
+      locale={locale}
     />
   );
 }

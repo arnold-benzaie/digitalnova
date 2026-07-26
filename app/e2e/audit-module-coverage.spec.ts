@@ -14,6 +14,12 @@ import { eq, like, sql } from "drizzle-orm";
  * e2e-coverage+... email.
  */
 
+// Deterministic French assertions below (getLocale() falls back to the
+// browser's Accept-Language, which Playwright's default context does not
+// pin to French) — same fix already established for this reason in
+// e2e/access-pending.spec.ts.
+test.use({ locale: "fr-FR" });
+
 const BUSINESS_NAME = "[E2E-COVERAGE] Fixture Paramètres/Rapports";
 const PROSPECT_EMAIL = "e2e-coverage+fixture@example.com";
 const STAFF_INVITE_EMAIL = "e2e-coverage+staff-invite@example.com";

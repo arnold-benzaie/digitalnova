@@ -1,184 +1,280 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/crm/badges";
 import { InviteUserForm } from "@/components/admin/invite-user-form";
-import { MemberRoleSelect, RemoveMemberButton, RevokeInvitationButton } from "@/components/admin/user-actions";
+import { ApproveUserModal } from "@/components/admin/approve-user-modal";
+import {
+  ChangeOrganizationSelect,
+  MemberRoleSelect,
+  ReactivateUserButton,
+  RefuseUserButton,
+  RemoveMemberButton,
+  RevokeInvitationButton,
+  SuspendUserButton,
+} from "@/components/admin/user-actions";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Administrateur", staff: "Staff", client: "Client" };
-const ROLE_CLASS: Record<string, string> = {
-  admin: "bg-pm-g-green/10 text-pm-g-green",
-  staff: "bg-pm-or/10 text-pm-or-2",
-  client: "bg-pm-gris-2/60 text-pm-gris",
+const STATUS_TABS = ["pending", "active", "refused", "suspended"] as const;
+type StatusTab = (typeof STATUS_TABS)[number];
+const ROLE_FILTER_OPTIONS = ["client", "staff", "agent", "supervisor", "admin"] as const;
+
+type UserRow = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  clerkUserId: string;
+  status: StatusTab;
+  createdAt: string;
+  lastLoginAt: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  role: string | null;
+  lastModifiedBy: string | null;
+  lastModifiedAt: string | null;
 };
-const STATUS_LABEL = { active: "Actif", pending: "Invitation en attente" } as const;
-const STATUS_CLASS = {
-  active: "bg-pm-g-green/10 text-pm-g-green",
-  pending: "bg-pm-or/10 text-pm-or-2",
-} as const;
-
-type Member = { id: string; email: string; fullName: string | null; role: string; createdAt: string };
 type Invitation = { id: string; email: string; role: string; createdAt: string };
-type Status = keyof typeof STATUS_LABEL;
-type Row =
-  | { kind: "member"; id: string; email: string; fullName: string | null; role: string; createdAt: string }
-  | { kind: "invitation"; id: string; email: string; role: string; createdAt: string };
+
+const STATUS_BADGE_CLASS: Record<StatusTab, string> = {
+  pending: "bg-pm-or/10 text-pm-or-2",
+  active: "bg-pm-g-green/10 text-pm-g-green",
+  refused: "bg-pm-rouge/10 text-pm-rouge",
+  suspended: "bg-pm-gris-2/60 text-pm-gris",
+};
 
 export function UserManagement({
+  locale,
   currentUserId,
   organizationName,
-  members,
+  organizations,
+  status,
+  counts,
+  search,
+  roleFilter,
+  orgFilter,
+  page,
+  totalPages,
+  users,
   invitations,
-  adminCount,
 }: {
+  locale: Locale;
   currentUserId: string;
   organizationName: string;
-  members: Member[];
+  organizations: { id: string; name: string }[];
+  status: StatusTab;
+  counts: Record<StatusTab, number>;
+  search: string;
+  roleFilter: string | null;
+  orgFilter: string | null;
+  page: number;
+  totalPages: number;
+  users: UserRow[];
   invitations: Invitation[];
-  adminCount: number;
 }) {
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "staff" | "client">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
+  const t = dictionaries[locale].adminUsers;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const rows: Row[] = useMemo(
-    () => [
-      ...members.map((m): Row => ({ kind: "member", ...m })),
-      ...invitations.map((i): Row => ({ kind: "invitation", ...i })),
-    ],
-    [members, invitations],
-  );
-
-  const filtered = rows.filter((row) => {
-    const status: Status = row.kind === "member" ? "active" : "pending";
-    if (statusFilter !== "all" && status !== statusFilter) return false;
-    if (roleFilter !== "all" && row.role !== roleFilter) return false;
-    if (search.trim()) {
-      const needle = search.trim().toLowerCase();
-      const haystack = `${row.email} ${row.kind === "member" ? (row.fullName ?? "") : ""}`.toLowerCase();
-      if (!haystack.includes(needle)) return false;
+  function pushParams(next: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(next)) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
     }
-    return true;
-  });
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
-  const staffCount = members.filter((m) => m.role === "staff").length;
+  function onSearchChange(value: string) {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => pushParams({ q: value || null, page: null }), 300);
+  }
 
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Utilisateurs</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            {members.length} membre(s) actif(s) · {organizationName}
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{organizationName}</p>
         </div>
-        <InviteUserForm />
+        <InviteUserForm locale={locale} />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Membres" value={members.length} />
-        <StatCard label="Administrateurs" value={adminCount} />
-        <StatCard label="Staff" value={staffCount} />
-        <StatCard label="Invitations en attente" value={invitations.length} />
+      <div className="mt-6 flex gap-1 border-b border-pm-gris-2" role="tablist">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={status === tab}
+            onClick={() => pushParams({ status: tab, page: null })}
+            className={`rounded-t-lg px-4 py-2.5 text-sm font-medium transition ${
+              status === tab ? "border-b-2 border-pm-noir text-pm-noir" : "text-pm-gris hover:text-pm-noir"
+            }`}
+          >
+            {t.tabs[tab]} <span className="ml-1 text-xs text-pm-gris">({counts[tab]})</span>
+          </button>
+        ))}
       </div>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="w-full sm:max-w-xs">
           <label htmlFor="user-search" className="sr-only">
-            Rechercher un utilisateur
+            {t.searchLabel}
           </label>
           <input
             id="user-search"
             type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par nom ou email…"
+            defaultValue={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={t.searchPlaceholder}
             className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
           />
         </div>
         <div>
           <label htmlFor="role-filter" className="sr-only">
-            Filtrer par rôle
+            {t.filterRoleLabel}
           </label>
           <select
             id="role-filter"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+            value={roleFilter ?? "all"}
+            onChange={(e) => pushParams({ role: e.target.value === "all" ? null : e.target.value, page: null })}
             className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
           >
-            <option value="all">Tous les rôles</option>
-            <option value="admin">Administrateur</option>
-            <option value="staff">Staff</option>
-            <option value="client">Client</option>
+            <option value="all">{t.filterRoleAll}</option>
+            {ROLE_FILTER_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {t.roleLabels[r]}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label htmlFor="status-filter" className="sr-only">
-            Filtrer par statut
+          <label htmlFor="org-filter" className="sr-only">
+            {t.filterOrgLabel}
           </label>
           <select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            id="org-filter"
+            value={orgFilter ?? "all"}
+            onChange={(e) => pushParams({ org: e.target.value === "all" ? null : e.target.value, page: null })}
             className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
           >
-            <option value="all">Tous les statuts</option>
-            <option value="active">Actif</option>
-            <option value="pending">Invitation en attente</option>
+            <option value="all">{t.filterOrgAll}</option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {users.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">Aucun résultat</p>
-          <p className="mt-1 text-sm text-pm-gris">Essayez une autre recherche, ou invitez quelqu&apos;un.</p>
+          <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
+          <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
-                <th className="px-5 py-3">Personne</th>
-                <th className="px-5 py-3">Rôle</th>
-                <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Depuis</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className="px-5 py-3">{t.columns.person}</th>
+                <th className="px-5 py-3">{t.columns.clerkId}</th>
+                <th className="px-5 py-3">{t.columns.createdAt}</th>
+                <th className="px-5 py-3">{t.columns.lastLogin}</th>
+                <th className="px-5 py-3">{t.columns.status}</th>
+                <th className="px-5 py-3">{t.columns.organization}</th>
+                <th className="px-5 py-3">{t.columns.role}</th>
+                <th className="px-5 py-3">{t.columns.lastModifiedBy}</th>
+                <th className="px-5 py-3 text-right">{t.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => {
-                const isSelf = row.kind === "member" && row.id === currentUserId;
-                const isLastAdmin = isSelf && row.role === "admin" && adminCount <= 1;
-                const status: Status = row.kind === "member" ? "active" : "pending";
+              {users.map((row) => {
+                const isSelf = row.id === currentUserId;
+                const displayName = row.fullName ?? ([row.firstName, row.lastName].filter(Boolean).join(" ") || row.email);
                 return (
-                  <tr key={`${row.kind}-${row.id}`} className="border-t border-pm-gris-2 align-top">
+                  <tr key={row.id} className="border-t border-pm-gris-2 align-top">
                     <td className="px-5 py-3">
                       <div className="font-medium text-pm-noir">
-                        {row.kind === "member" ? (row.fullName ?? row.email) : row.email}
-                        {isSelf && <span className="ml-2 text-xs text-pm-gris">(vous)</span>}
+                        {displayName}
+                        {isSelf && <span className="ml-2 text-xs text-pm-gris">{t.youMarker}</span>}
                       </div>
-                      {row.kind === "member" && row.fullName && (
-                        <div className="text-xs text-pm-gris">{row.email}</div>
+                      <div className="text-xs text-pm-gris">{row.email}</div>
+                    </td>
+                    <td className="px-5 py-3 font-mono text-xs text-pm-gris">{row.clerkUserId}</td>
+                    <td className="px-5 py-3 text-pm-gris">{new Date(row.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}</td>
+                    <td className="px-5 py-3 text-pm-gris">
+                      {row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR") : t.never}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge label={t.status[row.status]} className={STATUS_BADGE_CLASS[row.status]} />
+                    </td>
+                    <td className="px-5 py-3 text-pm-gris">{row.organizationName ?? "—"}</td>
+                    <td className="px-5 py-3">
+                      {row.status === "active" && row.role ? (
+                        <MemberRoleSelect userId={row.id} role={row.role} disabled={isSelf && row.role === "admin"} locale={locale} />
+                      ) : row.role ? (
+                        <span className="text-pm-gris">{t.roleLabels[row.role as keyof typeof t.roleLabels] ?? row.role}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-pm-gris">
+                      {row.lastModifiedBy ? (
+                        <>
+                          {row.lastModifiedBy}
+                          <br />
+                          {row.lastModifiedAt && new Date(row.lastModifiedAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}
+                        </>
+                      ) : (
+                        "—"
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      {row.kind === "member" ? (
-                        <MemberRoleSelect userId={row.id} role={row.role} disabled={isLastAdmin} />
-                      ) : (
-                        <Badge label={ROLE_LABEL[row.role] ?? row.role} className={ROLE_CLASS[row.role] ?? ""} />
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge label={STATUS_LABEL[status]} className={STATUS_CLASS[status]} />
-                    </td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(row.createdAt).toLocaleDateString("fr-FR")}</td>
-                    <td className="px-5 py-3 text-right">
-                      {row.kind === "member" ? (
-                        <RemoveMemberButton userId={row.id} disabled={isLastAdmin} />
-                      ) : (
-                        <RevokeInvitationButton id={row.id} />
-                      )}
+                      <div className="flex flex-col items-end gap-1.5">
+                        {row.status === "pending" && (
+                          <>
+                            <ApproveUserModal
+                              userId={row.id}
+                              personLabel={displayName}
+                              organizations={organizations}
+                              locale={locale}
+                              triggerLabel={t.actions.approve}
+                            />
+                            <RefuseUserButton
+                              userId={row.id}
+                              confirmText={t.confirm.refuse}
+                              label={t.actions.refuse}
+                              labelPending="…"
+                              locale={locale}
+                            />
+                          </>
+                        )}
+                        {row.status === "active" && row.organizationId && (
+                          <>
+                            <ChangeOrganizationSelect
+                              userId={row.id}
+                              organizationId={row.organizationId}
+                              organizations={organizations}
+                              placeholder={t.actions.changeOrganization}
+                              locale={locale}
+                            />
+                            <SuspendUserButton userId={row.id} confirmText={t.confirm.suspend} label={t.actions.suspend} labelPending="…" locale={locale} />
+                            <RemoveMemberButton userId={row.id} disabled={isSelf && row.role === "admin"} locale={locale} />
+                          </>
+                        )}
+                        {row.status === "suspended" && (
+                          <ReactivateUserButton userId={row.id} confirmText={t.confirm.reactivate} label={t.actions.reactivate} labelPending="…" locale={locale} />
+                        )}
+                        {row.status === "refused" && <span className="text-xs text-pm-gris">—</span>}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -187,15 +283,49 @@ export function UserManagement({
           </table>
         </div>
       )}
-    </>
-  );
-}
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{label}</div>
-      <div className="mt-2 font-serif text-3xl font-bold text-pm-noir">{value}</div>
-    </div>
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-4">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => pushParams({ page: String(page - 1) })}
+            className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-sm text-pm-noir disabled:opacity-40"
+          >
+            {t.pagination.previous}
+          </button>
+          <span className="text-sm text-pm-gris">{t.pagination.pageOf(page, totalPages)}</span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => pushParams({ page: String(page + 1) })}
+            className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-sm text-pm-noir disabled:opacity-40"
+          >
+            {t.pagination.next}
+          </button>
+        </div>
+      )}
+
+      {status === "pending" && invitations.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-pm-gris">{t.invitationsSentTitle}</h2>
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+            <table className="w-full text-left text-sm">
+              <tbody>
+                {invitations.map((invite) => (
+                  <tr key={invite.id} className="border-t border-pm-gris-2 first:border-t-0">
+                    <td className="px-5 py-3 text-pm-noir">{invite.email}</td>
+                    <td className="px-5 py-3 text-pm-gris">{t.roleLabels[invite.role as keyof typeof t.roleLabels] ?? invite.role}</td>
+                    <td className="px-5 py-3 text-right">
+                      <RevokeInvitationButton id={invite.id} locale={locale} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

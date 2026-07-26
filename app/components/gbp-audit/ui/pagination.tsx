@@ -1,17 +1,22 @@
 import Link from "next/link";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export function Pagination({
   page,
   totalPages,
   buildHref,
+  locale = "fr",
 }: {
   page: number;
   totalPages: number;
   buildHref: (page: number) => string;
+  locale?: Locale;
 }) {
   if (totalPages <= 1) return null;
+  const t = dictionaries[locale].auditModule.ui.pagination;
   return (
-    <div className="mt-4 flex items-center justify-between text-sm" role="navigation" aria-label="Pagination">
+    <div className="mt-4 flex items-center justify-between text-sm" role="navigation" aria-label={t.label}>
       <Link
         href={buildHref(page - 1)}
         aria-disabled={page <= 1}
@@ -20,10 +25,10 @@ export function Pagination({
           page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
         }`}
       >
-        ← Précédent
+        {t.previous}
       </Link>
       <span className="text-pm-gris" aria-current="page">
-        Page {page} / {totalPages}
+        {t.pageOf(page, totalPages)}
       </span>
       <Link
         href={buildHref(page + 1)}
@@ -33,7 +38,7 @@ export function Pagination({
           page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
         }`}
       >
-        Suivant →
+        {t.next}
       </Link>
     </div>
   );

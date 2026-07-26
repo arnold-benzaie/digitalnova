@@ -74,8 +74,8 @@ export async function POST(request: Request) {
       await notify({
         organizationId: org.id,
         type: `fastspring.${event.type}`,
-        title: "Mise à jour de facturation",
-        body: event.type,
+        metadata: {},
+        rawBody: event.type,
       });
     }
   }

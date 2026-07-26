@@ -3,23 +3,29 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { completeOnboarding } from "@/lib/actions/onboarding";
-import { ONBOARDING_QUESTIONS } from "@/lib/onboarding-questions";
+import { getOnboardingQuestions } from "@/lib/onboarding-questions";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export function OnboardingWizard({
   initialAnswers,
   onComplete,
+  locale = "fr",
 }: {
   initialAnswers?: Record<string, string>;
   onComplete?: () => void;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].dashboard.onboarding;
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers ?? {});
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const question = ONBOARDING_QUESTIONS[step];
-  const isLast = step === ONBOARDING_QUESTIONS.length - 1;
+  const questions = getOnboardingQuestions(locale);
+  const question = questions[step];
+  const isLast = step === questions.length - 1;
   const currentValue = answers[question.key] ?? "";
 
   function setValue(value: string) {
@@ -28,7 +34,7 @@ export function OnboardingWizard({
 
   function goNext() {
     if (!currentValue.trim()) {
-      setError("Merci de répondre avant de continuer.");
+      setError(t.requiredError);
       return;
     }
     setError(null);
@@ -51,14 +57,12 @@ export function OnboardingWizard({
   return (
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-6">
       <div className="flex items-center justify-between text-xs text-pm-gris">
-        <span>
-          Question {step + 1} / {ONBOARDING_QUESTIONS.length}
-        </span>
+        <span>{t.questionOf(step + 1, questions.length)}</span>
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-pm-gris-2/50">
         <div
           className="h-full rounded-full bg-pm-noir transition-all"
-          style={{ width: `${((step + 1) / ONBOARDING_QUESTIONS.length) * 100}%` }}
+          style={{ width: `${((step + 1) / questions.length) * 100}%` }}
         />
       </div>
 
@@ -108,7 +112,7 @@ export function OnboardingWizard({
           disabled={step === 0 || isPending}
           className="text-sm text-pm-gris underline disabled:opacity-0"
         >
-          Précédent
+          {dictionaries[locale].common.previous}
         </button>
         <button
           type="button"
@@ -116,7 +120,7 @@ export function OnboardingWizard({
           disabled={isPending}
           className="rounded-lg bg-pm-noir px-5 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
-          {isPending ? "Analyse en cours..." : isLast ? "Terminer" : "Suivant"}
+          {isPending ? t.analyzing : isLast ? t.finish : dictionaries[locale].common.next}
         </button>
       </div>
     </div>

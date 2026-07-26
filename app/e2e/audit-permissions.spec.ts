@@ -16,11 +16,14 @@ import { auditStaffMemberships, auditStaffRoles, auditStaffUsers } from "../db/a
  * audit-module-coverage.spec.ts.)
  */
 const ADMIN_ONLY_PATHS = ["/admin/audit/offres", "/admin/audit/equipe", "/admin/audit/parametres"];
-const CLERK_USER_ID = "user_3GVa84nBjinLnBEr6veCyFzEUsE"; // contact@public-map.com
+// Looked up by email, not a hardcoded Clerk user id — see
+// e2e/access-pending.spec.ts's header comment for why a hardcoded id goes
+// stale the moment the Clerk instance changes.
+const ADMIN_EMAIL = "contact@public-map.com";
 
 async function setRole(roleName: "admin" | "staff" | "supervisor") {
-  const [staffUser] = await auditDb.select().from(auditStaffUsers).where(eq(auditStaffUsers.clerkUserId, CLERK_USER_ID)).limit(1);
-  if (!staffUser) throw new Error(`audit_staff_users introuvable pour ${CLERK_USER_ID} — lancer e2e/auth-setup.mjs puis scripts/audit-bootstrap-first-admin.mjs d'abord.`);
+  const [staffUser] = await auditDb.select().from(auditStaffUsers).where(eq(auditStaffUsers.email, ADMIN_EMAIL)).limit(1);
+  if (!staffUser) throw new Error(`audit_staff_users introuvable pour ${ADMIN_EMAIL} — lancer e2e/auth-setup.mjs puis scripts/audit-bootstrap-first-admin.mjs d'abord.`);
   const [role] = await auditDb.select().from(auditStaffRoles).where(eq(auditStaffRoles.name, roleName)).limit(1);
   if (!role) throw new Error(`Rôle "${roleName}" introuvable dans audit_staff_roles.`);
   await auditDb.update(auditStaffMemberships).set({ roleId: role.id }).where(eq(auditStaffMemberships.userId, staffUser.id));

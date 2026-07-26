@@ -18,6 +18,26 @@ import { checkRateLimit, clientIpFromHeaders } from "@/lib/gbp-audit/rate-limit"
 import { notifyAuditRoles } from "@/lib/gbp-audit/notify";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
 import { logAuditActivity } from "@/lib/gbp-audit/activity";
+import type { Locale } from "@/lib/i18n/dictionaries";
+
+const MESSAGES = {
+  fr: {
+    invalidLink: "Ce lien n'est pas valide.",
+    lockedLink: "Ce lien est verrouillé.",
+    revokedLink: "Ce lien a été désactivé.",
+    expiredLink: "Ce lien a expiré.",
+    auditNotFound: "Cet audit est introuvable.",
+    tooManyRequests: "Trop de demandes envoyées. Réessayez plus tard.",
+  },
+  en: {
+    invalidLink: "This link is not valid.",
+    lockedLink: "This link is locked.",
+    revokedLink: "This link has been deactivated.",
+    expiredLink: "This link has expired.",
+    auditNotFound: "This audit could not be found.",
+    tooManyRequests: "Too many requests sent. Please try again later.",
+  },
+} as const;
 
 /**
  * PUBLIC — no Clerk session, no audit staff role. This is the ONLY
@@ -95,19 +115,19 @@ export async function resolveReportByToken(token: string) {
  * or observed any audit's id (e.g. from an admin URL) could have filed a
  * quote request against it with no token at all.
  */
-async function resolveAuditIdFromToken(token: string): Promise<string> {
+async function resolveAuditIdFromToken(token: string, locale: Locale): Promise<string> {
   const [link] = await auditDb.select().from(gbpReportAccessLinks).where(eq(gbpReportAccessLinks.token, token)).limit(1);
-  if (!link) throw new Error("Ce lien n'est pas valide.");
-  if (link.failedAttempts >= link.maxAttempts) throw new Error("Ce lien est verrouillé.");
-  if (link.revokedAt) throw new Error("Ce lien a été désactivé.");
-  if (link.expiresAt && link.expiresAt.getTime() < Date.now()) throw new Error("Ce lien a expiré.");
+  if (!link) throw new Error(MESSAGES[locale].invalidLink);
+  if (link.failedAttempts >= link.maxAttempts) throw new Error(MESSAGES[locale].lockedLink);
+  if (link.revokedAt) throw new Error(MESSAGES[locale].revokedLink);
+  if (link.expiresAt && link.expiresAt.getTime() < Date.now()) throw new Error(MESSAGES[locale].expiredLink);
 
   const [report] = await auditDb.select({ auditId: gbpAuditReports.auditId }).from(gbpAuditReports).where(eq(gbpAuditReports.id, link.reportId)).limit(1);
-  if (!report) throw new Error("Cet audit est introuvable.");
+  if (!report) throw new Error(MESSAGES[locale].auditNotFound);
   return report.auditId;
 }
 
-export async function submitPortalQuoteRequest(token: string, serviceOfferId: string | null, message: string) {
+export async function submitPortalQuoteRequest(token: string, serviceOfferId: string | null, message: string, locale: Locale = "fr") {
   const hdrs = await headers();
   const ip = clientIpFromHeaders(hdrs);
 
@@ -116,9 +136,9 @@ export async function submitPortalQuoteRequest(token: string, serviceOfferId: st
   // itself is admin-configurable (Paramètres → Sécurité).
   const settings = await getAuditSettings();
   const rate = await checkRateLimit("portal_quote_request", ip, settings.rateLimitQuoteRequestsPerHour, 3600);
-  if (!rate.allowed) throw new Error("Trop de demandes envoyées. Réessayez plus tard.");
+  if (!rate.allowed) throw new Error(MESSAGES[locale].tooManyRequests);
 
-  const auditId = await resolveAuditIdFromToken(token);
+  const auditId = await resolveAuditIdFromToken(token, locale);
 
   const [businessRow] = await auditDb
     .select({ legalName: auditBusinesses.legalName, prospectId: gbpAudits.prospectId })
@@ -126,7 +146,7 @@ export async function submitPortalQuoteRequest(token: string, serviceOfferId: st
     .innerJoin(auditBusinesses, eq(gbpAudits.businessId, auditBusinesses.id))
     .where(eq(gbpAudits.id, auditId))
     .limit(1);
-  if (!businessRow) throw new Error("Cet audit est introuvable.");
+  if (!businessRow) throw new Error(MESSAGES[locale].auditNotFound);
 
   const [quote] = await auditDb.insert(gbpQuoteRequests).values({ auditId, serviceOfferId, message: message || null }).returning();
   await dispatchAuditWebhookEvent("gbp_audit.quote_requested", { auditId, quoteId: quote.id });

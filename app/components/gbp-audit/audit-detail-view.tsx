@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { GBP_AUDIT_STATUS_LABEL, SUBSCORE_LABEL, scoreBand } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel, getSubscoreLabel, scoreBand, SUBSCORE_LABEL } from "@/lib/gbp-audit/checklist";
 import { AuditStatusControl } from "@/components/gbp-audit/audit-status-control";
 import { ProfileStatusControl } from "@/components/gbp-audit/profile-status-control";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export type AuditDetailBusiness = {
   id: string;
@@ -64,64 +66,69 @@ export function AuditDetailView({
   audit,
   business,
   prospect,
+  locale = "fr",
 }: {
   audit: AuditDetailAudit;
   business: AuditDetailBusiness;
   prospect: AuditDetailProspect;
+  locale?: Locale;
 }) {
-  const band = audit.scoreOverall !== null ? scoreBand(audit.scoreOverall) : null;
+  const t = dictionaries[locale].auditModule.overview;
+  const statusLabel = getAuditStatusLabel(locale);
+  const subscoreLabel = getSubscoreLabel(locale);
+  const band = audit.scoreOverall !== null ? scoreBand(audit.scoreOverall, locale) : null;
 
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">Audit Google Business Profile</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.kicker}</p>
           <h1 className="mt-1 font-serif text-3xl font-semibold text-pm-noir">{business.legalName}</h1>
           <p className="mt-1 text-sm text-pm-gris">
-            {prospect.firstName} {prospect.lastName} · {prospect.email ?? "email non renseigné"}
+            {prospect.firstName} {prospect.lastName} · {prospect.email ?? t.emailMissing}
           </p>
         </div>
-        <AuditStatusControl auditId={audit.id} status={audit.status} />
+        <AuditStatusControl auditId={audit.id} status={audit.status} locale={locale} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Entreprise</h2>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.businessTitle}</h2>
           <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-            <Field label="Nom affiché sur Google" value={business.googleDisplayName} />
-            <Field label="Secteur" value={business.industry} />
-            <Field label="Catégorie principale" value={business.primaryCategory} />
+            <Field label={t.businessFields.googleDisplayName} value={business.googleDisplayName} />
+            <Field label={t.businessFields.industry} value={business.industry} />
+            <Field label={t.businessFields.primaryCategory} value={business.primaryCategory} />
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">Statut du profil</dt>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.businessFields.profileStatus}</dt>
               <dd className="mt-0.5">
-                <ProfileStatusControl auditId={audit.id} businessId={business.id} status={business.profileStatus} />
+                <ProfileStatusControl auditId={audit.id} businessId={business.id} status={business.profileStatus} locale={locale} />
               </dd>
             </div>
-            <Field label="Adresse" value={business.address} />
-            <Field label="Zone desservie" value={business.serviceArea} />
-            <Field label="Ville" value={business.city} />
-            <Field label="Pays" value={business.country} />
-            <Field label="Téléphone" value={business.phone} />
-            <Field label="Site web" value={business.websiteUrl} />
-            <Field label="Profil Google" value={business.googleProfileUrl} />
-            <Field label="Google Maps" value={business.googleMapsUrl} />
-            <Field label="Points de vente" value={String(business.locationCount)} />
+            <Field label={t.businessFields.address} value={business.address} />
+            <Field label={t.businessFields.serviceArea} value={business.serviceArea} />
+            <Field label={t.businessFields.city} value={business.city} />
+            <Field label={t.businessFields.country} value={business.country} />
+            <Field label={t.businessFields.phone} value={business.phone} />
+            <Field label={t.businessFields.websiteUrl} value={business.websiteUrl} />
+            <Field label={t.businessFields.googleProfileUrl} value={business.googleProfileUrl} />
+            <Field label={t.businessFields.googleMapsUrl} value={business.googleMapsUrl} />
+            <Field label={t.businessFields.locationCount} value={String(business.locationCount)} />
           </dl>
         </div>
 
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Prospect</h2>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.prospectTitle}</h2>
           <dl className="mt-4 flex flex-col gap-3 text-sm">
-            <Field label="Téléphone" value={prospect.phone} />
-            <Field label="WhatsApp" value={prospect.whatsapp} />
-            <Field label="Langue" value={prospect.preferredLanguage === "en" ? "Anglais" : "Français"} />
-            <Field label="Pays" value={prospect.country} />
-            <Field label="Source" value={prospect.source} />
-            <Field label="Agent responsable" value={audit.assignedAgentName} />
+            <Field label={t.prospectFields.phone} value={prospect.phone} />
+            <Field label={t.prospectFields.whatsapp} value={prospect.whatsapp} />
+            <Field label={t.prospectFields.language} value={prospect.preferredLanguage === "en" ? t.languageEn : t.languageFr} />
+            <Field label={t.prospectFields.country} value={prospect.country} />
+            <Field label={t.prospectFields.source} value={prospect.source} />
+            <Field label={t.prospectFields.ownerName} value={audit.assignedAgentName} />
           </dl>
           {prospect.notes && (
             <>
-              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-pm-gris">Notes internes</p>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.internalNotes}</p>
               <p className="mt-1 text-sm text-pm-noir">{prospect.notes}</p>
             </>
           )}
@@ -130,27 +137,25 @@ export function AuditDetailView({
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Score global</h2>
-          <span className="text-xs text-pm-gris">Statut : {GBP_AUDIT_STATUS_LABEL[audit.status] ?? "Audit"}</span>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.globalScore}</h2>
+          <span className="text-xs text-pm-gris">{t.statusPrefix}{statusLabel[audit.status] ?? t.statusFallback}</span>
         </div>
         {audit.scoreOverall === null ? (
-          <p className="mt-2 text-lg font-medium text-pm-gris">Pas encore calculé</p>
+          <p className="mt-2 text-lg font-medium text-pm-gris">{t.scoreNotComputed}</p>
         ) : (
           <>
             <p className="mt-2 text-3xl font-semibold text-pm-noir">{audit.scoreOverall} / 100</p>
             {band && <p className="mt-1 text-sm font-medium text-pm-noir">{band.label} — {band.description}</p>}
           </>
         )}
-        <p className="mt-1 text-xs text-pm-gris">
-          Indicateur interne d&rsquo;audit PUBLIC-MAP — pas une note officielle de Google.
-        </p>
+        <p className="mt-1 text-xs text-pm-gris">{t.scoreDisclaimer}</p>
 
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {(Object.keys(SUBSCORE_LABEL) as (keyof typeof SUBSCORE_LABEL)[]).map((key) => {
             const value = audit[SUBSCORE_FIELD_MAP[key]] as number | null;
             return (
               <div key={key}>
-                <p className="text-xs text-pm-gris">{SUBSCORE_LABEL[key]}</p>
+                <p className="text-xs text-pm-gris">{subscoreLabel[key]}</p>
                 <p className="mt-0.5 text-lg font-semibold text-pm-noir">{value ?? "—"}</p>
               </div>
             );
@@ -160,14 +165,14 @@ export function AuditDetailView({
 
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-5">
         <div>
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Contrôles d&rsquo;audit</h2>
-          <p className="mt-1 text-sm text-pm-gris">19 catégories, préuves et recommandations par contrôle.</p>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.controlsTitle}</h2>
+          <p className="mt-1 text-sm text-pm-gris">{t.controlsLead}</p>
         </div>
         <Link
           href={`/admin/audit/${audit.id}/audit`}
           className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
         >
-          Ouvrir les contrôles
+          {t.openControls}
         </Link>
       </div>
     </>

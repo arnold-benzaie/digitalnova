@@ -1,9 +1,10 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { formatMoney } from "@/lib/crm-billing";
+import { APP_NAME } from "@/lib/brand";
+import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
 
-const PM_ROUGE = "#d52b1e";
 const PM_NOIR = "#080808";
 const PM_GRIS = "#6b6b6b";
 const PM_GRIS_2 = "#e2ddd8";
@@ -11,8 +12,7 @@ const PM_GRIS_2 = "#e2ddd8";
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: PM_NOIR, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
-  brand: { fontSize: 18, fontWeight: 700 },
-  brandAccent: { color: PM_ROUGE },
+  logo: { width: 100, height: 35 },
   docType: { fontSize: 14, fontWeight: 700, textAlign: "right" },
   docNumber: { fontSize: 10, color: PM_GRIS, textAlign: "right", marginTop: 2 },
   statusBadge: { fontSize: 8, color: PM_GRIS, textAlign: "right", marginTop: 4, textTransform: "uppercase" },
@@ -72,9 +72,7 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.brand}>
-            Public<Text style={styles.brandAccent}>Maps</Text>
-          </Text>
+          <Image src={BRAND_LOGO_DATA_URI} style={styles.logo} />
           <View>
             <Text style={styles.docType}>{docLabel}</Text>
             <Text style={styles.docNumber}>{data.number}</Text>
@@ -139,8 +137,8 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
 
         <Text style={styles.footer}>
           {docLabel === "DEVIS"
-            ? "Ce devis est généré automatiquement depuis le CRM Public Maps."
-            : "Cette facture est générée automatiquement depuis le CRM Public Maps."}
+            ? `Ce devis est généré automatiquement depuis le CRM ${APP_NAME}.`
+            : `Cette facture est générée automatiquement depuis le CRM ${APP_NAME}.`}
         </Text>
       </Page>
     </Document>

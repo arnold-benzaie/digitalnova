@@ -1,8 +1,9 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
+import { APP_NAME } from "@/lib/brand";
+import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
 
-const PM_ROUGE = "#d52b1e";
 const PM_NOIR = "#080808";
 const PM_GRIS = "#6b6b6b";
 const PM_GRIS_2 = "#e2ddd8";
@@ -10,8 +11,8 @@ const PM_GRIS_2 = "#e2ddd8";
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 9, color: PM_NOIR, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  brand: { fontSize: 16, fontWeight: 700 },
-  brandAccent: { color: PM_ROUGE },
+  logo: { width: 90, height: 31 },
+  brandSuffix: { fontSize: 12, fontWeight: 700, color: PM_NOIR },
   meta: { fontSize: 8, color: PM_GRIS, textAlign: "right" },
   table: { display: "flex", width: "100%", borderWidth: 1, borderColor: PM_GRIS_2 },
   row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: PM_GRIS_2 },
@@ -51,9 +52,10 @@ export function CrmClientsReportDocument({
     <Document>
       <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.brand}>
-            Public<Text style={styles.brandAccent}>Maps</Text> — Clients CRM
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Image src={BRAND_LOGO_DATA_URI} style={styles.logo} />
+            <Text style={styles.brandSuffix}>— Clients CRM</Text>
+          </View>
           <Text style={styles.meta}>
             {rows.length} client(s){"\n"}
             {generatedAt.toLocaleDateString("fr-FR")} {generatedAt.toLocaleTimeString("fr-FR")}
@@ -86,7 +88,7 @@ export function CrmClientsReportDocument({
           ))}
         </View>
 
-        <Text style={styles.footer}>Export généré automatiquement depuis le CRM Public Maps.</Text>
+        <Text style={styles.footer}>Export généré automatiquement depuis le CRM {APP_NAME}.</Text>
       </Page>
     </Document>
   );

@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { updateAuditStatus } from "@/lib/actions/gbp-audit";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
 import { Select } from "@/components/gbp-audit/ui/field";
 import { Badge } from "@/components/crm/badges";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 // Only these two are freely settable from here — see the matching guard in
 // lib/actions/gbp-audit.ts. Every other status change goes through the
@@ -14,22 +16,24 @@ import { toast } from "@/components/gbp-audit/ui/toast";
 // approval metadata this dropdown must never bypass.
 const FREE_STATUS_VALUES = ["not_started", "in_progress"];
 
-export function AuditStatusControl({ auditId, status }: { auditId: string; status: string }) {
+export function AuditStatusControl({ auditId, status, locale = "fr" }: { auditId: string; status: string; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.statusControl;
+  const statusLabel = getAuditStatusLabel(locale);
   const [current, setCurrent] = useState(status);
   const [isPending, startTransition] = useTransition();
 
   if (!FREE_STATUS_VALUES.includes(current)) {
     return (
       <div className="flex items-center gap-2">
-        <Badge label={GBP_AUDIT_STATUS_LABEL[current] ?? current} className="bg-pm-gris-2/60 text-pm-gris" />
-        <span className="text-xs text-pm-gris">Géré depuis l&rsquo;onglet Rapport</span>
+        <Badge label={statusLabel[current] ?? current} className="bg-pm-gris-2/60 text-pm-gris" />
+        <span className="text-xs text-pm-gris">{t.managedFromReportTab}</span>
       </div>
     );
   }
 
   return (
     <Select
-      aria-label="Statut de l'audit"
+      aria-label={t.ariaLabel}
       value={current}
       disabled={isPending}
       onChange={(e) => {
@@ -38,9 +42,9 @@ export function AuditStatusControl({ auditId, status }: { auditId: string; statu
           try {
             await updateAuditStatus(auditId, next);
             setCurrent(next);
-            toast.success(`Statut mis à jour : ${GBP_AUDIT_STATUS_LABEL[next]}`);
+            toast.success(t.updated(statusLabel[next]));
           } catch (err) {
-            toast.error("Impossible de changer le statut", err instanceof Error ? err.message : undefined);
+            toast.error(t.updateError, err instanceof Error ? err.message : undefined);
           }
         });
       }}
@@ -48,7 +52,7 @@ export function AuditStatusControl({ auditId, status }: { auditId: string; statu
     >
       {FREE_STATUS_VALUES.map((value) => (
         <option key={value} value={value}>
-          {GBP_AUDIT_STATUS_LABEL[value]}
+          {statusLabel[value]}
         </option>
       ))}
     </Select>

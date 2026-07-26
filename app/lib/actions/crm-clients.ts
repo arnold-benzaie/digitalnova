@@ -14,13 +14,20 @@ import {
 } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { nameRequired: "Le nom du client est requis.", invalidStage: "Étape invalide.", clientNotFound: "Client introuvable." },
+  en: { nameRequired: "Client name is required.", invalidStage: "Invalid stage.", clientNotFound: "Client not found." },
+} as const;
 
 const STAGES = ["lead", "prospect", "client", "churned"] as const;
 
 export async function createClient(formData: FormData) {
+  const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
-    throw new Error("Le nom du client est requis.");
+    throw new Error(MESSAGES[locale].nameRequired);
   }
 
   const stageValue = formData.get("stage");
@@ -57,8 +64,9 @@ export async function createClient(formData: FormData) {
 }
 
 export async function updateClientStage(id: string, stage: string) {
+  const locale = await getLocale();
   if (!STAGES.includes(stage as (typeof STAGES)[number])) {
-    throw new Error("Étape invalide.");
+    throw new Error(MESSAGES[locale].invalidStage);
   }
 
   await db.update(crmClients).set({ stage }).where(eq(crmClients.id, id));
@@ -78,9 +86,10 @@ export async function updateClientStage(id: string, stage: string) {
 
 /** Full edit — everything createClient can set, except stage (see ClientStageSelect). */
 export async function updateClient(id: string, formData: FormData) {
+  const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
-    throw new Error("Le nom du client est requis.");
+    throw new Error(MESSAGES[locale].nameRequired);
   }
 
   const [client] = await db
@@ -97,7 +106,7 @@ export async function updateClient(id: string, formData: FormData) {
     })
     .where(eq(crmClients.id, id))
     .returning();
-  if (!client) throw new Error("Client introuvable.");
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
 
   await logCrmAudit({
     action: "crm.client_updated",
@@ -121,12 +130,13 @@ export async function updateClient(id: string, formData: FormData) {
  * Reversible via unarchiveClient, unlike deleteClient.
  */
 export async function archiveClient(id: string) {
+  const locale = await getLocale();
   const [client] = await db
     .update(crmClients)
     .set({ archivedAt: new Date() })
     .where(eq(crmClients.id, id))
     .returning();
-  if (!client) throw new Error("Client introuvable.");
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
 
   await logCrmAudit({
     action: "crm.client_archived",
@@ -143,12 +153,13 @@ export async function archiveClient(id: string) {
 }
 
 export async function unarchiveClient(id: string) {
+  const locale = await getLocale();
   const [client] = await db
     .update(crmClients)
     .set({ archivedAt: null })
     .where(eq(crmClients.id, id))
     .returning();
-  if (!client) throw new Error("Client introuvable.");
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
 
   await logCrmAudit({
     action: "crm.client_unarchived",

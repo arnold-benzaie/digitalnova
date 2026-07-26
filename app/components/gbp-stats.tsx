@@ -1,16 +1,20 @@
 import type { GbpMetricTotals } from "@/lib/gbp/stats";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatNumber } from "@/lib/i18n/format";
 
-export function GbpStats({ stats }: { stats: GbpMetricTotals }) {
+export function GbpStats({ stats, locale = "fr" }: { stats: GbpMetricTotals; locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.googleIntegration.stats;
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-      <StatCard label="Vues (30j)" value={stats.views.toLocaleString("fr-FR")} />
-      <StatCard label="Appels (30j)" value={stats.calls.toLocaleString("fr-FR")} />
-      <StatCard label="Itinéraires (30j)" value={stats.directionRequests.toLocaleString("fr-FR")} />
-      <StatCard label="Clics site (30j)" value={stats.websiteClicks.toLocaleString("fr-FR")} />
+      <StatCard label={t.views} value={formatNumber(stats.views, locale)} />
+      <StatCard label={t.calls} value={formatNumber(stats.calls, locale)} />
+      <StatCard label={t.directions} value={formatNumber(stats.directionRequests, locale)} />
+      <StatCard label={t.websiteClicks} value={formatNumber(stats.websiteClicks, locale)} />
       <StatCard
-        label="Note moyenne"
+        label={t.averageRating}
         value={stats.averageRating !== null ? `${stats.averageRating.toFixed(1)} ★` : "—"}
-        sub={`${stats.reviewCount} avis`}
+        sub={dictionaries[locale].dashboard.home.reviewsCount(stats.reviewCount)}
       />
     </div>
   );

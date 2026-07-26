@@ -8,9 +8,15 @@ import { getAIProvider } from "@/lib/ai";
 import { logAudit } from "@/lib/audit";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { notify } from "@/lib/notifications";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { noLocationConnected: "Aucun établissement connecté — connectez Google Business Profile d'abord." },
+  en: { noLocationConnected: "No location connected — connect Google Business Profile first." },
+} as const;
 
 export async function runAudit() {
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
 
   const orgLocations = await db
     .select()
@@ -18,7 +24,7 @@ export async function runAudit() {
     .where(eq(locations.organizationId, org.id));
 
   if (orgLocations.length === 0) {
-    throw new Error("Aucun établissement connecté — connectez Google Business Profile d'abord.");
+    throw new Error(MESSAGES[locale].noLocationConnected);
   }
 
   const since = new Date();
@@ -99,8 +105,8 @@ export async function runAudit() {
   await notify({
     organizationId: org.id,
     type: "audit.generated",
-    title: `Audit terminé — score ${result.score}/100`,
-    body: result.summary,
+    metadata: { score: result.score },
+    rawBody: result.summary,
   });
 
   revalidatePath("/dashboard");

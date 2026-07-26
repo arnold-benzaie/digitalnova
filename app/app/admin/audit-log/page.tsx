@@ -2,8 +2,11 @@ import { and, desc, ilike, inArray, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { auditLog, crmClients, users } from "@/db/schema";
-import { AUDIT_CATEGORY_LABEL, categoryOf, clientIdOf, describeAuditEntry } from "@/lib/audit-labels";
+import { getAuditCategoryLabel, categoryOf, clientIdOf, describeAuditEntry } from "@/lib/audit-labels";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const PAGE_SIZE = 30;
 
@@ -20,10 +23,12 @@ function buildHref(params: Params, overrides: Partial<Record<keyof Params, strin
 
 export default async function AuditLogPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.auditLog;
+  const categoryLabel = getAuditCategoryLabel(locale);
 
   const q = params.q?.trim() ?? "";
-  const category = params.category && params.category in AUDIT_CATEGORY_LABEL ? params.category : "";
+  const category = params.category && params.category in categoryLabel ? params.category : "";
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
   const conditions = [];
@@ -67,26 +72,23 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Journal d&apos;audit</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {totalCount} entrée(s){hasFilters ? ` sur ${overallCount} au total` : ""} — chaque action significative de
-        l&apos;application (CRM, utilisateurs, facturation, GBP, documents...) est enregistrée ici.
-      </p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.countSummary(totalCount, overallCount, hasFilters)}</p>
 
       <form action="/admin/audit-log" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">
-          Rechercher dans le journal
+          {t.searchLabel}
         </label>
         <input
           id="q"
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par action ou cible…"
+          placeholder={t.searchPlaceholder}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
         <label htmlFor="category" className="sr-only">
-          Filtrer par catégorie
+          {t.categoryFilterLabel}
         </label>
         <select
           id="category"
@@ -94,8 +96,8 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
           defaultValue={category}
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
-          <option value="">Toutes les catégories</option>
-          {Object.entries(AUDIT_CATEGORY_LABEL).map(([value, label]) => (
+          <option value="">{t.allCategories}</option>
+          {Object.entries(categoryLabel).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
@@ -105,11 +107,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
           type="submit"
           className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
         >
-          Filtrer
+          {t.filter}
         </button>
         {hasFilters && (
           <a href="/admin/audit-log" className="text-xs text-pm-gris underline">
-            Réinitialiser
+            {t.reset}
           </a>
         )}
       </form>
@@ -117,12 +119,10 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
       {entries.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucune entrée pour le moment" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
           <p className="mt-1 text-sm text-pm-gris">
-            {overallCount === 0
-              ? "Le journal se remplira dès que des actions réelles seront enregistrées."
-              : "Essayez une autre recherche, ou réinitialisez les filtres."}
+            {overallCount === 0 ? t.emptyNoneDescription : t.emptyFilteredDescription}
           </p>
         </div>
       ) : (
@@ -131,11 +131,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
             <table className="w-full text-left text-sm">
               <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                 <tr>
-                  <th className="px-5 py-3">Catégorie</th>
-                  <th className="px-5 py-3">Action</th>
-                  <th className="px-5 py-3">Client</th>
-                  <th className="px-5 py-3">Par</th>
-                  <th className="px-5 py-3">Date</th>
+                  <th className="px-5 py-3">{t.columns.category}</th>
+                  <th className="px-5 py-3">{t.columns.action}</th>
+                  <th className="px-5 py-3">{t.columns.client}</th>
+                  <th className="px-5 py-3">{t.columns.by}</th>
+                  <th className="px-5 py-3">{t.columns.date}</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,10 +145,10 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
                     <tr key={entry.id} className="border-t border-pm-gris-2">
                       <td className="px-5 py-3">
                         <span className="inline-block rounded-full bg-pm-gris-2/60 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-pm-gris">
-                          {AUDIT_CATEGORY_LABEL[categoryOf(entry.action)] ?? categoryOf(entry.action)}
+                          {categoryLabel[categoryOf(entry.action)] ?? categoryOf(entry.action)}
                         </span>
                       </td>
-                      <td className="px-5 py-3 font-medium text-pm-noir">{describeAuditEntry(entry)}</td>
+                      <td className="px-5 py-3 font-medium text-pm-noir">{describeAuditEntry(entry, locale)}</td>
                       <td className="px-5 py-3 text-pm-gris">
                         {clientId ? (
                           <Link href={`/admin/crm/clients/${clientId}`} className="hover:underline">
@@ -159,9 +159,9 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
                         )}
                       </td>
                       <td className="px-5 py-3 text-pm-gris">
-                        {entry.actorUserId ? (actorNameById.get(entry.actorUserId) ?? "utilisateur inconnu") : "système"}
+                        {entry.actorUserId ? (actorNameById.get(entry.actorUserId) ?? t.unknownUser) : t.system}
                       </td>
-                      <td className="px-5 py-3 text-pm-gris">{new Date(entry.createdAt).toLocaleString("fr-FR")}</td>
+                      <td className="px-5 py-3 text-pm-gris">{formatDateTime(entry.createdAt, locale)}</td>
                     </tr>
                   );
                 })}
@@ -177,18 +177,16 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
                   page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
                 }`}
               >
-                Précédent
+                {t.previous}
               </a>
-              <span className="text-pm-gris">
-                Page {page} / {totalPages}
-              </span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <a
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${
                   page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
                 }`}
               >
-                Suivant
+                {t.next}
               </a>
             </div>
           )}

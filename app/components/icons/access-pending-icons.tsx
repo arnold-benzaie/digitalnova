@@ -38,6 +38,26 @@ export function MailIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Circle + cross: "this request was not accepted." Decorative by default. */
+export function AccessRefusedIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true" {...props}>
+      <circle cx="28" cy="28" r="18" stroke="currentColor" strokeWidth="1.5" />
+      <path d="m22 22 12 12M34 22 22 34" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Circle + pause bars: "access is on hold." Decorative by default. */
+export function AccessSuspendedIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true" {...props}>
+      <circle cx="28" cy="28" r="18" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M24 21v14M32 21v14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ExternalLinkIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>

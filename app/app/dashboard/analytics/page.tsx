@@ -8,6 +8,8 @@ import { computeAnalyticsStats } from "@/lib/analytics/stats";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection, isGoogleOAuthConfigured } from "@/lib/google/oauth";
 import { GoogleOAuthBanner } from "@/components/google-oauth-banner";
 import { GoogleConnectionStatus } from "@/components/google-connection-status";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function AnalyticsPage({
   searchParams,
@@ -15,7 +17,8 @@ export default async function AnalyticsPage({
   searchParams: Promise<{ google?: string; reason?: string }>;
 }) {
   const { google, reason } = await searchParams;
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
+  const t = dictionaries[locale].dashboard.googleIntegration.analytics;
 
   const googleAccount = await getGoogleConnection(org.id);
   const hasAnalytics = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.analytics));
@@ -23,18 +26,19 @@ export default async function AnalyticsPage({
   if (!googleAccount || !hasAnalytics) {
     return (
       <div className="rounded-2xl border border-pm-gris-2 bg-white p-8">
-        <GoogleOAuthBanner flag={google} reason={reason} />
+        <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
         {isGoogleOAuthConfigured() && (
           <GoogleConnectionStatus
             organizationId={org.id}
             reconnectHref={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/analytics`}
+            locale={locale}
           />
         )}
-        <p className="font-serif text-xl font-semibold text-pm-noir">Connecter Google Analytics</p>
+        <p className="font-serif text-xl font-semibold text-pm-noir">{t.connectTitle}</p>
         <p className="mt-2 text-sm text-pm-gris">
           {isGoogleOAuthConfigured()
-            ? "Connectez votre compte Google pour récupérer vos propriétés GA4 et leurs statistiques réelles."
-            : "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ne sont pas configurés dans .env.local — demandez à un administrateur de les renseigner avant de pouvoir connecter un compte Google."}
+            ? t.connectDescriptionConfigured
+            : dictionaries[locale].dashboard.googleIntegration.notConfigured}
         </p>
         {isGoogleOAuthConfigured() && (
           <div className="mt-4">
@@ -42,7 +46,7 @@ export default async function AnalyticsPage({
               href={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/analytics`}
               className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
             >
-              Connecter un compte Google
+              {t.connectButton}
             </a>
           </div>
         )}
@@ -66,32 +70,27 @@ export default async function AnalyticsPage({
 
   return (
     <>
-      <GoogleOAuthBanner flag={google} reason={reason} />
+      <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
       <GoogleConnectionStatus
         organizationId={org.id}
         reconnectHref={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/analytics`}
+        locale={locale}
       />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Google Analytics</h1>
-          <p className="mt-1 text-sm text-pm-gris">Connecté en tant que {googleAccount.googleAccountEmail}.</p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.connectedAs(googleAccount.googleAccountEmail)}</p>
         </div>
-        <SyncAnalyticsButton />
+        <SyncAnalyticsButton locale={locale} />
       </div>
 
       <div className="mt-6">
-        <AnalyticsStats stats={stats} />
+        <AnalyticsStats stats={stats} locale={locale} />
       </div>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Propriétés GA4</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.propertiesTitle}</h2>
       {orgProperties.length === 0 ? (
-        <p className="mt-3 text-sm text-pm-gris">
-          Aucune propriété GA4 trouvée pour ce compte Google. Vérifiez l&apos;accès dans{" "}
-          <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="underline">
-            Google Analytics
-          </a>
-          , puis synchronisez.
-        </p>
+        <p className="mt-3 text-sm text-pm-gris">{t.noProperties}</p>
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {orgProperties.map((property) => (

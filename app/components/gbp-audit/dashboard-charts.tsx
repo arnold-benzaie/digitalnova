@@ -15,6 +15,8 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 const PM_NOIR = "#080808";
 const PM_ROUGE = "#d52b1e";
@@ -26,21 +28,23 @@ const TOOLTIP_STYLE = {
   cursor: { fill: "rgba(8,8,8,0.04)" },
 };
 
-export function AuditsOverTimeChart({ data }: { data: { date: string; count: number }[] }) {
+export function AuditsOverTimeChart({ data, locale = "fr" }: { data: { date: string; count: number }[]; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.dashboard;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2ddd8" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#6b6b6b" />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#6b6b6b" />
-        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} formatter={(value) => [String(value), "Audits créés"]} />
-        <Line type="monotone" dataKey="count" stroke={PM_NOIR} strokeWidth={2} dot={{ r: 3 }} name="Audits créés" />
+        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} formatter={(value) => [String(value), t.auditsCreatedSeries]} />
+        <Line type="monotone" dataKey="count" stroke={PM_NOIR} strokeWidth={2} dot={{ r: 3 }} name={t.auditsCreatedSeries} />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
-export function FindingsBySeverityChart({ data }: { data: { severity: string; label: string; count: number }[] }) {
+export function FindingsBySeverityChart({ data, locale = "fr" }: { data: { severity: string; label: string; count: number }[]; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.dashboard;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <PieChart>
@@ -50,21 +54,22 @@ export function FindingsBySeverityChart({ data }: { data: { severity: string; la
           ))}
         </Pie>
         <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} formatter={(value) => [String(value), "Anomalies"]} />
+        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} formatter={(value) => [String(value), t.findingsSeries]} />
       </PieChart>
     </ResponsiveContainer>
   );
 }
 
-export function StatusDistributionChart({ data }: { data: { status: string; count: number }[] }) {
+export function StatusDistributionChart({ data, locale = "fr" }: { data: { status: string; count: number }[]; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.dashboard;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2ddd8" />
         <XAxis dataKey="status" tick={{ fontSize: 10 }} stroke="#6b6b6b" interval={0} angle={-15} textAnchor="end" height={50} />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#6b6b6b" />
-        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} cursor={TOOLTIP_STYLE.cursor} formatter={(value) => [String(value), "Audits"]} />
-        <Bar dataKey="count" fill={PM_ROUGE} radius={[4, 4, 0, 0]} name="Audits" />
+        <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} cursor={TOOLTIP_STYLE.cursor} formatter={(value) => [String(value), t.auditsSeries]} />
+        <Bar dataKey="count" fill={PM_ROUGE} radius={[4, 4, 0, 0]} name={t.auditsSeries} />
       </BarChart>
     </ResponsiveContainer>
   );

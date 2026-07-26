@@ -6,10 +6,14 @@ import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AuditChecklistView } from "@/components/gbp-audit/audit-checklist-view";
 import { AuditTabs } from "@/components/gbp-audit/audit-tabs";
 import type { FindingState } from "@/components/gbp-audit/finding-row";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function AuditChecklistPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.checklist;
 
   // Both only depend on the route param, not on each other — fetch in parallel.
   const [[audit], findings] = await Promise.all([
@@ -54,10 +58,10 @@ export default async function AuditChecklistPage({ params }: { params: Promise<{
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Contrôle des 19 catégories Google Business Profile.</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
       </div>
-      <AuditTabs auditId={id} active="audit" />
-      <AuditChecklistView auditId={id} findingsBySection={findingsBySection} />
+      <AuditTabs auditId={id} active="audit" locale={locale} />
+      <AuditChecklistView auditId={id} findingsBySection={findingsBySection} locale={locale} />
     </>
   );
 }

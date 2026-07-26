@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate as formatDateIntl, formatNumber } from "@/lib/i18n/format";
 
 const WIDTH = 640;
 const HEIGHT = 220;
@@ -16,11 +19,9 @@ function niceMax(value: number): number {
   return step * magnitude;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-}
-
-export function TrendChart({ data, label }: { data: { date: string; value: number }[]; label: string }) {
+export function TrendChart({ data, label, locale }: { data: { date: string; value: number }[]; label: string; locale: Locale }) {
+  const t = dictionaries[locale].dashboard.chart;
+  const formatDate = (iso: string) => formatDateIntl(iso, locale, { day: "numeric", month: "short" });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const { path, points, yTicks, maxValue } = useMemo(() => {
@@ -72,7 +73,7 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
         width="100%"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${label} — évolution sur les 30 derniers jours`}
+        aria-label={t.evolutionAriaLabel(label)}
         className="mt-3 touch-none"
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoverIndex(null)}
@@ -88,7 +89,7 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
               strokeWidth={1}
             />
             <text x={PADDING.left - 8} y={tick.y} textAnchor="end" dominantBaseline="middle" className="fill-pm-gris text-[10px]">
-              {tick.value.toLocaleString("fr-FR")}
+              {formatNumber(tick.value, locale)}
             </text>
           </g>
         ))}
@@ -111,7 +112,7 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
               textAnchor="end"
               className="fill-pm-noir text-[11px] font-medium"
             >
-              {points[points.length - 1].value.toLocaleString("fr-FR")}
+              {formatNumber(points[points.length - 1].value, locale)}
             </text>
           </>
         )}
@@ -135,19 +136,19 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
       {hovered ? (
         <p className="mt-1 text-xs text-pm-gris">
           {formatDate(hovered.date)} ·{" "}
-          <span className="font-medium text-pm-noir">{hovered.value.toLocaleString("fr-FR")}</span>
+          <span className="font-medium text-pm-noir">{formatNumber(hovered.value, locale)}</span>
         </p>
       ) : (
-        <p className="mt-1 text-xs text-pm-gris">Survolez le graphique pour le détail par jour.</p>
+        <p className="mt-1 text-xs text-pm-gris">{t.hoverHint}</p>
       )}
 
       <details className="mt-3">
-        <summary className="cursor-pointer text-xs text-pm-gris hover:text-pm-noir">Voir en tableau</summary>
+        <summary className="cursor-pointer text-xs text-pm-gris hover:text-pm-noir">{t.viewAsTable}</summary>
         <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-pm-gris-2">
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 bg-pm-gris-2/30 text-pm-gris">
               <tr>
-                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">{t.dateColumn}</th>
                 <th className="px-3 py-2">{label}</th>
               </tr>
             </thead>
@@ -155,7 +156,7 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
               {data.map((d) => (
                 <tr key={d.date} className="border-t border-pm-gris-2">
                   <td className="px-3 py-1.5 text-pm-gris">{formatDate(d.date)}</td>
-                  <td className="px-3 py-1.5 text-pm-noir">{d.value.toLocaleString("fr-FR")}</td>
+                  <td className="px-3 py-1.5 text-pm-noir">{formatNumber(d.value, locale)}</td>
                 </tr>
               ))}
             </tbody>
@@ -163,7 +164,7 @@ export function TrendChart({ data, label }: { data: { date: string; value: numbe
         </div>
       </details>
 
-      <p className="sr-only">Valeur maximale affichée : {maxValue}.</p>
+      <p className="sr-only">{t.maxValueSr(maxValue)}</p>
     </div>
   );
 }

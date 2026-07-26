@@ -19,7 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { localeFromAcceptLanguage } from "./locale.ts";
 import { isLocale } from "./shared.ts";
-import { dictionaries, LOCALES } from "./dictionaries.ts";
+import { dictionaries, LOCALES } from "./dictionaries/index.ts";
 
 test("localeFromAcceptLanguage: picks English for an en-* primary tag", () => {
   assert.equal(localeFromAcceptLanguage("en-US,en;q=0.9,fr;q=0.8"), "en");
@@ -67,6 +67,52 @@ test("dictionaries: fr and en expose the exact same keys (no string added to one
       `mismatched keys in dictionaries.*.${section}`,
     );
   }
+});
+
+// Plain objects only (not functions, not the interpolated-string return
+// value of a function) get walked all the way down, so a key nested five
+// levels deep (e.g. dashboard.googleIntegration.gbp.connectTitle) is just
+// as covered as a top-level one — the shallow check above only compared
+// one level, which would have silently missed a mismatch inside e.g.
+// dashboard.googleIntegration.stats.
+function deepKeys(value, path = "") {
+  if (value === null || typeof value !== "object") return [];
+  let keys = [];
+  for (const key of Object.keys(value)) {
+    const nextPath = path ? `${path}.${key}` : key;
+    keys.push(nextPath);
+    keys = keys.concat(deepKeys(value[key], nextPath));
+  }
+  return keys;
+}
+
+test("dictionaries: fr and en expose the exact same keys at every nesting depth", () => {
+  const fr = deepKeys(dictionaries.fr).sort();
+  const en = deepKeys(dictionaries.en).sort();
+  assert.deepEqual(fr, en);
+});
+
+test("dictionaries: every leaf is a non-empty string, a finite number, or a function (no accidental undefined/null left behind)", () => {
+  function walk(value, path) {
+    if (typeof value === "function") return;
+    if (typeof value === "string") {
+      assert.ok(value.length > 0, `empty string at ${path}`);
+      return;
+    }
+    // A handful of domains mix small structured data (e.g. a phase number,
+    // an id) alongside translatable text in the same object/array — numbers
+    // are legitimate leaves there, not a sign of a forgotten translation.
+    if (typeof value === "number") {
+      assert.ok(Number.isFinite(value), `non-finite number at ${path}`);
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      for (const key of Object.keys(value)) walk(value[key], `${path}.${key}`);
+      return;
+    }
+    assert.fail(`unexpected leaf type at ${path}: ${typeof value}`);
+  }
+  for (const locale of LOCALES) walk(dictionaries[locale], `dictionaries.${locale}`);
 });
 
 test("dictionaries: welcomeTitle/contact/backToSite/supportLabel interpolate the app name in both languages", () => {

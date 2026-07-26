@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import type { AuditListRow } from "@/components/gbp-audit/audit-dashboard-view";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
   not_started: "bg-pm-gris-2/60 text-pm-gris",
@@ -18,7 +21,9 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 
 /** The whole row navigates to the audit on click; the action menu button
  * stops propagation so it doesn't also trigger that navigation. */
-export function AuditRow({ audit }: { audit: AuditListRow }) {
+export function AuditRow({ audit, locale = "fr" }: { audit: AuditListRow; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule;
+  const statusLabel = getAuditStatusLabel(locale);
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -58,17 +63,17 @@ export function AuditRow({ audit }: { audit: AuditListRow }) {
       </td>
       <td className="px-5 py-3">
         <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[audit.status] ?? "bg-pm-gris-2/60 text-pm-gris"}`}>
-          {GBP_AUDIT_STATUS_LABEL[audit.status] ?? "Audit"}
+          {statusLabel[audit.status] ?? t.commandPalette.audit}
         </span>
       </td>
       <td className="px-5 py-3 text-pm-gris tabular-nums">{audit.scoreOverall ?? "—"}</td>
       <td className="px-5 py-3 text-pm-gris">{audit.assignedAgentName ?? "—"}</td>
-      <td className="px-5 py-3 text-pm-gris">{new Date(audit.createdAt).toLocaleDateString("fr-FR")}</td>
+      <td className="px-5 py-3 text-pm-gris">{formatDate(audit.createdAt, locale)}</td>
       <td className="px-5 py-3 text-right">
         <div className="relative inline-block" ref={menuRef}>
           <button
             type="button"
-            aria-label="Actions"
+            aria-label={t.list.columns.actions}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={(e) => {
@@ -88,13 +93,13 @@ export function AuditRow({ audit }: { audit: AuditListRow }) {
               className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-lg border border-pm-gris-2 bg-white py-1 shadow-lg"
             >
               <Link role="menuitem" href={`/admin/audit/${audit.id}`} className="flex items-center gap-2 px-3 py-2 text-sm text-pm-noir hover:bg-pm-gris-2/40">
-                <NAV_ICONS.userCircle width={14} height={14} /> Voir la fiche
+                <NAV_ICONS.userCircle width={14} height={14} /> {t.list.rowMenu.view}
               </Link>
               <Link role="menuitem" href={`/admin/audit/${audit.id}/rapport`} className="flex items-center gap-2 px-3 py-2 text-sm text-pm-noir hover:bg-pm-gris-2/40">
-                <NAV_ICONS.fileText width={14} height={14} /> Rapport
+                <NAV_ICONS.fileText width={14} height={14} /> {t.list.rowMenu.report}
               </Link>
               <Link role="menuitem" href={`/admin/audit/${audit.id}/timeline`} className="flex items-center gap-2 px-3 py-2 text-sm text-pm-noir hover:bg-pm-gris-2/40">
-                <NAV_ICONS.history width={14} height={14} /> Historique
+                <NAV_ICONS.history width={14} height={14} /> {t.list.rowMenu.history}
               </Link>
             </div>
           )}

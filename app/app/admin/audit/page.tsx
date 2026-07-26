@@ -14,9 +14,12 @@ import {
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { buildAuditsOverTimeSeries, daysAgo, DASHBOARD_PERIOD_OPTIONS, isDashboardPeriodDays, type DashboardPeriodDays } from "@/lib/gbp-audit/dashboard-stats";
 import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart } from "@/components/gbp-audit/dashboard-charts";
-import { GBP_AUDIT_STATUS_LABEL, GBP_SEVERITY_LABEL } from "@/lib/gbp-audit/checklist";
-import { ACTIVITY_ACTION_LABEL } from "@/lib/gbp-audit/activity-labels";
+import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
+import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const KPI_ICON = {
   prospects: "userCircle",
@@ -31,6 +34,11 @@ const KPI_ICON = {
 
 export default async function GbpAuditDashboardPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
   const session = await requireAuditStaffRole();
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.dashboard;
+  const statusLabel = getAuditStatusLabel(locale);
+  const severityLabel = getSeverityLabel(locale);
+  const activityLabel = getActivityActionLabel(locale);
   const { days: daysParam } = await searchParams;
   const days: DashboardPeriodDays = isDashboardPeriodDays(Number(daysParam)) ? (Number(daysParam) as DashboardPeriodDays) : 14;
 
@@ -56,14 +64,14 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
   ]);
 
   const kpis = [
-    { label: "Prospects", value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects },
-    { label: "Audits à démarrer", value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted },
-    { label: "Audits en cours", value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress },
-    { label: "En attente de validation", value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview },
-    { label: "Rapports envoyés", value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent },
-    { label: "Demandes de devis", value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes },
-    { label: "Invitations en attente", value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations },
-    { label: "Notifications non lues", value: unreadNotifications, href: "/admin/audit/notifications", icon: KPI_ICON.notifications },
+    { label: t.kpis.prospects, value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects },
+    { label: t.kpis.notStarted, value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted },
+    { label: t.kpis.inProgress, value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress },
+    { label: t.kpis.pendingReview, value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview },
+    { label: t.kpis.sent, value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent },
+    { label: t.kpis.quotes, value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes },
+    { label: t.kpis.invitations, value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations },
+    { label: t.kpis.notifications, value: unreadNotifications, href: "/admin/audit/notifications", icon: KPI_ICON.notifications },
   ];
 
   // Audits created per day, over the selected period.
@@ -81,14 +89,14 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     severityCounts.set(f.severity, (severityCounts.get(f.severity) ?? 0) + 1);
   }
   const findingsBySeverity = (["critical", "important", "moderate", "opportunity"] as const)
-    .map((severity) => ({ severity, label: GBP_SEVERITY_LABEL[severity], count: severityCounts.get(severity) ?? 0 }))
+    .map((severity) => ({ severity, label: severityLabel[severity], count: severityCounts.get(severity) ?? 0 }))
     .filter((s) => s.count > 0);
 
   // Status distribution across all audits.
   const allAudits = await auditDb.select({ status: gbpAudits.status }).from(gbpAudits);
   const statusCounts = new Map<string, number>();
   for (const a of allAudits) statusCounts.set(a.status, (statusCounts.get(a.status) ?? 0) + 1);
-  const statusDistribution = Object.entries(GBP_AUDIT_STATUS_LABEL).map(([status, label]) => ({ status: label, count: statusCounts.get(status) ?? 0 }));
+  const statusDistribution = Object.entries(statusLabel).map(([status, label]) => ({ status: label, count: statusCounts.get(status) ?? 0 }));
 
   // Recent activity feed.
   const recentActivity = await auditDb.select().from(auditActivityLog).orderBy(desc(auditActivityLog.createdAt)).limit(10);
@@ -105,23 +113,21 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Tableau de bord</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            Bonjour {session.fullName ?? session.email}, bienvenue dans votre centre d&rsquo;audit Google Business Profile.
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{dictionaries[locale].navigation.items.dashboard}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.greeting(session.fullName ?? session.email)}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Link
             href="/admin/audit/liste"
             className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition-colors hover:bg-pm-gris-2/30"
           >
-            Voir tous les audits
+            {t.viewAllAudits}
           </Link>
           <Link
             href="/admin/audit/nouveau"
             className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pm-noir-2"
           >
-            + Nouvel audit
+            {t.newAudit}
           </Link>
         </div>
       </div>
@@ -151,7 +157,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-serif text-base font-semibold text-pm-noir">Évolution des audits ({days} derniers jours)</h2>
+            <h2 className="font-serif text-base font-semibold text-pm-noir">{t.auditsOverTime(days)}</h2>
             <div className="flex gap-1 rounded-lg bg-pm-gris-2/30 p-1">
               {DASHBOARD_PERIOD_OPTIONS.map((option) => (
                 <Link
@@ -161,43 +167,43 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
                     days === option ? "bg-white text-pm-noir shadow-sm" : "text-pm-gris hover:text-pm-noir"
                   }`}
                 >
-                  {option}j
+                  {option}{t.periodSuffix}
                 </Link>
               ))}
             </div>
           </div>
-          <AuditsOverTimeChart data={auditsOverTime} />
+          <AuditsOverTimeChart data={auditsOverTime} locale={locale} />
         </div>
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">Anomalies les plus fréquentes</h2>
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.topFindings}</h2>
           {findingsBySeverity.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">Aucune anomalie enregistrée.</p>
+            <p className="mt-4 text-sm text-pm-gris">{t.noFindings}</p>
           ) : (
-            <FindingsBySeverityChart data={findingsBySeverity} />
+            <FindingsBySeverityChart data={findingsBySeverity} locale={locale} />
           )}
         </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">Répartition par statut</h2>
-          <StatusDistributionChart data={statusDistribution} />
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.statusDistribution}</h2>
+          <StatusDistributionChart data={statusDistribution} locale={locale} />
         </div>
 
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">Tâches prioritaires</h2>
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.priorityTasks}</h2>
           {priorityTasks.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">Aucune tâche en attente.</p>
+            <p className="mt-4 text-sm text-pm-gris">{t.noPriorityTasks}</p>
           ) : (
             <ul className="mt-3 flex flex-col gap-2">
-              {priorityTasks.map((t) => (
-                <li key={t.id} className="rounded-lg border border-pm-gris-2 px-3 py-2 transition-colors hover:bg-pm-gris-2/20">
-                  <Link href={`/admin/audit/${t.auditId}/plan-correction`} className="text-sm font-medium text-pm-noir hover:underline">
-                    {t.title}
+              {priorityTasks.map((task) => (
+                <li key={task.id} className="rounded-lg border border-pm-gris-2 px-3 py-2 transition-colors hover:bg-pm-gris-2/20">
+                  <Link href={`/admin/audit/${task.auditId}/plan-correction`} className="text-sm font-medium text-pm-noir hover:underline">
+                    {task.title}
                   </Link>
                   <p className="mt-0.5 text-xs text-pm-gris">
-                    {GBP_SEVERITY_LABEL[t.priority as keyof typeof GBP_SEVERITY_LABEL] ?? "Priorité"}
-                    {t.ownerName ? ` · ${t.ownerName}` : ""}
+                    {severityLabel[task.priority as keyof typeof severityLabel] ?? t.priorityFallback}
+                    {task.ownerName ? ` · ${task.ownerName}` : ""}
                   </p>
                 </li>
               ))}
@@ -206,15 +212,15 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
         </div>
 
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">Activité récente</h2>
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.recentActivity}</h2>
           {recentActivity.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">Aucune activité pour le moment.</p>
+            <p className="mt-4 text-sm text-pm-gris">{t.noActivity}</p>
           ) : (
             <ul className="mt-3 flex flex-col gap-2">
               {recentActivity.map((a) => (
                 <li key={a.id} className="text-xs text-pm-gris">
-                  <span className="font-medium text-pm-noir">{ACTIVITY_ACTION_LABEL[a.action] ?? "Action système"}</span>
-                  <span className="ml-1">{new Date(a.createdAt).toLocaleString("fr-FR")}</span>
+                  <span className="font-medium text-pm-noir">{activityLabel[a.action] ?? t.activityFallback}</span>
+                  <span className="ml-1">{formatDateTime(a.createdAt, locale)}</span>
                 </li>
               ))}
             </ul>

@@ -1,8 +1,9 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
+import { APP_NAME } from "@/lib/brand";
+import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
 
-const PM_ROUGE = "#d52b1e";
 const PM_NOIR = "#080808";
 const PM_GRIS = "#6b6b6b";
 const PM_GRIS_2 = "#e2ddd8";
@@ -10,8 +11,7 @@ const PM_GRIS_2 = "#e2ddd8";
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 11, color: PM_NOIR, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
-  brand: { fontSize: 18, fontWeight: 700 },
-  brandAccent: { color: PM_ROUGE },
+  logo: { width: 100, height: 35 },
   meta: { fontSize: 9, color: PM_GRIS, textAlign: "right" },
   scoreBlock: {
     borderWidth: 1,
@@ -54,9 +54,7 @@ export function AuditReportDocument({ data }: { data: AuditReportData }): ReactE
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.brand}>
-            Public<Text style={styles.brandAccent}>Maps</Text>
-          </Text>
+          <Image src={BRAND_LOGO_DATA_URI} style={styles.logo} />
           <Text style={styles.meta}>
             Rapport d&apos;audit — {data.organizationName}
             {"\n"}
@@ -85,7 +83,7 @@ export function AuditReportDocument({ data }: { data: AuditReportData }): ReactE
         ))}
 
         <Text style={styles.footer}>
-          Données simulées — généré automatiquement par Public Maps. Rapport basé sur un fournisseur IA mock en
+          Données simulées — généré automatiquement par {APP_NAME}. Rapport basé sur un fournisseur IA mock en
           attendant une clé Anthropic réelle.
         </Text>
       </Page>

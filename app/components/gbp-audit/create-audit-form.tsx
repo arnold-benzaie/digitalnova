@@ -3,12 +3,16 @@
 import { useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { createProspectBusinessAndAudit } from "@/lib/actions/gbp-audit";
-import { GBP_PROFILE_STATUS_OPTIONS } from "@/lib/gbp-audit/checklist";
+import { getProfileStatusOptions } from "@/lib/gbp-audit/checklist";
 import { Field, Input, Select, Textarea } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-export function CreateAuditForm() {
+export function CreateAuditForm({ locale = "fr" }: { locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.createAudit;
+  const profileStatusOptions = getProfileStatusOptions(locale);
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -27,104 +31,104 @@ export function CreateAuditForm() {
             // docs: "Only use ... if your caught exceptions may include both
             // application errors and framework-controlled exceptions."
             unstable_rethrow(err);
-            toast.error("Impossible de créer l'audit", err instanceof Error ? err.message : undefined);
+            toast.error(t.createError, err instanceof Error ? err.message : undefined);
           }
         })
       }
     >
       <fieldset className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">Prospect</legend>
+        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">{t.prospectLegend}</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Prénom" required htmlFor="firstName">
+          <Field label={t.fields.firstName} required htmlFor="firstName">
             <Input id="firstName" name="firstName" required />
           </Field>
-          <Field label="Nom" required htmlFor="lastName">
+          <Field label={t.fields.lastName} required htmlFor="lastName">
             <Input id="lastName" name="lastName" required />
           </Field>
-          <Field label="Email" htmlFor="email">
+          <Field label={t.fields.email} htmlFor="email">
             <Input id="email" name="email" type="email" />
           </Field>
-          <Field label="Téléphone" htmlFor="phone">
+          <Field label={t.fields.phone} htmlFor="phone">
             <Input id="phone" name="phone" />
           </Field>
-          <Field label="Numéro WhatsApp" htmlFor="whatsapp">
+          <Field label={t.fields.whatsapp} htmlFor="whatsapp">
             <Input id="whatsapp" name="whatsapp" />
           </Field>
-          <Field label="Langue préférée" htmlFor="preferredLanguage">
+          <Field label={t.fields.preferredLanguage} htmlFor="preferredLanguage">
             <Select id="preferredLanguage" name="preferredLanguage" defaultValue="fr">
-              <option value="fr">Français</option>
-              <option value="en">Anglais</option>
+              <option value="fr">{t.fields.languageFr}</option>
+              <option value="en">{t.fields.languageEn}</option>
             </Select>
           </Field>
-          <Field label="Pays" htmlFor="prospectCountry">
+          <Field label={t.fields.prospectCountry} htmlFor="prospectCountry">
             <Input id="prospectCountry" name="prospectCountry" />
           </Field>
-          <Field label="Fuseau horaire" hint="ex. Indian/Mauritius" htmlFor="timezone">
+          <Field label={t.fields.timezone} hint={t.fields.timezoneHint} htmlFor="timezone">
             <Input id="timezone" name="timezone" />
           </Field>
-          <Field label="Source" hint="site web, recommandation..." htmlFor="source">
+          <Field label={t.fields.source} hint={t.fields.sourceHint} htmlFor="source">
             <Input id="source" name="source" />
           </Field>
-          <Field label="Agent responsable" htmlFor="ownerName">
+          <Field label={t.fields.ownerName} htmlFor="ownerName">
             <Input id="ownerName" name="ownerName" />
           </Field>
-          <Field label="Notes internes" className="sm:col-span-2" htmlFor="notes">
+          <Field label={t.fields.notes} className="sm:col-span-2" htmlFor="notes">
             <Textarea id="notes" name="notes" rows={2} />
           </Field>
         </div>
       </fieldset>
 
       <fieldset className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">Entreprise</legend>
+        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">{t.businessLegend}</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Nom officiel de l'entreprise" required htmlFor="legalName">
+          <Field label={t.fields.legalName} required htmlFor="legalName">
             <Input id="legalName" name="legalName" required />
           </Field>
-          <Field label="Nom affiché sur Google" htmlFor="googleDisplayName">
+          <Field label={t.fields.googleDisplayName} htmlFor="googleDisplayName">
             <Input id="googleDisplayName" name="googleDisplayName" />
           </Field>
-          <Field label="Secteur d'activité" htmlFor="industry">
+          <Field label={t.fields.industry} htmlFor="industry">
             <Input id="industry" name="industry" />
           </Field>
-          <Field label="Catégorie principale" htmlFor="primaryCategory">
+          <Field label={t.fields.primaryCategory} htmlFor="primaryCategory">
             <Input id="primaryCategory" name="primaryCategory" />
           </Field>
-          <Field label="Adresse" className="sm:col-span-2" htmlFor="address">
+          <Field label={t.fields.address} className="sm:col-span-2" htmlFor="address">
             <Input id="address" name="address" />
           </Field>
-          <Field label="Zone desservie" htmlFor="serviceArea">
+          <Field label={t.fields.serviceArea} htmlFor="serviceArea">
             <Input id="serviceArea" name="serviceArea" />
           </Field>
-          <Field label="Ville" htmlFor="city">
+          <Field label={t.fields.city} htmlFor="city">
             <Input id="city" name="city" />
           </Field>
-          <Field label="Région" htmlFor="region">
+          <Field label={t.fields.region} htmlFor="region">
             <Input id="region" name="region" />
           </Field>
-          <Field label="Pays" htmlFor="businessCountry">
+          <Field label={t.fields.businessCountry} htmlFor="businessCountry">
             <Input id="businessCountry" name="businessCountry" />
           </Field>
-          <Field label="Téléphone de l'entreprise" htmlFor="businessPhone">
+          <Field label={t.fields.businessPhone} htmlFor="businessPhone">
             <Input id="businessPhone" name="businessPhone" />
           </Field>
-          <Field label="Site web" htmlFor="websiteUrl">
+          <Field label={t.fields.websiteUrl} htmlFor="websiteUrl">
             <Input id="websiteUrl" name="websiteUrl" type="url" />
           </Field>
-          <Field label="URL du profil Google" htmlFor="googleProfileUrl">
+          <Field label={t.fields.googleProfileUrl} htmlFor="googleProfileUrl">
             <Input id="googleProfileUrl" name="googleProfileUrl" type="url" />
           </Field>
-          <Field label="URL Google Maps" htmlFor="googleMapsUrl">
+          <Field label={t.fields.googleMapsUrl} htmlFor="googleMapsUrl">
             <Input id="googleMapsUrl" name="googleMapsUrl" type="url" />
           </Field>
-          <Field label="Identifiant de l'établissement" hint="Place ID" htmlFor="googlePlaceId">
+          <Field label={t.fields.googlePlaceId} hint={t.fields.googlePlaceIdHint} htmlFor="googlePlaceId">
             <Input id="googlePlaceId" name="googlePlaceId" />
           </Field>
-          <Field label="Nombre de points de vente" htmlFor="locationCount">
+          <Field label={t.fields.locationCount} htmlFor="locationCount">
             <Input id="locationCount" name="locationCount" type="number" min={1} defaultValue={1} />
           </Field>
-          <Field label="Statut du profil" htmlFor="profileStatus">
+          <Field label={t.fields.profileStatus} htmlFor="profileStatus">
             <Select id="profileStatus" name="profileStatus" defaultValue="unknown">
-              {GBP_PROFILE_STATUS_OPTIONS.map((option) => (
+              {profileStatusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -136,7 +140,7 @@ export function CreateAuditForm() {
 
       <div className="flex items-center gap-3">
         <Button type="submit" loading={isPending}>
-          Créer le prospect et démarrer l&rsquo;audit
+          {t.submit}
         </Button>
       </div>
     </form>

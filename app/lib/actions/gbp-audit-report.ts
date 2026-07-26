@@ -10,6 +10,22 @@ import { requireAuditStaffRole, requireAuditSupervisorRole } from "@/lib/gbp-aud
 import { dispatchAuditWebhookEvent } from "@/lib/gbp-audit/webhooks";
 import { notifyAuditRoles } from "@/lib/gbp-audit/notify";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: {
+    clientSummaryRequired: "Un résumé pour le client est requis avant d'approuver.",
+    changesNoteRequired: "Une note expliquant les corrections attendues est requise.",
+    reportMustBeApproved: "Le rapport doit être approuvé avant de générer un lien.",
+    linkNotFound: "Ce lien est introuvable pour cet audit.",
+  },
+  en: {
+    clientSummaryRequired: "A summary for the client is required before approving.",
+    changesNoteRequired: "A note explaining the expected corrections is required.",
+    reportMustBeApproved: "The report must be approved before generating a link.",
+    linkNotFound: "This link could not be found for this audit.",
+  },
+} as const;
 
 async function businessNameFor(auditId: string): Promise<string | null> {
   const [row] = await auditDb
@@ -44,9 +60,9 @@ export async function submitAuditForReview(auditId: string) {
 
 /** Supervisor/admin only — quality gate before anything reaches a prospect. */
 export async function approveAudit(auditId: string, clientSummary: string) {
-  const session = await requireAuditSupervisorRole();
+  const [session, locale] = await Promise.all([requireAuditSupervisorRole(), getLocale()]);
 
-  if (!clientSummary.trim()) throw new Error("Un résumé pour le client est requis avant d'approuver.");
+  if (!clientSummary.trim()) throw new Error(MESSAGES[locale].clientSummaryRequired);
 
   await auditDb
     .update(gbpAudits)
@@ -78,8 +94,8 @@ export async function approveAudit(auditId: string, clientSummary: string) {
 }
 
 export async function requestAuditChanges(auditId: string, note: string) {
-  await requireAuditSupervisorRole();
-  if (!note.trim()) throw new Error("Une note expliquant les corrections attendues est requise.");
+  const [, locale] = await Promise.all([requireAuditSupervisorRole(), getLocale()]);
+  if (!note.trim()) throw new Error(MESSAGES[locale].changesNoteRequired);
   await auditDb.update(gbpAudits).set({ status: "changes_requested" }).where(eq(gbpAudits.id, auditId));
   await logAuditActivity({ action: "audit_changes_requested", targetType: "gbp_audit", targetId: auditId, metadata: { note } });
 
@@ -99,10 +115,10 @@ export async function requestAuditChanges(auditId: string, note: string) {
 
 /** Creates (or returns the existing active) secure token link for the approved report — this is what gets emailed to the prospect. */
 export async function createOrGetReportAccessLink(auditId: string, expiresInDays: number | null) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const [report] = await auditDb.select().from(gbpAuditReports).where(eq(gbpAuditReports.auditId, auditId)).limit(1);
-  if (!report) throw new Error("Le rapport doit être approuvé avant de générer un lien.");
+  if (!report) throw new Error(MESSAGES[locale].reportMustBeApproved);
 
   const [existing] = await auditDb
     .select()
@@ -129,7 +145,7 @@ export async function createOrGetReportAccessLink(auditId: string, expiresInDays
 }
 
 export async function revokeReportAccessLink(linkId: string, auditId: string) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const [link] = await auditDb
     .select({ id: gbpReportAccessLinks.id })
@@ -137,7 +153,7 @@ export async function revokeReportAccessLink(linkId: string, auditId: string) {
     .innerJoin(gbpAuditReports, eq(gbpReportAccessLinks.reportId, gbpAuditReports.id))
     .where(and(eq(gbpReportAccessLinks.id, linkId), eq(gbpAuditReports.auditId, auditId)))
     .limit(1);
-  if (!link) throw new Error("Ce lien est introuvable pour cet audit.");
+  if (!link) throw new Error(MESSAGES[locale].linkNotFound);
 
   await auditDb.update(gbpReportAccessLinks).set({ revokedAt: new Date() }).where(eq(gbpReportAccessLinks.id, linkId));
   await logAuditActivity({ action: "report_access_link_revoked", targetType: "gbp_report_access_link", targetId: linkId, metadata: { auditId } });

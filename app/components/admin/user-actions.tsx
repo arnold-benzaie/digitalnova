@@ -2,31 +2,44 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { removeMember, revokeInvitation, updateMemberRole } from "@/lib/actions/users";
+import {
+  changeUserOrganization,
+  changeUserRole,
+  reactivateUser,
+  refuseUser,
+  removeMember,
+  revokeInvitation,
+  suspendUser,
+} from "@/lib/actions/users";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
-
-const ROLE_OPTIONS = [
-  { value: "client", label: "Client" },
-  { value: "staff", label: "Staff" },
-  { value: "admin", label: "Administrateur" },
-];
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
 export function MemberRoleSelect({
   userId,
   role,
   disabled,
+  locale = "fr",
 }: {
   userId: string;
   role: string;
   disabled?: boolean;
+  locale?: Locale;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].adminUsers;
+  const ROLE_OPTIONS = [
+    { value: "client", label: t.roleLabels.client },
+    { value: "staff", label: t.roleLabels.staff },
+    { value: "agent", label: t.roleLabels.agent },
+    { value: "supervisor", label: t.roleLabels.supervisor },
+    { value: "admin", label: t.roleLabels.admin },
+  ];
 
   if (disabled) {
     return (
       <span
-        title="Impossible de modifier le dernier administrateur de l'organisation."
+        title={t.memberRoleDisabledTooltip}
         className="inline-block rounded-lg border border-pm-gris-2 bg-pm-gris-2/30 px-3 py-2 text-sm text-pm-gris"
       >
         {ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role}
@@ -41,11 +54,14 @@ export function MemberRoleSelect({
         options={ROLE_OPTIONS}
         action={async (newRole) => {
           setError(null);
+          if (newRole === "admin" && !confirm(t.confirm.adminRole)) {
+            return;
+          }
           try {
-            await updateMemberRole(userId, newRole);
+            await changeUserRole(userId, newRole);
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         }}
         className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir disabled:opacity-50"
@@ -55,18 +71,16 @@ export function MemberRoleSelect({
   );
 }
 
-export function RemoveMemberButton({ userId, disabled }: { userId: string; disabled?: boolean }) {
+export function RemoveMemberButton({ userId, disabled, locale = "fr" }: { userId: string; disabled?: boolean; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].adminUsers.removeMember;
 
   if (disabled) {
     return (
-      <span
-        title="Impossible de retirer le dernier administrateur de l'organisation."
-        className="text-xs text-pm-gris/50"
-      >
-        Retirer l&apos;accès
+      <span title={t.disabledTooltip} className="text-xs text-pm-gris/50">
+        {t.label}
       </span>
     );
   }
@@ -77,27 +91,39 @@ export function RemoveMemberButton({ userId, disabled }: { userId: string; disab
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Retirer l'accès de cette personne à l'organisation ?")) return;
+          if (!confirm(t.confirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await removeMember(userId);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "Retrait..." : "Retirer l'accès"}
+        {isPending ? t.removing : t.label}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>
   );
 }
 
-export function RevokeInvitationButton({ id }: { id: string }) {
+export function RefuseUserButton({
+  userId,
+  confirmText,
+  label,
+  labelPending,
+  locale = "fr",
+}: {
+  userId: string;
+  confirmText: string;
+  label: string;
+  labelPending: string;
+  locale?: Locale;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -108,20 +134,191 @@ export function RevokeInvitationButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Annuler cette invitation ?")) return;
+          if (!confirm(confirmText)) return;
+          setError(null);
+          startTransition(async () => {
+            try {
+              await refuseUser(userId);
+              router.refresh();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
+            }
+          });
+        }}
+        className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
+      >
+        {isPending ? labelPending : label}
+      </button>
+      {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
+    </div>
+  );
+}
+
+export function SuspendUserButton({
+  userId,
+  confirmText,
+  label,
+  labelPending,
+  locale = "fr",
+}: {
+  userId: string;
+  confirmText: string;
+  label: string;
+  labelPending: string;
+  locale?: Locale;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          if (!confirm(confirmText)) return;
+          setError(null);
+          startTransition(async () => {
+            try {
+              await suspendUser(userId);
+              router.refresh();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
+            }
+          });
+        }}
+        className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
+      >
+        {isPending ? labelPending : label}
+      </button>
+      {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
+    </div>
+  );
+}
+
+export function ReactivateUserButton({
+  userId,
+  confirmText,
+  label,
+  labelPending,
+  locale = "fr",
+}: {
+  userId: string;
+  confirmText: string;
+  label: string;
+  labelPending: string;
+  locale?: Locale;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          if (!confirm(confirmText)) return;
+          setError(null);
+          startTransition(async () => {
+            try {
+              await reactivateUser(userId);
+              router.refresh();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
+            }
+          });
+        }}
+        className="text-xs text-pm-gris underline hover:text-pm-noir disabled:opacity-50"
+      >
+        {isPending ? labelPending : label}
+      </button>
+      {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
+    </div>
+  );
+}
+
+export function ChangeOrganizationSelect({
+  userId,
+  organizationId,
+  organizations,
+  placeholder,
+  locale = "fr",
+}: {
+  userId: string;
+  organizationId: string;
+  organizations: { id: string; name: string }[];
+  placeholder: string;
+  locale?: Locale;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <div>
+      <select
+        defaultValue=""
+        disabled={isPending}
+        onChange={(e) => {
+          const newOrganizationId = e.target.value;
+          if (!newOrganizationId) return;
+          setError(null);
+          startTransition(async () => {
+            try {
+              await changeUserOrganization(userId, newOrganizationId);
+              router.refresh();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
+            } finally {
+              e.target.value = "";
+            }
+          });
+        }}
+        className="rounded-lg border border-pm-gris-2 bg-white px-2 py-1.5 text-xs text-pm-noir disabled:opacity-50"
+      >
+        <option value="">{placeholder}</option>
+        {organizations
+          .filter((org) => org.id !== organizationId)
+          .map((org) => (
+            <option key={org.id} value={org.id}>
+              {org.name}
+            </option>
+          ))}
+      </select>
+      {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
+    </div>
+  );
+}
+
+export function RevokeInvitationButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].adminUsers.revokeInvitation;
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          if (!confirm(t.confirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await revokeInvitation(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "Annulation..." : "Annuler l'invitation"}
+        {isPending ? t.revoking : t.label}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

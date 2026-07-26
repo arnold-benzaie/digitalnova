@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Playwright HTML reports — vendored trace-viewer bundles,
+    // never a source of truth (see .gitignore).
+    "e2e/report/**",
+    "e2e-preview/report/**",
   ]),
 ]);
 

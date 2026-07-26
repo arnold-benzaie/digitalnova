@@ -1,12 +1,16 @@
 import type { AnalyticsStatTotals } from "@/lib/analytics/stats";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatNumber } from "@/lib/i18n/format";
 
-export function AnalyticsStats({ stats }: { stats: AnalyticsStatTotals }) {
+export function AnalyticsStats({ stats, locale = "fr" }: { stats: AnalyticsStatTotals; locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.googleIntegration.stats;
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <StatCard label="Sessions (30j)" value={stats.sessions.toLocaleString("fr-FR")} />
-      <StatCard label="Utilisateurs actifs (30j)" value={stats.activeUsers.toLocaleString("fr-FR")} />
-      <StatCard label="Pages vues (30j)" value={stats.pageviews.toLocaleString("fr-FR")} />
-      <StatCard label="Taux de rebond moyen" value={`${(stats.averageBounceRate * 100).toFixed(1)}%`} />
+      <StatCard label={t.sessions} value={formatNumber(stats.sessions, locale)} />
+      <StatCard label={t.activeUsers} value={formatNumber(stats.activeUsers, locale)} />
+      <StatCard label={t.pageviews} value={formatNumber(stats.pageviews, locale)} />
+      <StatCard label={t.averageBounceRate} value={`${(stats.averageBounceRate * 100).toFixed(1)}%`} />
     </div>
   );
 }

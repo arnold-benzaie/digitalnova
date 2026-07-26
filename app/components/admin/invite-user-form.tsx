@@ -3,19 +3,21 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser } from "@/lib/actions/users";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
-const ROLE_OPTIONS = [
-  { value: "client", label: "Client" },
-  { value: "staff", label: "Staff" },
-  { value: "admin", label: "Administrateur" },
-];
-
-export function InviteUserForm() {
+export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].adminUsers;
+  const ti = t.invite;
+  const ROLE_OPTIONS = [
+    { value: "client", label: t.roleLabels.client },
+    { value: "staff", label: t.roleLabels.staff },
+    { value: "admin", label: t.roleLabels.admin },
+  ];
 
   function open() {
     setError(null);
@@ -35,7 +37,7 @@ export function InviteUserForm() {
         onClick={open}
         className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
       >
-        + Inviter un utilisateur
+        {ti.openButton}
       </button>
 
       <dialog
@@ -54,36 +56,33 @@ export function InviteUserForm() {
                 close();
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+                setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
               }
             })
           }
         >
           <div>
-            <h2 className="font-serif text-xl font-semibold text-pm-noir">Inviter un utilisateur</h2>
-            <p className="mt-1 text-sm text-pm-gris">
-              L&apos;accès s&apos;active automatiquement dès que cette personne s&apos;inscrit avec cette adresse
-              e-mail.
-            </p>
+            <h2 className="font-serif text-xl font-semibold text-pm-noir">{ti.title}</h2>
+            <p className="mt-1 text-sm text-pm-gris">{ti.description}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="invite-email" className="text-xs font-medium uppercase tracking-wide text-pm-gris">
-              Adresse e-mail
+              {ti.emailLabel}
             </label>
             <input
               id="invite-email"
               name="email"
               type="email"
               required
-              placeholder="prenom.nom@exemple.fr"
+              placeholder={ti.emailPlaceholder}
               className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="invite-role" className="text-xs font-medium uppercase tracking-wide text-pm-gris">
-              Rôle
+              {ti.roleLabel}
             </label>
             <select
               id="invite-role"
@@ -108,14 +107,14 @@ export function InviteUserForm() {
               disabled={isPending}
               className="rounded-lg px-4 py-2 text-sm font-medium text-pm-gris transition hover:text-pm-noir disabled:opacity-50"
             >
-              Annuler
+              {dictionaries[locale].common.cancel}
             </button>
             <button
               type="submit"
               disabled={isPending}
               className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
             >
-              {isPending ? "Envoi..." : "Envoyer l'invitation"}
+              {isPending ? ti.submitting : ti.submitButton}
             </button>
           </div>
         </form>

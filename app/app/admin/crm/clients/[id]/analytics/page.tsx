@@ -10,6 +10,8 @@ import { GoogleConnectionStatus } from "@/components/google-connection-status";
 import { computeAnalyticsStats } from "@/lib/analytics/stats";
 import { requireStaffRole } from "@/lib/dev-role";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection, isGoogleOAuthConfigured } from "@/lib/google/oauth";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function CrmClientAnalyticsPage({
   params,
@@ -19,15 +21,15 @@ export default async function CrmClientAnalyticsPage({
   searchParams: Promise<{ google?: string; reason?: string }>;
 }) {
   await requireStaffRole();
-  const { id } = await params;
-  const { google, reason } = await searchParams;
+  const [{ id }, { google, reason }, locale] = await Promise.all([params, searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.googleTabs;
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) notFound();
 
   const backLink = (
     <Link href={`/admin/crm/clients/${id}`} className="text-xs text-pm-gris underline">
-      ← Retour à la fiche client
+      {t.backToClient}
     </Link>
   );
 
@@ -36,7 +38,7 @@ export default async function CrmClientAnalyticsPage({
       href={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/analytics`}
       className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
     >
-      Connecter un compte Google
+      {t.connectButton}
     </a>
   ) : null;
 
@@ -48,18 +50,17 @@ export default async function CrmClientAnalyticsPage({
       <>
         {backLink}
         <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
-          <GoogleOAuthBanner flag={google} reason={reason} />
+          <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
           {client.organizationId && isGoogleOAuthConfigured() && (
             <GoogleConnectionStatus
               organizationId={client.organizationId}
               reconnectHref={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/analytics`}
+              locale={locale}
             />
           )}
-          <p className="font-serif text-xl font-semibold text-pm-noir">Connecter Google Analytics pour {client.name}</p>
+          <p className="font-serif text-xl font-semibold text-pm-noir">{t.analytics.connectTitle(client.name)}</p>
           <p className="mt-2 text-sm text-pm-gris">
-            {isGoogleOAuthConfigured()
-              ? "Connectez un compte Google (crée automatiquement l'espace plateforme de ce client si nécessaire) pour récupérer ses propriétés GA4 et statistiques réelles."
-              : "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ne sont pas configurés dans .env.local — demandez à un administrateur de les renseigner avant de pouvoir connecter un compte Google."}
+            {isGoogleOAuthConfigured() ? t.analytics.connectDescription : t.envMissing}
           </p>
           {realConnectLink && <div className="mt-4">{realConnectLink}</div>}
         </div>
@@ -84,24 +85,25 @@ export default async function CrmClientAnalyticsPage({
   return (
     <>
       {backLink}
-      <GoogleOAuthBanner flag={google} reason={reason} />
+      <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
       <GoogleConnectionStatus
         organizationId={client.organizationId}
         reconnectHref={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/analytics`}
+        locale={locale}
       />
       <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Google Analytics — {client.name}</h1>
-          <p className="mt-1 text-sm text-pm-gris">Connecté en tant que {googleAccount.googleAccountEmail}.</p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.analytics.heading(client.name)}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.connectedAs(googleAccount.googleAccountEmail)}</p>
         </div>
-        <SyncAnalyticsForClientButton clientId={id} />
+        <SyncAnalyticsForClientButton clientId={id} locale={locale} />
       </div>
 
       <div className="mt-6">
-        <AnalyticsStats stats={stats} />
+        <AnalyticsStats stats={stats} locale={locale} />
       </div>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Propriétés GA4</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.analytics.propertiesTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {orgProperties.map((property) => (
           <div key={property.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
@@ -109,7 +111,7 @@ export default async function CrmClientAnalyticsPage({
             <p className="mt-1 text-xs uppercase tracking-wide text-pm-gris">{property.propertyResourceName}</p>
           </div>
         ))}
-        {orgProperties.length === 0 && <p className="text-sm text-pm-gris">Aucune propriété GA4.</p>}
+        {orgProperties.length === 0 && <p className="text-sm text-pm-gris">{t.analytics.noProperties}</p>}
       </div>
     </>
   );

@@ -7,11 +7,16 @@ import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AuditTabs } from "@/components/gbp-audit/audit-tabs";
 import { ReportActions } from "@/components/gbp-audit/report-actions";
 import { ReportAccessLinkPanel } from "@/components/gbp-audit/report-access-link-panel";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.report;
+  const statusLabel = getAuditStatusLabel(locale);
 
   // Both only depend on the route param, not on each other — fetch in parallel.
   const [[row], [report]] = await Promise.all([
@@ -41,24 +46,24 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{business.legalName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Statut actuel : {GBP_AUDIT_STATUS_LABEL[audit.status] ?? "Audit"}</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.statusPrefix}{statusLabel[audit.status] ?? t.statusFallback}</p>
       </div>
-      <AuditTabs auditId={id} active="rapport" />
+      <AuditTabs auditId={id} active="rapport" locale={locale} />
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ReportActions auditId={id} status={audit.status} role={session.role} clientSummary={report?.clientSummary ?? ""} />
-        <ReportAccessLinkPanel auditId={id} link={link} viewCount={viewCount} origin={origin} />
+        <ReportActions auditId={id} status={audit.status} role={session.role} clientSummary={report?.clientSummary ?? ""} locale={locale} />
+        <ReportAccessLinkPanel auditId={id} link={link} viewCount={viewCount} origin={origin} locale={locale} />
       </div>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">Aperçu PDF</h2>
-        <p className="mt-1 text-sm text-pm-gris">Version interne (détaillée) et version client (simplifiée).</p>
+        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.pdfPreviewTitle}</h2>
+        <p className="mt-1 text-sm text-pm-gris">{t.pdfPreviewLead}</p>
         <div className="mt-3 flex flex-wrap gap-3">
           <a href={`/api/gbp-audit/${id}/pdf`} target="_blank" rel="noreferrer" className="rounded-lg border border-pm-gris-2 px-4 py-2 text-sm font-medium text-pm-noir hover:bg-pm-gris-2/30">
-            Voir la version interne
+            {t.viewInternal}
           </a>
           <a href={`/api/gbp-audit/${id}/pdf?version=client`} target="_blank" rel="noreferrer" className="rounded-lg border border-pm-gris-2 px-4 py-2 text-sm font-medium text-pm-noir hover:bg-pm-gris-2/30">
-            Voir la version client
+            {t.viewClient}
           </a>
         </div>
       </div>

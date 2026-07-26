@@ -6,6 +6,9 @@ import { createOrGetReportAccessLink, revokeReportAccessLink } from "@/lib/actio
 import { Button } from "@/components/gbp-audit/ui/button";
 import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 export type AccessLink = {
   id: string;
@@ -21,17 +24,20 @@ export function ReportAccessLinkPanel({
   link,
   viewCount,
   origin,
+  locale = "fr",
 }: {
   auditId: string;
   link: AccessLink | null;
   viewCount: number;
   /** Computed server-side (see app/admin/audit/[id]/rapport/page.tsx) — never window.location, that diverges between SSR and hydration. */
   origin: string;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].auditModule.report.accessLink;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
-  const { confirm, dialog } = useConfirmDialog();
+  const { confirm, dialog } = useConfirmDialog(locale);
 
   const active = link && !link.revokedAt;
   const url = active ? `${origin}/audit-report/${link!.token}` : null;
@@ -40,28 +46,28 @@ export function ReportAccessLinkPanel({
     startTransition(async () => {
       try {
         await createOrGetReportAccessLink(auditId, 30);
-        toast.success("Lien sécurisé généré", "Valable 30 jours.");
+        toast.success(t.generated, t.generatedDetail);
         router.refresh();
       } catch (err) {
-        toast.error("Impossible de générer le lien", err instanceof Error ? err.message : undefined);
+        toast.error(t.generateError, err instanceof Error ? err.message : undefined);
       }
     });
   }
 
   async function revoke() {
     const ok = await confirm({
-      title: "Révoquer ce lien ?",
-      description: "Le prospect ne pourra plus consulter son rapport avec ce lien. Un nouveau lien pourra être généré ensuite.",
-      confirmLabel: "Révoquer",
+      title: t.revokeConfirmTitle,
+      description: t.revokeConfirmDescription,
+      confirmLabel: t.revokeConfirmLabel,
     });
     if (!ok) return;
     startTransition(async () => {
       try {
         await revokeReportAccessLink(link!.id, auditId);
-        toast.success("Lien révoqué");
+        toast.success(t.revoked);
         router.refresh();
       } catch (err) {
-        toast.error("Impossible de révoquer le lien", err instanceof Error ? err.message : undefined);
+        toast.error(t.revokeError, err instanceof Error ? err.message : undefined);
       }
     });
   }
@@ -69,13 +75,13 @@ export function ReportAccessLinkPanel({
   return (
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
       {dialog}
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">Portail sécurisé du prospect</h2>
+      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
 
       {!active ? (
         <div className="mt-4">
-          <p className="text-sm text-pm-gris">Aucun lien actif. Génère un lien sécurisé (valable 30 jours) une fois le rapport approuvé.</p>
+          <p className="text-sm text-pm-gris">{t.noneActive}</p>
           <Button className="mt-3" loading={isPending} onClick={generate}>
-            Générer le lien
+            {t.generate}
           </Button>
         </div>
       ) : (
@@ -87,19 +93,19 @@ export function ReportAccessLinkPanel({
               onClick={() => {
                 navigator.clipboard.writeText(url ?? "");
                 setCopied(true);
-                toast.success("Lien copié dans le presse-papiers");
+                toast.success(t.copiedToClipboard);
                 setTimeout(() => setCopied(false), 2000);
               }}
               className="shrink-0 rounded-lg border border-pm-gris-2 px-2 py-1 text-xs transition-colors hover:bg-white"
             >
-              {copied ? "Copié" : "Copier"}
+              {copied ? t.copied : t.copy}
             </button>
           </div>
           <p className="text-xs text-pm-gris">
-            Expire le {link!.expiresAt ? new Date(link!.expiresAt).toLocaleDateString("fr-FR") : "jamais"} · {viewCount} consultation(s) · {link!.failedAttempts}/{link!.maxAttempts} tentatives
+            {link!.expiresAt ? t.expiresOn(formatDate(link!.expiresAt, locale)) : t.expiresOn(t.never)} · {t.viewCount(viewCount)} · {t.attempts(link!.failedAttempts, link!.maxAttempts)}
           </p>
           <Button variant="danger" size="sm" className="w-fit" loading={isPending} onClick={revoke}>
-            Révoquer le lien
+            {t.revoke}
           </Button>
         </div>
       )}

@@ -66,13 +66,13 @@ test("validateAndTransformAll stops at the first invalid file, transforms nothin
   assert.throws(() => validateAndTransformAll(files, "preview"), /0001_bad\.sql/);
 });
 
-test("integration: transforming all 10 real db/migrations files leaves zero \"public\" mentions", () => {
+test("integration: transforming all 12 real db/migrations files leaves zero \"public\" mentions", () => {
   const dir = join("db", "migrations");
   const files = readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
 
-  assert.equal(files.length, 10, "expected exactly the 10 known migration files — re-check this test if the count legitimately changed");
+  assert.equal(files.length, 12, "expected exactly the 12 known migration files (10 + 0010/0011 for the 2026-07 user-approval feature) — re-check this test if the count legitimately changed");
 
   const transformed = validateAndTransformAll(files, "preview");
   for (const { name, sql } of transformed) {

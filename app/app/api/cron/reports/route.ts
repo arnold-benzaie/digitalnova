@@ -45,10 +45,7 @@ export async function GET(request: Request) {
     await notify({
       organizationId: org.id,
       type: "report.generated",
-      title: `Rapport ${schedule.frequency} disponible`,
-      body: latestAudit
-        ? `Score d'audit actuel : ${latestAudit.score}/100. Téléchargez le PDF depuis Audits.`
-        : "Aucun audit disponible pour le moment.",
+      metadata: { frequency: schedule.frequency, score: latestAudit?.score ?? null },
     });
 
     await logAudit({

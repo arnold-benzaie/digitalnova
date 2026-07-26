@@ -2,17 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { updateBusinessProfileStatus } from "@/lib/actions/gbp-audit";
-import { GBP_PROFILE_STATUS_OPTIONS } from "@/lib/gbp-audit/checklist";
+import { getProfileStatusOptions } from "@/lib/gbp-audit/checklist";
 import { Select } from "@/components/gbp-audit/ui/field";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-export function ProfileStatusControl({ auditId, businessId, status }: { auditId: string; businessId: string; status: string }) {
+export function ProfileStatusControl({ auditId, businessId, status, locale = "fr" }: { auditId: string; businessId: string; status: string; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.profileStatusControl;
+  const options = getProfileStatusOptions(locale);
   const [current, setCurrent] = useState(status);
   const [isPending, startTransition] = useTransition();
 
   return (
     <Select
-      aria-label="Statut du profil"
+      aria-label={t.ariaLabel}
       value={current}
       disabled={isPending}
       onChange={(e) => {
@@ -22,16 +26,16 @@ export function ProfileStatusControl({ auditId, businessId, status }: { auditId:
         startTransition(async () => {
           try {
             await updateBusinessProfileStatus(auditId, businessId, next);
-            toast.success("Statut du profil mis à jour");
+            toast.success(t.updated);
           } catch (err) {
             setCurrent(previous);
-            toast.error("Impossible de changer le statut du profil", err instanceof Error ? err.message : undefined);
+            toast.error(t.updateError, err instanceof Error ? err.message : undefined);
           }
         });
       }}
       className="!w-auto"
     >
-      {GBP_PROFILE_STATUS_OPTIONS.map((option) => (
+      {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
         </option>

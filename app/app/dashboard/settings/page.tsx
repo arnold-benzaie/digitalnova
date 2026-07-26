@@ -7,50 +7,41 @@ import { getBillingProvider } from "@/lib/billing";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getOrCreateDevUser } from "@/lib/dev-user";
 import { getReportSchedule } from "@/lib/report-schedule";
-
-const STATUS_LABEL: Record<string, string> = {
-  active: "Actif",
-  trialing: "Essai",
-  past_due: "Paiement en retard",
-  canceled: "Annulé",
-};
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function SettingsPage() {
-  const org = await getOrCreateDevOrganization();
-  const user = await getOrCreateDevUser();
+  const [org, user, locale] = await Promise.all([getOrCreateDevOrganization(), getOrCreateDevUser(), getLocale()]);
+  const t = dictionaries[locale].settings;
   const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, org.id)).limit(1);
   const plans = getBillingProvider().listPlans();
   const schedule = await getReportSchedule(org.id);
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Paramètres</h1>
-      <p className="mt-2 text-sm text-pm-gris">Gérez votre profil, votre organisation et vos préférences.</p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Profil</h2>
-          <p className="mt-1 text-xs text-pm-gris">
-            Profil de démonstration — remplacé par votre vrai compte une fois Clerk connecté.
-          </p>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.profile.title}</h2>
+          <p className="mt-1 text-xs text-pm-gris">{t.profile.demoNotice}</p>
           <div className="mt-4">
-            <ProfileForm fullName={user.fullName ?? ""} email={user.email} />
+            <ProfileForm fullName={user.fullName ?? ""} email={user.email} locale={locale} />
           </div>
         </section>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Organisation</h2>
-          <p className="mt-1 text-xs text-pm-gris">Le nom affiché à votre conseiller et dans les rapports.</p>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.organization.title}</h2>
+          <p className="mt-1 text-xs text-pm-gris">{t.organization.lead}</p>
           <div className="mt-4">
-            <OrganizationForm name={org.name} />
+            <OrganizationForm name={org.name} locale={locale} />
           </div>
         </section>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Abonnement</h2>
-          <p className="mt-1 text-xs text-pm-gris">
-            Facturation gérée via FastSpring (merchant of record) — données simulées.
-          </p>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.subscription.title}</h2>
+          <p className="mt-1 text-xs text-pm-gris">{t.subscription.lead}</p>
           <div className="mt-4">
             {subscription && subscription.status !== "canceled" ? (
               <>
@@ -58,30 +49,27 @@ export default async function SettingsPage() {
                   {plans.find((p) => p.id === subscription.plan)?.name ?? subscription.plan}
                 </p>
                 <p className="mt-1 text-sm text-pm-gris">
-                  {subscription.priceEuros} €/mois · {STATUS_LABEL[subscription.status] ?? subscription.status}
+                  {t.subscription.perMonth(subscription.priceEuros)} · {t.status[subscription.status as keyof typeof t.status] ?? subscription.status}
                 </p>
               </>
             ) : (
-              <p className="text-sm text-pm-gris">Aucun abonnement actif.</p>
+              <p className="text-sm text-pm-gris">{t.subscription.none}</p>
             )}
           </div>
         </section>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Notifications</h2>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.notifications.title}</h2>
           <div className="mt-4">
-            <NotificationToggle enabled={org.emailNotificationsEnabled} />
+            <NotificationToggle enabled={org.emailNotificationsEnabled} locale={locale} />
           </div>
         </section>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6 lg:col-span-2">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Rapports automatiques</h2>
-          <p className="mt-1 text-xs text-pm-gris">
-            Envoi périodique d&apos;un résumé d&apos;audit (délivré en notification in-app tant qu&apos;aucun
-            fournisseur email n&apos;est configuré).
-          </p>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.reportSchedule.title}</h2>
+          <p className="mt-1 text-xs text-pm-gris">{t.reportSchedule.lead}</p>
           <div className="mt-4">
-            <ReportScheduleForm frequency={schedule?.frequency ?? "monthly"} enabled={schedule?.enabled ?? false} />
+            <ReportScheduleForm frequency={schedule?.frequency ?? "monthly"} enabled={schedule?.enabled ?? false} locale={locale} />
           </div>
         </section>
       </div>

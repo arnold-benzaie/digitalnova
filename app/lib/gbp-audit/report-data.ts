@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { auditDb } from "@/db/audit-index";
 import { gbpAuditFindings, gbpCompetitors, gbpCorrectionTasks, gbpServiceOffers } from "@/db/audit-schema";
-import { GBP_AUDIT_CHECKS, GBP_AUDIT_SECTIONS, GBP_FINDING_RESULT_LABEL } from "@/lib/gbp-audit/checklist";
+import { GBP_AUDIT_CHECKS, GBP_AUDIT_SECTIONS, GBP_FINDING_RESULT_LABEL, SUBSCORE_LABEL } from "@/lib/gbp-audit/checklist";
 import { compareToCompetitor } from "@/lib/gbp-audit/competitor-scoring";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
 import type { GbpAuditReportData, GbpAuditReportFinding } from "@/lib/pdf/gbp-audit-report";
@@ -65,14 +65,14 @@ export async function buildAuditReportData(input: {
     generatedAt: new Date(),
     score: input.score.scoreOverall,
     subScores: [
-      { label: "Conformité", value: input.score.scoreCompliance },
-      { label: "Complétude", value: input.score.scoreCompleteness },
-      { label: "Réputation", value: input.score.scoreReputation },
-      { label: "Contenu", value: input.score.scoreContent },
-      { label: "Cohérence locale", value: input.score.scoreLocalConsistency },
-      { label: "Visibilité", value: input.score.scoreVisibility },
-      { label: "Risque de suspension", value: input.score.scoreSuspensionRisk },
-      { label: "Expérience utilisateur", value: input.score.scoreUserExperience },
+      { label: SUBSCORE_LABEL.compliance, value: input.score.scoreCompliance },
+      { label: SUBSCORE_LABEL.completeness, value: input.score.scoreCompleteness },
+      { label: SUBSCORE_LABEL.reputation, value: input.score.scoreReputation },
+      { label: SUBSCORE_LABEL.content, value: input.score.scoreContent },
+      { label: SUBSCORE_LABEL.localConsistency, value: input.score.scoreLocalConsistency },
+      { label: SUBSCORE_LABEL.visibility, value: input.score.scoreVisibility },
+      { label: SUBSCORE_LABEL.suspensionRisk, value: input.score.scoreSuspensionRisk },
+      { label: SUBSCORE_LABEL.userExperience, value: input.score.scoreUserExperience },
     ],
     executiveSummary: input.clientFacing ? input.clientSummary : input.executiveSummary,
     compliantCount,

@@ -1,6 +1,8 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
+import { APP_NAME } from "@/lib/brand";
+import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
 
 const PM_ROUGE = "#d52b1e";
 const PM_NOIR = "#080808";
@@ -12,8 +14,7 @@ const PM_ORANGE = "#b8860b";
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 9, color: PM_NOIR, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  brand: { fontSize: 16, fontWeight: 700 },
-  brandAccent: { color: PM_ROUGE },
+  logo: { width: 100, height: 35 },
   docType: { fontSize: 13, fontWeight: 700, textAlign: "right" },
   meta: { fontSize: 8, color: PM_GRIS, textAlign: "right", marginTop: 2 },
   scoreBlock: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 16 },
@@ -100,9 +101,7 @@ export function SeoAuditReportPdf({ data }: { data: SeoAuditReportData }): React
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.brand}>
-            Public<Text style={styles.brandAccent}>Maps</Text>
-          </Text>
+          <Image src={BRAND_LOGO_DATA_URI} style={styles.logo} />
           <View>
             <Text style={styles.docType}>AUDIT SEO TECHNIQUE</Text>
             <Text style={styles.meta}>
@@ -174,7 +173,7 @@ export function SeoAuditReportPdf({ data }: { data: SeoAuditReportData }): React
         </View>
 
         <Text style={styles.footer}>
-          Ce rapport est généré automatiquement depuis le CRM Public Maps (données simulées — module SEO en mode mock).
+          Ce rapport est généré automatiquement depuis le CRM {APP_NAME} (données simulées — module SEO en mode mock).
         </Text>
       </Page>
     </Document>

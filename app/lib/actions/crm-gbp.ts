@@ -6,6 +6,12 @@ import { db } from "@/db";
 import { crmClients, organizations } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { replyToReview, syncGbpData } from "@/lib/actions/gbp";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { clientNotFound: "Client introuvable." },
+  en: { clientNotFound: "Client not found." },
+} as const;
 
 /**
  * crmClients.organizationId is nullable — a lead has no platform tenant
@@ -16,8 +22,9 @@ import { replyToReview, syncGbpData } from "@/lib/actions/gbp";
  * this creates that organization on demand and links it back.
  */
 export async function getOrCreateOrganizationForClient(clientId: string) {
+  const locale = await getLocale();
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, clientId)).limit(1);
-  if (!client) throw new Error("Client introuvable.");
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
 
   if (client.organizationId) {
     const [org] = await db.select().from(organizations).where(eq(organizations.id, client.organizationId)).limit(1);

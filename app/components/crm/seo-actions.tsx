@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
 import { createWebsite, deleteWebsite, updateWebsite } from "@/lib/actions/crm-websites";
 import { addSeoKeyword, deleteSeoKeyword, refreshKeywordRankings, runSeoAudit, updateSeoIssueStatus } from "@/lib/actions/crm-seo";
-import { SEO_ISSUE_STATUS_OPTIONS } from "@/lib/seo-shared";
+import { getSeoIssueStatusOptions } from "@/lib/seo-shared";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
-export function AddWebsiteForm({ clientId }: { clientId: string }) {
+export function AddWebsiteForm({ clientId, locale = "fr" }: { clientId: string; locale?: Locale }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.addWebsite;
 
   function open() {
     setError(null);
@@ -29,7 +31,7 @@ export function AddWebsiteForm({ clientId }: { clientId: string }) {
         onClick={open}
         className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
       >
-        Ajouter un site web
+        {t.openButton}
       </button>
 
       <dialog
@@ -48,26 +50,26 @@ export function AddWebsiteForm({ clientId }: { clientId: string }) {
                 close();
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+                setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
               }
             })
           }
         >
-          <h2 className="font-serif text-xl font-semibold text-pm-noir">Ajouter un site web</h2>
+          <h2 className="font-serif text-xl font-semibold text-pm-noir">{t.title}</h2>
           <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-            URL *
+            {t.urlLabel}
             <input
               name="url"
               required
-              placeholder="https://exemple.com"
+              placeholder={t.urlPlaceholder}
               className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-            Libellé
+            {t.labelLabel}
             <input
               name="label"
-              placeholder="Site principal, boutique en ligne…"
+              placeholder={t.labelPlaceholder}
               className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
             />
           </label>
@@ -81,14 +83,14 @@ export function AddWebsiteForm({ clientId }: { clientId: string }) {
               disabled={isPending}
               className="rounded-lg px-4 py-2 text-sm font-medium text-pm-gris transition hover:text-pm-noir disabled:opacity-50"
             >
-              Annuler
+              {dictionaries[locale].common.cancel}
             </button>
             <button
               type="submit"
               disabled={isPending}
               className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
             >
-              {isPending ? "Enregistrement..." : "Ajouter"}
+              {isPending ? t.submitting : t.submitButton}
             </button>
           </div>
         </form>
@@ -97,11 +99,18 @@ export function AddWebsiteForm({ clientId }: { clientId: string }) {
   );
 }
 
-export function EditWebsiteForm({ website }: { website: { id: string; url: string; label: string | null } }) {
+export function EditWebsiteForm({
+  website,
+  locale = "fr",
+}: {
+  website: { id: string; url: string; label: string | null };
+  locale?: Locale;
+}) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.editWebsite;
 
   function open() {
     setError(null);
@@ -115,7 +124,7 @@ export function EditWebsiteForm({ website }: { website: { id: string; url: strin
   return (
     <>
       <button type="button" onClick={open} className="text-xs text-pm-gris underline hover:text-pm-noir">
-        Modifier
+        {t.openButton}
       </button>
 
       <dialog
@@ -133,14 +142,14 @@ export function EditWebsiteForm({ website }: { website: { id: string; url: strin
                 close();
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+                setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
               }
             })
           }
         >
-          <h2 className="font-serif text-xl font-semibold text-pm-noir">Modifier le site web</h2>
+          <h2 className="font-serif text-xl font-semibold text-pm-noir">{t.title}</h2>
           <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-            URL *
+            {t.urlLabel}
             <input
               name="url"
               required
@@ -149,7 +158,7 @@ export function EditWebsiteForm({ website }: { website: { id: string; url: strin
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-            Libellé
+            {t.labelLabel}
             <input
               name="label"
               defaultValue={website.label ?? ""}
@@ -166,14 +175,14 @@ export function EditWebsiteForm({ website }: { website: { id: string; url: strin
               disabled={isPending}
               className="rounded-lg px-4 py-2 text-sm font-medium text-pm-gris transition hover:text-pm-noir disabled:opacity-50"
             >
-              Annuler
+              {dictionaries[locale].common.cancel}
             </button>
             <button
               type="submit"
               disabled={isPending}
               className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
             >
-              {isPending ? "Enregistrement..." : "Enregistrer"}
+              {isPending ? t.saving : t.saveButton}
             </button>
           </div>
         </form>
@@ -182,10 +191,11 @@ export function EditWebsiteForm({ website }: { website: { id: string; url: strin
   );
 }
 
-export function DeleteWebsiteButton({ id }: { id: string }) {
+export function DeleteWebsiteButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.deleteWebsite;
 
   return (
     <div>
@@ -193,30 +203,31 @@ export function DeleteWebsiteButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Supprimer ce site web et tout son historique d'audits/mots-clés ?")) return;
+          if (!confirm(t.confirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await deleteWebsite(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "..." : "Supprimer"}
+        {isPending ? t.deleting : t.button}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>
   );
 }
 
-export function RunSeoAuditButton({ websiteId }: { websiteId: string }) {
+export function RunSeoAuditButton({ websiteId, locale = "fr" }: { websiteId: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.runAudit;
 
   return (
     <div>
@@ -230,35 +241,36 @@ export function RunSeoAuditButton({ websiteId }: { websiteId: string }) {
               await runSeoAudit(websiteId);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="rounded-lg bg-pm-noir px-3 py-1.5 text-xs font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Analyse en cours..." : "Lancer un audit SEO"}
+        {isPending ? t.running : t.button}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>
   );
 }
 
-export function SeoIssueStatusSelect({ issueId, status }: { issueId: string; status: string }) {
+export function SeoIssueStatusSelect({ issueId, status, locale = "fr" }: { issueId: string; status: string; locale?: Locale }) {
   return (
     <InlineStatusSelect
       value={status}
-      options={SEO_ISSUE_STATUS_OPTIONS}
+      options={getSeoIssueStatusOptions(locale)}
       action={updateSeoIssueStatus.bind(null, issueId)}
       className="rounded-lg border border-pm-gris-2 bg-white px-2 py-1 text-xs text-pm-noir disabled:opacity-50"
     />
   );
 }
 
-export function AddSeoKeywordForm({ websiteId }: { websiteId: string }) {
+export function AddSeoKeywordForm({ websiteId, locale = "fr" }: { websiteId: string; locale?: Locale }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.addKeyword;
 
   return (
     <form
@@ -273,13 +285,13 @@ export function AddSeoKeywordForm({ websiteId }: { websiteId: string }) {
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         })
       }
     >
       <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-        Mot-clé *
+        {t.keywordLabel}
         <input
           name="keyword"
           required
@@ -287,7 +299,7 @@ export function AddSeoKeywordForm({ websiteId }: { websiteId: string }) {
         />
       </label>
       <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-        URL ciblée
+        {t.targetUrlLabel}
         <input
           name="targetUrl"
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-sm font-normal normal-case tracking-normal text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
@@ -298,16 +310,17 @@ export function AddSeoKeywordForm({ websiteId }: { websiteId: string }) {
         disabled={isPending}
         className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir transition hover:bg-pm-gris-2/40 disabled:opacity-50"
       >
-        {isPending ? "Ajout..." : "Suivre ce mot-clé"}
+        {isPending ? t.submitting : t.submitButton}
       </button>
       {error && <p className="w-full text-xs text-pm-rouge">{error}</p>}
     </form>
   );
 }
 
-export function DeleteSeoKeywordButton({ id }: { id: string }) {
+export function DeleteSeoKeywordButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const t = dictionaries[locale].crm.seo.actions.deleteKeyword;
 
   return (
     <button
@@ -321,15 +334,16 @@ export function DeleteSeoKeywordButton({ id }: { id: string }) {
       }}
       className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
     >
-      {isPending ? "..." : "Retirer"}
+      {isPending ? "..." : t.button}
     </button>
   );
 }
 
-export function RefreshKeywordRankingsButton({ websiteId }: { websiteId: string }) {
+export function RefreshKeywordRankingsButton({ websiteId, locale = "fr" }: { websiteId: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.seo.actions.refreshRankings;
 
   return (
     <div>
@@ -343,13 +357,13 @@ export function RefreshKeywordRankingsButton({ websiteId }: { websiteId: string 
               await refreshKeywordRankings(websiteId);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir transition hover:bg-pm-gris-2/40 disabled:opacity-50"
       >
-        {isPending ? "Vérification..." : "Actualiser les positions"}
+        {isPending ? t.refreshing : t.button}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

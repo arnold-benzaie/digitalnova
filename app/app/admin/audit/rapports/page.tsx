@@ -3,9 +3,12 @@ import Link from "next/link";
 import { auditDb } from "@/db/audit-index";
 import { auditBusinesses, auditProspects, gbpAuditReports, gbpAudits, gbpReportAccessLinks } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { Badge } from "@/components/crm/badges";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
   approved: "bg-emerald-100 text-emerald-700",
@@ -21,7 +24,9 @@ type Params = { q?: string; status?: string };
 
 export default async function AuditReportsPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireAuditStaffRole();
-  const { q: qParam, status: statusParam } = await searchParams;
+  const [{ q: qParam, status: statusParam }, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].auditModule.reportsList;
+  const statusLabel = getAuditStatusLabel(locale);
   const q = qParam?.trim() ?? "";
   const status = statusParam && (REPORT_STATUS_OPTIONS as readonly string[]).includes(statusParam) ? statusParam : "";
 
@@ -69,35 +74,33 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
   return (
     <>
       <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">Rapports</h1>
-        <p className="mt-1 text-sm text-pm-gris">
-          {reports.length} résultat(s){hasFilters ? ` sur ${totalReports} au total` : ""}
-        </p>
+        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+        <p className="mt-1 text-sm text-pm-gris">{t.resultsCount(reports.length, totalReports, hasFilters)}</p>
       </div>
 
       <form action="/admin/audit/rapports" className="mt-6 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
-        <label htmlFor="q" className="sr-only">Rechercher un rapport</label>
+        <label htmlFor="q" className="sr-only">{t.searchLabel}</label>
         <input
           id="q"
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par entreprise ou prospect..."
+          placeholder={t.searchPlaceholder}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/15 sm:max-w-xs"
         />
-        <label htmlFor="status" className="sr-only">Filtrer par statut</label>
+        <label htmlFor="status" className="sr-only">{t.statusFilterLabel}</label>
         <select id="status" name="status" defaultValue={status} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Tous les statuts</option>
+          <option value="">{t.allStatuses}</option>
           {REPORT_STATUS_OPTIONS.map((value) => (
-            <option key={value} value={value}>{GBP_AUDIT_STATUS_LABEL[value] ?? value}</option>
+            <option key={value} value={value}>{statusLabel[value] ?? value}</option>
           ))}
         </select>
         <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pm-noir-2">
-          Filtrer
+          {t.filter}
         </button>
         {hasFilters && (
           <Link href="/admin/audit/rapports" className="text-xs text-pm-gris underline underline-offset-2">
-            Réinitialiser
+            {t.reset}
           </Link>
         )}
       </form>
@@ -111,16 +114,12 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
                 <path d="M9 12h6M9 16h6" strokeLinecap="round" />
               </svg>
             }
-            title={totalReports === 0 ? "Aucun rapport pour le moment" : "Aucun résultat"}
-            description={
-              totalReports === 0
-                ? "Un rapport apparaît ici dès qu'un audit est approuvé."
-                : "Essayez une autre recherche, ou réinitialisez les filtres."
-            }
+            title={totalReports === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
+            description={totalReports === 0 ? t.emptyNoneDescription : t.emptyFilteredDescription}
             action={
               hasFilters ? (
                 <Link href="/admin/audit/rapports" className="text-sm text-pm-noir underline underline-offset-2">
-                  Réinitialiser les filtres
+                  {t.resetFilters}
                 </Link>
               ) : undefined
             }
@@ -131,13 +130,13 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
-                <th className="px-5 py-3">Entreprise</th>
-                <th className="px-5 py-3">Prospect</th>
-                <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Score</th>
-                <th className="px-5 py-3">Généré le</th>
-                <th className="px-5 py-3">Envoyé le</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className="px-5 py-3">{t.columns.business}</th>
+                <th className="px-5 py-3">{t.columns.prospect}</th>
+                <th className="px-5 py-3">{t.columns.status}</th>
+                <th className="px-5 py-3">{t.columns.score}</th>
+                <th className="px-5 py-3">{t.columns.generatedOn}</th>
+                <th className="px-5 py-3">{t.columns.sentOn}</th>
+                <th className="px-5 py-3 text-right">{t.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -154,11 +153,11 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
                       {r.prospectFirstName} {r.prospectLastName}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge label={GBP_AUDIT_STATUS_LABEL[r.auditStatus] ?? "Audit"} className={STATUS_BADGE_CLASS[r.auditStatus] ?? "bg-pm-gris-2/60 text-pm-gris"} />
+                      <Badge label={statusLabel[r.auditStatus] ?? t.statusFallback} className={STATUS_BADGE_CLASS[r.auditStatus] ?? "bg-pm-gris-2/60 text-pm-gris"} />
                     </td>
                     <td className="px-5 py-3 text-pm-gris tabular-nums">{r.scoreOverall ?? "—"}</td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(r.createdAt).toLocaleDateString("fr-FR")}</td>
-                    <td className="px-5 py-3 text-pm-gris">{r.sentAt ? new Date(r.sentAt).toLocaleDateString("fr-FR") : "—"}</td>
+                    <td className="px-5 py-3 text-pm-gris">{formatDate(r.createdAt, locale)}</td>
+                    <td className="px-5 py-3 text-pm-gris">{r.sentAt ? formatDate(r.sentAt, locale) : "—"}</td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex justify-end gap-3">
                         <a
@@ -167,7 +166,7 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
                           rel="noreferrer"
                           className="text-xs text-pm-noir underline underline-offset-2"
                         >
-                          PDF
+                          {t.pdf}
                         </a>
                         {token ? (
                           <a
@@ -176,11 +175,11 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
                             rel="noreferrer"
                             className="text-xs text-pm-noir underline underline-offset-2"
                           >
-                            Lien client
+                            {t.clientLink}
                           </a>
                         ) : (
                           <Link href={`/admin/audit/${r.auditId}/rapport`} className="text-xs text-pm-gris underline underline-offset-2">
-                            Générer un lien
+                            {t.generateLink}
                           </Link>
                         )}
                       </div>

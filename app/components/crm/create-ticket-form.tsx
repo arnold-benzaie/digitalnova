@@ -3,18 +3,22 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createTicket } from "@/lib/actions/crm-tickets";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
 export function CreateTicketForm({
   clientOptions,
   fixedClientId,
+  locale = "fr",
 }: {
   clientOptions?: { id: string; name: string }[];
   fixedClientId?: string;
+  locale?: Locale;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.tickets.create;
 
   return (
     <form
@@ -28,7 +32,7 @@ export function CreateTicketForm({
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         })
       }
@@ -42,7 +46,7 @@ export function CreateTicketForm({
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
           <option value="" disabled>
-            Client...
+            {t.clientPlaceholder}
           </option>
           {clientOptions.map((c) => (
             <option key={c.id} value={c.id}>
@@ -53,21 +57,21 @@ export function CreateTicketForm({
       )}
       <input
         name="subject"
-        placeholder="Sujet *"
+        placeholder={t.subjectPlaceholder}
         required
         className="min-w-[180px] flex-1 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
       />
       <select name="priority" defaultValue="medium" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-        <option value="low">Priorité basse</option>
-        <option value="medium">Priorité moyenne</option>
-        <option value="high">Priorité haute</option>
+        <option value="low">{t.priorityLow}</option>
+        <option value="medium">{t.priorityMedium}</option>
+        <option value="high">{t.priorityHigh}</option>
       </select>
       <button
         type="submit"
         disabled={isPending}
         className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Ajout..." : "Créer le ticket"}
+        {isPending ? t.adding : t.addButton}
       </button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>

@@ -2,12 +2,15 @@ import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { crmClients, projects } from "@/db/schema";
-import { PROJECT_STATUS_OPTIONS } from "@/components/crm/badges";
+import { PROJECT_STATUS_OPTIONS, getProjectStatusOptions } from "@/components/crm/badges";
 import { CreateProjectForm } from "@/components/crm/create-project-form";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
 import { DeleteProjectButton, EditProjectForm } from "@/components/crm/project-actions";
 import { updateProjectStatus } from "@/lib/actions/crm-projects";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 const STATUS_VALUES = PROJECT_STATUS_OPTIONS.map((o) => o.value);
 const PAGE_SIZE = 20;
@@ -25,7 +28,9 @@ function buildHref(params: Params, overrides: Partial<Record<keyof Params, strin
 
 export default async function CrmProjectsPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.projects;
+  const projectStatusOptions = getProjectStatusOptions(locale);
 
   const q = params.q?.trim() ?? "";
   const status = params.status && STATUS_VALUES.includes(params.status) ? params.status : "";
@@ -55,13 +60,11 @@ export default async function CrmProjectsPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Projets</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""}
-      </p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.resultsSummary(totalCount, overallCount, hasFilters)}</p>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <CreateProjectForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} />
+        <CreateProjectForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} locale={locale} />
       </div>
 
       <form action="/admin/crm/projects" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -69,26 +72,26 @@ export default async function CrmProjectsPage({ searchParams }: { searchParams: 
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par nom…"
-          aria-label="Rechercher un projet"
+          placeholder={t.searchPlaceholder}
+          aria-label={t.searchAriaLabel}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
-        <select name="status" defaultValue={status} aria-label="Filtrer par statut" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Tous les statuts</option>
-          {PROJECT_STATUS_OPTIONS.map((o) => (
+        <select name="status" defaultValue={status} aria-label={t.statusFilterAriaLabel} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">{t.allStatuses}</option>
+          {projectStatusOptions.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2">
-          Filtrer
+          {dictionaries[locale].common.filter}
         </button>
-        {hasFilters && <a href="/admin/crm/projects" className="text-xs text-pm-gris underline">Réinitialiser</a>}
+        {hasFilters && <a href="/admin/crm/projects" className="text-xs text-pm-gris underline">{t.reset}</a>}
       </form>
 
       {allProjects.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucun projet" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
         </div>
       ) : (
@@ -102,16 +105,16 @@ export default async function CrmProjectsPage({ searchParams }: { searchParams: 
                       {project.name}
                     </Link>
                     <p className="text-xs text-pm-gris">
-                      {clientNameById.get(project.clientId) ?? "—"}
-                      {project.dueDate ? ` · échéance ${new Date(project.dueDate).toLocaleDateString("fr-FR")}` : ""}
+                      {clientNameById.get(project.clientId) ?? t.noValue}
+                      {project.dueDate ? ` · ${t.duePrefix} ${formatDate(project.dueDate, locale)}` : ""}
                     </p>
                   </div>
-                  <InlineStatusSelect value={project.status} options={PROJECT_STATUS_OPTIONS} action={updateProjectStatus.bind(null, project.id)} />
+                  <InlineStatusSelect value={project.status} options={projectStatusOptions} action={updateProjectStatus.bind(null, project.id)} />
                 </div>
                 {project.description && <p className="mt-2 text-sm text-pm-gris">{project.description}</p>}
                 <div className="mt-2 flex items-center gap-3">
-                  <EditProjectForm project={project} />
-                  <DeleteProjectButton id={project.id} />
+                  <EditProjectForm project={project} locale={locale} />
+                  <DeleteProjectButton id={project.id} locale={locale} />
                 </div>
               </div>
             ))}
@@ -123,14 +126,14 @@ export default async function CrmProjectsPage({ searchParams }: { searchParams: 
                 href={buildHref(params, { page: page > 1 ? String(page - 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Précédent
+                {dictionaries[locale].common.previous}
               </a>
-              <span className="text-pm-gris">Page {page} / {totalPages}</span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <a
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Suivant
+                {dictionaries[locale].common.next}
               </a>
             </div>
           )}

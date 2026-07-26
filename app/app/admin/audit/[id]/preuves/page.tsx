@@ -8,16 +8,21 @@ import { AuditTabs } from "@/components/gbp-audit/audit-tabs";
 import { EvidenceForm } from "@/components/gbp-audit/evidence-form";
 import { EvidenceListItem } from "@/components/gbp-audit/evidence-list-item";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
-import { GBP_AUDIT_CHECKS, GBP_AUDIT_SECTIONS } from "@/lib/gbp-audit/checklist";
-
-const SECTION_TITLE = Object.fromEntries(GBP_AUDIT_SECTIONS.map((s) => [s.code, s.title]));
-const CHECK_LABEL = Object.fromEntries(
-  GBP_AUDIT_SECTIONS.flatMap((s) => GBP_AUDIT_CHECKS[s.code].map((c) => [`${s.code}:${c.key}`, c.label])),
-);
+import { getAuditChecksBySection, getAuditSections } from "@/lib/gbp-audit/checklist";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function EvidencePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.evidence;
+  const sections = getAuditSections(locale);
+  const checksBySection = getAuditChecksBySection(locale);
+  const SECTION_TITLE = Object.fromEntries(sections.map((s) => [s.code, s.title]));
+  const CHECK_LABEL = Object.fromEntries(
+    sections.flatMap((s) => checksBySection[s.code].map((c) => [`${s.code}:${c.key}`, c.label])),
+  );
 
   // Both only depend on the route param, not on each other — fetch in parallel.
   const [[audit], findings] = await Promise.all([
@@ -30,7 +35,7 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
     auditDb.select().from(gbpAuditFindings).where(eq(gbpAuditFindings.auditId, id)),
   ]);
   if (!audit) notFound();
-  const findingLabel = new Map(findings.map((f) => [f.id, `${SECTION_TITLE[f.sectionCode] ?? "Section archivée"} — ${CHECK_LABEL[`${f.sectionCode}:${f.checkKey}`] ?? "Contrôle archivé"}`]));
+  const findingLabel = new Map(findings.map((f) => [f.id, `${SECTION_TITLE[f.sectionCode] ?? t.findingLabelFallback} — ${CHECK_LABEL[`${f.sectionCode}:${f.checkKey}`] ?? t.findingLabelFallback}`]));
 
   const findingIds = findings.map((f) => f.id);
   const evidenceRows = findingIds.length
@@ -55,12 +60,12 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Centre de preuves — {evidence.length} preuve(s) au total.</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead(evidence.length)}</p>
       </div>
-      <AuditTabs auditId={id} active="preuves" />
+      <AuditTabs auditId={id} active="preuves" locale={locale} />
 
       <div className="mt-6">
-        <EvidenceForm findings={findings.map((f) => ({ id: f.id, label: findingLabel.get(f.id) ?? "Contrôle archivé" }))} />
+        <EvidenceForm findings={findings.map((f) => ({ id: f.id, label: findingLabel.get(f.id) ?? t.findingLabelFallback }))} locale={locale} />
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
@@ -71,12 +76,12 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
                 <rect x="3" y="3" width="18" height="14" rx="2" /><path d="M3 13l4-4 3 3 5-5 6 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             }
-            title="Aucune preuve pour le moment"
-            description="Ajoutez une capture d'écran, un lien ou une note ci-dessus."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
           />
         ) : (
           evidence.map((e) => (
-            <EvidenceListItem key={e.id} auditId={id} evidence={e} findingLabel={findingLabel.get(e.findingId) ?? "—"} />
+            <EvidenceListItem key={e.id} auditId={id} evidence={e} findingLabel={findingLabel.get(e.findingId) ?? "—"} locale={locale} />
           ))
         )}
       </div>

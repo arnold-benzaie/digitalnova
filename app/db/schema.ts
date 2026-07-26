@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -19,12 +20,33 @@ import {
  * Clerk webhook (to be added when Clerk is wired up with real keys).
  */
 
-export const organizations = pgTable("organizations", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  emailNotificationsEnabled: boolean("email_notifications_enabled").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    emailNotificationsEnabled: boolean("email_notifications_enabled").notNull().default(true),
+    // Marks the single internal PUBLIC-MAP agency organization, as opposed
+    // to client organizations. Used to deterministically target "new
+    // pending user" admin notifications without ever guessing/picking an
+    // arbitrary row — see lib/notifications.ts's getInternalOrganizationId().
+    // The partial unique index guarantees at most one organization can ever
+    // hold this flag.
+    isInternal: boolean("is_internal").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("organizations_is_internal_unique").on(table.isInternal).where(sql`${table.isInternal} = true`)],
+);
+
+/**
+ * Global approval state, independent of any organization/membership: a
+ * user with no membership yet is "pending" (self-signed-in via Clerk,
+ * awaiting an admin decision — see app/access-pending). "refused"/
+ * "suspended" users keep their existing memberships intact (see
+ * lib/actions/users.ts suspendUser/reactivateUser) — status alone gates
+ * access, so reactivation doesn't require re-picking a role/org.
+ */
+export const USER_STATUSES = ["pending", "active", "refused", "suspended"] as const;
 
 export const users = pgTable(
   "users",
@@ -33,16 +55,23 @@ export const users = pgTable(
     clerkUserId: text("clerk_user_id").notNull(),
     email: text("email").notNull(),
     fullName: text("full_name"),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    status: text("status").notNull().default("pending"), // "pending" | "active" | "refused" | "suspended" — column added nullable in 0010, backfilled explicitly per-row, THEN locked to NOT NULL/DEFAULT in 0011 (see scripts/backfill-user-approval-status.mjs) so no existing row is ever implicitly "pending"
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("users_clerk_user_id_idx").on(table.clerkUserId)],
 );
 
-/** Fixed role set for Phase 0: admin (agency staff, full access), staff
- * (agency staff, scoped access), client (end customer, portal-only access). */
+/** Fixed role set: admin (agency staff, full access), staff (agency staff,
+ * scoped access — historical name, kept functional but no longer offered
+ * on new approvals), agent (agency staff, scoped access — offered on new
+ * approvals in place of "staff"), supervisor (agency staff, review/approve
+ * scoped access), client (end customer, portal-only access). */
 export const roles = pgTable("roles", {
   id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull().unique(), // "admin" | "staff" | "client"
+  name: text("name").notNull().unique(), // "admin" | "staff" | "agent" | "supervisor" | "client"
 });
 
 export const memberships = pgTable(
@@ -284,13 +313,25 @@ export const notifications = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    type: text("type").notNull(), // e.g. "audit.generated", "message.received"
+    type: text("type").notNull(), // e.g. "audit.generated", "message.received", "user.pending_approval"
     title: text("title").notNull(),
     body: text("body"),
+    // Structured reference for notification types that target a specific
+    // record (e.g. { userId } for "user.pending_approval"), mirroring
+    // auditLog's metadata column. Also backs the partial unique index below.
+    metadata: jsonb("metadata"),
     read: boolean("read").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("notifications_organization_id_idx").on(table.organizationId)],
+  (table) => [
+    index("notifications_organization_id_idx").on(table.organizationId),
+    // At most one unread "new pending user" notification per user, ever —
+    // the DB constraint is the real dedup guarantee (app code re-checks
+    // too, but this is what makes it safe under concurrent requests).
+    uniqueIndex("notifications_pending_user_unique")
+      .on(sql`(${table.metadata}->>'userId')`)
+      .where(sql`${table.type} = 'user.pending_approval' AND ${table.read} = false`),
+  ],
 );
 
 /**

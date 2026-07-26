@@ -10,21 +10,35 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+import type { Locale } from "@/lib/i18n/dictionaries";
+
+const MESSAGES = {
+  fr: {
+    organizationNotFound: "Organisation introuvable.",
+    noGoogleConnection: "Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».",
+  },
+  en: {
+    organizationNotFound: "Organization not found.",
+    noGoogleConnection: "No Google account connected for this organization. Use the \"Connect a Google account\" button.",
+  },
+} as const;
 
 /** Same pattern as lib/actions/gbp.ts::resolveOrganization. */
-async function resolveOrganization(organizationId?: string) {
+async function resolveOrganization(organizationId: string | undefined, locale: Locale) {
   if (!organizationId) return getOrCreateDevOrganization();
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  if (!org) throw new Error("Organisation introuvable.");
+  if (!org) throw new Error(MESSAGES[locale].organizationNotFound);
   return org;
 }
 
 export async function connectAnalytics(organizationId?: string) {
-  const org = await resolveOrganization(organizationId);
+  const locale = await getLocale();
+  const org = await resolveOrganization(organizationId, locale);
 
   const googleConnection = await getGoogleConnection(org.id);
   if (!googleConnection) {
-    throw new Error("Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».");
+    throw new Error(MESSAGES[locale].noGoogleConnection);
   }
 
   const provider = getAnalyticsProvider(org.id);
@@ -80,7 +94,8 @@ export async function connectAnalytics(organizationId?: string) {
 }
 
 export async function syncAnalyticsData(organizationId?: string) {
-  const org = await resolveOrganization(organizationId);
+  const locale = await getLocale();
+  const org = await resolveOrganization(organizationId, locale);
   const provider = getAnalyticsProvider(org.id);
 
   const orgProperties = await db.select().from(analyticsProperties).where(eq(analyticsProperties.organizationId, org.id));
@@ -125,10 +140,7 @@ export async function syncAnalyticsData(organizationId?: string) {
   await notify({
     organizationId: org.id,
     type: "analytics.synced",
-    title: "Synchronisation Google Analytics effectuée",
-    body: metricsUnavailable
-      ? `${orgProperties.length} propriété(s) mise(s) à jour (données indisponibles — ${lastError?.message ?? "erreur inconnue"}).`
-      : `${orgProperties.length} propriété(s) mise(s) à jour.`,
+    metadata: { propertyCount: orgProperties.length, metricsUnavailable, errorMessage: lastError?.message },
   });
 
   revalidatePath("/dashboard");

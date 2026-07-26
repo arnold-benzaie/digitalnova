@@ -3,18 +3,23 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCalendarEvent } from "@/lib/actions/crm-calendar";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
 export function CreateEventForm({
   clientOptions,
   fixedClientId,
+  locale = "fr",
 }: {
   clientOptions?: { id: string; name: string }[];
   fixedClientId?: string;
+  locale?: Locale;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.events.create;
+  const typeOptions = dictionaries[locale].crm.calendar.typeOptions;
 
   return (
     <form
@@ -28,7 +33,7 @@ export function CreateEventForm({
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         })
       }
@@ -36,7 +41,7 @@ export function CreateEventForm({
       {fixedClientId && <input type="hidden" name="clientId" value={fixedClientId} />}
       {clientOptions && (
         <select name="clientId" defaultValue="" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Interne (aucun client)</option>
+          <option value="">{t.internalOption}</option>
           {clientOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -46,15 +51,14 @@ export function CreateEventForm({
       )}
       <input
         name="title"
-        placeholder="Titre *"
+        placeholder={t.titlePlaceholder}
         required
         className="min-w-[160px] flex-1 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
       />
       <select name="type" defaultValue="meeting" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-        <option value="meeting">Rendez-vous</option>
-        <option value="call">Appel</option>
-        <option value="deadline">Échéance</option>
-        <option value="other">Autre</option>
+        {typeOptions.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
       </select>
       <input name="startAt" type="datetime-local" required className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
       <button
@@ -62,7 +66,7 @@ export function CreateEventForm({
         disabled={isPending}
         className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Ajout..." : "Ajouter"}
+        {isPending ? t.adding : t.addButton}
       </button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>

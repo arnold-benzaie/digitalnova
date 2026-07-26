@@ -9,6 +9,12 @@ import { logAudit } from "@/lib/audit";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { unknownPlan: "Offre inconnue.", noActiveSubscription: "Aucun abonnement actif." },
+  en: { unknownPlan: "Unknown plan.", noActiveSubscription: "No active subscription." },
+} as const;
 
 /**
  * Real FastSpring checkout redirects the user to a hosted storefront that
@@ -18,9 +24,10 @@ import { dispatchWebhookEvent } from "@/lib/webhooks";
  * subscription in one step, exactly the way the webhook handler would.
  */
 export async function subscribeToPlan(planId: string) {
+  const locale = await getLocale();
   const provider = getBillingProvider();
   const plan = provider.listPlans().find((p) => p.id === planId);
-  if (!plan) throw new Error("Offre inconnue.");
+  if (!plan) throw new Error(MESSAGES[locale].unknownPlan);
 
   const org = await getOrCreateDevOrganization();
   await provider.createCheckoutSession({ organizationId: org.id, planId });
@@ -71,8 +78,7 @@ export async function subscribeToPlan(planId: string) {
   await notify({
     organizationId: org.id,
     type: "billing.subscribed",
-    title: `Abonnement ${plan.name} activé`,
-    body: `${plan.priceEuros} €/mois`,
+    metadata: { planName: plan.name, priceEuros: plan.priceEuros },
   });
 
   await dispatchWebhookEvent("subscription.created", {
@@ -86,7 +92,7 @@ export async function subscribeToPlan(planId: string) {
 }
 
 export async function cancelSubscription() {
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
   const provider = getBillingProvider();
 
   const [subscription] = await db
@@ -94,7 +100,7 @@ export async function cancelSubscription() {
     .from(subscriptions)
     .where(eq(subscriptions.organizationId, org.id))
     .limit(1);
-  if (!subscription) throw new Error("Aucun abonnement actif.");
+  if (!subscription) throw new Error(MESSAGES[locale].noActiveSubscription);
 
   if (subscription.fastspringSubscriptionId) {
     await provider.cancelSubscription(subscription.fastspringSubscriptionId);
@@ -115,7 +121,7 @@ export async function cancelSubscription() {
   await notify({
     organizationId: org.id,
     type: "billing.canceled",
-    title: "Abonnement annulé",
+    metadata: {},
   });
 
   await dispatchWebhookEvent("subscription.canceled", { organizationId: org.id });

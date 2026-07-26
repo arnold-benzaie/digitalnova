@@ -27,13 +27,13 @@ import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection } from "@/
 import {
   Badge,
   CONTRACT_STATUS_CLASS,
-  CONTRACT_STATUS_LABEL,
-  DEAL_STAGE_OPTIONS,
-  PROJECT_STATUS_OPTIONS,
-  TASK_STATUS_OPTIONS,
+  getContractStatusLabel,
+  getDealStageOptions,
+  getProjectStatusOptions,
+  getTaskStatusOptions,
+  getTicketPriorityLabel,
+  getTicketStatusOptions,
   TICKET_PRIORITY_CLASS,
-  TICKET_PRIORITY_LABEL,
-  TICKET_STATUS_OPTIONS,
 } from "@/components/crm/badges";
 import { ArchiveClientButton, ClientStageSelect, DeleteClientButton } from "@/components/crm/client-actions";
 import { CreateContractForm } from "@/components/crm/create-contract-form";
@@ -69,10 +69,20 @@ import {
   InvoiceStatusSelect,
   QuoteStatusSelect,
 } from "@/components/crm/quote-invoice-actions";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate, formatDateTime, formatNumber } from "@/lib/i18n/format";
 
 export default async function CrmClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireStaffRole();
-  const { id } = await params;
+  const [{ id }, locale] = await Promise.all([params, getLocale()]);
+  const t = dictionaries[locale].crm.clientDetail;
+  const contractStatusLabel = getContractStatusLabel(locale);
+  const dealStageOptions = getDealStageOptions(locale);
+  const projectStatusOptions = getProjectStatusOptions(locale);
+  const taskStatusOptions = getTaskStatusOptions(locale);
+  const ticketPriorityLabel = getTicketPriorityLabel(locale);
+  const ticketStatusOptions = getTicketStatusOptions(locale);
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) notFound();
@@ -185,7 +195,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             <h1 className="font-serif text-3xl font-semibold text-pm-noir">{client.name}</h1>
             {client.archivedAt && (
               <span className="inline-block rounded-full bg-pm-gris-2/60 px-3 py-1 text-xs font-medium uppercase tracking-wide text-pm-gris">
-                Archivé
+                {t.archivedBadge}
               </span>
             )}
           </div>
@@ -195,188 +205,184 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             {client.phone && <p>{client.phone}</p>}
             {client.address && <p>{client.address}</p>}
           </div>
-          {client.source && <p className="mt-2 text-xs text-pm-gris">Source : {client.source}</p>}
-          {client.ownerName && <p className="text-xs text-pm-gris">Conseiller : {client.ownerName}</p>}
+          {client.source && <p className="mt-2 text-xs text-pm-gris">{t.sourceLabel} {client.source}</p>}
+          {client.ownerName && <p className="text-xs text-pm-gris">{t.ownerLabel} {client.ownerName}</p>}
           {client.notes && <p className="mt-3 text-sm text-pm-noir">{client.notes}</p>}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
-          <ClientStageSelect id={client.id} stage={client.stage} />
+          <ClientStageSelect id={client.id} stage={client.stage} locale={locale} />
           <div className="flex items-center gap-3">
-            <EditClientForm client={client} />
-            <ArchiveClientButton id={client.id} archived={Boolean(client.archivedAt)} />
+            <EditClientForm client={client} locale={locale} />
+            <ArchiveClientButton id={client.id} archived={Boolean(client.archivedAt)} locale={locale} />
           </div>
-          <DeleteClientButton id={client.id} />
+          <DeleteClientButton id={client.id} locale={locale} />
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Google Business Profile</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.gbp.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
-            {gbpStatus.connected
-              ? `Connecté — ${gbpStatus.locationCount} établissement(s)`
-              : "Non connecté"}
+            {gbpStatus.connected ? t.gbp.connected(gbpStatus.locationCount) : t.gbp.notConnected}
           </p>
         </div>
         <Link
           href={`/admin/crm/clients/${client.id}/gbp`}
           className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
         >
-          {gbpStatus.connected ? "Gérer" : "Connecter"} →
+          {gbpStatus.connected ? t.gbp.manage : t.gbp.connect} →
         </Link>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Google Search Console</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.searchConsole.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
-            {searchConsoleStatus.connected
-              ? `Connecté — ${searchConsoleStatus.propertyCount} propriété(s)`
-              : "Non connecté"}
+            {searchConsoleStatus.connected ? t.searchConsole.connected(searchConsoleStatus.propertyCount) : t.searchConsole.notConnected}
           </p>
         </div>
         <Link
           href={`/admin/crm/clients/${client.id}/search-console`}
           className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
         >
-          {searchConsoleStatus.connected ? "Gérer" : "Connecter"} →
+          {searchConsoleStatus.connected ? t.searchConsole.manage : t.searchConsole.connect} →
         </Link>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Google Analytics</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.analytics.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
-            {analyticsStatus.connected
-              ? `Connecté — ${analyticsStatus.propertyCount} propriété(s)`
-              : "Non connecté"}
+            {analyticsStatus.connected ? t.analytics.connected(analyticsStatus.propertyCount) : t.analytics.notConnected}
           </p>
         </div>
         <Link
           href={`/admin/crm/clients/${client.id}/analytics`}
           className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
         >
-          {analyticsStatus.connected ? "Gérer" : "Connecter"} →
+          {analyticsStatus.connected ? t.analytics.manage : t.analytics.connect} →
         </Link>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">SEO</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.seo.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
             {seoStatus.websiteCount === 0
-              ? "Aucun site web suivi"
+              ? t.seo.noWebsites
               : seoStatus.latestScore !== null
-                ? `${seoStatus.websiteCount} site(s) suivi(s) — dernier score : ${seoStatus.latestScore}/100`
-                : `${seoStatus.websiteCount} site(s) suivi(s) — aucun audit encore réalisé`}
+                ? t.seo.withScore(seoStatus.websiteCount, seoStatus.latestScore)
+                : t.seo.noScoreYet(seoStatus.websiteCount)}
           </p>
         </div>
         <Link
           href={`/admin/crm/clients/${client.id}/seo`}
           className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
         >
-          {seoStatus.websiteCount === 0 ? "Ajouter un site" : "Gérer"} →
+          {seoStatus.websiteCount === 0 ? t.seo.addSite : t.seo.manage} →
         </Link>
       </div>
 
       <section className="mt-6">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Opportunités</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.deals}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientDeals.map((deal) => (
             <div key={deal.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div>
                 <p className="font-medium text-pm-noir">{deal.title}</p>
-                <p className="text-sm text-pm-gris">{deal.valueEuros.toLocaleString("fr-FR")} €</p>
+                <p className="text-sm text-pm-gris">{formatNumber(deal.valueEuros, locale)} €</p>
                 <div className="mt-1 flex items-center gap-3">
-                  <EditDealForm deal={deal} />
-                  <DeleteDealButton id={deal.id} />
+                  <EditDealForm deal={deal} locale={locale} />
+                  <DeleteDealButton id={deal.id} locale={locale} />
                 </div>
               </div>
-              <InlineStatusSelect value={deal.stage} options={DEAL_STAGE_OPTIONS} action={updateDealStage.bind(null, deal.id)} />
+              <InlineStatusSelect value={deal.stage} options={dealStageOptions} action={updateDealStage.bind(null, deal.id)} />
             </div>
           ))}
-          {clientDeals.length === 0 && <p className="text-sm text-pm-gris">Aucune opportunité.</p>}
+          {clientDeals.length === 0 && <p className="text-sm text-pm-gris">{t.empty.deals}</p>}
         </div>
         <div className="mt-3">
-          <CreateDealForm fixedClientId={client.id} />
+          <CreateDealForm fixedClientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Contrats &amp; devis</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.contracts}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientContracts.map((contract) => (
             <div key={contract.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-pm-noir">{contract.title}</p>
                 <Badge
-                  label={CONTRACT_STATUS_LABEL[contract.status] ?? contract.status}
+                  label={contractStatusLabel[contract.status] ?? contract.status}
                   className={CONTRACT_STATUS_CLASS[contract.status] ?? ""}
                 />
               </div>
               {contract.signerName && (
                 <p className="mt-1 text-xs text-pm-gris">
-                  Signataire : {contract.signerName} {contract.signerEmail && `(${contract.signerEmail})`}
+                  {t.signerLabel} {contract.signerName} {contract.signerEmail && `(${contract.signerEmail})`}
                 </p>
               )}
               <div className="mt-3 flex items-center gap-3">
-                {contract.status === "draft" && <EditContractForm contract={contract} />}
-                {contract.status === "draft" && <SendContractButton id={contract.id} />}
-                {contract.status === "sent" && <SimulateSignatureButton id={contract.id} />}
+                {contract.status === "draft" && <EditContractForm contract={contract} locale={locale} />}
+                {contract.status === "draft" && <SendContractButton id={contract.id} locale={locale} />}
+                {contract.status === "sent" && <SimulateSignatureButton id={contract.id} locale={locale} />}
               </div>
             </div>
           ))}
-          {clientContracts.length === 0 && <p className="text-sm text-pm-gris">Aucun contrat.</p>}
+          {clientContracts.length === 0 && <p className="text-sm text-pm-gris">{t.empty.contracts}</p>}
         </div>
         <div className="mt-3">
           <CreateContractForm
             fixedClientId={client.id}
             dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title }))}
+            locale={locale}
           />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Devis</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.quotes}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientQuotes.map((quote) => (
             <div key={quote.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-pm-noir">{quote.quoteNumber} — {quote.title}</p>
-                  <p className="text-sm text-pm-gris">{formatMoney(quote.totalCents, quote.currency)}</p>
+                  <p className="text-sm text-pm-gris">{formatMoney(quote.totalCents, quote.currency, locale)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <a
                     href={`/api/crm/quotes/${quote.id}/pdf`}
                     className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
                   >
-                    PDF
+                    {t.pdfLabel}
                   </a>
-                  <QuoteStatusSelect id={quote.id} status={quote.status} />
+                  <QuoteStatusSelect id={quote.id} status={quote.status} locale={locale} />
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-3">
-                {quote.status === "accepted" && <ConvertQuoteToInvoiceButton id={quote.id} />}
-                {quote.status === "draft" && <DeleteQuoteButton id={quote.id} />}
+                {quote.status === "accepted" && <ConvertQuoteToInvoiceButton id={quote.id} locale={locale} />}
+                {quote.status === "draft" && <DeleteQuoteButton id={quote.id} locale={locale} />}
               </div>
             </div>
           ))}
-          {clientQuotes.length === 0 && <p className="text-sm text-pm-gris">Aucun devis.</p>}
+          {clientQuotes.length === 0 && <p className="text-sm text-pm-gris">{t.empty.quotes}</p>}
         </div>
         <div className="mt-3">
           <BillingDocumentForm
             action={createQuote}
-            submitLabel="Créer le devis"
+            submitLabel={t.createQuoteLabel}
             fixedClientId={client.id}
             dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title }))}
-            dateField={{ name: "validUntil", label: "Valable jusqu'au" }}
+            dateField={{ name: "validUntil", label: t.validUntilLabel }}
+            locale={locale}
           />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Factures</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.invoices}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientInvoices.map((invoice) => (
             <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
@@ -384,8 +390,8 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
                 <div>
                   <p className="font-medium text-pm-noir">{invoice.invoiceNumber} — {invoice.title}</p>
                   <p className="text-sm text-pm-gris">
-                    {formatMoney(invoice.totalCents, invoice.currency)}
-                    {invoice.dueAt && ` · échéance ${new Date(invoice.dueAt).toLocaleDateString("fr-FR")}`}
+                    {formatMoney(invoice.totalCents, invoice.currency, locale)}
+                    {invoice.dueAt && ` · ${t.duePrefix} ${formatDate(invoice.dueAt, locale)}`}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -393,33 +399,34 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
                     href={`/api/crm/invoices/${invoice.id}/pdf`}
                     className="rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
                   >
-                    PDF
+                    {t.pdfLabel}
                   </a>
-                  <InvoiceStatusSelect id={invoice.id} status={invoice.status} />
+                  <InvoiceStatusSelect id={invoice.id} status={invoice.status} locale={locale} />
                 </div>
               </div>
               {invoice.status === "draft" && (
                 <div className="mt-2">
-                  <DeleteInvoiceButton id={invoice.id} />
+                  <DeleteInvoiceButton id={invoice.id} locale={locale} />
                 </div>
               )}
             </div>
           ))}
-          {clientInvoices.length === 0 && <p className="text-sm text-pm-gris">Aucune facture.</p>}
+          {clientInvoices.length === 0 && <p className="text-sm text-pm-gris">{t.empty.invoices}</p>}
         </div>
         <div className="mt-3">
           <BillingDocumentForm
             action={createInvoice}
-            submitLabel="Créer la facture"
+            submitLabel={t.createInvoiceLabel}
             fixedClientId={client.id}
             dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title }))}
-            dateField={{ name: "dueAt", label: "Échéance" }}
+            dateField={{ name: "dueAt", label: t.dueLabel }}
+            locale={locale}
           />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Documents</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.documents}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientDocuments.map((doc) => (
             <div
@@ -434,74 +441,74 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
                   {doc.fileName}
                 </a>
                 <p className="mt-0.5 text-xs text-pm-gris">
-                  {(doc.sizeBytes / 1024).toFixed(0)} Ko · {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+                  {(doc.sizeBytes / 1024).toFixed(0)} {t.koUnit} · {formatDate(doc.createdAt, locale)}
                   {doc.uploadedBy && ` · ${doc.uploadedBy}`}
                 </p>
               </div>
-              <DeleteCrmDocumentButton id={doc.id} />
+              <DeleteCrmDocumentButton id={doc.id} locale={locale} />
             </div>
           ))}
-          {clientDocuments.length === 0 && <p className="text-sm text-pm-gris">Aucun document.</p>}
+          {clientDocuments.length === 0 && <p className="text-sm text-pm-gris">{t.empty.documents}</p>}
         </div>
         <div className="mt-3">
-          <UploadCrmDocumentForm clientId={client.id} />
+          <UploadCrmDocumentForm clientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Tickets support</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tickets}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientTickets.map((ticket) => (
             <div key={ticket.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-pm-noir">{ticket.subject}</p>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Badge label={TICKET_PRIORITY_LABEL[ticket.priority] ?? ticket.priority} className={TICKET_PRIORITY_CLASS[ticket.priority] ?? ""} />
-                  <InlineStatusSelect value={ticket.status} options={TICKET_STATUS_OPTIONS} action={updateTicketStatus.bind(null, ticket.id)} />
+                  <Badge label={ticketPriorityLabel[ticket.priority] ?? ticket.priority} className={TICKET_PRIORITY_CLASS[ticket.priority] ?? ""} />
+                  <InlineStatusSelect value={ticket.status} options={ticketStatusOptions} action={updateTicketStatus.bind(null, ticket.id)} />
                 </div>
               </div>
               {ticket.description && <p className="mt-1 text-sm text-pm-gris">{ticket.description}</p>}
               <div className="mt-2 flex items-center gap-3">
-                <EditTicketForm ticket={ticket} />
-                <DeleteTicketButton id={ticket.id} />
+                <EditTicketForm ticket={ticket} locale={locale} />
+                <DeleteTicketButton id={ticket.id} locale={locale} />
               </div>
             </div>
           ))}
-          {clientTickets.length === 0 && <p className="text-sm text-pm-gris">Aucun ticket.</p>}
+          {clientTickets.length === 0 && <p className="text-sm text-pm-gris">{t.empty.tickets}</p>}
         </div>
         <div className="mt-3">
-          <CreateTicketForm fixedClientId={client.id} />
+          <CreateTicketForm fixedClientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Tâches</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tasks}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientTasks.map((task) => (
             <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div>
                 <p className="font-medium text-pm-noir">{task.title}</p>
                 <p className="text-xs text-pm-gris">
-                  {task.assignee ?? "Non assigné"}
-                  {task.dueDate ? ` · échéance ${new Date(task.dueDate).toLocaleDateString("fr-FR")}` : ""}
+                  {task.assignee ?? t.unassigned}
+                  {task.dueDate ? ` · ${t.duePrefix} ${formatDate(task.dueDate, locale)}` : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                <InlineStatusSelect value={task.status} options={TASK_STATUS_OPTIONS} action={updateTaskStatus.bind(null, task.id)} />
-                <EditTaskForm task={task} />
-                <DeleteTaskButton id={task.id} />
+                <InlineStatusSelect value={task.status} options={taskStatusOptions} action={updateTaskStatus.bind(null, task.id)} />
+                <EditTaskForm task={task} locale={locale} />
+                <DeleteTaskButton id={task.id} locale={locale} />
               </div>
             </div>
           ))}
-          {clientTasks.length === 0 && <p className="text-sm text-pm-gris">Aucune tâche.</p>}
+          {clientTasks.length === 0 && <p className="text-sm text-pm-gris">{t.empty.tasks}</p>}
         </div>
         <div className="mt-3">
-          <CreateTaskForm fixedClientId={client.id} />
+          <CreateTaskForm fixedClientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Projets</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.projects}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientProjects.map((project) => (
             <div key={project.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
@@ -510,63 +517,63 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
                 {project.description && <p className="text-sm text-pm-gris">{project.description}</p>}
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                <InlineStatusSelect value={project.status} options={PROJECT_STATUS_OPTIONS} action={updateProjectStatus.bind(null, project.id)} />
-                <EditProjectForm project={project} />
-                <DeleteProjectButton id={project.id} />
+                <InlineStatusSelect value={project.status} options={projectStatusOptions} action={updateProjectStatus.bind(null, project.id)} />
+                <EditProjectForm project={project} locale={locale} />
+                <DeleteProjectButton id={project.id} locale={locale} />
               </div>
             </div>
           ))}
-          {clientProjects.length === 0 && <p className="text-sm text-pm-gris">Aucun projet.</p>}
+          {clientProjects.length === 0 && <p className="text-sm text-pm-gris">{t.empty.projects}</p>}
         </div>
         <div className="mt-3">
-          <CreateProjectForm fixedClientId={client.id} />
+          <CreateProjectForm fixedClientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Calendrier</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.calendar}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientEvents.map((event) => (
             <div key={event.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
               <p className="font-medium text-pm-noir">{event.title}</p>
               <div className="flex shrink-0 items-center gap-3">
                 <span className="text-xs text-pm-gris">
-                  {new Date(event.startAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {formatDate(event.startAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
-                <EditEventForm event={event} />
-                <DeleteEventButton id={event.id} />
+                <EditEventForm event={event} locale={locale} />
+                <DeleteEventButton id={event.id} locale={locale} />
               </div>
             </div>
           ))}
-          {clientEvents.length === 0 && <p className="text-sm text-pm-gris">Aucun événement.</p>}
+          {clientEvents.length === 0 && <p className="text-sm text-pm-gris">{t.empty.events}</p>}
         </div>
         <div className="mt-3">
-          <CreateEventForm fixedClientId={client.id} />
+          <CreateEventForm fixedClientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Ajouter une interaction</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.addInteraction}</h2>
         <div className="mt-3 rounded-2xl border border-pm-gris-2 bg-white p-4">
-          <CreateInteractionForm clientId={client.id} />
+          <CreateInteractionForm clientId={client.id} locale={locale} />
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Historique des activités</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.activityHistory}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {activity.map((entry) => (
             <div key={entry.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-pm-noir">{describeAuditEntry(entry)}</p>
-                <p className="shrink-0 text-xs text-pm-gris">{new Date(entry.createdAt).toLocaleString("fr-FR")}</p>
+                <p className="text-sm text-pm-noir">{describeAuditEntry(entry, locale)}</p>
+                <p className="shrink-0 text-xs text-pm-gris">{formatDateTime(entry.createdAt, locale)}</p>
               </div>
               <p className="mt-1 text-xs text-pm-gris">
-                Par {entry.actorUserId ? (actorNameById.get(entry.actorUserId) ?? "utilisateur inconnu") : "système"}
+                {t.activityByPrefix} {entry.actorUserId ? (actorNameById.get(entry.actorUserId) ?? t.unknownUser) : t.system}
               </p>
             </div>
           ))}
-          {activity.length === 0 && <p className="text-sm text-pm-gris">Aucune activité enregistrée pour le moment.</p>}
+          {activity.length === 0 && <p className="text-sm text-pm-gris">{t.empty.activity}</p>}
         </div>
       </section>
     </>

@@ -5,13 +5,9 @@ import { Badge } from "@/components/crm/badges";
 import { CompetitorForm, type EditableCompetitor } from "@/components/gbp-audit/competitor-form";
 import { DeleteCompetitorButton } from "@/components/gbp-audit/delete-competitor-button";
 import type { CompetitorComparison } from "@/lib/gbp-audit/competitor-scoring";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const VERDICT_LABEL: Record<CompetitorComparison["overallVerdict"], string> = {
-  ahead: "En avance",
-  behind: "En retard",
-  tied: "À égalité",
-  unknown: "Données incomplètes",
-};
 const VERDICT_CLASS: Record<CompetitorComparison["overallVerdict"], string> = {
   ahead: "bg-pm-g-green/10 text-pm-g-green",
   behind: "bg-pm-rouge/10 text-pm-rouge-2",
@@ -35,11 +31,14 @@ export function CompetitorComparisonRow({
   auditId,
   competitor,
   comparison,
+  locale = "fr",
 }: {
   auditId: string;
   competitor: EditableCompetitor;
   comparison: CompetitorComparison;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].auditModule.competition;
   const [editing, setEditing] = useState(false);
   const ratingComparison = comparison.metrics.find((m) => m.metric === "rating");
   const reviewComparison = comparison.metrics.find((m) => m.metric === "reviewCount");
@@ -50,7 +49,7 @@ export function CompetitorComparisonRow({
       <tr className="border-t border-pm-gris-2">
         <td colSpan={7} className="p-0">
           <div className="p-4">
-            <CompetitorForm auditId={auditId} competitor={competitor} onDone={() => setEditing(false)} />
+            <CompetitorForm auditId={auditId} competitor={competitor} onDone={() => setEditing(false)} locale={locale} />
           </div>
         </td>
       </tr>
@@ -77,16 +76,16 @@ export function CompetitorComparisonRow({
       <td className="px-5 py-3 text-pm-gris">
         <DeltaCell ours={photoComparison?.ours as number | null} theirs={competitor.photoCount} />
       </td>
-      <td className="px-5 py-3 text-pm-gris">{competitor.postsRecent ? "Oui" : "Non"}</td>
+      <td className="px-5 py-3 text-pm-gris">{competitor.postsRecent ? t.yes : t.no}</td>
       <td className="px-5 py-3">
-        <Badge label={VERDICT_LABEL[comparison.overallVerdict]} className={VERDICT_CLASS[comparison.overallVerdict]} />
+        <Badge label={t.verdict[comparison.overallVerdict]} className={VERDICT_CLASS[comparison.overallVerdict]} />
       </td>
       <td className="px-5 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
           <button type="button" onClick={() => setEditing(true)} className="text-xs text-pm-gris underline hover:text-pm-noir">
-            Modifier
+            {t.edit}
           </button>
-          <DeleteCompetitorButton competitorId={competitor.id} auditId={auditId} name={competitor.name} />
+          <DeleteCompetitorButton competitorId={competitor.id} auditId={auditId} name={competitor.name} locale={locale} />
         </div>
       </td>
     </tr>

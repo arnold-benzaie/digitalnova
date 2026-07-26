@@ -5,15 +5,11 @@ import { calendarEvents, crmClients } from "@/db/schema";
 import { CreateEventForm } from "@/components/crm/create-event-form";
 import { DeleteEventButton, EditEventForm } from "@/components/crm/event-actions";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
-const TYPE_OPTIONS = [
-  { value: "meeting", label: "Rendez-vous" },
-  { value: "call", label: "Appel" },
-  { value: "deadline", label: "Échéance" },
-  { value: "other", label: "Autre" },
-];
-const TYPE_LABEL: Record<string, string> = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
-const TYPE_VALUES = TYPE_OPTIONS.map((o) => o.value);
+const TYPE_VALUES = ["meeting", "call", "deadline", "other"];
 const PAGE_SIZE = 20;
 
 type Params = { q?: string; type?: string; when?: string; page?: string };
@@ -29,7 +25,9 @@ function buildHref(params: Params, overrides: Partial<Record<keyof Params, strin
 
 export default async function CrmCalendarPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.calendar;
+  const typeLabel: Record<string, string> = Object.fromEntries(t.typeOptions.map((o) => [o.value, o.label]));
 
   const q = params.q?.trim() ?? "";
   const type = params.type && TYPE_VALUES.includes(params.type) ? params.type : "";
@@ -62,13 +60,11 @@ export default async function CrmCalendarPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Calendrier</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""}
-      </p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.resultsSummary(totalCount, overallCount, hasFilters)}</p>
 
       <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <CreateEventForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} />
+        <CreateEventForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} locale={locale} />
       </div>
 
       <form action="/admin/crm/calendar" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -76,30 +72,30 @@ export default async function CrmCalendarPage({ searchParams }: { searchParams: 
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par titre…"
-          aria-label="Rechercher un événement"
+          placeholder={t.searchPlaceholder}
+          aria-label={t.searchAriaLabel}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
-        <select name="type" defaultValue={type} aria-label="Filtrer par type" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Tous les types</option>
-          {TYPE_OPTIONS.map((o) => (
+        <select name="type" defaultValue={type} aria-label={t.typeFilterAriaLabel} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">{t.allTypes}</option>
+          {t.typeOptions.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <select name="when" defaultValue={when} aria-label="À venir ou passés" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="upcoming">À venir</option>
-          <option value="past">Passés</option>
+        <select name="when" defaultValue={when} aria-label={t.whenAriaLabel} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="upcoming">{t.upcomingOption}</option>
+          <option value="past">{t.pastOption}</option>
         </select>
         <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2">
-          Filtrer
+          {dictionaries[locale].common.filter}
         </button>
-        {hasFilters && <a href="/admin/crm/calendar" className="text-xs text-pm-gris underline">Réinitialiser</a>}
+        {hasFilters && <a href="/admin/crm/calendar" className="text-xs text-pm-gris underline">{t.reset}</a>}
       </form>
 
       {allEvents.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucun événement" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
         </div>
       ) : (
@@ -110,12 +106,12 @@ export default async function CrmCalendarPage({ searchParams }: { searchParams: 
                 <div>
                   <p className="font-medium text-pm-noir">{event.title}</p>
                   <p className="text-xs text-pm-gris">
-                    {TYPE_LABEL[event.type] ?? event.type}
+                    {typeLabel[event.type] ?? event.type}
                     {event.clientId && (
                       <>
                         {" · "}
                         <Link href={`/admin/crm/clients/${event.clientId}`} className="hover:underline">
-                          {clientNameById.get(event.clientId) ?? "—"}
+                          {clientNameById.get(event.clientId) ?? t.noValue}
                         </Link>
                       </>
                     )}
@@ -123,10 +119,10 @@ export default async function CrmCalendarPage({ searchParams }: { searchParams: 
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
                   <span className="text-sm text-pm-noir">
-                    {new Date(event.startAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {formatDate(event.startAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </span>
-                  <EditEventForm event={event} />
-                  <DeleteEventButton id={event.id} />
+                  <EditEventForm event={event} locale={locale} />
+                  <DeleteEventButton id={event.id} locale={locale} />
                 </div>
               </div>
             ))}
@@ -138,14 +134,14 @@ export default async function CrmCalendarPage({ searchParams }: { searchParams: 
                 href={buildHref(params, { page: page > 1 ? String(page - 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Précédent
+                {dictionaries[locale].common.previous}
               </a>
-              <span className="text-pm-gris">Page {page} / {totalPages}</span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <a
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Suivant
+                {dictionaries[locale].common.next}
               </a>
             </div>
           )}

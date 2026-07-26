@@ -36,8 +36,8 @@ export async function completeOnboarding(answers: Record<string, string>) {
   await notify({
     organizationId: org.id,
     type: "onboarding.completed",
-    title: "Questionnaire d'accueil complété",
-    body: summary,
+    metadata: {},
+    rawBody: summary,
   });
 
   revalidatePath("/dashboard");

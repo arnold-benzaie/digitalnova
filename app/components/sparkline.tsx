@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+
 const WIDTH = 96;
 const HEIGHT = 28;
 
@@ -5,8 +8,9 @@ const HEIGHT = 28;
  * Static trend sparkline for a stat tile — single series, so no legend or
  * hover per the stat-tile contract (dataviz skill: marks-and-anatomy.md).
  */
-export function Sparkline({ data, color }: { data: number[]; color: string }) {
+export function Sparkline({ data, color, locale }: { data: number[]; color: string; locale: Locale }) {
   if (data.length < 2) return null;
+  const t = dictionaries[locale].dashboard.chart;
 
   const min = Math.min(...data);
   const max = Math.max(...data);
@@ -28,7 +32,7 @@ export function Sparkline({ data, color }: { data: number[]; color: string }) {
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       className="mt-2"
       role="img"
-      aria-label={`Tendance sur les ${data.length} derniers jours`}
+      aria-label={t.trendAriaLabel(data.length)}
     >
       <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={lastX} cy={lastY} r={2.5} fill={color} />

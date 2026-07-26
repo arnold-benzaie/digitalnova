@@ -3,18 +3,22 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createDeal } from "@/lib/actions/crm-deals";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
 export function CreateDealForm({
   clientOptions,
   fixedClientId,
+  locale = "fr",
 }: {
   clientOptions?: { id: string; name: string }[];
   fixedClientId?: string;
+  locale?: Locale;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.deals.create;
 
   return (
     <form
@@ -28,7 +32,7 @@ export function CreateDealForm({
             formRef.current?.reset();
             router.refresh();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+            setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
           }
         })
       }
@@ -42,7 +46,7 @@ export function CreateDealForm({
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
           <option value="" disabled>
-            Client...
+            {t.clientPlaceholder}
           </option>
           {clientOptions.map((c) => (
             <option key={c.id} value={c.id}>
@@ -53,7 +57,7 @@ export function CreateDealForm({
       )}
       <input
         name="title"
-        placeholder="Titre de l'opportunité *"
+        placeholder={t.titlePlaceholder}
         required
         className="min-w-[180px] flex-1 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
       />
@@ -61,7 +65,7 @@ export function CreateDealForm({
         name="valueEuros"
         type="number"
         min={0}
-        placeholder="Montant (€)"
+        placeholder={t.valuePlaceholder}
         className="w-32 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
       />
       <input
@@ -74,7 +78,7 @@ export function CreateDealForm({
         disabled={isPending}
         className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
       >
-        {isPending ? "Ajout..." : "Ajouter"}
+        {isPending ? t.adding : t.addButton}
       </button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>

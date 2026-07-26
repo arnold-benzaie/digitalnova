@@ -15,9 +15,17 @@
 
 # playwright — generated per run, never a source of truth
 /e2e/report
+/e2e-preview/report
 /test-results
 /playwright-report
 /blob-report
+/playwright/.auth
+
+# preview-schema tooling — local pre-migration safety snapshots, never a source of truth
+/backups
+
+# claude code local settings
+/.claude
 
 # next.js
 /.next/

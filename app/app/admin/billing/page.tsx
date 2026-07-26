@@ -5,18 +5,16 @@ import { CancelSubscriptionButton, SubscribeButton } from "@/components/billing-
 import { getBillingProvider } from "@/lib/billing";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { requireStaffRole } from "@/lib/dev-role";
-
-const STATUS_LABEL: Record<string, string> = {
-  active: "Actif",
-  trialing: "Essai",
-  past_due: "Paiement en retard",
-  canceled: "Annulé",
-};
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 export default async function BillingPage() {
   await requireStaffRole();
 
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
+  const t = dictionaries[locale].settings;
+  const tb = t.billing;
   const provider = getBillingProvider();
   const plans = provider.listPlans();
 
@@ -34,69 +32,69 @@ export default async function BillingPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Facturation</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        Abonnements et facturation pour {org.name} — FastSpring comme merchant of record (données simulées, aucune
-        credential réelle configurée — voir README).
-      </p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{tb.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{tb.lead(org.name)}</p>
 
       {subscription && subscription.status !== "canceled" ? (
         <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Abonnement actuel</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.currentPlan}</p>
             <p className="mt-1 font-serif text-2xl font-bold text-pm-noir">
               {plans.find((p) => p.id === subscription.plan)?.name ?? subscription.plan}
             </p>
             <p className="mt-1 text-sm text-pm-gris">
-              {subscription.priceEuros} €/mois · {STATUS_LABEL[subscription.status] ?? subscription.status}
-              {subscription.currentPeriodEnd &&
-                ` · renouvellement le ${new Date(subscription.currentPeriodEnd).toLocaleDateString("fr-FR")}`}
+              {t.subscription.perMonth(subscription.priceEuros)} · {t.status[subscription.status as keyof typeof t.status] ?? subscription.status}
+              {subscription.currentPeriodEnd && tb.renewsOn(formatDate(subscription.currentPeriodEnd, locale))}
             </p>
           </div>
-          <CancelSubscriptionButton />
+          <CancelSubscriptionButton locale={locale} />
         </div>
       ) : (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-6 text-center">
-          <p className="text-sm text-pm-gris">Aucun abonnement actif.</p>
+          <p className="text-sm text-pm-gris">{tb.noSubscription}</p>
         </div>
       )}
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Offres</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.offersTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {plans.map((plan) => (
           <div key={plan.id} className="flex flex-col justify-between rounded-2xl border border-pm-gris-2 bg-white p-5">
             <div>
               <p className="font-serif text-lg font-semibold text-pm-noir">{plan.name}</p>
               <p className="mt-1 font-serif text-2xl font-bold text-pm-noir">
-                {plan.priceEuros} € <span className="text-sm font-normal text-pm-gris">/mois</span>
+                {plan.priceEuros} € <span className="text-sm font-normal text-pm-gris">{tb.perMonth}</span>
               </p>
               <p className="mt-2 text-sm text-pm-gris">{plan.description}</p>
             </div>
             <div className="mt-4">
-              <SubscribeButton planId={plan.id} label={subscription?.plan === plan.id ? "Offre actuelle" : "S'abonner"} />
+              <SubscribeButton
+                planId={plan.id}
+                label={subscription?.plan === plan.id ? tb.currentOffer : tb.subscribe}
+                locale={locale}
+              />
             </div>
           </div>
         ))}
       </div>
 
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">Factures</h2>
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.invoicesTitle}</h2>
       {orgInvoices.length === 0 ? (
-        <p className="mt-3 text-sm text-pm-gris">Aucune facture.</p>
+        <p className="mt-3 text-sm text-pm-gris">{tb.noInvoices}</p>
       ) : (
         <div className="mt-3 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
-                <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Montant</th>
-                <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Référence FastSpring</th>
+                <th className="px-5 py-3">{tb.columns.date}</th>
+                <th className="px-5 py-3">{tb.columns.amount}</th>
+                <th className="px-5 py-3">{tb.columns.status}</th>
+                <th className="px-5 py-3">{tb.columns.fastspringRef}</th>
               </tr>
             </thead>
             <tbody>
               {orgInvoices.map((invoice) => (
                 <tr key={invoice.id} className="border-t border-pm-gris-2">
-                  <td className="px-5 py-3 text-pm-gris">{new Date(invoice.issuedAt).toLocaleDateString("fr-FR")}</td>
+                  <td className="px-5 py-3 text-pm-gris">{formatDate(invoice.issuedAt, locale)}</td>
                   <td className="px-5 py-3 font-medium text-pm-noir">{invoice.amountEuros} €</td>
                   <td className="px-5 py-3 text-pm-gris">{invoice.status}</td>
                   <td className="px-5 py-3 text-pm-gris">{invoice.fastspringOrderId ?? "—"}</td>

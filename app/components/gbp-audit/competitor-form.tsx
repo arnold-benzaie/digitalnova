@@ -6,6 +6,8 @@ import { addCompetitor, updateCompetitor } from "@/lib/actions/gbp-audit-competi
 import { Input, Textarea } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export type EditableCompetitor = {
   id: string;
@@ -23,12 +25,15 @@ export function CompetitorForm({
   disabled,
   competitor,
   onDone,
+  locale = "fr",
 }: {
   auditId: string;
   disabled?: boolean;
   competitor?: EditableCompetitor;
   onDone?: () => void;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].auditModule.competition.form;
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -42,41 +47,41 @@ export function CompetitorForm({
           try {
             if (competitor) {
               await updateCompetitor(competitor.id, auditId, formData);
-              toast.success("Concurrent mis à jour");
+              toast.success(t.updated);
               onDone?.();
             } else {
               await addCompetitor(formData);
               formRef.current?.reset();
-              toast.success("Concurrent ajouté");
+              toast.success(t.added);
             }
             router.refresh();
           } catch (err) {
-            toast.error(competitor ? "Impossible de mettre à jour ce concurrent" : "Impossible d'ajouter ce concurrent", err instanceof Error ? err.message : undefined);
+            toast.error(competitor ? t.updateError : t.addError, err instanceof Error ? err.message : undefined);
           }
         })
       }
     >
       <input type="hidden" name="auditId" value={auditId} />
-      <Input name="name" defaultValue={competitor?.name} placeholder="Nom du concurrent" required aria-label="Nom du concurrent" />
-      <Input name="googleProfileUrl" defaultValue={competitor?.googleProfileUrl ?? ""} placeholder="URL du profil Google" aria-label="URL du profil Google" />
-      <Input name="rating" type="number" min={0} max={5} step={0.1} defaultValue={competitor?.rating !== null && competitor?.rating !== undefined ? competitor.rating / 100 : ""} placeholder="Note (/5)" aria-label="Note sur 5" />
-      <Input name="reviewCount" type="number" min={0} defaultValue={competitor?.reviewCount ?? ""} placeholder="Nombre d'avis" aria-label="Nombre d'avis" />
-      <Input name="photoCount" type="number" min={0} defaultValue={competitor?.photoCount ?? ""} placeholder="Nombre de photos" aria-label="Nombre de photos" />
+      <Input name="name" defaultValue={competitor?.name} placeholder={t.namePlaceholder} required aria-label={t.namePlaceholder} />
+      <Input name="googleProfileUrl" defaultValue={competitor?.googleProfileUrl ?? ""} placeholder={t.urlPlaceholder} aria-label={t.urlPlaceholder} />
+      <Input name="rating" type="number" min={0} max={5} step={0.1} defaultValue={competitor?.rating !== null && competitor?.rating !== undefined ? competitor.rating / 100 : ""} placeholder={t.ratingPlaceholder} aria-label={t.ratingAriaLabel} />
+      <Input name="reviewCount" type="number" min={0} defaultValue={competitor?.reviewCount ?? ""} placeholder={t.reviewCountPlaceholder} aria-label={t.reviewCountPlaceholder} />
+      <Input name="photoCount" type="number" min={0} defaultValue={competitor?.photoCount ?? ""} placeholder={t.photoCountPlaceholder} aria-label={t.photoCountPlaceholder} />
       <label className="flex items-center gap-2 text-xs text-pm-gris">
         <input type="checkbox" name="postsRecent" defaultChecked={competitor?.postsRecent ?? false} className="h-4 w-4 rounded border-pm-gris-2 text-pm-noir focus:ring-pm-noir/20" />
-        Publications récentes
+        {t.recentPosts}
       </label>
-      <Textarea name="notes" defaultValue={competitor?.notes ?? ""} placeholder="Différences visibles" rows={2} className="sm:col-span-3" aria-label="Différences visibles" />
+      <Textarea name="notes" defaultValue={competitor?.notes ?? ""} placeholder={t.notesPlaceholder} rows={2} className="sm:col-span-3" aria-label={t.notesPlaceholder} />
       <div className="flex items-center gap-3 sm:col-span-3">
         <Button type="submit" loading={isPending} disabled={disabled}>
-          {competitor ? "Enregistrer" : "Ajouter le concurrent"}
+          {competitor ? t.save : t.add}
         </Button>
         {competitor && (
           <Button type="button" variant="ghost" onClick={onDone} disabled={isPending}>
-            Annuler
+            {t.cancel}
           </Button>
         )}
-        {disabled && !competitor && <p className="text-xs text-pm-gris">Maximum 5 concurrents atteint.</p>}
+        {disabled && !competitor && <p className="text-xs text-pm-gris">{t.maxReached}</p>}
       </div>
     </form>
   );

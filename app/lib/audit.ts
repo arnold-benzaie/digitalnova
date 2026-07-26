@@ -16,8 +16,8 @@ type LogAuditInput = {
  * action / route handler should call this instead of writing to
  * `auditLog` directly — keeps the NFR enforceable instead of aspirational.
  */
-export async function logAudit(input: LogAuditInput) {
-  await db.insert(auditLog).values({
+export async function logAudit(input: LogAuditInput, executor: Pick<typeof db, "insert"> = db) {
+  await executor.insert(auditLog).values({
     actorUserId: input.actorUserId,
     organizationId: input.organizationId,
     action: input.action,

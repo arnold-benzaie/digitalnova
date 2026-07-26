@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/i18n/locale.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs scripts/preview-schema-migration-validator.test.mjs scripts/preview-schema-migration-transformer.test.mjs scripts/preview-schema-execution-engine.test.mjs scripts/preview-schema-preflight.test.mjs",
+    "test": "tsx --test --experimental-test-module-mocks lib/dev-role.test.mjs lib/i18n/locale.test.mjs lib/i18n/format.test.mjs lib/i18n/notification-templates.test.mjs lib/gbp-audit/checklist.test.mjs lib/gbp-audit/competitor-scoring.test.mjs lib/gbp-audit/rate-limit.test.mjs lib/gbp-audit/dashboard-stats.test.mjs scripts/preview-schema-migration-validator.test.mjs scripts/preview-schema-migration-transformer.test.mjs scripts/preview-schema-execution-engine.test.mjs scripts/preview-schema-preflight.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
@@ -18,9 +18,12 @@
     "preview-schema:setup": "tsx scripts/setup-preview-schema.mjs",
     "preview-schema:preflight": "tsx scripts/preview-schema-preflight-report.mjs",
     "test:e2e": "playwright test",
+    "test:approval": "tsx --test --experimental-test-module-mocks lib/actions/user-approval.test.mjs",
+    "test:approval:e2e": "playwright test --config=playwright.approval.config.ts",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.13.8",
     "@clerk/nextjs": "^7.5.15",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.110.2",

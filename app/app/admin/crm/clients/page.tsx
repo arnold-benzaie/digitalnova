@@ -2,12 +2,14 @@ import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { crmClients } from "@/db/schema";
-import { Badge, CLIENT_STAGE_CLASS, CLIENT_STAGE_OPTIONS } from "@/components/crm/badges";
+import { Badge, CLIENT_STAGE_CLASS, CLIENT_STAGE_OPTIONS, getClientStageOptions } from "@/components/crm/badges";
 import { CreateClientForm } from "@/components/crm/create-client-form";
 import { SeedCrmButton } from "@/components/crm/seed-button";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
-const STAGE_LABEL = Object.fromEntries(CLIENT_STAGE_OPTIONS.map((o) => [o.value, o.label]));
 const STAGE_VALUES = CLIENT_STAGE_OPTIONS.map((o) => o.value);
 const PAGE_SIZE = 20;
 
@@ -32,7 +34,10 @@ function buildExportHref(params: Params, format: "csv" | "pdf") {
 
 export default async function CrmClientsPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.clients;
+  const stageLabel = Object.fromEntries(getClientStageOptions(locale).map((o) => [o.value, o.label]));
+  const stageOptions = getClientStageOptions(locale);
 
   const q = params.q?.trim() ?? "";
   const stageFilter = params.stage && STAGE_VALUES.includes(params.stage) ? params.stage : "";
@@ -69,46 +74,44 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Clients</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""}
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.resultsSummary(totalCount, overallCount, hasFilters)}</p>
         </div>
         <div className="flex items-center gap-3">
           <a
             href={buildExportHref(params, "csv")}
             className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
           >
-            Export CSV
+            {t.exportCsv}
           </a>
           <a
             href={buildExportHref(params, "pdf")}
             className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
           >
-            Export PDF
+            {t.exportPdf}
           </a>
-          {overallCount === 0 && <SeedCrmButton />}
+          {overallCount === 0 && <SeedCrmButton locale={locale} />}
         </div>
       </div>
 
       <div className="mt-6">
-        <CreateClientForm />
+        <CreateClientForm locale={locale} />
       </div>
 
       <form action="/admin/crm/clients" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">
-          Rechercher un client
+          {t.searchLabel}
         </label>
         <input
           id="q"
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par nom, contact ou email…"
+          placeholder={t.searchPlaceholder}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
         <label htmlFor="stage" className="sr-only">
-          Filtrer par étape
+          {t.stageFilterLabel}
         </label>
         <select
           id="stage"
@@ -116,15 +119,15 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
           defaultValue={stageFilter}
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
-          <option value="">Toutes les étapes</option>
-          {CLIENT_STAGE_OPTIONS.map((option) => (
+          <option value="">{t.allStages}</option>
+          {stageOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
         <label htmlFor="archived" className="sr-only">
-          Filtrer par statut
+          {t.statusFilterLabel}
         </label>
         <select
           id="archived"
@@ -132,19 +135,19 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
           defaultValue={archivedFilter}
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
-          <option value="active">Actifs (non archivés)</option>
-          <option value="archived">Archivés</option>
-          <option value="all">Tous</option>
+          <option value="active">{t.activeOption}</option>
+          <option value="archived">{t.archivedOption}</option>
+          <option value="all">{t.allOption}</option>
         </select>
         <button
           type="submit"
           className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
         >
-          Filtrer
+          {dictionaries[locale].common.filter}
         </button>
         {hasFilters && (
           <Link href="/admin/crm/clients" className="text-xs text-pm-gris underline">
-            Réinitialiser
+            {t.reset}
           </Link>
         )}
       </form>
@@ -152,11 +155,9 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
       {clients.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucun client pour le moment" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
-          {overallCount > 0 && (
-            <p className="mt-1 text-sm text-pm-gris">Essayez une autre recherche, ou réinitialisez les filtres.</p>
-          )}
+          {overallCount > 0 && <p className="mt-1 text-sm text-pm-gris">{t.emptyFilteredDescription}</p>}
         </div>
       ) : (
         <>
@@ -164,11 +165,11 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
             <table className="w-full text-left text-sm">
               <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                 <tr>
-                  <th className="px-5 py-3">Nom</th>
-                  <th className="px-5 py-3">Contact</th>
-                  <th className="px-5 py-3">Étape</th>
-                  <th className="px-5 py-3">Conseiller</th>
-                  <th className="px-5 py-3">Créé le</th>
+                  <th className="px-5 py-3">{t.columns.name}</th>
+                  <th className="px-5 py-3">{t.columns.contact}</th>
+                  <th className="px-5 py-3">{t.columns.stage}</th>
+                  <th className="px-5 py-3">{t.columns.owner}</th>
+                  <th className="px-5 py-3">{t.columns.createdAt}</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,19 +181,19 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
                       </Link>
                       {client.archivedAt && (
                         <span className="ml-2 inline-block rounded-full bg-pm-gris-2/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-pm-gris">
-                          Archivé
+                          {t.archivedBadge}
                         </span>
                       )}
                     </td>
                     <td className="px-5 py-3 text-pm-gris">
-                      {client.contactName ?? "—"}
+                      {client.contactName ?? t.noValue}
                       {client.email && <div className="text-xs">{client.email}</div>}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge label={STAGE_LABEL[client.stage] ?? client.stage} className={CLIENT_STAGE_CLASS[client.stage] ?? ""} />
+                      <Badge label={stageLabel[client.stage] ?? client.stage} className={CLIENT_STAGE_CLASS[client.stage] ?? ""} />
                     </td>
-                    <td className="px-5 py-3 text-pm-gris">{client.ownerName ?? "—"}</td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(client.createdAt).toLocaleDateString("fr-FR")}</td>
+                    <td className="px-5 py-3 text-pm-gris">{client.ownerName ?? t.noValue}</td>
+                    <td className="px-5 py-3 text-pm-gris">{formatDate(client.createdAt, locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -207,18 +208,16 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
                   page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
                 }`}
               >
-                Précédent
+                {dictionaries[locale].common.previous}
               </Link>
-              <span className="text-pm-gris">
-                Page {page} / {totalPages}
-              </span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <Link
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${
                   page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"
                 }`}
               >
-                Suivant
+                {dictionaries[locale].common.next}
               </Link>
             </div>
           )}

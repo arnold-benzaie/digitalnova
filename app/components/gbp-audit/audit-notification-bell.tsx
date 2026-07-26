@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { markAllAuditNotificationsRead, markAuditNotificationRead } from "@/lib/actions/gbp-audit-notifications";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
 type NotificationItem = { id: string; title: string; body: string | null; href: string | null; read: boolean; createdAt: Date };
 
@@ -14,8 +17,15 @@ type NotificationItem = { id: string; title: string; body: string | null; href: 
  * them through one component would mean threading a mark-all-read callback
  * and a data source through props for a ~120-line component used in
  * exactly two places.
+ *
+ * `item.title`/`item.body` are still stored pre-rendered in French only
+ * (unlike the main app's notifications, redesigned in Phase 1 to a
+ * type+metadata system) — the audit_notifications table has no metadata
+ * column yet, and adding one is a schema migration out of scope for this
+ * pass. Only this component's own chrome is bilingual for now.
  */
-export function AuditNotificationBell({ notifications, unreadCount }: { notifications: NotificationItem[]; unreadCount: number }) {
+export function AuditNotificationBell({ notifications, unreadCount, locale = "fr" }: { notifications: NotificationItem[]; unreadCount: number; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.notificationBell;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -34,7 +44,7 @@ export function AuditNotificationBell({ notifications, unreadCount }: { notifica
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
+        aria-label={t.label}
         className="relative flex h-9 w-9 items-center justify-center rounded-full border border-pm-gris-2 bg-white text-pm-noir transition hover:bg-pm-gris-2/40"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -51,7 +61,7 @@ export function AuditNotificationBell({ notifications, unreadCount }: { notifica
       {open && (
         <div className="absolute right-0 z-10 mt-2 w-80 rounded-2xl border border-pm-gris-2 bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-pm-gris-2 px-4 py-3">
-            <p className="text-sm font-medium text-pm-noir">Notifications</p>
+            <p className="text-sm font-medium text-pm-noir">{t.heading}</p>
             {unreadCount > 0 && (
               <button
                 type="button"
@@ -64,14 +74,14 @@ export function AuditNotificationBell({ notifications, unreadCount }: { notifica
                 }
                 className="text-xs text-pm-gris underline hover:text-pm-noir disabled:opacity-50"
               >
-                Tout marquer comme lu
+                {t.markAllRead}
               </button>
             )}
           </div>
 
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-pm-gris">Aucune notification.</p>
+              <p className="px-4 py-6 text-center text-sm text-pm-gris">{t.empty}</p>
             ) : (
               notifications.map((item) => {
                 const content = (
@@ -81,7 +91,7 @@ export function AuditNotificationBell({ notifications, unreadCount }: { notifica
                       <p className="text-sm font-medium text-pm-noir">{item.title}</p>
                       {item.body && <p className="mt-0.5 text-xs text-pm-gris">{item.body}</p>}
                       <p className="mt-1 text-[11px] text-pm-gris">
-                        {new Date(item.createdAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {formatDate(item.createdAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
@@ -112,7 +122,7 @@ export function AuditNotificationBell({ notifications, unreadCount }: { notifica
             onClick={() => setOpen(false)}
             className="block border-t border-pm-gris-2 px-4 py-3 text-center text-xs font-medium text-pm-noir hover:bg-pm-gris-2/30"
           >
-            Voir tout
+            {t.viewAll}
           </Link>
         </div>
       )}

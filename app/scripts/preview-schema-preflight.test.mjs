@@ -118,13 +118,13 @@ test("formatPreflightReport: lists every migration file and every SQL statement 
   assert.match(text, /\[2\/5\].*SET LOCAL search_path/);
 });
 
-test("integration: preflight report over all 10 real db/migrations files matches the Phase 3 dry-run plan exactly", async () => {
+test("integration: preflight report over all 12 real db/migrations files matches the Phase 3 dry-run plan exactly", async () => {
   const dir = join("db", "migrations");
   const files = readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .sort()
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
-  assert.equal(files.length, 10);
+  assert.equal(files.length, 12);
 
   const report = await buildPreflightReport({
     files,
@@ -132,8 +132,8 @@ test("integration: preflight report over all 10 real db/migrations files matches
     connectionString: undefined,
     connectionEnvVarName: "PREVIEW_SCHEMA_DATABASE_URL",
   });
-  assert.equal(report.statementCount, 150);
-  assert.equal(report.migrationFiles.length, 10);
+  assert.equal(report.statementCount, 160);
+  assert.equal(report.migrationFiles.length, 12);
   for (const { sql } of report.statements) {
     assert.equal((sql.match(/public/gi) ?? []).length, 0);
   }

@@ -6,10 +6,13 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 import { NotificationBell } from "@/components/notification-bell";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
-import { STAFF_NAV_SECTIONS, CLIENT_NAV_SECTIONS, type NavSection } from "@/components/app-sidebar-nav";
+import { getStaffNavSections, getClientNavSections, type NavSection } from "@/components/app-sidebar-nav";
 import type { DevRole } from "@/lib/dev-role";
 import type { NavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 function Badge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -46,6 +49,8 @@ function SectionBlock({
   onToggle,
   badges,
   onNavigate,
+  sectionActiveHint,
+  pendingBadgeLabel,
 }: {
   section: NavSection;
   pathname: string;
@@ -54,6 +59,8 @@ function SectionBlock({
   onToggle: () => void;
   badges: NavBadgeCounts;
   onNavigate?: () => void;
+  sectionActiveHint: string;
+  pendingBadgeLabel: (count: number) => string;
 }) {
   const sectionHasActive = section.items.some((item) => isActive(item.href, pathname));
 
@@ -91,16 +98,14 @@ function SectionBlock({
                 {!collapsed && <span className="truncate">{item.label}</span>}
                 {!collapsed && <Badge count={count} />}
                 {collapsed && count > 0 && (
-                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-pm-rouge" aria-label={`${count} en attente`} />
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-pm-rouge" aria-label={pendingBadgeLabel(count)} />
                 )}
               </Link>
             );
           })}
         </div>
       )}
-      {section.label && sectionHasActive && !open && !collapsed && (
-        <p className="px-3 text-[10px] text-pm-gris/70">Section active — cliquez pour déplier</p>
-      )}
+      {section.label && sectionHasActive && !open && !collapsed && <p className="px-3 text-[10px] text-pm-gris/70">{sectionActiveHint}</p>}
     </div>
   );
 }
@@ -124,16 +129,19 @@ export function AppShellClient({
   badges,
   recentNotifications,
   unreadCount,
+  locale,
   children,
 }: {
   role: DevRole;
   badges: NavBadgeCounts;
-  recentNotifications: { id: string; title: string; body: string | null; read: boolean; createdAt: Date }[];
+  recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
+  locale: Locale;
   children: ReactNode;
 }) {
+  const t = dictionaries[locale].navigation;
   const pathname = usePathname() ?? "";
-  const sections = role === "client" ? CLIENT_NAV_SECTIONS : STAFF_NAV_SECTIONS;
+  const sections = useMemo(() => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t)), [role, t]);
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
@@ -175,12 +183,12 @@ export function AppShellClient({
       <div className={`mb-8 flex items-center ${collapsed && !asDrawer ? "justify-center" : "justify-between"}`}>
         <Brand collapsed={collapsed && !asDrawer} />
         {asDrawer && (
-          <button type="button" onClick={() => setMobileOpen(false)} aria-label="Fermer le menu" className="rounded-lg p-2 text-pm-gris hover:bg-pm-gris-2/40">
+          <button type="button" onClick={() => setMobileOpen(false)} aria-label={t.shell.closeMenu} className="rounded-lg p-2 text-pm-gris hover:bg-pm-gris-2/40">
             <NAV_ICONS.x />
           </button>
         )}
       </div>
-      <nav aria-label="Navigation principale" className="flex flex-1 flex-col gap-3 overflow-y-auto">
+      <nav aria-label={t.shell.mainNav} className="flex flex-1 flex-col gap-3 overflow-y-auto">
         {sections.map((section) => (
           <SectionBlock
             key={section.key}
@@ -191,6 +199,8 @@ export function AppShellClient({
             onToggle={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
             badges={badges}
             onNavigate={asDrawer ? () => setMobileOpen(false) : undefined}
+            sectionActiveHint={t.shell.sectionActiveHint}
+            pendingBadgeLabel={t.shell.pendingBadge}
           />
         ))}
       </nav>
@@ -201,7 +211,7 @@ export function AppShellClient({
           className="mt-4 hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-pm-gris transition hover:bg-pm-gris-2/40 hover:text-pm-noir md:flex"
         >
           <NAV_ICONS.panelLeft width={16} height={16} />
-          Réduire le menu
+          {t.shell.collapseMenu}
         </button>
       )}
     </>
@@ -221,8 +231,8 @@ export function AppShellClient({
             <button
               type="button"
               onClick={() => setCollapsed(false)}
-              title="Déplier le menu"
-              aria-label="Déplier le menu"
+              title={t.shell.expandMenu}
+              aria-label={t.shell.expandMenu}
               className="mt-2 flex items-center justify-center rounded-lg p-2 text-pm-gris transition hover:bg-pm-gris-2/40 hover:text-pm-noir"
             >
               <NAV_ICONS.panelLeft width={16} height={16} />
@@ -236,7 +246,7 @@ export function AppShellClient({
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <button type="button" aria-label="Fermer le menu" className="absolute inset-0 bg-pm-noir/40" onClick={() => setMobileOpen(false)} />
+          <button type="button" aria-label={t.shell.closeMenu} className="absolute inset-0 bg-pm-noir/40" onClick={() => setMobileOpen(false)} />
           <div className="relative flex h-full w-72 max-w-[80vw] flex-col bg-white p-6 shadow-xl">{navContent(true)}</div>
         </div>
       )}
@@ -247,7 +257,7 @@ export function AppShellClient({
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              aria-label="Ouvrir le menu"
+              aria-label={t.shell.openMenu}
               className="rounded-lg p-2 text-pm-gris transition hover:bg-pm-gris-2/40 hover:text-pm-noir md:hidden"
             >
               <NAV_ICONS.menu />
@@ -256,14 +266,16 @@ export function AppShellClient({
               PUBLIC-<span className="text-blue-600">MAP</span>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3 sm:gap-4">
             <span className="hidden rounded-full bg-pm-gris-2/40 px-3 py-1 text-xs font-medium uppercase tracking-wide text-pm-gris sm:inline-block">
-              {role === "client" ? "Espace client" : "Espace agence"}
+              {role === "client" ? t.shell.clientSpace : t.shell.agencySpace}
             </span>
+            <LanguageSwitcher locale={locale} variant="shell" />
             <NotificationBell
               notifications={recentNotifications}
               unreadCount={unreadCount}
               viewAllHref={role === "client" ? "/dashboard/notifications" : "/admin/notifications"}
+              locale={locale}
             />
             <UserButton />
           </div>

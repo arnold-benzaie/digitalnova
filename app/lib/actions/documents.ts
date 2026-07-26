@@ -8,16 +8,23 @@ import { logAudit } from "@/lib/audit";
 import { getDevRole } from "@/lib/dev-role";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { notify } from "@/lib/notifications";
+import { getLocale } from "@/lib/i18n/locale";
 
 const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4MB — see next.config.ts bodySizeLimit
 
+const MESSAGES = {
+  fr: { selectFile: "Sélectionnez un fichier.", fileTooLarge: "Fichier trop volumineux (4 Mo maximum).", documentNotFound: "Document introuvable." },
+  en: { selectFile: "Select a file.", fileTooLarge: "File too large (4 MB maximum).", documentNotFound: "Document not found." },
+} as const;
+
 export async function uploadDocument(formData: FormData) {
+  const locale = await getLocale();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Sélectionnez un fichier.");
+    throw new Error(MESSAGES[locale].selectFile);
   }
   if (file.size > MAX_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (4 Mo maximum).");
+    throw new Error(MESSAGES[locale].fileTooLarge);
   }
 
   const org = await getOrCreateDevOrganization();
@@ -44,8 +51,8 @@ export async function uploadDocument(formData: FormData) {
   await notify({
     organizationId: org.id,
     type: "document.uploaded",
-    title: "Nouveau document ajouté",
-    body: file.name,
+    metadata: {},
+    rawBody: file.name,
   });
 
   revalidatePath("/dashboard/documents");
@@ -54,7 +61,7 @@ export async function uploadDocument(formData: FormData) {
 }
 
 export async function deleteDocument(id: string) {
-  const org = await getOrCreateDevOrganization();
+  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
   const [deleted] = await db
     .delete(documents)
     .where(and(eq(documents.id, id), eq(documents.organizationId, org.id)))
@@ -62,7 +69,7 @@ export async function deleteDocument(id: string) {
   if (!deleted) {
     // Either it never existed, or it belongs to a different organization —
     // don't distinguish the two in the error, same as a 404 would.
-    throw new Error("Document introuvable.");
+    throw new Error(MESSAGES[locale].documentNotFound);
   }
 
   await logAudit({

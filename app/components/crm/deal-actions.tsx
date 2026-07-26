@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteDeal, updateDeal } from "@/lib/actions/crm-deals";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
 type Deal = {
   id: string;
@@ -11,12 +12,13 @@ type Deal = {
   expectedCloseDate: string | Date | null;
 };
 
-export function EditDealForm({ deal }: { deal: Deal }) {
+export function EditDealForm({ deal, locale = "fr" }: { deal: Deal; locale?: Locale }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const expectedCloseDate = deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toISOString().slice(0, 10) : "";
+  const t = dictionaries[locale].crm.deals.edit;
 
   function close() {
     dialogRef.current?.close();
@@ -30,7 +32,7 @@ export function EditDealForm({ deal }: { deal: Deal }) {
         onClick={() => dialogRef.current?.showModal()}
         className="text-xs text-pm-gris underline hover:text-pm-noir"
       >
-        Modifier
+        {t.modifyButton}
       </button>
 
       <dialog
@@ -48,17 +50,17 @@ export function EditDealForm({ deal }: { deal: Deal }) {
                 close();
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+                setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
               }
             })
           }
         >
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">Modifier l&apos;opportunité</h2>
+          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
           <input
             name="title"
             required
             defaultValue={deal.title}
-            placeholder="Titre *"
+            placeholder={t.titlePlaceholder}
             className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
           />
           <input
@@ -66,7 +68,7 @@ export function EditDealForm({ deal }: { deal: Deal }) {
             type="number"
             min={0}
             defaultValue={deal.valueEuros}
-            placeholder="Valeur (€)"
+            placeholder={t.valuePlaceholder}
             className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
           />
           <input
@@ -78,14 +80,14 @@ export function EditDealForm({ deal }: { deal: Deal }) {
           {error && <p className="text-sm text-pm-rouge">{error}</p>}
           <div className="mt-1 flex items-center justify-end gap-3">
             <button type="button" onClick={close} disabled={isPending} className="text-sm text-pm-gris hover:text-pm-noir disabled:opacity-50">
-              Annuler
+              {dictionaries[locale].common.cancel}
             </button>
             <button
               type="submit"
               disabled={isPending}
               className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
             >
-              {isPending ? "Enregistrement..." : "Enregistrer"}
+              {isPending ? t.saving : t.saveButton}
             </button>
           </div>
         </form>
@@ -94,10 +96,11 @@ export function EditDealForm({ deal }: { deal: Deal }) {
   );
 }
 
-export function DeleteDealButton({ id }: { id: string }) {
+export function DeleteDealButton({ id, locale = "fr" }: { id: string; locale?: Locale }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const t = dictionaries[locale].crm.deals.delete;
 
   return (
     <div>
@@ -105,20 +108,20 @@ export function DeleteDealButton({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("Supprimer cette opportunité ?")) return;
+          if (!confirm(t.confirm)) return;
           setError(null);
           startTransition(async () => {
             try {
               await deleteDeal(id);
               router.refresh();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+              setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
             }
           });
         }}
         className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
       >
-        {isPending ? "..." : "Supprimer"}
+        {isPending ? t.deleting : t.button}
       </button>
       {error && <p className="mt-1 text-xs text-pm-rouge">{error}</p>}
     </div>

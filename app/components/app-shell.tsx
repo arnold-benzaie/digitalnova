@@ -5,6 +5,7 @@ import { notifications as notificationsTable } from "@/db/schema";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import type { DevRole } from "@/lib/dev-role";
 import { getNavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
+import { getLocale } from "@/lib/i18n/locale";
 import { AppShellClient } from "@/components/app-shell-client";
 
 /**
@@ -18,16 +19,17 @@ import { AppShellClient } from "@/components/app-shell-client";
  */
 export async function AppShell({ children, role }: { children: ReactNode; role: DevRole }) {
   const org = await getOrCreateDevOrganization();
-  const [recentNotifications, badges] = await Promise.all([
+  const [recentNotifications, badges, locale] = await Promise.all([
     db.select().from(notificationsTable).where(eq(notificationsTable.organizationId, org.id)).orderBy(desc(notificationsTable.createdAt)).limit(8),
     role === "client"
       ? Promise.resolve({ auditUnreadNotifications: 0, auditPendingInvitations: 0, auditPendingQuoteRequests: 0, crmOpenTickets: 0 })
       : getNavBadgeCounts(),
+    getLocale(),
   ]);
   const unreadCount = recentNotifications.filter((n) => !n.read).length;
 
   return (
-    <AppShellClient role={role} badges={badges} recentNotifications={recentNotifications} unreadCount={unreadCount}>
+    <AppShellClient role={role} badges={badges} recentNotifications={recentNotifications} unreadCount={unreadCount} locale={locale}>
       {children}
     </AppShellClient>
   );

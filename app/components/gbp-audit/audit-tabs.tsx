@@ -1,18 +1,21 @@
 import Link from "next/link";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const TABS = [
-  { key: "overview", label: "Vue d'ensemble", suffix: "" },
-  { key: "audit", label: "Contrôles (19 catégories)", suffix: "/audit" },
-  { key: "preuves", label: "Preuves", suffix: "/preuves" },
-  { key: "concurrence", label: "Concurrence", suffix: "/concurrence" },
-  { key: "plan-correction", label: "Plan de correction", suffix: "/plan-correction" },
-  { key: "timeline", label: "Historique", suffix: "/timeline" },
-  { key: "rapport", label: "Rapport", suffix: "/rapport" },
-];
+export function AuditTabs({ auditId, active, locale = "fr" }: { auditId: string; active: string; locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.tabs;
+  const TABS = [
+    { key: "overview", label: t.overview, suffix: "" },
+    { key: "audit", label: t.audit, suffix: "/audit" },
+    { key: "preuves", label: t.preuves, suffix: "/preuves" },
+    { key: "concurrence", label: t.concurrence, suffix: "/concurrence" },
+    { key: "plan-correction", label: t.planCorrection, suffix: "/plan-correction" },
+    { key: "timeline", label: t.timeline, suffix: "/timeline" },
+    { key: "rapport", label: t.rapport, suffix: "/rapport" },
+  ];
 
-export function AuditTabs({ auditId, active }: { auditId: string; active: string }) {
   return (
-    <nav className="mt-6 flex flex-wrap gap-1 border-b border-pm-gris-2" aria-label="Sections de l'audit">
+    <nav className="mt-6 flex flex-wrap gap-1 border-b border-pm-gris-2" aria-label={t.ariaLabel}>
       {TABS.map((tab) => {
         const isActive = active === tab.key;
         return (

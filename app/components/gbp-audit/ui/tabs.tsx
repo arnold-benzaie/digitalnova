@@ -2,12 +2,18 @@
 
 import { useState, type ReactNode } from "react";
 
-export function Tabs({ tabs }: { tabs: { key: string; label: string; content: ReactNode }[] }) {
+export function Tabs({
+  tabs,
+  ariaLabel,
+}: {
+  tabs: { key: string; label: string; content: ReactNode }[];
+  ariaLabel: string;
+}) {
   const [active, setActive] = useState(tabs[0]?.key);
 
   return (
     <div>
-      <div role="tablist" aria-label="Sections des paramètres" className="flex gap-1 overflow-x-auto border-b border-pm-gris-2">
+      <div role="tablist" aria-label={ariaLabel} className="flex gap-1 overflow-x-auto border-b border-pm-gris-2">
         {tabs.map((tab) => (
           <button
             key={tab.key}

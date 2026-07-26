@@ -5,17 +5,24 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { clientRequired: "Client requis.", nameRequired: "Nom du projet requis.", invalidStatus: "Statut invalide.", projectNotFound: "Projet introuvable." },
+  en: { clientRequired: "Client required.", nameRequired: "Project name required.", invalidStatus: "Invalid status.", projectNotFound: "Project not found." },
+} as const;
 
 const STATUSES = ["planning", "in_progress", "completed", "on_hold"] as const;
 
 export async function createProject(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const name = formData.get("name");
   if (typeof clientId !== "string" || !clientId) {
-    throw new Error("Client requis.");
+    throw new Error(MESSAGES[locale].clientRequired);
   }
   if (typeof name !== "string" || !name.trim()) {
-    throw new Error("Nom du projet requis.");
+    throw new Error(MESSAGES[locale].nameRequired);
   }
 
   const dueDateRaw = formData.get("dueDate");
@@ -44,8 +51,9 @@ export async function createProject(formData: FormData) {
 }
 
 export async function updateProjectStatus(id: string, status: string) {
+  const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
-    throw new Error("Statut invalide.");
+    throw new Error(MESSAGES[locale].invalidStatus);
   }
 
   const [project] = await db.update(projects).set({ status }).where(eq(projects.id, id)).returning();
@@ -65,9 +73,10 @@ export async function updateProjectStatus(id: string, status: string) {
 
 /** Full edit — name/description/dates; use updateProjectStatus for status. */
 export async function updateProject(id: string, formData: FormData) {
+  const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
-    throw new Error("Nom du projet requis.");
+    throw new Error(MESSAGES[locale].nameRequired);
   }
 
   const startDateRaw = formData.get("startDate");
@@ -83,7 +92,7 @@ export async function updateProject(id: string, formData: FormData) {
     })
     .where(eq(projects.id, id))
     .returning();
-  if (!project) throw new Error("Projet introuvable.");
+  if (!project) throw new Error(MESSAGES[locale].projectNotFound);
 
   await logCrmAudit({
     action: "crm.project_updated",
@@ -100,8 +109,9 @@ export async function updateProject(id: string, formData: FormData) {
 }
 
 export async function deleteProject(id: string) {
+  const locale = await getLocale();
   const [project] = await db.delete(projects).where(eq(projects.id, id)).returning();
-  if (!project) throw new Error("Projet introuvable.");
+  if (!project) throw new Error(MESSAGES[locale].projectNotFound);
 
   await logCrmAudit({
     action: "crm.project_deleted",

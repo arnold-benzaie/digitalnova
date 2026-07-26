@@ -2,17 +2,13 @@ import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { contracts, crmClients } from "@/db/schema";
-import { Badge, CONTRACT_STATUS_CLASS, CONTRACT_STATUS_LABEL } from "@/components/crm/badges";
+import { Badge, CONTRACT_STATUS_CLASS, getContractStatusLabel } from "@/components/crm/badges";
 import { EditContractForm, SendContractButton, SimulateSignatureButton } from "@/components/crm/contract-actions";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const STATUS_OPTIONS = [
-  { value: "draft", label: "Brouillon" },
-  { value: "sent", label: "Envoyé" },
-  { value: "signed", label: "Signé" },
-  { value: "declined", label: "Refusé" },
-];
-const STATUS_VALUES = STATUS_OPTIONS.map((o) => o.value);
+const STATUS_VALUES = ["draft", "sent", "signed", "declined"];
 const PAGE_SIZE = 20;
 
 type Params = { q?: string; status?: string; page?: string };
@@ -28,7 +24,10 @@ function buildHref(params: Params, overrides: Partial<Record<keyof Params, strin
 
 export default async function CrmContractsPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const t = dictionaries[locale].crm.contracts;
+  const contractStatusLabel = getContractStatusLabel(locale);
+  const statusOptions = Object.entries(contractStatusLabel).map(([value, label]) => ({ value, label }));
 
   const q = params.q?.trim() ?? "";
   const status = params.status && STATUS_VALUES.includes(params.status) ? params.status : "";
@@ -58,40 +57,37 @@ export default async function CrmContractsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">Contrats &amp; devis</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {totalCount} résultat(s){hasFilters ? ` sur ${overallCount} au total` : ""} — signature électronique simulée
-        (aucun fournisseur réel configuré, voir README).
-      </p>
+      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
+      <p className="mt-2 text-sm text-pm-gris">{t.summary(totalCount, overallCount, hasFilters)}</p>
 
       <form action="/admin/crm/contracts" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Rechercher par titre…"
-          aria-label="Rechercher un contrat"
+          placeholder={t.searchPlaceholder}
+          aria-label={t.searchAriaLabel}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20 sm:max-w-xs"
         />
-        <select name="status" defaultValue={status} aria-label="Filtrer par statut" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
-          <option value="">Tous les statuts</option>
-          {STATUS_OPTIONS.map((o) => (
+        <select name="status" defaultValue={status} aria-label={t.statusFilterAriaLabel} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">{t.allStatuses}</option>
+          {statusOptions.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         <button type="submit" className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2">
-          Filtrer
+          {dictionaries[locale].common.filter}
         </button>
-        {hasFilters && <a href="/admin/crm/contracts" className="text-xs text-pm-gris underline">Réinitialiser</a>}
+        {hasFilters && <a href="/admin/crm/contracts" className="text-xs text-pm-gris underline">{t.reset}</a>}
       </form>
 
       {allContracts.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">
-            {overallCount === 0 ? "Aucun contrat" : "Aucun résultat"}
+            {overallCount === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
           </p>
           {overallCount === 0 && (
-            <p className="mt-1 text-sm text-pm-gris">Créez un contrat depuis la fiche d&apos;un client.</p>
+            <p className="mt-1 text-sm text-pm-gris">{t.emptyNoneDescription}</p>
           )}
         </div>
       ) : (
@@ -104,13 +100,13 @@ export default async function CrmContractsPage({ searchParams }: { searchParams:
                     <Link href={`/admin/crm/clients/${contract.clientId}`} className="font-medium text-pm-noir hover:underline">
                       {contract.title}
                     </Link>
-                    <p className="text-xs text-pm-gris">{clientNameById.get(contract.clientId) ?? "—"}</p>
+                    <p className="text-xs text-pm-gris">{clientNameById.get(contract.clientId) ?? t.noValue}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge label={CONTRACT_STATUS_LABEL[contract.status] ?? contract.status} className={CONTRACT_STATUS_CLASS[contract.status] ?? ""} />
-                    {contract.status === "draft" && <EditContractForm contract={contract} />}
-                    {contract.status === "draft" && <SendContractButton id={contract.id} />}
-                    {contract.status === "sent" && <SimulateSignatureButton id={contract.id} />}
+                    <Badge label={contractStatusLabel[contract.status] ?? contract.status} className={CONTRACT_STATUS_CLASS[contract.status] ?? ""} />
+                    {contract.status === "draft" && <EditContractForm contract={contract} locale={locale} />}
+                    {contract.status === "draft" && <SendContractButton id={contract.id} locale={locale} />}
+                    {contract.status === "sent" && <SimulateSignatureButton id={contract.id} locale={locale} />}
                   </div>
                 </div>
               </div>
@@ -123,14 +119,14 @@ export default async function CrmContractsPage({ searchParams }: { searchParams:
                 href={buildHref(params, { page: page > 1 ? String(page - 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Précédent
+                {dictionaries[locale].common.previous}
               </a>
-              <span className="text-pm-gris">Page {page} / {totalPages}</span>
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <a
                 href={buildHref(params, { page: page < totalPages ? String(page + 1) : undefined })}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${page >= totalPages ? "pointer-events-none opacity-40" : "hover:bg-pm-gris-2/30"}`}
               >
-                Suivant
+                {dictionaries[locale].common.next}
               </a>
             </div>
           )}

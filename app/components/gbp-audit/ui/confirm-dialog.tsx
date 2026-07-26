@@ -2,6 +2,8 @@
 
 import { useImperativeHandle, useRef, useState, forwardRef, useTransition } from "react";
 import { Button } from "@/components/gbp-audit/ui/button";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export type ConfirmDialogHandle = {
   /** Opens the dialog and resolves true/false once the user decides. */
@@ -15,9 +17,14 @@ export type ConfirmDialogHandle = {
  * components/admin/invite-user-form.tsx) gives focus trapping, ESC-to-close
  * and a real backdrop for free.
  */
-export const ConfirmDialog = forwardRef<ConfirmDialogHandle>(function ConfirmDialog(_props, ref) {
+export const ConfirmDialog = forwardRef<ConfirmDialogHandle, { locale?: Locale }>(function ConfirmDialog({ locale = "fr" }, ref) {
+  const t = dictionaries[locale].auditModule.ui.confirmDialog;
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [copy, setCopy] = useState({ title: "Confirmer", description: "", confirmLabel: "Confirmer" });
+  const [copy, setCopy] = useState<{ title: string; description: string; confirmLabel: string }>({
+    title: t.defaultTitle,
+    description: "",
+    confirmLabel: t.defaultTitle,
+  });
   const resolver = useRef<((value: boolean) => void) | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,9 +32,9 @@ export const ConfirmDialog = forwardRef<ConfirmDialogHandle>(function ConfirmDia
     confirm: (opts) =>
       new Promise<boolean>((resolve) => {
         setCopy({
-          title: opts?.title ?? "Confirmer",
-          description: opts?.description ?? "Cette action ne peut pas être annulée.",
-          confirmLabel: opts?.confirmLabel ?? "Confirmer",
+          title: opts?.title ?? t.defaultTitle,
+          description: opts?.description ?? t.defaultDescription,
+          confirmLabel: opts?.confirmLabel ?? t.defaultTitle,
         });
         resolver.current = resolve;
         dialogRef.current?.showModal();
@@ -53,7 +60,7 @@ export const ConfirmDialog = forwardRef<ConfirmDialogHandle>(function ConfirmDia
       <p className="mt-2 text-sm text-pm-gris">{copy.description}</p>
       <div className="mt-5 flex justify-end gap-3">
         <Button variant="secondary" size="sm" onClick={() => settle(false)}>
-          Annuler
+          {t.cancel}
         </Button>
         <Button
           variant="danger"

@@ -15,10 +15,13 @@ import {
 } from "@/components/crm/seo-actions";
 import { requireStaffRole } from "@/lib/dev-role";
 import {
-  SEO_ISSUE_CATEGORY_LABEL,
-  SEO_ISSUE_PRIORITY_LABEL,
+  getSeoIssueCategoryLabel,
+  getSeoIssuePriorityLabel,
   seoScoreBand,
 } from "@/lib/seo-shared";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate, formatDateTime } from "@/lib/i18n/format";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -30,7 +33,11 @@ const SCORE_TONE_CLASS: Record<string, string> = {
 
 export default async function CrmClientSeoPage({ params }: { params: Promise<{ id: string }> }) {
   await requireStaffRole();
-  const { id } = await params;
+  const [{ id }, locale] = await Promise.all([params, getLocale()]);
+  const t = dictionaries[locale].crm.seo.page;
+  const backLinkLabel = dictionaries[locale].crm.googleTabs.backToClient;
+  const categoryLabel = getSeoIssueCategoryLabel(locale);
+  const priorityLabel = getSeoIssuePriorityLabel(locale);
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) notFound();
@@ -70,28 +77,26 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
   return (
     <>
       <Link href={`/admin/crm/clients/${id}`} className="text-xs text-pm-gris underline">
-        ← Retour à la fiche client
+        {backLinkLabel}
       </Link>
 
       <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">SEO — {client.name}</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            Audits techniques, mots-clés et recommandations (données simulées — module en mode mock).
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.heading(client.name)}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.subtitle}</p>
         </div>
-        <AddWebsiteForm clientId={id} />
+        <AddWebsiteForm clientId={id} locale={locale} />
       </div>
 
       {websiteData.length === 0 && (
         <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-8 text-sm text-pm-gris">
-          Aucun site web enregistré pour ce client. Ajoutez un site pour lancer un premier audit SEO.
+          {t.noWebsites}
         </div>
       )}
 
       <div className="mt-6 flex flex-col gap-8">
         {websiteData.map(({ website, auditHistory, latestCompleted, issues, keywords }) => {
-          const band = latestCompleted ? seoScoreBand(latestCompleted.score ?? 0) : null;
+          const band = latestCompleted ? seoScoreBand(latestCompleted.score ?? 0, locale) : null;
 
           return (
             <section key={website.id} className="rounded-2xl border border-pm-gris-2 bg-white p-6">
@@ -102,56 +107,56 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
                     {website.url}
                   </a>
                   <div className="mt-2 flex items-center gap-3">
-                    <EditWebsiteForm website={website} />
-                    <DeleteWebsiteButton id={website.id} />
+                    <EditWebsiteForm website={website} locale={locale} />
+                    <DeleteWebsiteButton id={website.id} locale={locale} />
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {band && (
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${SCORE_TONE_CLASS[band.tone]}`}>
-                      Score : {latestCompleted!.score}/100 — {band.label}
+                      {t.scorePrefix} {latestCompleted!.score}/100 — {band.label}
                     </span>
                   )}
-                  <RunSeoAuditButton websiteId={website.id} />
+                  <RunSeoAuditButton websiteId={website.id} locale={locale} />
                 </div>
               </div>
 
               {!latestCompleted ? (
-                <p className="mt-4 text-sm text-pm-gris">Aucun audit encore réalisé sur ce site.</p>
+                <p className="mt-4 text-sm text-pm-gris">{t.noAuditYet}</p>
               ) : (
                 <>
                   <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <TechFact label="Titre de page" value={latestCompleted.pageTitle ?? "Manquant"} />
-                    <TechFact label="Meta description" value={latestCompleted.metaDescription ?? "Manquante"} />
-                    <TechFact label="Nombre de H1" value={String(latestCompleted.h1Count ?? "—")} />
-                    <TechFact label="Indexable" value={boolLabel(latestCompleted.indexable)} />
-                    <TechFact label="Sitemap.xml" value={boolLabel(latestCompleted.sitemapFound)} />
-                    <TechFact label="Robots.txt" value={boolLabel(latestCompleted.robotsTxtFound)} />
+                    <TechFact label={t.techFacts.pageTitle} value={latestCompleted.pageTitle ?? t.techFacts.missingTitle} />
+                    <TechFact label={t.techFacts.metaDescription} value={latestCompleted.metaDescription ?? t.techFacts.missingDescription} />
+                    <TechFact label={t.techFacts.h1Count} value={String(latestCompleted.h1Count ?? t.noValue)} />
+                    <TechFact label={t.techFacts.indexable} value={boolLabel(latestCompleted.indexable, t)} />
+                    <TechFact label={t.techFacts.sitemap} value={boolLabel(latestCompleted.sitemapFound, t)} />
+                    <TechFact label={t.techFacts.robots} value={boolLabel(latestCompleted.robotsTxtFound, t)} />
                   </div>
 
                   <div className="mt-5 flex items-center justify-between">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">
-                      Recommandations ({issues.length})
+                      {t.recommendationsTitle(issues.length)}
                     </h3>
                     <a
                       href={`/api/crm/seo/audits/${latestCompleted.id}/pdf`}
                       className="text-xs text-pm-noir underline"
                     >
-                      Exporter le rapport PDF
+                      {t.exportPdf}
                     </a>
                   </div>
                   <div className="mt-2 flex flex-col gap-2">
-                    {issues.length === 0 && <p className="text-sm text-pm-gris">Aucune recommandation.</p>}
+                    {issues.length === 0 && <p className="text-sm text-pm-gris">{t.noRecommendations}</p>}
                     {issues.map((issue) => (
                       <div key={issue.id} className="rounded-xl border border-pm-gris-2 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-medium text-pm-noir">{issue.title}</p>
                           <div className="flex items-center gap-2">
                             <span className="rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-pm-gris">
-                              {SEO_ISSUE_CATEGORY_LABEL[issue.category] ?? issue.category}
+                              {categoryLabel[issue.category] ?? issue.category}
                             </span>
                             <span className="rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-pm-gris">
-                              {SEO_ISSUE_PRIORITY_LABEL[issue.priority] ?? issue.priority}
+                              {priorityLabel[issue.priority] ?? issue.priority}
                             </span>
                             <SeoIssueStatusSelect issueId={issue.id} status={issue.status} />
                           </div>
@@ -165,26 +170,30 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
                   </div>
 
                   <h3 className="mt-6 text-xs font-semibold uppercase tracking-wider text-pm-gris">
-                    Historique des audits
+                    {t.auditHistoryTitle}
                   </h3>
                   <div className="mt-2 overflow-x-auto">
                     <table className="w-full min-w-[400px] text-left text-sm">
                       <thead>
                         <tr className="text-xs uppercase tracking-wide text-pm-gris">
-                          <th className="pb-2 pr-4">Date</th>
-                          <th className="pb-2 pr-4">Score</th>
-                          <th className="pb-2">Statut</th>
+                          <th className="pb-2 pr-4">{t.columns.date}</th>
+                          <th className="pb-2 pr-4">{t.columns.score}</th>
+                          <th className="pb-2">{t.columns.status}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {auditHistory.map((audit) => (
                           <tr key={audit.id} className="border-t border-pm-gris-2">
                             <td className="py-2 pr-4 text-pm-noir">
-                              {audit.createdAt.toLocaleDateString("fr-FR")} {audit.createdAt.toLocaleTimeString("fr-FR")}
+                              {formatDateTime(audit.createdAt, locale)}
                             </td>
-                            <td className="py-2 pr-4 text-pm-noir">{audit.score ?? "—"}</td>
+                            <td className="py-2 pr-4 text-pm-noir">{audit.score ?? t.noValue}</td>
                             <td className="py-2 text-pm-gris">
-                              {audit.status === "completed" ? "Terminé" : audit.status === "running" ? "En cours" : "Échoué"}
+                              {audit.status === "completed"
+                                ? t.auditStatus.completed
+                                : audit.status === "running"
+                                  ? t.auditStatus.running
+                                  : t.auditStatus.failed}
                             </td>
                           </tr>
                         ))}
@@ -195,21 +204,21 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
               )}
 
               <div className="mt-6 flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">Suivi des mots-clés</h3>
-                {keywords.length > 0 && <RefreshKeywordRankingsButton websiteId={website.id} />}
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.keywordTrackingTitle}</h3>
+                {keywords.length > 0 && <RefreshKeywordRankingsButton websiteId={website.id} locale={locale} />}
               </div>
               <div className="mt-2">
-                <AddSeoKeywordForm websiteId={website.id} />
+                <AddSeoKeywordForm websiteId={website.id} locale={locale} />
               </div>
               {keywords.length > 0 && (
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[420px] text-left text-sm">
                     <thead>
                       <tr className="text-xs uppercase tracking-wide text-pm-gris">
-                        <th className="pb-2 pr-4">Mot-clé</th>
-                        <th className="pb-2 pr-4">URL ciblée</th>
-                        <th className="pb-2 pr-4">Position actuelle</th>
-                        <th className="pb-2 pr-4">Vérifié le</th>
+                        <th className="pb-2 pr-4">{t.keywordColumns.keyword}</th>
+                        <th className="pb-2 pr-4">{t.keywordColumns.targetUrl}</th>
+                        <th className="pb-2 pr-4">{t.keywordColumns.position}</th>
+                        <th className="pb-2 pr-4">{t.keywordColumns.checkedAt}</th>
                         <th className="pb-2"></th>
                       </tr>
                     </thead>
@@ -217,15 +226,15 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
                       {keywords.map(({ keyword, latestRanking }) => (
                         <tr key={keyword.id} className="border-t border-pm-gris-2">
                           <td className="py-2 pr-4 text-pm-noir">{keyword.keyword}</td>
-                          <td className="py-2 pr-4 text-pm-gris">{keyword.targetUrl ?? "—"}</td>
+                          <td className="py-2 pr-4 text-pm-gris">{keyword.targetUrl ?? t.noValue}</td>
                           <td className="py-2 pr-4 text-pm-noir">
-                            {latestRanking ? (latestRanking.position ?? "Hors top 100") : "Non vérifié"}
+                            {latestRanking ? (latestRanking.position ?? t.outOfTop100) : t.notChecked}
                           </td>
                           <td className="py-2 pr-4 text-pm-gris">
-                            {latestRanking ? latestRanking.checkedAt.toLocaleDateString("fr-FR") : "—"}
+                            {latestRanking ? formatDate(latestRanking.checkedAt, locale) : t.noValue}
                           </td>
                           <td className="py-2">
-                            <DeleteSeoKeywordButton id={keyword.id} />
+                            <DeleteSeoKeywordButton id={keyword.id} locale={locale} />
                           </td>
                         </tr>
                       ))}
@@ -241,9 +250,9 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
   );
 }
 
-function boolLabel(value: boolean | null): string {
-  if (value === null) return "—";
-  return value ? "Oui" : "Non";
+function boolLabel(value: boolean | null, t: { noValue: string; boolYes: string; boolNo: string }): string {
+  if (value === null) return t.noValue;
+  return value ? t.boolYes : t.boolNo;
 }
 
 function TechFact({ label, value }: { label: string; value: string }) {

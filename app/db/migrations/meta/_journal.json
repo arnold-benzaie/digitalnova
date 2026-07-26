@@ -71,6 +71,20 @@
       "when": 1784148140859,
       "tag": "0009_mature_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784970138845,
+      "tag": "0010_mean_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784970149054,
+      "tag": "0011_special_doomsday",
+      "breakpoints": true
     }
   ]
 }

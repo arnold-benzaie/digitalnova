@@ -1,31 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { searchAudits, type GlobalSearchResult } from "@/lib/actions/gbp-audit-search";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 type Command = { id: string; label: string; hint: string; href: string; kind: "command" };
 type Row = Command | (GlobalSearchResult & { kind: "audit" });
-
-const STATIC_COMMANDS: Command[] = [
-  { id: "dashboard", label: "Tableau de bord", hint: "Aller à", href: "/admin/audit", kind: "command" },
-  { id: "new", label: "Nouvel audit", hint: "Créer", href: "/admin/audit/nouveau", kind: "command" },
-  { id: "list", label: "Audits", hint: "Aller à", href: "/admin/audit/liste", kind: "command" },
-  { id: "devis", label: "Demandes de devis", hint: "Aller à", href: "/admin/audit/devis", kind: "command" },
-  { id: "offres", label: "Offres de service", hint: "Aller à", href: "/admin/audit/offres", kind: "command" },
-  { id: "equipe", label: "Équipe", hint: "Aller à", href: "/admin/audit/equipe", kind: "command" },
-  { id: "notifications", label: "Notifications", hint: "Aller à", href: "/admin/audit/notifications", kind: "command" },
-  { id: "rapports", label: "Rapports", hint: "Aller à", href: "/admin/audit/rapports", kind: "command" },
-  { id: "parametres", label: "Paramètres", hint: "Aller à", href: "/admin/audit/parametres", kind: "command" },
-];
 
 /**
  * ⌘K / Ctrl+K global search + command palette, mounted once in
  * app/admin/audit/layout.tsx. Also owns the module's keyboard-shortcut
  * legend (see the "?" hint at the bottom of the palette).
  */
-export function CommandPalette() {
+export function CommandPalette({ locale = "fr" }: { locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.commandPalette;
+  const nav = dictionaries[locale].navigation.items;
+  const statusLabel = getAuditStatusLabel(locale);
+
+  const staticCommands: Command[] = useMemo(
+    () => [
+      { id: "dashboard", label: nav.dashboard, hint: t.goTo, href: "/admin/audit", kind: "command" },
+      { id: "new", label: nav.newAudit, hint: t.create, href: "/admin/audit/nouveau", kind: "command" },
+      { id: "list", label: nav.audits, hint: t.goTo, href: "/admin/audit/liste", kind: "command" },
+      { id: "devis", label: nav.quoteRequests, hint: t.goTo, href: "/admin/audit/devis", kind: "command" },
+      { id: "offres", label: nav.offers, hint: t.goTo, href: "/admin/audit/offres", kind: "command" },
+      { id: "equipe", label: nav.team, hint: t.goTo, href: "/admin/audit/equipe", kind: "command" },
+      { id: "notifications", label: nav.notifications, hint: t.goTo, href: "/admin/audit/notifications", kind: "command" },
+      { id: "rapports", label: nav.reports, hint: t.goTo, href: "/admin/audit/rapports", kind: "command" },
+      { id: "parametres", label: nav.settings, hint: t.goTo, href: "/admin/audit/parametres", kind: "command" },
+    ],
+    [nav, t],
+  );
+
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -34,7 +43,7 @@ export function CommandPalette() {
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const rows: Row[] = query.trim().length >= 2 ? results.map((r) => ({ ...r, kind: "audit" as const })) : STATIC_COMMANDS;
+  const rows: Row[] = query.trim().length >= 2 ? results.map((r) => ({ ...r, kind: "audit" as const })) : staticCommands;
 
   const runSearch = useCallback((q: string) => {
     startTransition(async () => {
@@ -98,13 +107,13 @@ export function CommandPalette() {
         type="button"
         onClick={() => setOpen(true)}
         className="hidden items-center gap-2 rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs text-pm-gris transition-colors hover:border-pm-noir/30 sm:flex"
-        aria-label="Ouvrir la recherche globale"
+        aria-label={t.openAriaLabel}
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <circle cx="9" cy="9" r="6" />
           <path d="M17 17l-4-4" strokeLinecap="round" />
         </svg>
-        Rechercher
+        {t.searchButton}
         <kbd className="ml-2 rounded border border-pm-gris-2 bg-pm-gris-2/30 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
       </button>
     );
@@ -117,7 +126,7 @@ export function CommandPalette() {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Recherche globale"
+        aria-label={t.dialogAriaLabel}
       >
         <div className="flex items-center gap-2 border-b border-pm-gris-2 px-4 py-3">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-pm-gris" aria-hidden="true">
@@ -132,16 +141,16 @@ export function CommandPalette() {
               runSearch(e.target.value);
             }}
             onKeyDown={onKeyDownList}
-            placeholder="Rechercher un audit, un prospect, une entreprise..."
+            placeholder={t.placeholder}
             className="flex-1 text-sm text-pm-noir placeholder:text-pm-gris focus:outline-none"
-            aria-label="Recherche"
+            aria-label={t.searchAriaLabel}
           />
           {isPending && <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-pm-gris-2 border-t-pm-noir" />}
         </div>
 
         <ul className="max-h-80 overflow-y-auto py-2" role="listbox">
           {rows.length === 0 && (
-            <li className="px-4 py-6 text-center text-sm text-pm-gris">Aucun résultat pour « {query} ».</li>
+            <li className="px-4 py-6 text-center text-sm text-pm-gris">{t.noResults(query)}</li>
           )}
           {rows.map((row, i) => (
             <li key={row.kind === "command" ? row.id : row.auditId} role="option" aria-selected={i === activeIndex}>
@@ -155,7 +164,7 @@ export function CommandPalette() {
               >
                 <span className="text-pm-noir">{row.kind === "command" ? row.label : row.businessName}</span>
                 <span className="text-xs text-pm-gris">
-                  {row.kind === "command" ? row.hint : `${row.prospectName} · ${GBP_AUDIT_STATUS_LABEL[row.status] ?? "Audit"}`}
+                  {row.kind === "command" ? row.hint : `${row.prospectName} · ${statusLabel[row.status] ?? t.audit}`}
                 </span>
               </button>
             </li>
@@ -163,9 +172,9 @@ export function CommandPalette() {
         </ul>
 
         <div className="flex items-center gap-4 border-t border-pm-gris-2 px-4 py-2 text-[11px] text-pm-gris">
-          <span><kbd className="rounded border border-pm-gris-2 px-1">↑↓</kbd> naviguer</span>
-          <span><kbd className="rounded border border-pm-gris-2 px-1">↵</kbd> ouvrir</span>
-          <span><kbd className="rounded border border-pm-gris-2 px-1">esc</kbd> fermer</span>
+          <span><kbd className="rounded border border-pm-gris-2 px-1">↑↓</kbd> {t.keyboardNavigate}</span>
+          <span><kbd className="rounded border border-pm-gris-2 px-1">↵</kbd> {t.keyboardOpen}</span>
+          <span><kbd className="rounded border border-pm-gris-2 px-1">esc</kbd> {t.keyboardClose}</span>
         </div>
       </div>
     </div>

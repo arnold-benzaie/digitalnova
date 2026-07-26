@@ -2,16 +2,22 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export function GbpReviewReplyForm({
   reviewId,
   existingReply,
   action,
+  locale = "fr",
 }: {
   reviewId: string;
   existingReply: string | null;
   action: (reviewId: string, replyText: string) => Promise<unknown>;
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].dashboard.googleIntegration.review;
+  const tCommon = dictionaries[locale].common;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -21,10 +27,10 @@ export function GbpReviewReplyForm({
   if (!editing && existingReply) {
     return (
       <div className="mt-2 rounded-lg bg-pm-gris-2/20 p-2 text-xs text-pm-noir">
-        <p className="font-medium text-pm-gris">Votre réponse</p>
+        <p className="font-medium text-pm-gris">{t.yourReply}</p>
         <p className="mt-0.5">{existingReply}</p>
         <button type="button" onClick={() => setEditing(true)} className="mt-1 text-pm-gris underline">
-          Modifier
+          {t.edit}
         </button>
       </div>
     );
@@ -36,7 +42,7 @@ export function GbpReviewReplyForm({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         rows={2}
-        placeholder="Répondre à cet avis…"
+        placeholder={t.placeholder}
         className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-xs text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
       />
       <div className="flex items-center gap-3">
@@ -51,13 +57,13 @@ export function GbpReviewReplyForm({
                 setEditing(false);
                 router.refresh();
               } catch (err) {
-                setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+                setError(err instanceof Error ? err.message : tCommon.error);
               }
             });
           }}
           className="self-start rounded-lg bg-pm-noir px-3 py-1.5 text-xs font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
-          {isPending ? "Envoi..." : "Répondre"}
+          {isPending ? t.sending : t.reply}
         </button>
         {existingReply && (
           <button
@@ -69,7 +75,7 @@ export function GbpReviewReplyForm({
             }}
             className="text-xs text-pm-gris underline"
           >
-            Annuler
+            {t.cancel}
           </button>
         )}
         {error && <p className="text-xs text-pm-rouge">{error}</p>}

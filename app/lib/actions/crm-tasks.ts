@@ -5,13 +5,20 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { tasks } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { titleRequired: "Titre requis.", invalidStatus: "Statut invalide.", taskNotFound: "Tâche introuvable." },
+  en: { titleRequired: "Title required.", invalidStatus: "Invalid status.", taskNotFound: "Task not found." },
+} as const;
 
 const STATUSES = ["todo", "in_progress", "done"] as const;
 
 export async function createTask(formData: FormData) {
+  const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
-    throw new Error("Titre requis.");
+    throw new Error(MESSAGES[locale].titleRequired);
   }
 
   const clientId = formData.get("clientId");
@@ -42,8 +49,9 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTaskStatus(id: string, status: string) {
+  const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
-    throw new Error("Statut invalide.");
+    throw new Error(MESSAGES[locale].invalidStatus);
   }
 
   const [task] = await db.update(tasks).set({ status }).where(eq(tasks.id, id)).returning();
@@ -63,9 +71,10 @@ export async function updateTaskStatus(id: string, status: string) {
 
 /** Full edit — title/description/assignee/due date; use updateTaskStatus for status. */
 export async function updateTask(id: string, formData: FormData) {
+  const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
-    throw new Error("Titre requis.");
+    throw new Error(MESSAGES[locale].titleRequired);
   }
 
   const dueDateRaw = formData.get("dueDate");
@@ -80,7 +89,7 @@ export async function updateTask(id: string, formData: FormData) {
     })
     .where(eq(tasks.id, id))
     .returning();
-  if (!task) throw new Error("Tâche introuvable.");
+  if (!task) throw new Error(MESSAGES[locale].taskNotFound);
 
   await logCrmAudit({
     action: "crm.task_updated",
@@ -97,8 +106,9 @@ export async function updateTask(id: string, formData: FormData) {
 }
 
 export async function deleteTask(id: string) {
+  const locale = await getLocale();
   const [task] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
-  if (!task) throw new Error("Tâche introuvable.");
+  if (!task) throw new Error(MESSAGES[locale].taskNotFound);
 
   await logCrmAudit({
     action: "crm.task_deleted",

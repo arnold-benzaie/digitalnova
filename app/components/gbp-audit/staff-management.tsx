@@ -5,8 +5,10 @@ import { Badge } from "@/components/crm/badges";
 import { InviteStaffForm } from "@/components/gbp-audit/invite-staff-form";
 import { RemoveStaffButton, RevokeStaffInvitationButton, StaffRoleSelect } from "@/components/gbp-audit/staff-actions";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate } from "@/lib/i18n/format";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Administrateur", supervisor: "Superviseur", staff: "Staff" };
 const ROLE_CLASS: Record<string, string> = {
   admin: "bg-pm-g-green/10 text-pm-g-green",
   supervisor: "bg-pm-or/10 text-pm-or-2",
@@ -24,12 +26,16 @@ export function StaffManagement({
   adminCount,
   members,
   invitations,
+  locale = "fr",
 }: {
   currentUserId: string;
   adminCount: number;
   members: Member[];
   invitations: Invitation[];
+  locale?: Locale;
 }) {
+  const t = dictionaries[locale].auditModule.team;
+  const ROLE_LABEL: Record<string, string> = t.role;
   const [search, setSearch] = useState("");
 
   const rows: Row[] = useMemo(
@@ -48,24 +54,22 @@ export function StaffManagement({
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">Équipe</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            {members.length} membre(s) · {invitations.length} invitation(s) en attente
-          </p>
+          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
+          <p className="mt-1 text-sm text-pm-gris">{t.countSummary(members.length, invitations.length)}</p>
         </div>
-        <InviteStaffForm />
+        <InviteStaffForm locale={locale} />
       </div>
 
       <div className="mt-6 w-full sm:max-w-xs">
         <label htmlFor="staff-search" className="sr-only">
-          Rechercher un membre
+          {t.searchLabel}
         </label>
         <input
           id="staff-search"
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher par nom ou email…"
+          placeholder={t.searchPlaceholder}
           className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
         />
       </div>
@@ -78,8 +82,8 @@ export function StaffManagement({
                 <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6" strokeLinecap="round" />
               </svg>
             }
-            title={rows.length === 0 ? "Aucun membre pour le moment" : "Aucun résultat"}
-            description={rows.length === 0 ? "Invitez un premier membre pour commencer." : "Essayez une autre recherche."}
+            title={rows.length === 0 ? t.emptyNoneTitle : t.emptyFilteredTitle}
+            description={rows.length === 0 ? t.emptyNoneDescription : t.emptyFilteredDescription}
           />
         </div>
       ) : (
@@ -87,11 +91,11 @@ export function StaffManagement({
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
-                <th className="px-5 py-3">Personne</th>
-                <th className="px-5 py-3">Rôle</th>
-                <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Depuis</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className="px-5 py-3">{t.columns.person}</th>
+                <th className="px-5 py-3">{t.columns.role}</th>
+                <th className="px-5 py-3">{t.columns.status}</th>
+                <th className="px-5 py-3">{t.columns.since}</th>
+                <th className="px-5 py-3 text-right">{t.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -103,29 +107,29 @@ export function StaffManagement({
                     <td className="px-5 py-3">
                       <div className="font-medium text-pm-noir">
                         {row.kind === "member" ? (row.fullName ?? row.email) : row.email}
-                        {isSelf && <span className="ml-2 text-xs text-pm-gris">(vous)</span>}
+                        {isSelf && <span className="ml-2 text-xs text-pm-gris">{t.you}</span>}
                       </div>
                       {row.kind === "member" && row.fullName && <div className="text-xs text-pm-gris">{row.email}</div>}
                     </td>
                     <td className="px-5 py-3">
                       {row.kind === "member" ? (
-                        <StaffRoleSelect userId={row.id} role={row.role} disabled={isLastAdmin} />
+                        <StaffRoleSelect userId={row.id} role={row.role} disabled={isLastAdmin} locale={locale} />
                       ) : (
-                        <Badge label={ROLE_LABEL[row.role] ?? "Membre"} className={ROLE_CLASS[row.role] ?? ""} />
+                        <Badge label={ROLE_LABEL[row.role as keyof typeof ROLE_LABEL] ?? t.memberFallback} className={ROLE_CLASS[row.role] ?? ""} />
                       )}
                     </td>
                     <td className="px-5 py-3">
                       <Badge
-                        label={row.kind === "member" ? "Actif" : "Invitation en attente"}
+                        label={row.kind === "member" ? t.statusActive : t.statusPendingInvitation}
                         className={row.kind === "member" ? "bg-pm-g-green/10 text-pm-g-green" : "bg-pm-or/10 text-pm-or-2"}
                       />
                     </td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(row.createdAt).toLocaleDateString("fr-FR")}</td>
+                    <td className="px-5 py-3 text-pm-gris">{formatDate(row.createdAt, locale)}</td>
                     <td className="px-5 py-3 text-right">
                       {row.kind === "member" ? (
-                        <RemoveStaffButton userId={row.id} name={row.fullName ?? row.email} disabled={isLastAdmin} />
+                        <RemoveStaffButton userId={row.id} name={row.fullName ?? row.email} disabled={isLastAdmin} locale={locale} />
                       ) : (
-                        <RevokeStaffInvitationButton id={row.id} email={row.email} />
+                        <RevokeStaffInvitationButton id={row.id} email={row.email} locale={locale} />
                       )}
                     </td>
                   </tr>

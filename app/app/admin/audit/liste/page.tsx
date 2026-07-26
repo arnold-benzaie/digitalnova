@@ -3,7 +3,8 @@ import { auditDb } from "@/db/audit-index";
 import { auditBusinesses, auditProspects, gbpAudits } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AuditDashboardView } from "@/components/gbp-audit/audit-dashboard-view";
-import { GBP_AUDIT_STATUS_LABEL } from "@/lib/gbp-audit/checklist";
+import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
+import { getLocale } from "@/lib/i18n/locale";
 
 const PAGE_SIZE = 10;
 const SORT_COLUMNS = { business: auditBusinesses.legalName, status: gbpAudits.status, score: gbpAudits.scoreOverall, createdAt: gbpAudits.createdAt } as const;
@@ -13,10 +14,11 @@ type Params = { q?: string; status?: string; agent?: string; sort?: string; dir?
 
 export default async function AuditsListPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireAuditStaffRole();
-  const params = await searchParams;
+  const [params, locale] = await Promise.all([searchParams, getLocale()]);
+  const statusLabel = getAuditStatusLabel(locale);
 
   const q = params.q?.trim() ?? "";
-  const statusFilter = params.status && params.status in GBP_AUDIT_STATUS_LABEL ? params.status : "";
+  const statusFilter = params.status && params.status in statusLabel ? params.status : "";
   const agentFilter = params.agent ?? "";
   const sortKey: SortKey = params.sort && params.sort in SORT_COLUMNS ? (params.sort as SortKey) : "createdAt";
   const sortDir: "asc" | "desc" = params.dir === "asc" ? "asc" : "desc";
@@ -71,6 +73,7 @@ export default async function AuditsListPage({ searchParams }: { searchParams: P
       agents={agentRows.map((a) => a.agent).filter((a): a is string => !!a)}
       params={{ q, status: statusFilter, agent: agentFilter, sort: sortKey, dir: sortDir, page: String(page) }}
       totalPages={Math.max(1, Math.ceil(filteredCount / PAGE_SIZE))}
+      locale={locale}
     />
   );
 }

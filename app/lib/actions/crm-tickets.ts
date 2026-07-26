@@ -6,18 +6,25 @@ import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: { clientRequired: "Client requis.", subjectRequired: "Sujet requis.", invalidStatus: "Statut invalide.", invalidPriority: "Priorité invalide.", ticketNotFound: "Ticket introuvable." },
+  en: { clientRequired: "Client required.", subjectRequired: "Subject required.", invalidStatus: "Invalid status.", invalidPriority: "Invalid priority.", ticketNotFound: "Ticket not found." },
+} as const;
 
 const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 const PRIORITIES = ["low", "medium", "high"] as const;
 
 export async function createTicket(formData: FormData) {
+  const locale = await getLocale();
   const clientId = formData.get("clientId");
   const subject = formData.get("subject");
   if (typeof clientId !== "string" || !clientId) {
-    throw new Error("Client requis.");
+    throw new Error(MESSAGES[locale].clientRequired);
   }
   if (typeof subject !== "string" || !subject.trim()) {
-    throw new Error("Sujet requis.");
+    throw new Error(MESSAGES[locale].subjectRequired);
   }
 
   const priority = formData.get("priority");
@@ -48,8 +55,9 @@ export async function createTicket(formData: FormData) {
 }
 
 export async function updateTicketStatus(id: string, status: string) {
+  const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
-    throw new Error("Statut invalide.");
+    throw new Error(MESSAGES[locale].invalidStatus);
   }
 
   const [ticket] = await db
@@ -73,14 +81,15 @@ export async function updateTicketStatus(id: string, status: string) {
 
 /** Full edit — subject/description/priority; use updateTicketStatus for status. */
 export async function updateTicket(id: string, formData: FormData) {
+  const locale = await getLocale();
   const subject = formData.get("subject");
   if (typeof subject !== "string" || !subject.trim()) {
-    throw new Error("Sujet requis.");
+    throw new Error(MESSAGES[locale].subjectRequired);
   }
 
   const priority = formData.get("priority");
   if (typeof priority !== "string" || !PRIORITIES.includes(priority as (typeof PRIORITIES)[number])) {
-    throw new Error("Priorité invalide.");
+    throw new Error(MESSAGES[locale].invalidPriority);
   }
 
   const [ticket] = await db
@@ -92,7 +101,7 @@ export async function updateTicket(id: string, formData: FormData) {
     })
     .where(eq(tickets.id, id))
     .returning();
-  if (!ticket) throw new Error("Ticket introuvable.");
+  if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
   await logCrmAudit({
     action: "crm.ticket_updated",
@@ -109,8 +118,9 @@ export async function updateTicket(id: string, formData: FormData) {
 }
 
 export async function deleteTicket(id: string) {
+  const locale = await getLocale();
   const [ticket] = await db.delete(tickets).where(eq(tickets.id, id)).returning();
-  if (!ticket) throw new Error("Ticket introuvable.");
+  if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
   await logCrmAudit({
     action: "crm.ticket_deleted",

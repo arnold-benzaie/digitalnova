@@ -9,6 +9,22 @@ import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { dispatchAuditWebhookEvent } from "@/lib/gbp-audit/webhooks";
 import { computeFullAuditScore, GBP_CORRECTION_STATUSES, GBP_FINDING_RESULTS, GBP_SEVERITIES } from "@/lib/gbp-audit/checklist";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
+import { getLocale } from "@/lib/i18n/locale";
+
+const MESSAGES = {
+  fr: {
+    invalidResult: "Résultat de contrôle invalide.",
+    invalidSeverity: "Niveau de gravité invalide.",
+    invalidCorrectionStatus: "Statut de correction invalide.",
+    findingNotFound: "Constat introuvable.",
+  },
+  en: {
+    invalidResult: "Invalid check result.",
+    invalidSeverity: "Invalid severity level.",
+    invalidCorrectionStatus: "Invalid correction status.",
+    findingNotFound: "Finding not found.",
+  },
+} as const;
 
 /** Recomputes and persists the overall + 8 sub-scores for an audit from its current findings. Called after every finding save. */
 async function recomputeAndPersistScore(auditId: string) {
@@ -63,13 +79,13 @@ export async function saveFinding(input: {
   ownerName: string | null;
   etaDays: number | null;
 }) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   if (!GBP_FINDING_RESULTS.includes(input.result as (typeof GBP_FINDING_RESULTS)[number])) {
-    throw new Error("Résultat de contrôle invalide.");
+    throw new Error(MESSAGES[locale].invalidResult);
   }
   if (input.severity && !GBP_SEVERITIES.includes(input.severity as (typeof GBP_SEVERITIES)[number])) {
-    throw new Error("Niveau de gravité invalide.");
+    throw new Error(MESSAGES[locale].invalidSeverity);
   }
 
   const [existing] = await auditDb
@@ -123,13 +139,13 @@ export async function saveFinding(input: {
 }
 
 export async function updateFindingCorrectionStatus(findingId: string, auditId: string, status: string) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
   if (!GBP_CORRECTION_STATUSES.includes(status as (typeof GBP_CORRECTION_STATUSES)[number])) {
-    throw new Error("Statut de correction invalide.");
+    throw new Error(MESSAGES[locale].invalidCorrectionStatus);
   }
 
   const [current] = await auditDb.select({ correctionStatus: gbpAuditFindings.correctionStatus }).from(gbpAuditFindings).where(eq(gbpAuditFindings.id, findingId)).limit(1);
-  if (!current) throw new Error("Constat introuvable.");
+  if (!current) throw new Error(MESSAGES[locale].findingNotFound);
 
   await auditDb.update(gbpAuditFindings).set({ correctionStatus: status, updatedAt: new Date() }).where(eq(gbpAuditFindings.id, findingId));
   await auditDb.insert(gbpFindingStatusHistory).values({ findingId, fromStatus: current.correctionStatus, toStatus: status });

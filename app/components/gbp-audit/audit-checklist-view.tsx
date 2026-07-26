@@ -1,23 +1,30 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { GBP_AUDIT_SECTIONS, GBP_AUDIT_CHECKS } from "@/lib/gbp-audit/checklist";
+import { getAuditSections, getAuditChecksBySection } from "@/lib/gbp-audit/checklist";
 import { FindingRow, type FindingState } from "@/components/gbp-audit/finding-row";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export function AuditChecklistView({
   auditId,
   findingsBySection,
+  locale = "fr",
 }: {
   auditId: string;
   findingsBySection: Record<string, Record<string, FindingState>>;
+  locale?: Locale;
 }) {
-  const [openSection, setOpenSection] = useState<string>(GBP_AUDIT_SECTIONS[0].code);
+  const t = dictionaries[locale].auditModule.checklist;
+  const sections = getAuditSections(locale);
+  const checksBySection = getAuditChecksBySection(locale);
+  const [openSection, setOpenSection] = useState<string>(sections[0].code);
   const [filter, setFilter] = useState<"all" | "issues">("all");
 
   const sectionStats = useMemo(() => {
     const stats: Record<string, { total: number; done: number; issues: number }> = {};
-    for (const section of GBP_AUDIT_SECTIONS) {
-      const checks = GBP_AUDIT_CHECKS[section.code];
+    for (const section of sections) {
+      const checks = checksBySection[section.code];
       const findings = findingsBySection[section.code] ?? {};
       let done = 0;
       let issues = 0;
@@ -29,18 +36,18 @@ export function AuditChecklistView({
       stats[section.code] = { total: checks.length, done, issues };
     }
     return stats;
-  }, [findingsBySection]);
+  }, [findingsBySection, sections, checksBySection]);
 
   return (
     <div className="mt-6 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-xs" role="group" aria-label="Filtrer les catégories">
+      <div className="flex items-center gap-2 text-xs" role="group" aria-label={t.filterAriaLabel}>
         <button
           type="button"
           onClick={() => setFilter("all")}
           aria-pressed={filter === "all"}
           className={`rounded-full px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20 ${filter === "all" ? "bg-pm-noir text-white" : "bg-pm-gris-2/40 text-pm-gris hover:bg-pm-gris-2/70"}`}
         >
-          Toutes les catégories
+          {t.filterAll}
         </button>
         <button
           type="button"
@@ -48,15 +55,15 @@ export function AuditChecklistView({
           aria-pressed={filter === "issues"}
           className={`rounded-full px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20 ${filter === "issues" ? "bg-pm-noir text-white" : "bg-pm-gris-2/40 text-pm-gris hover:bg-pm-gris-2/70"}`}
         >
-          Avec anomalies uniquement
+          {t.filterIssuesOnly}
         </button>
       </div>
 
-      {GBP_AUDIT_SECTIONS.map((section) => {
+      {sections.map((section) => {
         const stats = sectionStats[section.code];
         if (filter === "issues" && stats.issues === 0) return null;
         const isOpen = openSection === section.code;
-        const checks = GBP_AUDIT_CHECKS[section.code];
+        const checks = checksBySection[section.code];
         const findings = findingsBySection[section.code] ?? {};
 
         const panelId = `section-panel-${section.code}`;
@@ -79,7 +86,7 @@ export function AuditChecklistView({
               <div className="flex items-center gap-3">
                 {stats.issues > 0 && (
                   <span className="rounded-full bg-pm-rouge/10 px-2.5 py-1 text-xs font-medium text-pm-rouge">
-                    {stats.issues} anomalie(s)
+                    {t.issuesCount(stats.issues)}
                   </span>
                 )}
                 <span className="text-xs text-pm-gris tabular-nums">
@@ -98,6 +105,7 @@ export function AuditChecklistView({
                     sectionCode={section.code}
                     check={check}
                     initial={findings[check.key] ?? null}
+                    locale={locale}
                   />
                 ))}
               </div>

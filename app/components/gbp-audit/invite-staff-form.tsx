@@ -6,14 +6,16 @@ import { inviteAuditStaff } from "@/lib/actions/gbp-audit-staff";
 import { Field, Input, Select } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const ROLE_OPTIONS = [
-  { value: "staff", label: "Staff (construit les audits)" },
-  { value: "supervisor", label: "Superviseur (révise et approuve)" },
-  { value: "admin", label: "Administrateur (accès complet)" },
-];
-
-export function InviteStaffForm() {
+export function InviteStaffForm({ locale = "fr" }: { locale?: Locale }) {
+  const t = dictionaries[locale].auditModule.team;
+  const ROLE_OPTIONS = [
+    { value: "staff", label: t.roleOptions.staff },
+    { value: "supervisor", label: t.roleOptions.supervisor },
+    { value: "admin", label: t.roleOptions.admin },
+  ];
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -33,7 +35,7 @@ export function InviteStaffForm() {
   return (
     <>
       <Button type="button" onClick={open}>
-        + Inviter un membre
+        {t.inviteTrigger}
       </Button>
 
       <dialog
@@ -49,27 +51,27 @@ export function InviteStaffForm() {
               setError(null);
               try {
                 await inviteAuditStaff(formData);
-                toast.success("Invitation envoyée");
+                toast.success(t.invited);
                 close();
                 router.refresh();
               } catch (err) {
-                const message = err instanceof Error ? err.message : "Une erreur est survenue.";
+                const message = err instanceof Error ? err.message : t.genericError;
                 setError(message);
-                toast.error("Impossible d'inviter cette personne", message);
+                toast.error(t.inviteError, message);
               }
             })
           }
         >
           <div>
-            <h2 className="font-serif text-xl font-semibold text-pm-noir">Inviter un membre</h2>
-            <p className="mt-1 text-sm text-pm-gris">L&rsquo;accès s&rsquo;active dès que cette personne se connecte avec cette adresse e-mail.</p>
+            <h2 className="font-serif text-xl font-semibold text-pm-noir">{t.inviteDialogTitle}</h2>
+            <p className="mt-1 text-sm text-pm-gris">{t.inviteDialogLead}</p>
           </div>
 
-          <Field label="Adresse e-mail" required htmlFor="invite-email">
+          <Field label={t.emailLabel} required htmlFor="invite-email">
             <Input id="invite-email" name="email" type="email" required placeholder="prenom.nom@exemple.fr" />
           </Field>
 
-          <Field label="Rôle" required htmlFor="invite-role">
+          <Field label={t.roleLabel} required htmlFor="invite-role">
             <Select id="invite-role" name="role" defaultValue="staff">
               {ROLE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -87,10 +89,10 @@ export function InviteStaffForm() {
 
           <div className="mt-2 flex items-center justify-end gap-3">
             <Button type="button" variant="ghost" onClick={close} disabled={isPending}>
-              Annuler
+              {t.cancel}
             </Button>
             <Button type="submit" loading={isPending}>
-              Envoyer l&rsquo;invitation
+              {t.sendInvitation}
             </Button>
           </div>
         </form>

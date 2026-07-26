@@ -8,14 +8,41 @@ import { gbpAuditEvidence, gbpAuditFindings } from "@/db/audit-schema";
 import { logAuditActivity } from "@/lib/gbp-audit/activity";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { AUDIT_STORAGE_BUCKETS, deleteFromAuditBucket, uploadToAuditBucket } from "@/lib/gbp-audit/storage";
+import { getLocale } from "@/lib/i18n/locale";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB — generous for a screenshot/PDF
 const ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 const EVIDENCE_KINDS = ["screenshot", "photo", "pdf", "link", "note"] as const;
 
-async function findingAuditId(findingId: string): Promise<string> {
+const MESSAGES = {
+  fr: {
+    findingNotFound: "Constat introuvable.",
+    findingMissing: "Constat manquant.",
+    invalidEvidenceType: "Type de preuve invalide.",
+    linkRequired: "Un lien est requis pour ce type de preuve.",
+    noteRequired: "Une note est requise pour ce type de preuve.",
+    noFileProvided: "Aucun fichier fourni.",
+    fileTooLarge: "Fichier trop volumineux (8 Mo maximum).",
+    formatNotAllowed: "Format non autorisé (PNG, JPEG, WEBP ou PDF uniquement).",
+    evidenceNotFound: "Cette preuve est introuvable pour cet audit.",
+  },
+  en: {
+    findingNotFound: "Finding not found.",
+    findingMissing: "Finding missing.",
+    invalidEvidenceType: "Invalid evidence type.",
+    linkRequired: "A link is required for this evidence type.",
+    noteRequired: "A note is required for this evidence type.",
+    noFileProvided: "No file provided.",
+    fileTooLarge: "File too large (8 MB maximum).",
+    formatNotAllowed: "Format not allowed (PNG, JPEG, WEBP, or PDF only).",
+    evidenceNotFound: "This evidence could not be found for this audit.",
+  },
+} as const;
+
+async function findingAuditId(findingId: string, locale: Locale): Promise<string> {
   const [row] = await auditDb.select({ auditId: gbpAuditFindings.auditId }).from(gbpAuditFindings).where(eq(gbpAuditFindings.id, findingId)).limit(1);
-  if (!row) throw new Error("Constat introuvable.");
+  if (!row) throw new Error(MESSAGES[locale].findingNotFound);
   return row.auditId;
 }
 
@@ -25,36 +52,36 @@ function sanitizeFileName(name: string): string {
 }
 
 export async function addEvidenceFile(formData: FormData) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const findingId = String(formData.get("findingId") ?? "");
-  if (!findingId) throw new Error("Constat manquant.");
-  const auditId = await findingAuditId(findingId);
+  if (!findingId) throw new Error(MESSAGES[locale].findingMissing);
+  const auditId = await findingAuditId(findingId, locale);
 
   const kind = String(formData.get("kind") ?? "screenshot");
-  if (!EVIDENCE_KINDS.includes(kind as (typeof EVIDENCE_KINDS)[number])) throw new Error("Type de preuve invalide.");
+  if (!EVIDENCE_KINDS.includes(kind as (typeof EVIDENCE_KINDS)[number])) throw new Error(MESSAGES[locale].invalidEvidenceType);
 
   const note = (formData.get("note") as string) || null;
 
   if (kind === "link") {
     const url = (formData.get("url") as string) || "";
-    if (!url.trim()) throw new Error("Un lien est requis pour ce type de preuve.");
+    if (!url.trim()) throw new Error(MESSAGES[locale].linkRequired);
     const [evidence] = await auditDb.insert(gbpAuditEvidence).values({ findingId, kind, url: url.trim(), note }).returning();
     await afterEvidenceAdded(evidence.id, findingId, auditId, kind);
     return evidence;
   }
 
   if (kind === "note") {
-    if (!note?.trim()) throw new Error("Une note est requise pour ce type de preuve.");
+    if (!note?.trim()) throw new Error(MESSAGES[locale].noteRequired);
     const [evidence] = await auditDb.insert(gbpAuditEvidence).values({ findingId, kind, note }).returning();
     await afterEvidenceAdded(evidence.id, findingId, auditId, kind);
     return evidence;
   }
 
   const file = formData.get("file");
-  if (!(file instanceof File)) throw new Error("Aucun fichier fourni.");
-  if (file.size > MAX_FILE_BYTES) throw new Error("Fichier trop volumineux (8 Mo maximum).");
-  if (!ALLOWED_MIME.includes(file.type)) throw new Error("Format non autorisé (PNG, JPEG, WEBP ou PDF uniquement).");
+  if (!(file instanceof File)) throw new Error(MESSAGES[locale].noFileProvided);
+  if (file.size > MAX_FILE_BYTES) throw new Error(MESSAGES[locale].fileTooLarge);
+  if (!ALLOWED_MIME.includes(file.type)) throw new Error(MESSAGES[locale].formatNotAllowed);
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const storagePath = `${findingId}/${randomUUID()}-${sanitizeFileName(file.name)}`;
@@ -91,7 +118,7 @@ async function afterEvidenceAdded(evidenceId: string, findingId: string, auditId
 }
 
 export async function deleteEvidence(evidenceId: string, auditId: string) {
-  await requireAuditStaffRole();
+  const [, locale] = await Promise.all([requireAuditStaffRole(), getLocale()]);
 
   const [row] = await auditDb
     .select({ storageBucket: gbpAuditEvidence.storageBucket, storagePath: gbpAuditEvidence.storagePath })
@@ -99,7 +126,7 @@ export async function deleteEvidence(evidenceId: string, auditId: string) {
     .innerJoin(gbpAuditFindings, eq(gbpAuditEvidence.findingId, gbpAuditFindings.id))
     .where(and(eq(gbpAuditEvidence.id, evidenceId), eq(gbpAuditFindings.auditId, auditId)))
     .limit(1);
-  if (!row) throw new Error("Cette preuve est introuvable pour cet audit.");
+  if (!row) throw new Error(MESSAGES[locale].evidenceNotFound);
 
   await auditDb.delete(gbpAuditEvidence).where(eq(gbpAuditEvidence.id, evidenceId));
 

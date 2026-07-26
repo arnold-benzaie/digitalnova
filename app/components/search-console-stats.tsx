@@ -1,12 +1,16 @@
 import type { SearchConsoleStatTotals } from "@/lib/searchconsole/stats";
+import type { Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatNumber } from "@/lib/i18n/format";
 
-export function SearchConsoleStats({ stats }: { stats: SearchConsoleStatTotals }) {
+export function SearchConsoleStats({ stats, locale = "fr" }: { stats: SearchConsoleStatTotals; locale?: Locale }) {
+  const t = dictionaries[locale].dashboard.googleIntegration.stats;
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <StatCard label="Clics (30j)" value={stats.clicks.toLocaleString("fr-FR")} />
-      <StatCard label="Impressions (30j)" value={stats.impressions.toLocaleString("fr-FR")} />
-      <StatCard label="CTR moyen" value={`${(stats.averageCtr * 100).toFixed(1)}%`} />
-      <StatCard label="Position moyenne" value={stats.averagePosition > 0 ? stats.averagePosition.toFixed(1) : "—"} />
+      <StatCard label={t.clicks} value={formatNumber(stats.clicks, locale)} />
+      <StatCard label={t.impressions} value={formatNumber(stats.impressions, locale)} />
+      <StatCard label={t.averageCtr} value={`${(stats.averageCtr * 100).toFixed(1)}%`} />
+      <StatCard label={t.averagePosition} value={stats.averagePosition > 0 ? stats.averagePosition.toFixed(1) : "—"} />
     </div>
   );
 }

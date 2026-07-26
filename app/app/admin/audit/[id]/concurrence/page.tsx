@@ -9,10 +9,14 @@ import { CompetitorForm } from "@/components/gbp-audit/competitor-form";
 import { CompetitorComparisonRow } from "@/components/gbp-audit/competitor-comparison-row";
 import { BusinessProfileStatsForm } from "@/components/gbp-audit/business-profile-stats-form";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { getLocale } from "@/lib/i18n/locale";
+import { dictionaries } from "@/lib/i18n/dictionaries";
 
 export default async function CompetitionPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
   const { id } = await params;
+  const locale = await getLocale();
+  const t = dictionaries[locale].auditModule.competition;
 
   const [row] = await auditDb
     .select()
@@ -36,16 +40,16 @@ export default async function CompetitionPage({ params }: { params: Promise<{ id
     <>
       <div>
         <h1 className="font-serif text-3xl font-semibold text-pm-noir">{business.legalName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">Comparaison avec jusqu&rsquo;à 5 concurrents locaux.</p>
+        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
       </div>
-      <AuditTabs auditId={id} active="concurrence" />
+      <AuditTabs auditId={id} active="concurrence" locale={locale} />
 
       <div className="mt-6">
-        <BusinessProfileStatsForm auditId={id} business={business} />
+        <BusinessProfileStatsForm auditId={id} business={business} locale={locale} />
       </div>
 
       <div className="mt-4">
-        <CompetitorForm auditId={id} disabled={competitors.length >= 5} />
+        <CompetitorForm auditId={id} disabled={competitors.length >= 5} locale={locale} />
       </div>
 
       {competitors.length === 0 ? (
@@ -56,8 +60,8 @@ export default async function CompetitionPage({ params }: { params: Promise<{ id
                 <circle cx="8" cy="8" r="3.5" /><circle cx="17" cy="9" r="3" opacity="0.5" /><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6" strokeLinecap="round" />
               </svg>
             }
-            title="Aucun concurrent renseigné"
-            description="Ajoutez jusqu'à 5 concurrents locaux pour comparer notes, avis et activité."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
           />
         </div>
       ) : (
@@ -65,12 +69,12 @@ export default async function CompetitionPage({ params }: { params: Promise<{ id
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
-                <th className="px-5 py-3">Nom</th>
-                <th className="px-5 py-3">Note</th>
-                <th className="px-5 py-3">Avis</th>
-                <th className="px-5 py-3">Photos</th>
-                <th className="px-5 py-3">Publications récentes</th>
-                <th className="px-5 py-3">Verdict</th>
+                <th className="px-5 py-3">{t.columns.name}</th>
+                <th className="px-5 py-3">{t.columns.rating}</th>
+                <th className="px-5 py-3">{t.columns.reviews}</th>
+                <th className="px-5 py-3">{t.columns.photos}</th>
+                <th className="px-5 py-3">{t.columns.recentPosts}</th>
+                <th className="px-5 py-3">{t.columns.verdict}</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -81,18 +85,15 @@ export default async function CompetitionPage({ params }: { params: Promise<{ id
                   auditId={id}
                   competitor={c}
                   comparison={compareToCompetitor(ourProfile, { rating: c.rating, reviewCount: c.reviewCount, photoCount: c.photoCount, postsRecent: c.postsRecent })}
+                  locale={locale}
                 />
               ))}
             </tbody>
           </table>
-          <p className="border-t border-pm-gris-2 px-5 py-3 text-xs text-pm-gris">
-            Les valeurs entre parenthèses indiquent notre écart par rapport à chaque concurrent (vert = en notre faveur).
-          </p>
+          <p className="border-t border-pm-gris-2 px-5 py-3 text-xs text-pm-gris">{t.deltaNote}</p>
         </div>
       )}
-      <p className="mt-3 text-xs text-pm-gris">
-        Cette comparaison ne garantit aucune position précise dans les résultats Google.
-      </p>
+      <p className="mt-3 text-xs text-pm-gris">{t.disclaimer}</p>
     </>
   );
 }
