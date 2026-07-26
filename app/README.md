@@ -104,6 +104,34 @@ holding the anon key) — this actually happened once mid-session; see the
 comments in `db/audit-migrations/rls-policies.sql` and
 `scripts/audit-db-seed-roles.mjs` for the full story.
 
+## Universal integrations and outbound webhooks
+
+External automation tools, CRMs and partner applications share one generic
+integration model. Human sessions remain on Clerk; future machine-to-machine
+API keys are independent, high-entropy values whose plaintext is shown once
+and whose HMAC-SHA256 hash is the only value persisted. The closed initial
+scope catalog is defined in `lib/integrations/governance.ts`; no public
+`/api/v1` route is enabled yet.
+
+Webhook URLs and per-endpoint secrets are encrypted at rest with AES-256-GCM.
+Configure the server-only `INTEGRATION_API_KEY_PEPPER` and a base64-encoded
+32-byte `INTEGRATION_SECRET_ENCRYPTION_KEY` locally and in each deployment
+environment before creating endpoints. Never prefix either variable with
+`NEXT_PUBLIC_`, commit its value or reuse one as the other.
+
+`user.pending.created` is the first outbox event. The user, internal
+`user.pending_approval` notification and event are created atomically; its
+stable event id is the notification UUID. HTTP delivery happens only in the
+separate `/api/cron/integration-webhooks` worker. Each delivery signs
+`timestamp + "." + rawBody` with the endpoint's own HMAC-SHA256 secret and
+includes `X-Public-Map-Event-Id`, `X-Public-Map-Event-Type`,
+`X-Public-Map-Timestamp` and `X-Public-Map-Signature`. Receivers must validate
+the exact raw body, reject stale timestamps and deduplicate event ids.
+
+The existing `N8N_WEBHOOK_URL`, `N8N_OUTBOUND_SECRET`, `N8N_INBOUND_SECRET`,
+`/api/webhooks/n8n` and legacy dispatchers remain temporary compatibility
+surfaces. They are not the foundation of the new multi-endpoint pipeline.
+
 Before granting the first real admin, invite them from **Équipe** inside
 the audit module (`/admin/audit/equipe`) — there is no other in-app way to
 bootstrap the first account; it must be an email that will sign in via

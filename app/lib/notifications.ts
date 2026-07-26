@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, organizations } from "@/db/schema";
 import { renderNotificationFr } from "@/lib/i18n/notification-templates";
+import { userPendingCreatedEnvelope } from "@/lib/integrations/contracts";
+import { enqueueIntegrationEvent } from "@/lib/integrations/outbox";
 
 type NotifyInput = {
   organizationId: string;
@@ -50,8 +52,10 @@ export async function notify(input: NotifyInput) {
  * data operation (scripts/backfill-user-approval-status.mjs), not
  * something application code ever writes.
  */
-export async function getInternalOrganizationId(): Promise<string | null> {
-  const [org] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
+type NotificationExecutor = Pick<typeof db, "select" | "insert">;
+
+export async function getInternalOrganizationId(executor: Pick<typeof db, "select"> = db): Promise<string | null> {
+  const [org] = await executor.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
   return org?.id ?? null;
 }
 
@@ -64,47 +68,57 @@ export async function getInternalOrganizationId(): Promise<string | null> {
  * same guarantee failing under some future refactor or concurrent
  * request, not the primary dedup mechanism.
  */
-export async function notifyPendingUserRegistered(user: { id: string; email: string; fullName: string | null }) {
-  const internalOrgId = await getInternalOrganizationId();
+export async function createPendingUserNotificationAndEvent(
+  executor: NotificationExecutor,
+  user: { id: string; email: string; fullName: string | null },
+) {
+  const internalOrgId = await getInternalOrganizationId(executor);
   if (!internalOrgId) {
     console.warn(
-      "[notifications] Aucune organisation interne (is_internal) configurée — notification 'nouvel utilisateur en attente' non envoyée pour",
-      user.id,
+      "[notifications] Aucune organisation interne (is_internal) configurée — notification pending non créée.",
     );
-    return;
+    return null;
   }
 
   const name = user.fullName ?? user.email;
   const rendered = renderNotificationFr("user.pending_approval", { name });
 
-  try {
-    await db.insert(notifications).values({
+  const [createdNotification] = await executor
+    .insert(notifications)
+    .values({
       organizationId: internalOrgId,
       type: "user.pending_approval",
       title: rendered?.title ?? "Nouvel utilisateur en attente d'approbation",
       body: rendered?.body,
       metadata: { userId: user.id, name },
-    });
-  } catch (error) {
-    // Postgres unique_violation on notifications_pending_user_unique —
-    // an unread pending-approval notification for this user already
-    // exists (e.g. a concurrent request that also saw "no user row yet").
-    // Benign: the dedup guarantee held, nothing to do. Drizzle's
-    // node-postgres driver wraps the raw pg DatabaseError (which carries
-    // `.code`) inside its own error with the original attached as
-    // `.cause` — check both shapes rather than assuming which one a given
-    // Drizzle version throws.
-    const pgCode = pgErrorCode(error);
-    if (pgCode !== "23505") {
-      throw error;
-    }
-  }
+    })
+    .onConflictDoNothing()
+    .returning({ id: notifications.id, createdAt: notifications.createdAt });
+
+  // Only the concurrent request that actually inserted the unique internal
+  // notification receives a row here. Every loser returns without emitting,
+  // so the notification UUID is both the stable eventId and the at-most-once
+  // gate for the outbound webhook.
+  if (!createdNotification) return null;
+
+  const envelope = userPendingCreatedEnvelope({
+    id: createdNotification.id,
+    occurredAt: createdNotification.createdAt,
+    userId: user.id,
+    displayName: user.fullName?.trim() || "Utilisateur en attente",
+  });
+
+  await enqueueIntegrationEvent(executor, {
+    ...envelope,
+    organizationId: internalOrgId,
+    aggregateType: "user",
+    aggregateId: user.id,
+  });
+
+  return { notification: createdNotification, event: envelope };
 }
 
-function pgErrorCode(error: unknown): string | undefined {
-  if (!(error instanceof Error)) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  const cause = (error as { cause?: unknown }).cause;
-  if (cause instanceof Error && "code" in cause && typeof cause.code === "string") return cause.code;
-  return undefined;
+/** Compatibility helper for non-registration callers and isolated tests. */
+export async function notifyPendingUserRegistered(user: { id: string; email: string; fullName: string | null }) {
+  return db.transaction((tx) => createPendingUserNotificationAndEvent(tx, user));
 }

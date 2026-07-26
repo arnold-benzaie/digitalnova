@@ -85,6 +85,13 @@
       "when": 1784970149054,
       "tag": "0011_special_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785083351508,
+      "tag": "0012_brief_imperial_guard",
+      "breakpoints": true
     }
   ]
 }

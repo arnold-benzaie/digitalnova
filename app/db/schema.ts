@@ -711,20 +711,213 @@ export const reportSchedules = pgTable(
 );
 
 /**
- * Phase 3 — n8n automation prep. Every outbound event we'd notify n8n about
- * is logged here regardless of whether N8N_WEBHOOK_URL is configured, so
- * the dispatch pipeline is observable/testable before a real n8n instance
- * exists — see lib/webhooks.ts.
+ * Universal machine-to-machine integrations. Human authentication continues
+ * to be handled exclusively by Clerk; these rows represent external systems
+ * such as automation tools, CRMs and partner applications. An integration is
+ * platform-owned when organizationId is null, otherwise every request/event
+ * must remain scoped to the owning organization.
  */
-export const webhookDeliveries = pgTable("webhook_deliveries", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  event: text("event").notNull(),
-  targetUrl: text("target_url"),
-  payload: jsonb("payload"),
-  status: text("status").notNull(), // "sent" | "failed" | "skipped_not_configured"
-  responseStatus: integer("response_status"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const integrations = pgTable(
+  "integrations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull().default("custom"), // "automation" | "crm" | "partner" | "data" | "custom"
+    status: text("status").notNull().default("active"), // "active" | "disabled" | "revoked"
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("integrations_organization_status_idx").on(table.organizationId, table.status),
+    index("integrations_status_expires_idx").on(table.status, table.expiresAt),
+  ],
+);
+
+/** API key material is never stored: keyHash is an HMAC-SHA256 digest. */
+export const integrationApiKeys = pgTable(
+  "integration_api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    integrationId: uuid("integration_id")
+      .notNull()
+      .references(() => integrations.id, { onDelete: "cascade" }),
+    lookupId: text("lookup_id").notNull(),
+    keyPrefix: text("key_prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    hashVersion: integer("hash_version").notNull().default(1),
+    scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
+    status: text("status").notNull().default("active"), // "active" | "revoked" | "expired"
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("integration_api_keys_lookup_id_unique").on(table.lookupId),
+    index("integration_api_keys_integration_status_idx").on(table.integrationId, table.status),
+  ],
+);
+
+/**
+ * Full webhook URLs are encrypted because n8n/Make/Zapier-style URLs often
+ * contain a credential in their path. Only the non-sensitive origin is kept
+ * separately for the administration and delivery journal.
+ */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    integrationId: uuid("integration_id")
+      .notNull()
+      .references(() => integrations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    urlCiphertext: text("url_ciphertext").notNull(),
+    urlIv: text("url_iv").notNull(),
+    urlAuthTag: text("url_auth_tag").notNull(),
+    urlOrigin: text("url_origin").notNull(),
+    urlHash: text("url_hash").notNull(),
+    status: text("status").notNull().default("active"), // "active" | "disabled"
+    activeSecretVersion: integer("active_secret_version").notNull().default(1),
+    lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("webhook_endpoints_integration_url_unique").on(table.integrationId, table.urlHash),
+    index("webhook_endpoints_integration_status_idx").on(table.integrationId, table.status),
+  ],
+);
+
+/** AES-256-GCM ciphertext; plaintext is shown only once by future admin UI. */
+export const webhookEndpointSecrets = pgTable(
+  "webhook_endpoint_secrets",
+  {
+    endpointId: uuid("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    secretCiphertext: text("secret_ciphertext").notNull(),
+    secretIv: text("secret_iv").notNull(),
+    secretAuthTag: text("secret_auth_tag").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [primaryKey({ columns: [table.endpointId, table.version] })],
+);
+
+export const webhookSubscriptions = pgTable(
+  "webhook_subscriptions",
+  {
+    endpointId: uuid("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    eventVersion: integer("event_version").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.endpointId, table.eventType, table.eventVersion] }),
+    index("webhook_subscriptions_event_idx").on(table.eventType, table.eventVersion, table.enabled),
+  ],
+);
+
+/**
+ * Transactional outbox. A domain transaction writes one immutable event;
+ * workers fan it out later, so no external HTTP request runs in the user
+ * journey. The first event deliberately reuses the pending notification UUID.
+ */
+export const integrationEvents = pgTable(
+  "integration_events",
+  {
+    id: uuid("id").primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+    type: text("type").notNull(),
+    version: integer("version").notNull().default(1),
+    aggregateType: text("aggregate_type"),
+    aggregateId: text("aggregate_id"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("pending"), // "pending" | "processing" | "completed" | "failed"
+    availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    leaseToken: uuid("lease_token"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("integration_events_status_available_idx").on(table.status, table.availableAt),
+    index("integration_events_type_occurred_idx").on(table.type, table.occurredAt),
+    index("integration_events_organization_idx").on(table.organizationId),
+  ],
+);
+
+/**
+ * Existing n8n-era delivery journal, extended in place for the universal
+ * multi-endpoint pipeline. Legacy columns remain nullable/compatible; new
+ * deliveries use eventId + endpointId and store only a safe URL origin.
+ */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    event: text("event").notNull(),
+    targetUrl: text("target_url"),
+    payload: jsonb("payload"),
+    status: text("status").notNull(),
+    responseStatus: integer("response_status"),
+    eventId: uuid("event_id").references(() => integrationEvents.id, { onDelete: "cascade" }),
+    endpointId: uuid("endpoint_id").references(() => webhookEndpoints.id, { onDelete: "set null" }),
+    secretVersion: integer("secret_version"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    responseDurationMs: integer("response_duration_ms"),
+    lastErrorCode: text("last_error_code"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    leaseToken: uuid("lease_token"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("webhook_deliveries_event_endpoint_unique")
+      .on(table.eventId, table.endpointId)
+      .where(sql`${table.eventId} IS NOT NULL AND ${table.endpointId} IS NOT NULL`),
+    index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+    index("webhook_deliveries_endpoint_idx").on(table.endpointId),
+  ],
+);
+
+export const webhookDeliveryAttempts = pgTable(
+  "webhook_delivery_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    deliveryId: uuid("delivery_id")
+      .notNull()
+      .references(() => webhookDeliveries.id, { onDelete: "cascade" }),
+    attemptNumber: integer("attempt_number").notNull(),
+    status: text("status").notNull(), // "processing" | "sent" | "failed" | "abandoned"
+    responseStatus: integer("response_status"),
+    durationMs: integer("duration_ms"),
+    errorCode: text("error_code"),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("webhook_delivery_attempts_number_unique").on(table.deliveryId, table.attemptNumber),
+    index("webhook_delivery_attempts_delivery_idx").on(table.deliveryId, table.startedAt),
+  ],
+);
 
 /**
  * SEO module — attached directly to crm_clients (agency-shared, like

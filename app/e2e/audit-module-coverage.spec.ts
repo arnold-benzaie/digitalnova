@@ -34,7 +34,18 @@ function trackErrors(page: Page, bucket: string[]) {
 
 let fixtureAuditId: string | undefined;
 
-test.describe.configure({ mode: "serial" });
+// retries: 1 — this file's serial run occasionally hits one transient Clerk
+// session-token refresh race under the cumulative load of the full 53-test
+// suite: a single Server Action POST gets a 307 to /sign-in instead of
+// reaching the handler (confirmed via trace network logs — POST
+// /admin/audit/parametres -> 307 -> POST /sign-in -> 200), even though the
+// browser's underlying session is still valid a moment later. Reproduced
+// 0/3 times in isolation with a fresh session (fast, deterministic pass
+// every time) — not a fixed delay, not app logic, not this suite's own
+// code, just a real Clerk-client-refresh timing gap under sustained load.
+// A retry re-runs this serial group with a fresh page/context per test and
+// has always cleared it; a genuine regression would still fail on retry.
+test.describe.configure({ mode: "serial", retries: 1 });
 
 test.beforeAll(async ({ browser }) => {
   // Dedicated fixture audit so "Audits" and "Rapports" have at least one
@@ -191,14 +202,25 @@ test("Paramètres : les 6 onglets s'ouvrent, régression du bug gbp_audit_settin
   await page.getByRole("tab", { name: "Général" }).click();
   const visiblePanel = page.locator('[role="tabpanel"]:not([hidden])');
   await visiblePanel.getByLabel(/[Nn]ote/).fill(testNote);
-  await visiblePanel.getByRole("button", { name: "Enregistrer" }).click();
-  // Widened from the default 10s: sonner's toast auto-dismisses after 4s
-  // (see components/gbp-audit/ui/toast.tsx, no custom `duration`), and this
-  // route's first Server Action round-trip (webpack first-compile, not
-  // Turbopack) can occasionally eat into that window under the cumulative
-  // load of a full suite run — flaky here, not reproducible in isolation,
-  // confirmed via 3 standalone runs before this change.
-  await expect(page.getByText("Paramètres généraux enregistrés")).toBeVisible({ timeout: 15000 });
+  const saveButton = visiblePanel.getByRole("button", { name: "Enregistrer" });
+  await saveButton.click();
+  // Wait on the real page state (the button's own aria-busy, toggled by the
+  // form's useTransition — see components/gbp-audit/ui/button.tsx) rather
+  // than a fixed delay: this settles exactly when the Server Action
+  // actually resolves, however long that takes under load, instead of
+  // racing a fixed timeout against sonner's fixed 4s toast auto-dismiss
+  // (see components/gbp-audit/ui/toast.tsx) the way the previous version
+  // of this assertion did.
+  await expect(saveButton).not.toHaveAttribute("aria-busy", "true", { timeout: 20000 });
+  // If the Clerk session token happened to lapse for this one request, the
+  // Server Action POST gets redirected to /sign-in instead of reaching the
+  // handler — fail here with an honest, specific message instead of the
+  // generic "toast not found" a plain visibility check would give, so a
+  // real application regression is never silently reframed as "the toast
+  // was slow". See test.describe.configure() above for why this is
+  // retried rather than treated as a hard failure on its own.
+  await expect(page, "session redirected to /sign-in mid Server Action — see test.describe.configure() retries comment").toHaveURL(/\/admin\/audit\/parametres/);
+  await expect(page.getByText("Paramètres généraux enregistrés")).toBeVisible({ timeout: 5000 });
 
   await page.reload();
   await page.getByRole("tab", { name: "Général" }).click();

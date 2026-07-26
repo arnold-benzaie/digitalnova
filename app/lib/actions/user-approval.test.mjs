@@ -31,6 +31,12 @@ import { test, mock, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
+// The pending-user notification now reaches the server-only integration outbox.
+// This plain Node integration test does not run with Next's `react-server`
+// export condition, so replace only the marker package; the real DB writes,
+// approval actions and authorization gates remain unmocked.
+mock.module("server-only", { defaultExport: {} });
+
 const LOCAL_DB_URL = "postgresql://approval_test_user:localtest_approval_only@localhost:5434/public_map_approval_test";
 if (/supabase\.com/i.test(LOCAL_DB_URL)) {
   throw new Error("REFUS : LOCAL_DB_URL ressemble à Supabase Production. Arrêt avant tout import applicatif.");

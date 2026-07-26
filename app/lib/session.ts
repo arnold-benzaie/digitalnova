@@ -4,7 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
-import { notifyPendingUserRegistered } from "@/lib/notifications";
+import { registerPendingUser } from "@/lib/pending-user-registration";
 
 export type AppRole = "admin" | "staff" | "agent" | "supervisor" | "client";
 
@@ -58,31 +58,16 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
     )?.emailAddress;
     if (!verifiedEmail) return { kind: "pending" };
 
-    await db
-      .insert(users)
-      .values({
-        clerkUserId,
-        email: verifiedEmail.toLowerCase(),
-        fullName: clerkUser?.fullName ?? null,
-        firstName: clerkUser?.firstName ?? null,
-        lastName: clerkUser?.lastName ?? null,
-      })
-      // Idempotent by construction: concurrent/repeated sign-ins for the
-      // same Clerk user race here harmlessly — at most one row is ever
-      // created (unique index on clerk_user_id), the rest just re-select
-      // it below. No org, no role, no protected access is ever granted by
-      // this insert — status defaults to "pending".
-      .onConflictDoNothing({ target: users.clerkUserId });
+    const registration = await registerPendingUser({
+      clerkUserId,
+      email: verifiedEmail.toLowerCase(),
+      fullName: clerkUser?.fullName ?? null,
+      firstName: clerkUser?.firstName ?? null,
+      lastName: clerkUser?.lastName ?? null,
+    });
 
-    [appUser] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId)).limit(1);
+    appUser = registration.user ?? undefined;
     if (!appUser) return { kind: "pending" };
-
-    // Only reachable the very first time this Clerk user is ever seen
-    // (onConflictDoNothing above means every later sign-in finds an
-    // existing row and skips this branch entirely) — so this notifies
-    // admins at most once per new pending request, by construction, not
-    // just via the DB-level dedup index in lib/notifications.ts.
-    await notifyPendingUserRegistered({ id: appUser.id, email: appUser.email, fullName: appUser.fullName });
   }
 
   // "À chaque connexion valide" — every request that resolves a real
