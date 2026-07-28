@@ -21,6 +21,7 @@ import { settings } from "./settings";
 import { notificationsPage } from "./notifications";
 import { auditModule } from "./audit-module";
 import { crm } from "./crm";
+import { integrations } from "./integrations";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -39,6 +40,7 @@ export const dictionaries = {
     notificationsPage: notificationsPage.fr,
     auditModule: auditModule.fr,
     crm: crm.fr,
+    integrations: integrations.fr,
   },
   en: {
     common: common.en,
@@ -53,5 +55,6 @@ export const dictionaries = {
     notificationsPage: notificationsPage.en,
     auditModule: auditModule.en,
     crm: crm.en,
+    integrations: integrations.en,
   },
 } as const;

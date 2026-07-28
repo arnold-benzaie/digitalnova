@@ -730,6 +730,13 @@ export const integrations = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Displayed in the admin UI as "prévu pour une future activation" —
+    // null means unlimited/not configured. No enforcement code reads these
+    // yet; they exist so the future public inbound API can start applying
+    // quotas without a schema change. quotaEnforcedAt stays null until that
+    // enforcement ships — an explicit marker, not a derived value.
+    dailyEventQuota: integer("daily_event_quota"),
+    quotaEnforcedAt: timestamp("quota_enforced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -777,6 +784,7 @@ export const webhookEndpoints = pgTable(
       .notNull()
       .references(() => integrations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    description: text("description"),
     urlCiphertext: text("url_ciphertext").notNull(),
     urlIv: text("url_iv").notNull(),
     urlAuthTag: text("url_auth_tag").notNull(),
@@ -916,6 +924,42 @@ export const webhookDeliveryAttempts = pgTable(
   (table) => [
     uniqueIndex("webhook_delivery_attempts_number_unique").on(table.deliveryId, table.attemptNumber),
     index("webhook_delivery_attempts_delivery_idx").on(table.deliveryId, table.startedAt),
+  ],
+);
+
+/**
+ * Admin-triggered test deliveries ("Preview" or real "Send"), kept separate
+ * from webhookDeliveries/webhookDeliveryAttempts on purpose: those tables
+ * back the outbox's real state machine (unique event+endpoint constraint,
+ * lease tokens) and mixing synthetic test traffic into them would corrupt
+ * real delivery stats — same reasoning already applied to the ephemeral,
+ * unpersisted per-endpoint test in lib/integrations/endpoints.ts's
+ * sendTestWebhookDelivery. This table instead gives the dedicated Tests
+ * page its own durable history + replay.
+ */
+export const integrationTestRuns = pgTable(
+  "integration_test_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+    integrationId: uuid("integration_id").references(() => integrations.id, { onDelete: "cascade" }),
+    endpointId: uuid("endpoint_id").references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    triggeredByUserId: uuid("triggered_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    mode: text("mode").notNull(), // "preview" | "send"
+    eventType: text("event_type").notNull(),
+    eventVersion: integer("event_version").notNull().default(1),
+    requestPayload: jsonb("request_payload").notNull(),
+    requestSignature: text("request_signature"),
+    responseStatus: integer("response_status"),
+    responseBody: text("response_body"), // truncated at write time, never unbounded
+    responseDurationMs: integer("response_duration_ms"),
+    errorCode: text("error_code"),
+    replayOfId: uuid("replay_of_id"), // no formal FK — no self-reference precedent in this schema, stays a plain pointer
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("integration_test_runs_organization_idx").on(table.organizationId, table.createdAt),
+    index("integration_test_runs_endpoint_idx").on(table.endpointId, table.createdAt),
   ],
 );
 
