@@ -38,10 +38,10 @@ export function WebhookTestTool({ locale = "fr" }: { locale?: Locale }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6">
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
       <div>
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
-        <p className="mt-1 text-sm text-pm-gris">{t.body}</p>
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t.body}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -65,7 +65,7 @@ export function WebhookTestTool({ locale = "fr" }: { locale?: Locale }) {
           />
         </Field>
         {error && (
-          <p className="text-sm text-pm-rouge" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {error}
           </p>
         )}
@@ -77,36 +77,36 @@ export function WebhookTestTool({ locale = "fr" }: { locale?: Locale }) {
       </form>
 
       {result && (
-        <div className="flex flex-col gap-4 border-t border-pm-gris-2 pt-4">
+        <div className="flex flex-col gap-4 border-t border-border pt-4">
           <div className="flex flex-wrap items-center gap-3">
             {result.errorCode ? (
-              <span className="rounded-full bg-pm-rouge/10 px-2.5 py-1 text-xs font-semibold text-pm-rouge-2">
+              <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive">
                 {result.errorCode === "timeout" ? t.errorTimeout : t.errorNetwork}
               </span>
             ) : (
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                   typeof result.responseStatus === "number" && result.responseStatus < 300
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
+                    ? "bg-pm-g-green/10 text-pm-g-green"
+                    : "bg-pm-or/15 text-foreground"
                 }`}
               >
                 HTTP {result.responseStatus ?? "—"}
               </span>
             )}
-            <span className="text-xs text-pm-gris">
+            <span className="text-xs text-muted-foreground">
               {t.durationLabel}: {result.durationMs} ms
             </span>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.secretUsedLabel}</p>
-            <code className="mt-1 block break-all rounded-lg bg-pm-gris-2/30 px-3 py-2 text-xs text-pm-noir">{result.secretUsed}</code>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.secretUsedLabel}</p>
+            <code className="mt-1 block break-all rounded-lg bg-muted/30 px-3 py-2 text-xs text-foreground">{result.secretUsed}</code>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.requestSection}</p>
-            <pre className="mt-1 overflow-x-auto rounded-lg bg-pm-noir p-3 text-xs text-pm-blanc">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.requestSection}</p>
+            <pre className="mt-1 overflow-x-auto rounded-lg bg-muted/30 p-3 text-xs text-foreground">
               {Object.entries(result.requestHeaders)
                 .map(([key, value]) => `${key}: ${value}`)
                 .join("\n")}
@@ -116,8 +116,8 @@ export function WebhookTestTool({ locale = "fr" }: { locale?: Locale }) {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.responseSection}</p>
-            <pre className="mt-1 max-h-64 overflow-auto rounded-lg bg-pm-gris-2/30 p-3 text-xs text-pm-noir">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.responseSection}</p>
+            <pre className="mt-1 max-h-64 overflow-auto rounded-lg bg-muted/30 p-3 text-xs text-foreground">
               {result.responseBody || t.noResponse}
             </pre>
           </div>

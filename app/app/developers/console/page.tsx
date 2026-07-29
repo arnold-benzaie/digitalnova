@@ -6,6 +6,7 @@ import { getApiKeyUsageWindows, getIntegrationForOrg, getOrgPlanSummary, listApi
 import { IntegrationCard } from "@/components/developer-console/integration-card";
 import { PlanCard } from "@/components/developer-console/plan-card";
 import { ApiKeysManager, type DeveloperApiKeyRow } from "@/components/developer-console/api-keys-manager";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 export default async function DeveloperConsoleDashboardPage() {
   const [session, locale] = await Promise.all([requireSession(), getLocale()]);
@@ -31,6 +32,7 @@ export default async function DeveloperConsoleDashboardPage() {
     scopes: key.scopes,
     status: key.status,
     lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,
+    lastUsedIp: key.lastUsedIp,
     expiresAt: key.expiresAt ? key.expiresAt.toISOString() : null,
     createdAt: key.createdAt.toISOString(),
     usage: usageByKeyId.get(key.id) ?? {
@@ -40,10 +42,10 @@ export default async function DeveloperConsoleDashboardPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-8">
+    <FadeIn className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-sm text-pm-gris">{t.subtitle(session.organizationName)}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle(session.organizationName)}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -55,6 +57,6 @@ export default async function DeveloperConsoleDashboardPage() {
       </div>
 
       <ApiKeysManager initialKeys={rows} scopes={INTEGRATION_SCOPES} locale={locale} />
-    </div>
+    </FadeIn>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/gbp-audit/ui/button";
+import { toast } from "@/components/gbp-audit/ui/toast";
 import { Field, Input, Textarea } from "@/components/gbp-audit/ui/field";
 import { createDeveloperWebhookEndpoint, updateDeveloperWebhookEndpoint } from "@/lib/developer-console/webhooks-actions";
 import type { Locale } from "@/lib/i18n/dictionaries";
@@ -55,10 +56,13 @@ export function WebhookEndpointForm({
           onSaved(result);
         } else if (endpoint) {
           await updateDeveloperWebhookEndpoint(endpoint.id, formData);
+          toast.success(formT.submit);
           onSaved({ endpointId: endpoint.id });
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -79,14 +83,14 @@ export function WebhookEndpointForm({
 
       {mode === "create" && (
         <Field label={t.createForm.eventsLabel} hint={t.createForm.eventsHint}>
-          <div className="flex flex-col gap-2">
+          <div role="group" aria-label={t.createForm.eventsLabel} className="flex flex-col gap-2">
             {eventTypes.map((eventType) => (
-              <label key={eventType} className="flex items-center gap-2 text-sm text-pm-noir">
+              <label key={eventType} className="flex items-center gap-2 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={selectedEvents.includes(eventType)}
                   onChange={() => toggleEvent(eventType)}
-                  className="h-4 w-4 rounded border-pm-gris-2 text-pm-noir focus:ring-pm-noir/20"
+                  className="h-4 w-4 rounded border-border text-foreground focus:ring-ring/20"
                 />
                 {eventLabels[eventType] ?? eventType}
               </label>
@@ -96,7 +100,7 @@ export function WebhookEndpointForm({
       )}
 
       {error && (
-        <p className="text-sm text-pm-rouge" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       )}

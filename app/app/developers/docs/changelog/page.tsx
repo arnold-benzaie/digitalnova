@@ -19,18 +19,18 @@ export default async function ChangelogPage() {
   return (
     <div className="flex flex-col gap-6">
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
-      <p className="text-xs text-pm-gris">{t.note}</p>
+      <p className="text-xs text-muted-foreground">{t.note}</p>
 
       <ol className="flex flex-col gap-4">
         {t.entries.map((entry, index) => (
-          <li key={entry.label} className="flex flex-col gap-2 rounded-2xl border border-pm-gris-2 bg-white p-6">
+          <li key={entry.label} className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-6">
             <div className="flex items-center gap-3">
-              <span className="rounded-full bg-pm-gris-2/40 px-2.5 py-0.5 text-xs font-semibold text-pm-noir">
+              <span className="rounded-full bg-muted/40 px-2.5 py-0.5 text-xs font-semibold text-foreground">
                 {t.entries.length - index}
               </span>
-              <h2 className="font-serif text-lg font-semibold text-pm-noir">{entry.label}</h2>
+              <h2 className="font-serif text-lg font-semibold text-foreground">{entry.label}</h2>
             </div>
-            <ul className="flex flex-col gap-1.5 pl-1 text-sm text-pm-gris">
+            <ul className="flex flex-col gap-1.5 pl-1 text-sm text-muted-foreground">
               {entry.items.map((item) => (
                 <li key={item} className="flex gap-2">
                   <span aria-hidden className="text-pm-g-green">

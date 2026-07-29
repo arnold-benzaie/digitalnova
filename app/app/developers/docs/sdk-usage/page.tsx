@@ -48,15 +48,15 @@ export default async function SdkUsagePage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.sections.intro.title}>
-        <p className="text-pm-gris">{t.sections.intro.body}</p>
+        <p className="text-muted-foreground">{t.sections.intro.body}</p>
       </Section>
 
       <Section title={t.sections.sourceOfTruth.title}>
-        <p className="text-pm-gris">{t.sections.sourceOfTruth.body}</p>
+        <p className="text-muted-foreground">{t.sections.sourceOfTruth.body}</p>
       </Section>
 
       <Section title={t.sections.install.title}>
-        <p className="text-pm-gris">{t.sections.install.body}</p>
+        <p className="text-muted-foreground">{t.sections.install.body}</p>
         <CodeBlock>{"npm install @public-map/sdk"}</CodeBlock>
         <CodeBlock>{"pip install public-map-sdk"}</CodeBlock>
       </Section>
@@ -67,13 +67,13 @@ export default async function SdkUsagePage() {
       </Section>
 
       <Section title={t.sections.errorHandling.title}>
-        <p className="text-pm-gris">{t.sections.errorHandling.body}</p>
+        <p className="text-muted-foreground">{t.sections.errorHandling.body}</p>
         <CodeBlock>{TS_ERRORS}</CodeBlock>
         <CodeBlock>{PY_ERRORS}</CodeBlock>
       </Section>
 
       <Section title={t.sections.pagination.title}>
-        <p className="text-pm-gris">{t.sections.pagination.body}</p>
+        <p className="text-muted-foreground">{t.sections.pagination.body}</p>
         <CodeBlock>{TS_PAGINATE}</CodeBlock>
         <CodeBlock>{PY_PAGINATE}</CodeBlock>
       </Section>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/crm/badges";
+import { Badge } from "@/components/ui/badge";
 import { API_KEY_STATUS_CLASS } from "@/components/integrations/badges";
 import { Button } from "@/components/gbp-audit/ui/button";
+import { toast } from "@/components/gbp-audit/ui/toast";
 import { Dialog } from "@/components/integrations/ui/dialog";
 import { RevealOnceSecret } from "@/components/integrations/ui/reveal-once-secret";
 import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
@@ -24,6 +26,7 @@ export type DeveloperApiKeyRow = {
   scopes: string[];
   status: string;
   lastUsedAt: string | null;
+  lastUsedIp: string | null;
   expiresAt: string | null;
   createdAt: string;
   usage: { perMinute: ApiKeyUsageRow; perDay: ApiKeyUsageRow };
@@ -55,9 +58,12 @@ function RowActions({
     startTransition(async () => {
       try {
         await revokeDeveloperApiKey(apiKeyId);
+        toast.success(t.actions.revoke);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -72,7 +78,9 @@ function RowActions({
         onRevealed(result);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        toast.error(message);
       }
     });
   }
@@ -90,7 +98,11 @@ function RowActions({
           {t.actions.revoke}
         </Button>
       </div>
-      {error && <p className="text-xs text-pm-rouge">{error}</p>}
+      {error && (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
       {dialog}
     </div>
   );
@@ -125,21 +137,21 @@ export function ApiKeysManager({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.keysSection.title}</h2>
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.keysSection.title}</h2>
         <Button type="button" variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
           {t.keysSection.create}
         </Button>
       </div>
 
       {initialKeys.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">{t.keysSection.empty}</p>
-          <p className="mt-1 text-sm text-pm-gris">{t.keysSection.emptyHint}</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="font-serif text-lg font-semibold text-foreground">{t.keysSection.empty}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t.keysSection.emptyHint}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
+            <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-5 py-3">{t.keysSection.columns.name}</th>
                 <th className="px-5 py-3">{t.keysSection.columns.prefix}</th>
@@ -147,6 +159,7 @@ export function ApiKeysManager({
                 <th className="px-5 py-3">{t.keysSection.columns.status}</th>
                 <th className="px-5 py-3">{t.keysSection.columns.usage}</th>
                 <th className="px-5 py-3">{t.keysSection.columns.lastUsed}</th>
+                <th className="px-5 py-3">{t.keysSection.columns.lastIp}</th>
                 <th className="px-5 py-3">{t.keysSection.columns.expires}</th>
                 <th className="px-5 py-3">{t.keysSection.columns.created}</th>
                 <th className="px-5 py-3" />
@@ -154,42 +167,53 @@ export function ApiKeysManager({
             </thead>
             <tbody>
               {initialKeys.map((key) => (
-                <tr key={key.id} className="border-t border-pm-gris-2 align-top">
-                  <td className="px-5 py-3 text-pm-noir">{key.name || <span className="text-pm-gris">{t.keysSection.unnamed}</span>}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-pm-noir">{key.keyPrefix}</td>
-                  <td className="px-5 py-3 text-pm-gris">
+                <tr key={key.id} className="border-t border-border align-top">
+                  <td className="px-5 py-3 text-foreground">{key.name || <span className="text-muted-foreground">{t.keysSection.unnamed}</span>}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-foreground">{key.keyPrefix}</td>
+                  <td className="px-5 py-3 text-muted-foreground">
                     <div className="flex flex-wrap gap-1">
                       {key.scopes.map((scope) => (
-                        <span key={scope} className="rounded-full bg-pm-gris-2/40 px-2 py-0.5 text-[11px] text-pm-noir">
+                        <span key={scope} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                           {scopeLabels[scope] ?? scope}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    <Badge label={t.keysSection.status[key.status] ?? key.status} className={API_KEY_STATUS_CLASS[key.status] ?? ""} />
+                    <Badge variant="outline" className={API_KEY_STATUS_CLASS[key.status] ?? ""}>
+                      {t.keysSection.status[key.status] ?? key.status}
+                    </Badge>
                   </td>
-                  <td className="px-5 py-3 text-xs text-pm-gris">
+                  <td className="px-5 py-3 text-xs text-muted-foreground">
                     <div className="font-mono" title={t.planCard.perMinute}>
-                      {t.usageOf(key.usage.perMinute.used, key.usage.perMinute.limit)} <span className="text-pm-gris/70">{t.planCard.perMinuteShort}</span>
+                      {t.usageOf(key.usage.perMinute.used, key.usage.perMinute.limit)} <span className="text-muted-foreground/70">{t.planCard.perMinuteShort}</span>
                     </div>
                     <div className="font-mono" title={t.planCard.perDay}>
-                      {t.usageOf(key.usage.perDay.used, key.usage.perDay.limit)} <span className="text-pm-gris/70">{t.planCard.perDayShort}</span>
+                      {t.usageOf(key.usage.perDay.used, key.usage.perDay.limit)} <span className="text-muted-foreground/70">{t.planCard.perDayShort}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-pm-gris">{key.lastUsedAt ? formatDateTime(key.lastUsedAt, locale) : t.keysSection.never}</td>
-                  <td className="px-5 py-3 text-pm-gris">{key.expiresAt ? formatDate(key.expiresAt, locale) : t.keysSection.noExpiry}</td>
-                  <td className="px-5 py-3 text-pm-gris">{formatDate(key.createdAt, locale)}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{key.lastUsedAt ? formatDateTime(key.lastUsedAt, locale) : t.keysSection.never}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{key.lastUsedIp ?? "—"}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{key.expiresAt ? formatDate(key.expiresAt, locale) : t.keysSection.noExpiry}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(key.createdAt, locale)}</td>
                   <td className="px-5 py-3">
-                    {key.status === "active" && (
-                      <RowActions
-                        apiKeyId={key.id}
-                        currentName={key.name}
-                        locale={locale}
-                        onRevealed={handleRotated}
-                        onRenameRequested={(id, name) => setRenameTarget({ id, name })}
-                      />
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      <Link
+                        href={`/developers/console/api-keys/${key.id}`}
+                        className="text-xs font-medium text-foreground underline underline-offset-2 hover:no-underline outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      >
+                        {t.keysSection.viewDetail}
+                      </Link>
+                      {key.status === "active" && (
+                        <RowActions
+                          apiKeyId={key.id}
+                          currentName={key.name}
+                          locale={locale}
+                          onRevealed={handleRotated}
+                          onRenameRequested={(id, name) => setRenameTarget({ id, name })}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -209,6 +233,7 @@ export function ApiKeysManager({
         onClose={() => setRenameTarget(null)}
         onRenamed={() => {
           setRenameTarget(null);
+          toast.success(dictionaries[locale].developerConsole.dashboard.keysSection.actions.rename);
           router.refresh();
         }}
         locale={locale}

@@ -1,6 +1,6 @@
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { DocsPageHeader, DocsTable, Section } from "@/components/developer-portal/docs-blocks";
+import { Callout, DocsPageHeader, DocsTable, Section } from "@/components/developer-portal/docs-blocks";
 
 /**
  * Stage 7 (architecture plan) — "note de conception « extension du
@@ -21,21 +21,19 @@ export default async function EventCatalogDesignNotePage() {
     <div className="flex flex-col gap-6">
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
-      <div className="rounded-2xl border border-pm-or/30 bg-pm-or/10 p-6">
-        <p className="text-sm text-pm-noir">{t.notImplementedNotice}</p>
-      </div>
+      <Callout tone="warning">{t.notImplementedNotice}</Callout>
 
       <Section title={t.sections.context.title}>
-        <p className="text-pm-gris">{t.sections.context.body}</p>
+        <p className="text-muted-foreground">{t.sections.context.body}</p>
       </Section>
       <Section title={t.sections.orgScopingWarning.title}>
-        <p className="text-pm-gris">{t.sections.orgScopingWarning.body}</p>
+        <p className="text-muted-foreground">{t.sections.orgScopingWarning.body}</p>
       </Section>
       <Section title={t.sections.existingInfra.title}>
-        <p className="text-pm-gris">{t.sections.existingInfra.body}</p>
+        <p className="text-muted-foreground">{t.sections.existingInfra.body}</p>
       </Section>
       <Section title={t.sections.separateAuditSystem.title}>
-        <p className="text-pm-gris">{t.sections.separateAuditSystem.body}</p>
+        <p className="text-muted-foreground">{t.sections.separateAuditSystem.body}</p>
       </Section>
 
       <Section title={t.sections.candidatesTitle}>
@@ -43,15 +41,15 @@ export default async function EventCatalogDesignNotePage() {
       </Section>
 
       <Section title={t.sections.namingAndVersioning.title}>
-        <p className="text-pm-gris">{t.sections.namingAndVersioning.body}</p>
+        <p className="text-muted-foreground">{t.sections.namingAndVersioning.body}</p>
       </Section>
       <Section title={t.sections.dataMinimization.title}>
-        <p className="text-pm-gris">{t.sections.dataMinimization.body}</p>
+        <p className="text-muted-foreground">{t.sections.dataMinimization.body}</p>
       </Section>
 
       <Section title={t.sections.priority.title}>
-        <p className="font-medium text-pm-noir">{t.sections.priority.p0Title}</p>
-        <ul className="flex flex-col gap-1 pl-1 text-pm-gris">
+        <p className="font-medium text-foreground">{t.sections.priority.p0Title}</p>
+        <ul className="flex flex-col gap-1 pl-1 text-muted-foreground">
           {t.sections.priority.p0.map((item) => (
             <li key={item} className="flex gap-2">
               <span aria-hidden className="text-pm-g-green">✓</span>
@@ -59,11 +57,11 @@ export default async function EventCatalogDesignNotePage() {
             </li>
           ))}
         </ul>
-        <p className="mt-2 font-medium text-pm-noir">{t.sections.priority.p1Title}</p>
-        <ul className="flex flex-col gap-1 pl-1 text-pm-gris">
+        <p className="mt-2 font-medium text-foreground">{t.sections.priority.p1Title}</p>
+        <ul className="flex flex-col gap-1 pl-1 text-muted-foreground">
           {t.sections.priority.p1.map((item) => (
             <li key={item} className="flex gap-2">
-              <span aria-hidden className="text-pm-or-2">○</span>
+              <span aria-hidden className="text-pm-or">○</span>
               <span className="font-mono text-sm">{item}</span>
             </li>
           ))}
@@ -71,7 +69,7 @@ export default async function EventCatalogDesignNotePage() {
       </Section>
 
       <Section title={t.sections.openQuestions.title}>
-        <ul className="flex flex-col gap-2 text-pm-gris">
+        <ul className="flex flex-col gap-2 text-muted-foreground">
           {t.sections.openQuestions.items.map((item) => (
             <li key={item} className="flex gap-2">
               <span aria-hidden>?</span>

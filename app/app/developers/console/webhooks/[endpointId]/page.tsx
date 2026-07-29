@@ -10,6 +10,7 @@ import {
 } from "@/lib/developer-console/queries";
 import { INTEGRATION_EVENT_CATALOG } from "@/lib/integrations/governance";
 import { WebhookEndpointDetail, type DeliveryHistoryRow, type SubscriptionRow } from "@/components/developer-console/webhook-endpoint-detail";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 const EVENT_TYPES = Object.keys(INTEGRATION_EVENT_CATALOG);
 
@@ -44,6 +45,7 @@ export default async function DeveloperConsoleWebhookEndpointDetailPage({
       attemptCount: delivery.attemptCount,
       createdAt: delivery.createdAt.toISOString(),
     },
+    payload: delivery.payload,
     attempts: attempts.map((a) => ({
       id: a.id,
       attemptNumber: a.attemptNumber,
@@ -51,16 +53,18 @@ export default async function DeveloperConsoleWebhookEndpointDetailPage({
       responseStatus: a.responseStatus,
       durationMs: a.durationMs,
       errorCode: a.errorCode,
+      requestHeaders: a.requestHeaders,
+      responseHeaders: a.responseHeaders,
     })),
   }));
 
   return (
-    <div className="flex flex-col gap-4">
+    <FadeIn className="flex flex-col gap-4">
       <div>
-        <Link href="/developers/console/webhooks" className="text-sm text-pm-gris hover:text-pm-noir">
+        <Link href="/developers/console/webhooks" className="text-sm text-muted-foreground hover:text-foreground">
           {t.detail.backTo}
         </Link>
-        <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{endpoint.name}</h1>
+        <h1 className="mt-2 font-serif text-3xl font-semibold text-foreground">{endpoint.name}</h1>
       </div>
 
       <WebhookEndpointDetail
@@ -78,6 +82,6 @@ export default async function DeveloperConsoleWebhookEndpointDetailPage({
         history={historyRows}
         locale={locale}
       />
-    </div>
+    </FadeIn>
   );
 }

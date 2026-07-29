@@ -11,11 +11,11 @@ export default async function PaginationPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.sections.cursor.title}>
-        <p className="text-pm-gris">{t.sections.cursor.body}</p>
+        <p className="text-muted-foreground">{t.sections.cursor.body}</p>
       </Section>
 
       <Section title={t.sections.limit.title}>
-        <p className="text-pm-gris">{t.sections.limit.body}</p>
+        <p className="text-muted-foreground">{t.sections.limit.body}</p>
       </Section>
 
       <Section title={t.sections.filters.title}>

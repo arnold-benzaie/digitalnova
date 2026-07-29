@@ -20,7 +20,7 @@ export function WebhooksSubnav({ locale = "fr" }: { locale?: Locale }) {
   ] as const;
 
   return (
-    <nav className="flex gap-1 border-b border-pm-gris-2" aria-label={t.endpoints}>
+    <nav className="flex gap-1 border-b border-border" aria-label={t.endpoints}>
       {TABS.map((tab) => {
         const active = tab.key === "endpoints" ? pathname === tab.href || /\/webhooks\/[^/]+$/.test(pathname) : pathname === tab.href;
         return (
@@ -29,7 +29,7 @@ export function WebhooksSubnav({ locale = "fr" }: { locale?: Locale }) {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
-              active ? "border-b-2 border-pm-noir text-pm-noir" : "text-pm-gris hover:text-pm-noir"
+              active ? "border-b-2 border-primary text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab.label}

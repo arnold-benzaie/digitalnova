@@ -25,9 +25,9 @@ export default async function DevelopersDocsIndexPage() {
       <DocsPageHeader title={t.docsIndex.title} subtitle={t.docsIndex.subtitle} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {cards.map(({ href, card }) => (
-          <Link key={href} href={href} className="flex flex-col gap-1 rounded-2xl border border-pm-gris-2 bg-white p-6 transition hover:border-pm-noir">
-            <span className="text-sm font-semibold text-pm-noir">{card.title} →</span>
-            <span className="text-sm text-pm-gris">{card.description}</span>
+          <Link key={href} href={href} className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-6 transition hover:border-primary">
+            <span className="text-sm font-semibold text-foreground">{card.title} →</span>
+            <span className="text-sm text-muted-foreground">{card.description}</span>
           </Link>
         ))}
       </div>

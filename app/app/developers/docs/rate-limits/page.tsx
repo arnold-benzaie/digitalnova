@@ -11,20 +11,20 @@ export default async function RateLimitsPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.sections.perMinute.title}>
-        <p className="text-pm-gris">{t.sections.perMinute.body}</p>
+        <p className="text-muted-foreground">{t.sections.perMinute.body}</p>
       </Section>
 
       <Section title={t.sections.perDay.title}>
-        <p className="text-pm-gris">{t.sections.perDay.body}</p>
+        <p className="text-muted-foreground">{t.sections.perDay.body}</p>
       </Section>
 
       <Section title={t.sections.headers.title}>
-        <p className="text-pm-gris">{t.sections.headers.body}</p>
+        <p className="text-muted-foreground">{t.sections.headers.body}</p>
         <DocsTable columns={["Header", ""]} rows={t.sections.headers.rows.map((r) => ({ name: r.name, description: r.description }))} />
       </Section>
 
       <Section title={t.sections.plans.title}>
-        <p className="text-pm-gris">{t.sections.plans.body}</p>
+        <p className="text-muted-foreground">{t.sections.plans.body}</p>
         <DocsTable
           columns={["Plan", "Per minute", "Per day"]}
           rows={t.sections.plans.rows.map((r) => ({ plan: r.plan, perMinute: r.perMinute, perDay: r.perDay }))}

@@ -8,13 +8,13 @@ export default async function RoadmapPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
       <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-base text-pm-gris">{t.subtitle}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-base text-muted-foreground">{t.subtitle}</p>
       </div>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.shippedTitle}</h2>
-        <ul className="flex flex-col gap-2 text-sm text-pm-noir">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.shippedTitle}</h2>
+        <ul className="flex flex-col gap-2 text-sm text-foreground">
           {t.shipped.map((item) => (
             <li key={item} className="flex gap-2">
               <span aria-hidden className="text-pm-g-green">
@@ -26,12 +26,12 @@ export default async function RoadmapPage() {
         </ul>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.upcomingTitle}</h2>
-        <ul className="flex flex-col gap-2 text-sm text-pm-gris">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.upcomingTitle}</h2>
+        <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
           {t.upcoming.map((item) => (
             <li key={item} className="flex gap-2">
-              <span aria-hidden className="text-pm-or-2">
+              <span aria-hidden className="text-pm-or">
                 ○
               </span>
               <span>{item}</span>
@@ -40,7 +40,7 @@ export default async function RoadmapPage() {
         </ul>
       </section>
 
-      <p className="text-xs text-pm-gris">{t.disclaimer}</p>
+      <p className="text-xs text-muted-foreground">{t.disclaimer}</p>
     </div>
   );
 }

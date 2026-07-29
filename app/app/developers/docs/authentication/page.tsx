@@ -11,25 +11,25 @@ export default async function AuthenticationPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.sections.headers.title}>
-        <p className="text-pm-gris">{t.sections.headers.body}</p>
+        <p className="text-muted-foreground">{t.sections.headers.body}</p>
         <DocsTable columns={["Header", ""]} rows={t.sections.headers.rows.map((r) => ({ name: r.name, description: r.description }))} />
       </Section>
 
       <Section title={t.sections.format.title}>
-        <p className="text-pm-gris">{t.sections.format.body}</p>
+        <p className="text-muted-foreground">{t.sections.format.body}</p>
       </Section>
 
       <Section title={t.sections.scopes.title}>
-        <p className="text-pm-gris">{t.sections.scopes.body}</p>
+        <p className="text-muted-foreground">{t.sections.scopes.body}</p>
         <DocsTable columns={["Scope", ""]} rows={t.sections.scopes.rows.map((r) => ({ scope: r.scope, description: r.description }))} />
       </Section>
 
       <Section title={t.sections.isolation.title}>
-        <p className="text-pm-gris">{t.sections.isolation.body}</p>
+        <p className="text-muted-foreground">{t.sections.isolation.body}</p>
       </Section>
 
       <Section title={t.sections.lifecycle.title}>
-        <p className="text-pm-gris">{t.sections.lifecycle.body}</p>
+        <p className="text-muted-foreground">{t.sections.lifecycle.body}</p>
       </Section>
     </div>
   );

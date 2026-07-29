@@ -9,27 +9,27 @@ export function PlanCard({ summary, locale = "fr" }: { summary: OrgPlanSummary; 
   const statusLabel = summary.status ? (t.statusValues[summary.status] ?? summary.status) : t.statusValues.none;
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+      <h2 className="font-serif text-lg font-semibold text-foreground">{t.title}</h2>
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <dt className="text-xs text-pm-gris">{t.plan}</dt>
-          <dd className="text-pm-noir">{planLabel}</dd>
+          <dt className="text-xs text-muted-foreground">{t.plan}</dt>
+          <dd className="text-foreground">{planLabel}</dd>
         </div>
         <div>
-          <dt className="text-xs text-pm-gris">{t.status}</dt>
-          <dd className="text-pm-noir">{statusLabel}</dd>
+          <dt className="text-xs text-muted-foreground">{t.status}</dt>
+          <dd className="text-foreground">{statusLabel}</dd>
         </div>
         <div>
-          <dt className="text-xs text-pm-gris">{t.perMinute}</dt>
-          <dd className="font-mono text-pm-noir">{summary.limits.requestsPerMinute}</dd>
+          <dt className="text-xs text-muted-foreground">{t.perMinute}</dt>
+          <dd className="font-mono text-foreground">{summary.limits.requestsPerMinute}</dd>
         </div>
         <div>
-          <dt className="text-xs text-pm-gris">{t.perDay}</dt>
-          <dd className="font-mono text-pm-noir">{summary.limits.requestsPerDay}</dd>
+          <dt className="text-xs text-muted-foreground">{t.perDay}</dt>
+          <dd className="font-mono text-foreground">{summary.limits.requestsPerDay}</dd>
         </div>
       </dl>
-      <Link href="/developers/docs/rate-limits" className="text-xs font-semibold text-pm-noir hover:underline">
+      <Link href="/developers/docs/rate-limits" className="text-xs font-semibold text-foreground hover:underline">
         {t.learnMore}
       </Link>
     </section>

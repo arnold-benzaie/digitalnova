@@ -28,10 +28,10 @@ export function ApiKeyInspector({ locale = "fr" }: { locale?: Locale }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6">
+    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
       <div>
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
-        <p className="mt-1 text-sm text-pm-gris">{t.body}</p>
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t.body}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -53,15 +53,15 @@ export function ApiKeyInspector({ locale = "fr" }: { locale?: Locale }) {
       </form>
 
       {result && (
-        <div className={`flex flex-col gap-2 rounded-lg border p-4 text-sm ${result.valid ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-pm-rouge/30 bg-pm-rouge/5 text-pm-rouge-2"}`}>
+        <div className={`flex flex-col gap-2 rounded-lg border p-4 text-sm ${result.valid ? "border-pm-g-green/30 bg-pm-g-green/10 text-pm-g-green" : "border-destructive/30 bg-destructive/5 text-destructive"}`}>
           <p className="font-semibold">{result.valid ? t.resultValid : t.resultInvalid}</p>
           {result.valid && (
             <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 font-mono text-xs">
-              <dt className="text-emerald-700">{t.environment}</dt>
+              <dt className="text-pm-g-green">{t.environment}</dt>
               <dd>{result.environment}</dd>
-              <dt className="text-emerald-700">{t.keyPrefix}</dt>
+              <dt className="text-pm-g-green">{t.keyPrefix}</dt>
               <dd>{result.keyPrefix}</dd>
-              <dt className="text-emerald-700">{t.lookupId}</dt>
+              <dt className="text-pm-g-green">{t.lookupId}</dt>
               <dd>{result.lookupId}</dd>
             </dl>
           )}

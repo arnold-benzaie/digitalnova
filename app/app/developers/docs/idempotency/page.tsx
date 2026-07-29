@@ -11,15 +11,15 @@ export default async function IdempotencyPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.sections.howItWorks.title}>
-        <p className="text-pm-gris">{t.sections.howItWorks.body}</p>
+        <p className="text-muted-foreground">{t.sections.howItWorks.body}</p>
       </Section>
 
       <Section title={t.sections.scope.title}>
-        <p className="text-pm-gris">{t.sections.scope.body}</p>
+        <p className="text-muted-foreground">{t.sections.scope.body}</p>
       </Section>
 
       <Section title={t.sections.recommendation.title}>
-        <p className="text-pm-gris">{t.sections.recommendation.body}</p>
+        <p className="text-muted-foreground">{t.sections.recommendation.body}</p>
       </Section>
     </div>
   );

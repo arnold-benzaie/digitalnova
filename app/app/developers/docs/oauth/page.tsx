@@ -1,6 +1,6 @@
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { DocsPageHeader, OrderedSteps, Section } from "@/components/developer-portal/docs-blocks";
+import { Callout, DocsPageHeader, OrderedSteps, Section } from "@/components/developer-portal/docs-blocks";
 
 /**
  * OAuth-provider DESIGN NOTE (Stage 6, Groupe H item 19) — deliberately
@@ -19,27 +19,25 @@ export default async function OAuthDesignNotePage() {
     <div className="flex flex-col gap-6">
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
-      <div className="rounded-2xl border border-pm-or/30 bg-pm-or/10 p-6">
-        <p className="text-sm text-pm-noir">{t.notImplementedNotice}</p>
-      </div>
+      <Callout tone="warning">{t.notImplementedNotice}</Callout>
 
       <Section title={t.sections.why.title}>
-        <p className="text-pm-gris">{t.sections.why.body}</p>
+        <p className="text-muted-foreground">{t.sections.why.body}</p>
       </Section>
       <Section title={t.sections.rolesReversal.title}>
-        <p className="text-pm-gris">{t.sections.rolesReversal.body}</p>
+        <p className="text-muted-foreground">{t.sections.rolesReversal.body}</p>
       </Section>
       <Section title={t.sections.scopes.title}>
-        <p className="text-pm-gris">{t.sections.scopes.body}</p>
+        <p className="text-muted-foreground">{t.sections.scopes.body}</p>
       </Section>
       <Section title={t.sections.flow.title}>
         <OrderedSteps steps={t.sections.flow.steps} />
       </Section>
       <Section title={t.sections.revocation.title}>
-        <p className="text-pm-gris">{t.sections.revocation.body}</p>
+        <p className="text-muted-foreground">{t.sections.revocation.body}</p>
       </Section>
       <Section title={t.sections.openQuestions.title}>
-        <ul className="flex flex-col gap-2 text-pm-gris">
+        <ul className="flex flex-col gap-2 text-muted-foreground">
           {t.sections.openQuestions.items.map((item) => (
             <li key={item} className="flex gap-2">
               <span aria-hidden>?</span>

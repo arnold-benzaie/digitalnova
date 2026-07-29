@@ -11,27 +11,27 @@ export default async function QuickstartPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
 
       <Section title={t.steps.step1.title}>
-        <p className="text-pm-gris">{t.steps.step1.body}</p>
-        <p className="text-xs font-semibold text-pm-or-2">{t.steps.step1.note}</p>
+        <p className="text-muted-foreground">{t.steps.step1.body}</p>
+        <p className="w-fit rounded-md bg-pm-or/15 px-2 py-1 text-xs font-semibold text-foreground">{t.steps.step1.note}</p>
       </Section>
 
       <Section title={t.steps.step2.title}>
-        <p className="text-pm-gris">{t.steps.step2.body}</p>
+        <p className="text-muted-foreground">{t.steps.step2.body}</p>
         <CodeBlock>{t.curl.ping}</CodeBlock>
       </Section>
 
       <Section title={t.steps.step3.title}>
-        <p className="text-pm-gris">{t.steps.step3.body}</p>
+        <p className="text-muted-foreground">{t.steps.step3.body}</p>
         <CodeBlock>{t.curl.pingResponse}</CodeBlock>
       </Section>
 
       <Section title={t.steps.step4.title}>
-        <p className="text-pm-gris">{t.steps.step4.body}</p>
+        <p className="text-muted-foreground">{t.steps.step4.body}</p>
         <CodeBlock>{t.curl.audits}</CodeBlock>
       </Section>
 
       <Section title={t.steps.step5.title}>
-        <p className="text-pm-gris">{t.steps.step5.body}</p>
+        <p className="text-muted-foreground">{t.steps.step5.body}</p>
       </Section>
     </div>
   );

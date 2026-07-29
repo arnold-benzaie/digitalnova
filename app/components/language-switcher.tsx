@@ -21,10 +21,12 @@ const LOCALE_NAME: Record<Locale, string> = { fr: "Français", en: "English" };
  * mount once in the app shell header and have it work on every page.
  *
  * `variant="auth"` (default) uses the --surface-* tokens scoped to
- * .pm-auth-page (the only place in the app with dark-mode support today —
- * see globals.css). `variant="shell"` uses the app shell's own plain
- * pm-* tokens instead, since those CSS vars are undefined outside
- * .pm-auth-page — this is what the header-embedded instance uses.
+ * .pm-auth-page. `variant="shell"` uses the shadcn semantic tokens
+ * (background/foreground/border, see app/globals.css) instead — resolves
+ * to the same values as the old plain pm-* classes in the main app shell
+ * (always light), but also correctly adapts inside the /developers
+ * portal's .dark wrapper, since that's the other place this variant renders
+ * (components/developer-portal/portal-header.tsx).
  */
 export function LanguageSwitcher({
   locale,
@@ -40,7 +42,7 @@ export function LanguageSwitcher({
 
   const groupClass =
     variant === "shell"
-      ? "inline-flex items-center gap-0.5 rounded-full border border-pm-gris-2 bg-pm-gris-2/20 p-1"
+      ? "inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/40 p-1"
       : "inline-flex items-center gap-0.5 rounded-full border border-[var(--surface-border)] bg-[var(--surface-chip)] p-1";
 
   return (
@@ -50,11 +52,12 @@ export function LanguageSwitcher({
         const activeClass =
           variant === "shell"
             ? active
-              ? "bg-pm-noir text-white shadow-sm"
-              : "text-pm-gris hover:text-pm-noir"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
             : active
               ? "bg-[var(--surface-primary-bg)] text-[var(--surface-primary-ink)] shadow-sm"
               : "text-[var(--surface-muted)] hover:text-[var(--surface-ink)]";
+        const ringClass = variant === "shell" ? "focus-visible:ring-destructive/60" : "focus-visible:ring-pm-rouge/60";
         return (
           <form key={option} action={setLocale.bind(null, option, target)}>
             <button
@@ -62,7 +65,7 @@ export function LanguageSwitcher({
               aria-label={LOCALE_NAME[option]}
               aria-current={active ? "true" : undefined}
               disabled={active}
-              className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-rouge/60 focus-visible:ring-offset-2 ${activeClass}`}
+              className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${ringClass} ${activeClass}`}
             >
               {LOCALE_LABEL[option]}
             </button>

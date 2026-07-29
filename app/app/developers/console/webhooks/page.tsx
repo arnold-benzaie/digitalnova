@@ -5,6 +5,7 @@ import { listWebhookEndpointsForOrg } from "@/lib/developer-console/queries";
 import { INTEGRATION_EVENT_CATALOG } from "@/lib/integrations/governance";
 import { WebhooksSubnav } from "@/components/developer-console/webhooks-subnav";
 import { WebhookEndpointsManager, type EndpointRow } from "@/components/developer-console/webhook-endpoints-manager";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 const EVENT_TYPES = Object.keys(INTEGRATION_EVENT_CATALOG);
 
@@ -32,15 +33,15 @@ export default async function DeveloperConsoleWebhooksPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <FadeIn className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-sm text-pm-gris">{t.subtitle}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       <WebhooksSubnav locale={locale} />
 
       <WebhookEndpointsManager initialEndpoints={rows} eventTypes={EVENT_TYPES} locale={locale} />
-    </div>
+    </FadeIn>
   );
 }

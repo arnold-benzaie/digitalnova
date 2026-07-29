@@ -3,6 +3,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { listOrgMembers } from "@/lib/developer-console/queries";
 import { formatDate } from "@/lib/i18n/format";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 export default async function DeveloperConsoleMembersPage() {
   const [session, locale] = await Promise.all([requireSession(), getLocale()]);
@@ -10,22 +11,22 @@ export default async function DeveloperConsoleMembersPage() {
   const members = await listOrgMembers(session.organizationId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <FadeIn className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-sm text-pm-gris">{t.subtitle}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
-      <p className="rounded-2xl bg-pm-gris-2/20 p-4 text-xs text-pm-gris">{t.accessNote}</p>
+      <p className="rounded-2xl bg-muted/20 p-4 text-xs text-muted-foreground">{t.accessNote}</p>
 
       {members.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="text-sm text-pm-gris">{t.empty}</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">{t.empty}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
+            <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-5 py-3">{t.columns.name}</th>
                 <th className="px-5 py-3">{t.columns.email}</th>
@@ -35,17 +36,17 @@ export default async function DeveloperConsoleMembersPage() {
             </thead>
             <tbody>
               {members.map((member) => (
-                <tr key={member.userId} className="border-t border-pm-gris-2 align-top">
-                  <td className="px-5 py-3 text-pm-noir">{member.fullName ?? "—"}</td>
-                  <td className="px-5 py-3 text-pm-gris">{member.email}</td>
-                  <td className="px-5 py-3 text-pm-gris">{t.roleLabels[member.role] ?? member.role}</td>
-                  <td className="px-5 py-3 text-pm-gris">{formatDate(member.memberSince.toISOString(), locale)}</td>
+                <tr key={member.userId} className="border-t border-border align-top">
+                  <td className="px-5 py-3 text-foreground">{member.fullName ?? "—"}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{member.email}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{t.roleLabels[member.role] ?? member.role}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(member.memberSince.toISOString(), locale)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </FadeIn>
   );
 }

@@ -11,9 +11,9 @@ export default async function FaqPage() {
       <DocsPageHeader title={t.title} subtitle={t.subtitle} />
       <div className="flex flex-col gap-4">
         {t.items.map((item) => (
-          <div key={item.q} className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-            <p className="font-semibold text-pm-noir">{item.q}</p>
-            <p className="mt-2 text-sm text-pm-gris">{item.a}</p>
+          <div key={item.q} className="rounded-2xl border border-border bg-card p-6">
+            <p className="font-semibold text-foreground">{item.q}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{item.a}</p>
           </div>
         ))}
       </div>

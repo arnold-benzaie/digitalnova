@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Callout } from "@/components/developer-portal/docs-blocks";
 
 type TemplateFile = { file: string; name: string };
 
@@ -30,40 +31,38 @@ export default async function N8nTemplatesPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-12">
       <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-base text-pm-gris">{t.subtitle}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-base text-muted-foreground">{t.subtitle}</p>
       </div>
 
-      <div className="rounded-2xl border border-pm-or/30 bg-pm-or/10 p-6">
-        <p className="text-sm text-pm-noir">{t.noTriggerNotice}</p>
-      </div>
+      <Callout tone="warning">{t.noTriggerNotice}</Callout>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.setupTitle}</h2>
-        <ol className="flex flex-col gap-2 text-sm text-pm-gris">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+        <h2 className="font-serif text-lg font-semibold text-foreground">{t.setupTitle}</h2>
+        <ol className="flex flex-col gap-2 text-sm text-muted-foreground">
           {t.setupSteps.map((step, i) => (
             <li key={step} className="flex gap-2">
-              <span className="font-semibold text-pm-gris">{i + 1}.</span>
+              <span className="font-semibold text-muted-foreground">{i + 1}.</span>
               <span>{step}</span>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-        <div className="flex flex-col gap-1 rounded-xl border border-pm-gris-2">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+        <div className="flex flex-col gap-1 rounded-xl border border-border">
           {templates.map(({ file, name }) => (
             <a
               key={file}
               href={`/developers/templates/n8n/${encodeURIComponent(file)}`}
-              className="flex items-center justify-between gap-3 border-b border-pm-gris-2 px-4 py-3 last:border-b-0 transition hover:bg-pm-gris-2/20"
+              className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-b-0 transition hover:bg-muted/20"
             >
-              <span className="text-sm text-pm-noir">{name.replace(/^PUBLIC-MAP — /, "")}</span>
-              <span className="shrink-0 font-mono text-xs text-pm-gris">{file} ↓</span>
+              <span className="text-sm text-foreground">{name.replace(/^PUBLIC-MAP — /, "")}</span>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">{file} ↓</span>
             </a>
           ))}
         </div>
-        <p className="text-xs text-pm-gris">{t.downloadAll}</p>
+        <p className="text-xs text-muted-foreground">{t.downloadAll}</p>
       </section>
     </div>
   );

@@ -3,6 +3,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { getApiKeyEvents } from "@/lib/developer-console/queries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 function summarizeMetadata(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") return "";
@@ -19,20 +20,20 @@ export default async function DeveloperConsoleActivityPage() {
   const events = await getApiKeyEvents(session.organizationId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <FadeIn className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-sm text-pm-gris">{t.subtitle}</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="text-sm text-pm-gris">{t.empty}</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">{t.empty}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
+            <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-5 py-3">{t.columns.event}</th>
                 <th className="px-5 py-3">{t.columns.key}</th>
@@ -42,17 +43,17 @@ export default async function DeveloperConsoleActivityPage() {
             </thead>
             <tbody>
               {events.map((event) => (
-                <tr key={event.id} className="border-t border-pm-gris-2 align-top">
-                  <td className="px-5 py-3 text-pm-noir">{t.actions[event.action] ?? event.action}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-pm-gris">{summarizeMetadata(event.metadata)}</td>
-                  <td className="px-5 py-3 text-pm-gris">{event.actorName ?? event.actorEmail ?? t.unknownActor}</td>
-                  <td className="px-5 py-3 text-pm-gris">{formatDateTime(event.createdAt.toISOString(), locale)}</td>
+                <tr key={event.id} className="border-t border-border align-top">
+                  <td className="px-5 py-3 text-foreground">{t.actions[event.action] ?? event.action}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{summarizeMetadata(event.metadata)}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{event.actorName ?? event.actorEmail ?? t.unknownActor}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDateTime(event.createdAt.toISOString(), locale)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </FadeIn>
   );
 }

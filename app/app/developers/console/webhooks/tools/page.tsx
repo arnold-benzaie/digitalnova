@@ -4,6 +4,7 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 import { WebhooksSubnav } from "@/components/developer-console/webhooks-subnav";
 import { WebhookTestTool } from "@/components/developer-console/webhook-test-tool";
 import { SignatureVerifier } from "@/components/developer-console/signature-verifier";
+import { FadeIn } from "@/components/developer-portal/motion/fade-in";
 
 /**
  * Webhook debugging tools (built in Stage 4, moved under /webhooks/tools
@@ -19,11 +20,11 @@ export default async function DeveloperConsoleWebhookToolsPage() {
   const t = dictionaries[locale].developerConsole.webhookTools;
 
   return (
-    <div className="flex flex-col gap-6">
+    <FadeIn className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="text-sm text-pm-gris">{t.subtitle}</p>
-        <Link href="/developers/docs/webhooks" className="text-sm font-medium text-pm-noir underline underline-offset-2">
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{t.title}</h1>
+        <p className="text-sm text-muted-foreground">{t.subtitle}</p>
+        <Link href="/developers/docs/webhooks" className="text-sm font-medium text-foreground underline underline-offset-2">
           {t.docsLink}
         </Link>
       </div>
@@ -34,6 +35,6 @@ export default async function DeveloperConsoleWebhookToolsPage() {
         <WebhookTestTool locale={locale} />
         <SignatureVerifier locale={locale} />
       </div>
-    </div>
+    </FadeIn>
   );
 }

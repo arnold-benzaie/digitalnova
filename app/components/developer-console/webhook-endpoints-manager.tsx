@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/crm/badges";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { ENDPOINT_STATUS_CLASS } from "@/components/integrations/badges";
 import { Dialog } from "@/components/integrations/ui/dialog";
@@ -54,14 +54,14 @@ export function WebhookEndpointsManager({
       </div>
 
       {initialEndpoints.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
-          <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="font-serif text-lg font-semibold text-foreground">{t.empty}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t.emptyHint}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
+            <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-5 py-3">{t.columns.name}</th>
                 <th className="px-5 py-3">{t.columns.url}</th>
@@ -74,17 +74,19 @@ export function WebhookEndpointsManager({
             </thead>
             <tbody>
               {initialEndpoints.map((endpoint) => (
-                <tr key={endpoint.id} className="border-t border-pm-gris-2 align-top">
-                  <td className="px-5 py-3 font-medium text-pm-noir">{endpoint.name}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-pm-gris">{endpoint.urlOrigin}</td>
-                  <td className="px-5 py-3 text-pm-gris">{endpoint.subscribedEventCount}</td>
+                <tr key={endpoint.id} className="border-t border-border align-top">
+                  <td className="px-5 py-3 font-medium text-foreground">{endpoint.name}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{endpoint.urlOrigin}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{endpoint.subscribedEventCount}</td>
                   <td className="px-5 py-3">
-                    <Badge label={t.status[endpoint.status] ?? endpoint.status} className={ENDPOINT_STATUS_CLASS[endpoint.status] ?? ""} />
+                    <Badge variant="outline" className={ENDPOINT_STATUS_CLASS[endpoint.status] ?? ""}>
+                      {t.status[endpoint.status] ?? endpoint.status}
+                    </Badge>
                   </td>
-                  <td className="px-5 py-3 text-pm-gris">{endpoint.lastDeliveryAt ? formatDateTime(endpoint.lastDeliveryAt, locale) : t.never}</td>
-                  <td className="px-5 py-3 text-pm-gris">{formatDate(endpoint.createdAt, locale)}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{endpoint.lastDeliveryAt ? formatDateTime(endpoint.lastDeliveryAt, locale) : t.never}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(endpoint.createdAt, locale)}</td>
                   <td className="px-5 py-3 text-right">
-                    <Link href={`/developers/console/webhooks/${endpoint.id}`} className="font-medium text-pm-noir underline underline-offset-2 hover:no-underline">
+                    <Link href={`/developers/console/webhooks/${endpoint.id}`} className="font-medium text-foreground underline underline-offset-2 hover:no-underline outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                       {t.view}
                     </Link>
                   </td>
