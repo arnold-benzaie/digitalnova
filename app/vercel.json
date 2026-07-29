@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/integration-webhooks",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }
