@@ -1,0 +1,35 @@
+meta {
+  name: List CRM clients for the authenticated organization
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/clients
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:query {
+  ~limit: 
+  ~cursor: 
+  ~from: 
+  ~to: 
+  ~q: 
+  ~stage: 
+}
+
+docs {
+    Returns only clients whose `organizationId` matches the
+    authenticated organization — a client that hasn't onboarded yet
+    (`organizationId` is null) or that is archived is never returned,
+    regardless of any identifier supplied in the request.
+    
+    
+    Required scope(s): clients:read
+}
+

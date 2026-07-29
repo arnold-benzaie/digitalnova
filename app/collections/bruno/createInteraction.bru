@@ -1,0 +1,38 @@
+meta {
+  name: Log an interaction (call, email, meeting, or note) against a client
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/interactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+headers {
+  ~Idempotency-Key: 
+}
+
+body:json {
+    {
+      "clientId": "00000000-0000-0000-0000-000000000000",
+      "type": "call",
+      "summary": ""
+    }
+}
+
+docs {
+    Same `clientId` ownership check as POST /tasks. `createdBy` can
+    never be set through this API — it's populated server-side from
+    the API key and never exposed in the response (see Interaction).
+    Supports `Idempotency-Key`.
+    
+    
+    Required scope(s): interactions:create
+}
+

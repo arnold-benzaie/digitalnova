@@ -316,6 +316,62 @@ async function deliverClaimed(
   }
 }
 
+/** Claims exactly ONE delivery by id (only from "pending"/"retrying" — a
+ * delivery that is currently "processing", "sent", "abandoned", etc. is
+ * left untouched), for the Console's self-service "replay" action —
+ * distinct from claimDueDeliveries' date-ordered batch claim, so a
+ * developer clicking "replay" on a SPECIFIC delivery can't have a
+ * different, unrelated delivery picked up instead. */
+export async function claimDeliveryById(deliveryId: string, now: Date): Promise<ClaimedDelivery | null> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(webhookDeliveries)
+      .where(and(eq(webhookDeliveries.id, deliveryId), inArray(webhookDeliveries.status, ["pending", "retrying"])))
+      .for("update", { skipLocked: true })
+      .limit(1);
+    if (!row) return null;
+
+    const leaseToken = randomUUID();
+    await tx
+      .update(webhookDeliveries)
+      .set({ status: "processing", lockedAt: now, leaseToken, updatedAt: now })
+      .where(eq(webhookDeliveries.id, row.id));
+
+    return { ...row, status: "processing", lockedAt: now, leaseToken };
+  });
+}
+
+/** Synchronous single-delivery send, wired to the SAME deliverClaimed()
+ * used by the batch worker — no delivery/signing/state-machine logic is
+ * duplicated. Returns null if the delivery wasn't claimable (already
+ * being processed, already terminal, or gone) so the caller can report
+ * that plainly instead of a false "sent". Callers MUST verify the
+ * delivery belongs to the caller's own organization BEFORE calling this
+ * (see lib/developer-console/webhooks-actions.ts's replay action) —
+ * this function itself has no organization scoping. */
+export async function deliverOne(
+  deliveryId: string,
+  options: {
+    now?: Date;
+    fetchImpl?: WorkerFetch;
+    resolver?: WebhookDnsResolver;
+    encryptionKey?: string;
+    allowHttpForIsolatedTests?: boolean;
+  } = {},
+): Promise<WebhookDeliveryStatus | null> {
+  const now = options.now ?? new Date();
+  const claimed = await claimDeliveryById(deliveryId, now);
+  if (!claimed) return null;
+  return deliverClaimed(claimed, {
+    now,
+    fetchImpl: options.fetchImpl ?? fetch,
+    resolver: options.resolver,
+    encryptionKey: options.encryptionKey,
+    allowHttpForIsolatedTests: options.allowHttpForIsolatedTests,
+  });
+}
+
 export async function processWebhookDeliveries(options: {
   limit?: number;
   now?: Date;

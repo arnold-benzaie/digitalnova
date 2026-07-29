@@ -1,0 +1,28 @@
+meta {
+  name: Get a single client
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/clients/:id
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:path {
+  id: 
+}
+
+docs {
+    Returns 404 with an identical body whether `id` does not exist,
+    belongs to a different organization, or is archived.
+    
+    
+    Required scope(s): clients:read
+}
+

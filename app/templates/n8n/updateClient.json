@@ -1,0 +1,61 @@
+{
+  "name": "PUBLIC-MAP — Update a client's own business profile fields",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "2486dff7-b5cd-46bd-8a80-74470084486c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/clients/YOUR_ID",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"name\": \"\",\n  \"contactName\": \"\",\n  \"email\": \"\",\n  \"phone\": \"\",\n  \"address\": \"\"\n}"
+      },
+      "id": "371f0c4f-b396-4eba-944e-db7a460037ac",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

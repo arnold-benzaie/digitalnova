@@ -1,0 +1,58 @@
+{
+  "name": "PUBLIC-MAP — List GBP audits for the authenticated organization",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "541ef273-8483-497a-97f6-d5bb86ac8bcd",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/audits",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5bf65c61-63cc-48c6-95e1-4a9d62feb024",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

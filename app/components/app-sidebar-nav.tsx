@@ -80,7 +80,7 @@ export function getStaffNavSections(t: NavDict): NavSection[] {
       defaultOpen: false,
       items: [
         { label: t.items.billing, href: "/admin/billing", icon: "creditCard" },
-        { label: t.items.automations, href: "/admin/webhooks", icon: "zap" },
+        { label: t.items.automations, href: "/admin/integrations", icon: "zap" },
       ],
     },
   ];

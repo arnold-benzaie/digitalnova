@@ -1,0 +1,65 @@
+{
+  "name": "PUBLIC-MAP — Log an interaction (call, email, meeting, or note) against a client",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b6e631d0-15e5-4021-8103-d952e51393c8",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/interactions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{$workflow.id}}-{{$now.toMillis()}}"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"clientId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"call\",\n  \"summary\": \"\"\n}"
+      },
+      "id": "be2a744d-e2d6-42fe-9a5b-3ae9840f7ab4",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

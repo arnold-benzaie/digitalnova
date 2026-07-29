@@ -1,0 +1,33 @@
+meta {
+  name: List audit reports for the authenticated organization
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/reports
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:query {
+  ~limit: 
+  ~cursor: 
+  ~from: 
+  ~to: 
+  ~q: 
+}
+
+docs {
+    Same underlying data and filters as GET /audits, presented as a
+    curated report view (score, summary, and an issue-count
+    breakdown by priority) rather than the raw audit record.
+    
+    
+    Required scope(s): reports:read
+}
+

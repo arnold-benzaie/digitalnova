@@ -1,0 +1,56 @@
+{
+  "name": "PUBLIC-MAP — Update a client's own business profile fields",
+  "flow": [
+    {
+      "id": 1,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://app.public-map.com/api/v1/clients/YOUR_ID",
+        "serializeUrl": false,
+        "method": "patch",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_PUBLIC_MAP_API_KEY"
+          }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "followRedirect": false,
+        "contentType": "application/json",
+        "data": "{\n  \"name\": \"\",\n  \"contactName\": \"\",\n  \"email\": \"\",\n  \"phone\": \"\",\n  \"address\": \"\"\n}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0
+        },
+        "restore": {}
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
+}

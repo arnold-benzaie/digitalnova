@@ -1,0 +1,29 @@
+meta {
+  name: Get a single audit
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/audits/:id
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:path {
+  id: 
+}
+
+docs {
+    Returns 404 with an identical body whether `id` does not exist at
+    all or belongs to a different organization — the response never
+    reveals which case applies.
+    
+    
+    Required scope(s): audits:read
+}
+

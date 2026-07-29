@@ -1,0 +1,65 @@
+{
+  "name": "PUBLIC-MAP — Create a staff to-do tied to a client",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "38e164fa-8d87-4d6f-a169-a515b6bdd4f7",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/tasks",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{$workflow.id}}-{{$now.toMillis()}}"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"clientId\": \"00000000-0000-0000-0000-000000000000\",\n  \"title\": \"\"\n}"
+      },
+      "id": "ef3a58d1-6c72-4472-8ea3-385d3f5f049c",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

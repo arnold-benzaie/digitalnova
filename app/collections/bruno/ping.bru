@@ -1,0 +1,23 @@
+meta {
+  name: Verify an API key is valid and see which scopes it carries
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/ping
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+docs {
+    Requires no particular scope — any active, non-expired key on an
+    active integration can call it. Useful as a first request when
+    wiring up a new integration (see the Quick Start guide) and as a
+    lightweight liveness check.
+}
+

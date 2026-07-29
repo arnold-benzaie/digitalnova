@@ -46,6 +46,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except templates: no real secrets, meant to be tracked so every
+# environment knows which vars exist. .env.e2e.local.example already was;
+# .env.example itself had been silently swallowed by the blanket rule
+# above and was never actually committed — fixed here.
+!.env.example
+!.env.e2e.local.example
 
 # vercel
 .vercel
