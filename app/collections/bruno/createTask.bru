@@ -1,0 +1,41 @@
+meta {
+  name: Create a staff to-do tied to a client
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+headers {
+  ~Idempotency-Key: 
+}
+
+body:json {
+    {
+      "clientId": "00000000-0000-0000-0000-000000000000",
+      "title": ""
+    }
+}
+
+docs {
+    `clientId` must reference a client belonging to the authenticated
+    organization (verified with the exact same rule as GET/PATCH
+    /clients) — otherwise the request fails with a generic
+    VALIDATION_ERROR that never distinguishes "no such client" from
+    "not yours". Only TaskCreateRequest's fields are accepted;
+    `assignee` (which PUBLIC-MAP staff member owns the task) can
+    never be set through this API. Supports `Idempotency-Key" — see
+    the IdempotencyKey parameter.
+    
+    
+    Required scope(s): tasks:create
+}
+

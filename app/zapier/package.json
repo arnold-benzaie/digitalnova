@@ -1,0 +1,17 @@
+{
+  "name": "public-map-zapier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PUBLIC-MAP integration for the Zapier Platform — Stage 8 (Zapier sub-stage) scaffold, prepared for a future submission to the Zapier Developer Platform. See README.md for what is and isn't done yet.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "validate": "zapier-platform validate"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "zapier-platform-core": "19.0.0"
+  }
+}

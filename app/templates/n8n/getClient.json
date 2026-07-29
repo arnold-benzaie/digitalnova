@@ -1,0 +1,58 @@
+{
+  "name": "PUBLIC-MAP — Get a single client",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "cfb3758e-233f-4b80-9eff-a4548d5b5365",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/clients/YOUR_ID",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "41a02bc2-d5fa-4090-b2be-90e5c467a752",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -257,6 +257,7 @@ export async function listApiKeysForOrg(organizationId: string) {
   return db
     .select({
       id: integrationApiKeys.id,
+      name: integrationApiKeys.name,
       lookupId: integrationApiKeys.lookupId,
       keyPrefix: integrationApiKeys.keyPrefix,
       scopes: integrationApiKeys.scopes,

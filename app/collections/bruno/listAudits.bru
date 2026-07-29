@@ -1,0 +1,33 @@
+meta {
+  name: List GBP audits for the authenticated organization
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/audits
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:query {
+  ~limit: 
+  ~cursor: 
+  ~from: 
+  ~to: 
+  ~q: 
+}
+
+docs {
+    Returns audits belonging to the organization the API key is
+    scoped to — never any other organization's, regardless of any
+    identifier supplied in the request.
+    
+    
+    Required scope(s): audits:read
+}
+

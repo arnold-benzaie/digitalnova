@@ -1,0 +1,28 @@
+meta {
+  name: Get a single audit report, with every issue
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/reports/:id
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:path {
+  id: 
+}
+
+docs {
+    `id` is an audit id (there is no separate "report" entity — see
+    lib/api-v1/audits.ts). Same identical-404 behavior as GET /audits/{id}.
+    
+    
+    Required scope(s): reports:read
+}
+

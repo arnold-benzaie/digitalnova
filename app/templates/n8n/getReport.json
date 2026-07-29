@@ -1,0 +1,58 @@
+{
+  "name": "PUBLIC-MAP — Get a single audit report, with every issue",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1a691715-80a4-498e-82e1-1ebeb5629307",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.PUBLIC_MAP_BASE_URL}}/reports/YOUR_ID",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PUBLIC_MAP_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "61d1ad1c-dbc6-49d3-9cd6-afc1c236c771",
+      "name": "PUBLIC-MAP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "PUBLIC-MAP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

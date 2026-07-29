@@ -16,6 +16,17 @@ const eslintConfig = defineConfig([
     // never a source of truth (see .gitignore).
     "e2e/report/**",
     "e2e-preview/report/**",
+    // Standalone, independently-published packages with their own tsconfig
+    // and (for sdks/typescript) their own lint setup — not part of this
+    // Next.js app's build, and eslint-config-next's React/Next-specific
+    // rules don't apply to them.
+    "sdks/**",
+    "collections/**",
+    // Standalone Zapier Platform app (its own package.json, real
+    // CommonJS require()/module.exports — Zapier's actual runtime
+    // convention, not a style choice this app's ESM/TS rules should
+    // apply to). See zapier/README.md.
+    "zapier/**",
   ]),
 ]);
 

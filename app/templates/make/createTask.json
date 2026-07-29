@@ -1,0 +1,60 @@
+{
+  "name": "PUBLIC-MAP — Create a staff to-do tied to a client",
+  "flow": [
+    {
+      "id": 1,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://app.public-map.com/api/v1/tasks",
+        "serializeUrl": false,
+        "method": "post",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer YOUR_PUBLIC_MAP_API_KEY"
+          },
+          {
+            "name": "Idempotency-Key",
+            "value": "REPLACE_WITH_A_UNIQUE_VALUE_PER_RUN"
+          }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "followRedirect": false,
+        "contentType": "application/json",
+        "data": "{\n  \"clientId\": \"00000000-0000-0000-0000-000000000000\",\n  \"title\": \"\"\n}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0
+        },
+        "restore": {}
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
+}

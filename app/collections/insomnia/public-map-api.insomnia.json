@@ -1,0 +1,315 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-29T00:41:58.276Z",
+  "__export_source": "public-map.scripts.generate-client-collections",
+  "resources": [
+    {
+      "_id": "wrk_public_map_api",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "PUBLIC-MAP API",
+      "description": "Public REST API for PUBLIC-MAP — consumable by n8n, Make, Zapier,\nAirtable, custom applications, or any standard HTTP client.\n\nThis is a first-draft specification covering the routes shipped so\nfar: read-only audits/reports, clients (read + a whitelisted partial\nupdate), and creating tasks/interactions (with Idempotency-Key\nsupport). It is not yet exposed through a public Swagger/Redoc portal\n— see lib/api-v1/SECURITY.md for the security model this spec assumes\n(key format, scope model, error envelope).\n\nEvery response — success or error — carries rate-limit/quota headers\n(`X-RateLimit-*`, `X-Quota-*`, see the RateLimitHeaders/QuotaHeaders\ncomponents). A per-API-key requests-per-minute budget and a per-\norganization requests-per-day quota (driven by the organization's\nsubscription plan, defaulting to a limited Free tier with no active\nsubscription) are both enforced on every request; exceeding either\nreturns 429 with a `Retry-After` header — see the RateLimited\nresponse component and lib/api-v1/SECURITY.md.\n",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_public_map_api_base",
+      "_type": "environment",
+      "parentId": "wrk_public_map_api",
+      "name": "Base Environment",
+      "data": {
+        "baseUrl": "https://app.public-map.com/api/v1",
+        "bearerToken": ""
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "baseUrl",
+          "bearerToken"
+        ]
+      }
+    },
+    {
+      "_id": "fld_public_map_api",
+      "_type": "request_group",
+      "parentId": "wrk_public_map_api",
+      "name": "PUBLIC-MAP API"
+    },
+    {
+      "_id": "req_ping",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Verify an API key is valid and see which scopes it carries",
+      "description": "Requires no particular scope — any active, non-expired key on an\nactive integration can call it. Useful as a first request when\nwiring up a new integration (see the Quick Start guide) and as a\nlightweight liveness check.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/ping",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "metaSortKey": -1785285718275
+    },
+    {
+      "_id": "req_listAudits",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "List GBP audits for the authenticated organization",
+      "description": "Returns audits belonging to the organization the API key is\nscoped to — never any other organization's, regardless of any\nidentifier supplied in the request.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/audits",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [
+        {
+          "name": "limit",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "cursor",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "from",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "to",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "q",
+          "value": "",
+          "disabled": true
+        }
+      ],
+      "metaSortKey": -1785285718274
+    },
+    {
+      "_id": "req_getAudit",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Get a single audit",
+      "description": "Returns 404 with an identical body whether `id` does not exist at\nall or belongs to a different organization — the response never\nreveals which case applies.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/audits/{{ _.id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "metaSortKey": -1785285718273
+    },
+    {
+      "_id": "req_listReports",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "List audit reports for the authenticated organization",
+      "description": "Same underlying data and filters as GET /audits, presented as a\ncurated report view (score, summary, and an issue-count\nbreakdown by priority) rather than the raw audit record.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/reports",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [
+        {
+          "name": "limit",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "cursor",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "from",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "to",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "q",
+          "value": "",
+          "disabled": true
+        }
+      ],
+      "metaSortKey": -1785285718272
+    },
+    {
+      "_id": "req_getReport",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Get a single audit report, with every issue",
+      "description": "`id` is an audit id (there is no separate \"report\" entity — see\nlib/api-v1/audits.ts). Same identical-404 behavior as GET /audits/{id}.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/reports/{{ _.id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "metaSortKey": -1785285718271
+    },
+    {
+      "_id": "req_listClients",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "List CRM clients for the authenticated organization",
+      "description": "Returns only clients whose `organizationId` matches the\nauthenticated organization — a client that hasn't onboarded yet\n(`organizationId` is null) or that is archived is never returned,\nregardless of any identifier supplied in the request.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/clients",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [
+        {
+          "name": "limit",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "cursor",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "from",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "to",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "q",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "stage",
+          "value": "",
+          "disabled": true
+        }
+      ],
+      "metaSortKey": -1785285718270
+    },
+    {
+      "_id": "req_getClient",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Get a single client",
+      "description": "Returns 404 with an identical body whether `id` does not exist,\nbelongs to a different organization, or is archived.\n",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/clients/{{ _.id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "metaSortKey": -1785285718269
+    },
+    {
+      "_id": "req_updateClient",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Update a client's own business profile fields",
+      "description": "Only `name`, `contactName`, `email`, `phone`, and `address` can be\nset — see ClientPatchRequest. The request body must contain at\nleast one of these fields and no others; any unknown or\nforbidden field (including `id`, `organizationId`, `stage`,\n`source`, `ownerName`, `notes`, `archivedAt`, `createdAt`)\nrejects the ENTIRE request with 400, none of it is silently\napplied or dropped. An empty body is also rejected. Same\nidentical-404 behavior as GET for a cross-organization or\narchived id — a failed write never distinguishes \"not found\"\nfrom \"not yours\".\n",
+      "method": "PATCH",
+      "url": "{{ _.baseUrl }}/clients/{{ _.id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"\",\n  \"contactName\": \"\",\n  \"email\": \"\",\n  \"phone\": \"\",\n  \"address\": \"\"\n}"
+      },
+      "parameters": [],
+      "metaSortKey": -1785285718268
+    },
+    {
+      "_id": "req_createTask",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Create a staff to-do tied to a client",
+      "description": "`clientId` must reference a client belonging to the authenticated\norganization (verified with the exact same rule as GET/PATCH\n/clients) — otherwise the request fails with a generic\nVALIDATION_ERROR that never distinguishes \"no such client\" from\n\"not yours\". Only TaskCreateRequest's fields are accepted;\n`assignee` (which PUBLIC-MAP staff member owns the task) can\nnever be set through this API. Supports `Idempotency-Key\" — see\nthe IdempotencyKey parameter.\n",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/tasks",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"clientId\": \"00000000-0000-0000-0000-000000000000\",\n  \"title\": \"\"\n}"
+      },
+      "parameters": [],
+      "metaSortKey": -1785285718267
+    },
+    {
+      "_id": "req_createInteraction",
+      "_type": "request",
+      "parentId": "fld_public_map_api",
+      "name": "Log an interaction (call, email, meeting, or note) against a client",
+      "description": "Same `clientId` ownership check as POST /tasks. `createdBy` can\nnever be set through this API — it's populated server-side from\nthe API key and never exposed in the response (see Interaction).\nSupports `Idempotency-Key`.\n",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/interactions",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.bearerToken }}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"clientId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"call\",\n  \"summary\": \"\"\n}"
+      },
+      "parameters": [],
+      "metaSortKey": -1785285718266
+    }
+  ]
+}

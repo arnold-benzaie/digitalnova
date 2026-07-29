@@ -1,0 +1,46 @@
+meta {
+  name: Update a client's own business profile fields
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/clients/:id
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{bearerToken}}
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+    {
+      "name": "",
+      "contactName": "",
+      "email": "",
+      "phone": "",
+      "address": ""
+    }
+}
+
+docs {
+    Only `name`, `contactName`, `email`, `phone`, and `address` can be
+    set — see ClientPatchRequest. The request body must contain at
+    least one of these fields and no others; any unknown or
+    forbidden field (including `id`, `organizationId`, `stage`,
+    `source`, `ownerName`, `notes`, `archivedAt`, `createdAt`)
+    rejects the ENTIRE request with 400, none of it is silently
+    applied or dropped. An empty body is also rejected. Same
+    identical-404 behavior as GET for a cross-organization or
+    archived id — a failed write never distinguishes "not found"
+    from "not yours".
+    
+    
+    Required scope(s): clients:update
+}
+

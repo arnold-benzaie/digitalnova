@@ -754,6 +754,14 @@ export const integrationApiKeys = pgTable(
     integrationId: uuid("integration_id")
       .notNull()
       .references(() => integrations.id, { onDelete: "cascade" }),
+    // Optional label ("Production", "Zapier — CRM sync") — purely
+    // cosmetic, never part of the key material or auth logic (see
+    // lib/api-v1/auth.ts, unaffected by this column). Added for the
+    // self-service Developer Console (lib/developer-console/), where a
+    // member managing several keys needs to tell them apart at a glance;
+    // the staff admin UI (components/integrations/api-keys/) predates
+    // this and doesn't set or read it.
+    name: text("name"),
     lookupId: text("lookup_id").notNull(),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
@@ -962,6 +970,49 @@ export const integrationTestRuns = pgTable(
     index("integration_test_runs_endpoint_idx").on(table.endpointId, table.createdAt),
   ],
 );
+
+/**
+ * Idempotency records for /api/v1 write routes (lib/api-v1/idempotency.ts).
+ * Scoped by (integrationId, route, idempotencyKey) — the route is part of
+ * the uniqueness so the same key string reused on two different write
+ * routes never collides. integrationId (not apiKeyId) so idempotency
+ * survives a key rotation within the same integration. responseBody
+ * stores the exact JSON envelope returned the first time, replayed
+ * verbatim on a matching retry rather than reconstructed.
+ */
+export const integrationApiIdempotencyKeys = pgTable(
+  "integration_api_idempotency_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    integrationId: uuid("integration_id")
+      .notNull()
+      .references(() => integrations.id, { onDelete: "cascade" }),
+    route: text("route").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    responseStatus: integer("response_status").notNull(),
+    responseBody: jsonb("response_body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("integration_api_idempotency_keys_unique").on(table.integrationId, table.route, table.idempotencyKey),
+  ],
+);
+
+/**
+ * Fixed-window rate limit / quota counters for /api/v1
+ * (lib/api-v1/rate-limit.ts) — same shape as the GBP Audit module's
+ * `auditRateLimitHits` (db/audit-schema.ts), deliberately not shared with
+ * it: that table lives in the separate Audit Supabase project, this one
+ * needs to be on the main schema next to `integrations`/`organizations`.
+ * `key` is `${scope}:${identifier}:${windowStartMs}` — e.g. a per-minute
+ * key scoped by apiKeyId, or a per-day key scoped by organizationId.
+ */
+export const integrationApiRateLimitHits = pgTable("integration_api_rate_limit_hits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(1),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+});
 
 /**
  * SEO module — attached directly to crm_clients (agency-shared, like

@@ -1,9 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   integrations,
+  webhookDeliveries,
   webhookEndpoints,
   webhookEndpointSecrets,
   webhookSubscriptions,
@@ -101,6 +102,60 @@ export async function createWebhookEndpoint(input: {
   });
 
   return { endpoint, secret };
+}
+
+/**
+ * Editable-fields update, added alongside the self-service Console
+ * (Stage 5) — the original admin UI never needed this (endpoints were
+ * effectively create-or-delete). Re-validates and re-encrypts the URL
+ * exactly like createWebhookEndpoint does, since a changed URL must go
+ * through the same SSRF check and produce a fresh urlOrigin/urlHash — no
+ * duplicated encryption/validation logic, just the same steps run again.
+ */
+export async function updateWebhookEndpointDetails(input: {
+  endpointId: string;
+  name: string;
+  description?: string | null;
+  url: string;
+  encryptionKey?: string;
+  resolver?: WebhookDnsResolver;
+  allowHttpForIsolatedTests?: boolean;
+}) {
+  const [endpoint] = await db.select().from(webhookEndpoints).where(eq(webhookEndpoints.id, input.endpointId)).limit(1);
+  if (!endpoint) throw new Error("Webhook endpoint not found.");
+  if (!input.name.trim()) throw new Error("Webhook endpoint name is required.");
+
+  const url = await validateWebhookUrl(input.url, {
+    resolver: input.resolver,
+    allowHttpForIsolatedTests: input.allowHttpForIsolatedTests,
+  });
+  const urlHash = webhookUrlHash(url.toString());
+
+  const [collision] = await db
+    .select({ id: webhookEndpoints.id })
+    .from(webhookEndpoints)
+    .where(and(eq(webhookEndpoints.integrationId, endpoint.integrationId), eq(webhookEndpoints.urlHash, urlHash), ne(webhookEndpoints.id, endpoint.id)))
+    .limit(1);
+  if (collision) throw new Error("Another endpoint on this integration already uses this URL.");
+
+  const encryptedUrl = encryptIntegrationValue(url.toString(), `webhook-url:${endpoint.id}`, input.encryptionKey);
+
+  const [updated] = await db
+    .update(webhookEndpoints)
+    .set({
+      name: input.name.trim(),
+      description: input.description?.trim() || null,
+      urlCiphertext: encryptedUrl.ciphertext,
+      urlIv: encryptedUrl.iv,
+      urlAuthTag: encryptedUrl.authTag,
+      urlOrigin: url.origin,
+      urlHash,
+      updatedAt: new Date(),
+    })
+    .where(eq(webhookEndpoints.id, input.endpointId))
+    .returning();
+
+  return updated;
 }
 
 /**
@@ -261,4 +316,38 @@ export async function sendTestWebhookDelivery(input: {
       errorCode: error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "network_error",
     };
   }
+}
+
+const REPLAYABLE_DELIVERY_STATUSES = ["failed", "abandoned", "skipped"] as const;
+
+/**
+ * Resets a terminal delivery (failed/abandoned/skipped — deliberately NOT
+ * "sent": replaying an already-successful delivery isn't in scope here,
+ * see the Stage 5 report) back into the real outbox queue with a fresh
+ * attempt budget, so the NEXT worker run (lib/integrations/worker.ts's
+ * processWebhookDeliveries, or the synchronous deliverOne() a caller may
+ * invoke right after this) picks it up through the exact same
+ * signing/state-machine path as any other delivery — never a separate,
+ * synthetic "replay" send.
+ */
+export async function requeueWebhookDelivery(deliveryId: string) {
+  const [delivery] = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, deliveryId)).limit(1);
+  if (!delivery) throw new Error("Webhook delivery not found.");
+  if (!REPLAYABLE_DELIVERY_STATUSES.includes(delivery.status as (typeof REPLAYABLE_DELIVERY_STATUSES)[number])) {
+    throw new Error("Only a failed, abandoned, or skipped delivery can be replayed.");
+  }
+
+  await db
+    .update(webhookDeliveries)
+    .set({
+      status: "pending",
+      attemptCount: 0,
+      nextAttemptAt: new Date(),
+      lastErrorCode: null,
+      lockedAt: null,
+      leaseToken: null,
+      abandonedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(webhookDeliveries.id, deliveryId));
 }
