@@ -7,10 +7,12 @@ import type { ApiPlanLimits } from "@/lib/billing/api-limits";
 
 export {
   listApiKeysForOrg,
+  getApiKeyForOrg,
   listWebhookEndpointsForOrg,
   getWebhookEndpointForOrg,
   listWebhookEndpointSubscriptions,
   listRecentDeliveriesForEndpoint,
+  listTestRunsForOrg,
 } from "@/lib/integrations/queries";
 
 /**
@@ -118,8 +120,13 @@ export type ApiKeyEvent = {
  * distinct from the admin path's "integration_api_key.*" namespace on the
  * same audit_log table, so this never shows staff-originated events (or
  * vice versa) as if a Console member had performed them. */
-export async function getApiKeyEvents(organizationId: string, options: { limit?: number } = {}): Promise<ApiKeyEvent[]> {
+export async function getApiKeyEvents(
+  organizationId: string,
+  options: { limit?: number; apiKeyId?: string } = {},
+): Promise<ApiKeyEvent[]> {
   const limit = options.limit ?? 50;
+  const conditions = [eq(auditLog.organizationId, organizationId), like(auditLog.action, "apikey.%")];
+  if (options.apiKeyId) conditions.push(eq(auditLog.targetId, options.apiKeyId));
   const rows = await db
     .select({
       id: auditLog.id,
@@ -132,7 +139,7 @@ export async function getApiKeyEvents(organizationId: string, options: { limit?:
     })
     .from(auditLog)
     .leftJoin(users, eq(users.id, auditLog.actorUserId))
-    .where(and(eq(auditLog.organizationId, organizationId), like(auditLog.action, "apikey.%")))
+    .where(and(...conditions))
     .orderBy(desc(auditLog.createdAt))
     .limit(limit);
   return rows;

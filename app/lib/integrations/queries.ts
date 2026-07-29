@@ -263,6 +263,7 @@ export async function listApiKeysForOrg(organizationId: string) {
       scopes: integrationApiKeys.scopes,
       status: integrationApiKeys.status,
       lastUsedAt: integrationApiKeys.lastUsedAt,
+      lastUsedIp: integrationApiKeys.lastUsedIp,
       expiresAt: integrationApiKeys.expiresAt,
       revokedAt: integrationApiKeys.revokedAt,
       createdAt: integrationApiKeys.createdAt,
@@ -271,6 +272,29 @@ export async function listApiKeysForOrg(organizationId: string) {
     .innerJoin(integrations, eq(integrations.id, integrationApiKeys.integrationId))
     .where(eq(integrations.organizationId, organizationId))
     .orderBy(desc(integrationApiKeys.createdAt));
+}
+
+/** Same org-ownership-checked-in-the-query shape as getWebhookEndpointForOrg —
+ * a mismatch and a nonexistent id are indistinguishable to the caller. */
+export async function getApiKeyForOrg(organizationId: string, apiKeyId: string) {
+  const [row] = await db
+    .select({
+      id: integrationApiKeys.id,
+      name: integrationApiKeys.name,
+      keyPrefix: integrationApiKeys.keyPrefix,
+      scopes: integrationApiKeys.scopes,
+      status: integrationApiKeys.status,
+      lastUsedAt: integrationApiKeys.lastUsedAt,
+      lastUsedIp: integrationApiKeys.lastUsedIp,
+      expiresAt: integrationApiKeys.expiresAt,
+      revokedAt: integrationApiKeys.revokedAt,
+      createdAt: integrationApiKeys.createdAt,
+    })
+    .from(integrationApiKeys)
+    .innerJoin(integrations, eq(integrations.id, integrationApiKeys.integrationId))
+    .where(and(eq(integrationApiKeys.id, apiKeyId), eq(integrations.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
 }
 
 /** Test run history (`/admin/integrations/[organizationId]/tests`) —

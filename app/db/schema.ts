@@ -769,6 +769,11 @@ export const integrationApiKeys = pgTable(
     scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
     status: text("status").notNull().default("active"), // "active" | "revoked" | "expired"
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    // Captured going forward only (see lib/api-v1/auth.ts's
+    // authenticateApiRequest, same success-path update as lastUsedAt) via
+    // lib/gbp-audit/client-ip.ts's clientIpFromHeaders — metadata only,
+    // never used for enforcement/allow-listing in this pass.
+    lastUsedIp: text("last_used_ip"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -798,7 +803,7 @@ export const webhookEndpoints = pgTable(
     urlAuthTag: text("url_auth_tag").notNull(),
     urlOrigin: text("url_origin").notNull(),
     urlHash: text("url_hash").notNull(),
-    status: text("status").notNull().default("active"), // "active" | "disabled"
+    status: text("status").notNull().default("active"), // "active" | "paused" | "disabled"
     activeSecretVersion: integer("active_secret_version").notNull().default(1),
     lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
@@ -926,6 +931,13 @@ export const webhookDeliveryAttempts = pgTable(
     responseStatus: integer("response_status"),
     durationMs: integer("duration_ms"),
     errorCode: text("error_code"),
+    // Captured going forward only (see lib/integrations/worker.ts's
+    // deliverClaimed) — nullable, attempts recorded before this column
+    // existed simply show "not captured" in the UI. requestHeaders never
+    // includes the signature/secret itself beyond what's already sent on
+    // the wire (X-Public-Map-Signature is the HMAC, not the secret).
+    requestHeaders: jsonb("request_headers").$type<Record<string, string>>(),
+    responseHeaders: jsonb("response_headers").$type<Record<string, string>>(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },

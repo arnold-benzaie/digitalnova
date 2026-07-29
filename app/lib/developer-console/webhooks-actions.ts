@@ -199,7 +199,13 @@ export async function rotateDeveloperWebhookSecret(endpointId: string) {
   return { secret };
 }
 
-export async function setDeveloperWebhookEndpointStatus(endpointId: string, status: "active" | "disabled") {
+const STATUS_ACTION: Record<"active" | "paused" | "disabled", string> = {
+  active: "webhook.enabled",
+  paused: "webhook.paused",
+  disabled: "webhook.disabled",
+};
+
+export async function setDeveloperWebhookEndpointStatus(endpointId: string, status: "active" | "paused" | "disabled") {
   const [session, locale] = await Promise.all([requireSession(), getLocale()]);
   const endpoint = await loadOwnedEndpoint(session.organizationId, endpointId, locale);
 
@@ -208,7 +214,7 @@ export async function setDeveloperWebhookEndpointStatus(endpointId: string, stat
   await logAudit({
     actorUserId: session.userId,
     organizationId: session.organizationId,
-    action: status === "active" ? "webhook.enabled" : "webhook.disabled",
+    action: STATUS_ACTION[status],
     targetType: "webhook_endpoint",
     targetId: endpointId,
     metadata: { name: endpoint.name },

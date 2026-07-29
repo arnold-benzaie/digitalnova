@@ -88,14 +88,40 @@ test("user.pending.created contract contains only approved minimal fields", () =
   assert.equal(raw.includes("@"), false);
 });
 
-test("governance catalog is closed to the six approved scopes and one event", () => {
+test("governance catalog is closed to the thirty approved scopes and one event", () => {
   assert.deepEqual(INTEGRATION_SCOPES, [
+    // Enforced today.
     "audits:read",
     "reports:read",
     "clients:read",
     "clients:update",
     "tasks:create",
     "interactions:create",
+    // Reserved — accepted/stored/displayed, not yet enforced by any route.
+    "audits:create",
+    "audits:update",
+    "audits:delete",
+    "reports:download",
+    "reports:generate",
+    "clients:create",
+    "clients:delete",
+    "quotes:read",
+    "quotes:create",
+    "quotes:update",
+    "quotes:delete",
+    "invoices:read",
+    "invoices:create",
+    "invoices:refund",
+    "crm:read",
+    "crm:write",
+    "tasks:read",
+    "tasks:complete",
+    "webhooks:read",
+    "webhooks:write",
+    "oauth:read",
+    "oauth:write",
+    "administration:read",
+    "administration:write",
   ]);
   assert.deepEqual(Object.keys(INTEGRATION_EVENT_CATALOG), ["user.pending.created"]);
 });

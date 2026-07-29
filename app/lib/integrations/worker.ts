@@ -140,6 +140,8 @@ async function finishAttempt(input: {
   responseStatus?: number;
   outcome: "sent" | "retry" | "abandoned";
   errorCode?: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
 }) {
   const terminal = input.outcome === "sent" || input.outcome === "abandoned" || input.attemptNumber >= MAX_WEBHOOK_ATTEMPTS;
   const deliveryStatus: WebhookDeliveryStatus =
@@ -158,6 +160,8 @@ async function finishAttempt(input: {
         responseStatus: input.responseStatus,
         durationMs: input.durationMs,
         errorCode: input.errorCode,
+        requestHeaders: input.requestHeaders,
+        responseHeaders: input.responseHeaders,
         completedAt: input.now,
       })
       .where(eq(webhookDeliveryAttempts.id, input.attemptId));
@@ -271,17 +275,19 @@ async function deliverClaimed(
   const rawBody = serializeIntegrationEvent(envelope);
   const timestamp = Math.floor(options.now.getTime() / 1_000).toString();
 
+  const requestHeaders = {
+    "Content-Type": "application/json",
+    "X-Public-Map-Event-Id": envelope.id,
+    "X-Public-Map-Event-Type": envelope.type,
+    "X-Public-Map-Timestamp": timestamp,
+    "X-Public-Map-Signature": signWebhookBody(secret, timestamp, rawBody),
+  };
+
   try {
     const response = await options.fetchImpl(targetUrl, {
       method: "POST",
       redirect: "manual",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Public-Map-Event-Id": envelope.id,
-        "X-Public-Map-Event-Type": envelope.type,
-        "X-Public-Map-Timestamp": timestamp,
-        "X-Public-Map-Signature": signWebhookBody(secret, timestamp, rawBody),
-      },
+      headers: requestHeaders,
       body: rawBody,
       signal: AbortSignal.timeout(WEBHOOK_HTTP_TIMEOUT_MS),
     });
@@ -293,6 +299,8 @@ async function deliverClaimed(
       now: options.now,
       durationMs: Math.max(0, Date.now() - started),
       responseStatus: response.status,
+      requestHeaders,
+      responseHeaders: Object.fromEntries(response.headers.entries()),
       ...result,
     });
     if (status === "sent") {
@@ -312,6 +320,7 @@ async function deliverClaimed(
       durationMs: Math.max(0, Date.now() - started),
       outcome: "retry",
       errorCode,
+      requestHeaders,
     });
   }
 }

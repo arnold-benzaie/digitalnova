@@ -329,6 +329,7 @@ export const developers = {
       subtitle: "La spécification OpenAPI 3.1 complète de /api/v1 — interactive, toujours synchronisée avec l'implémentation.",
       openLabel: "Ouvrir la référence interactive",
       specLinkLabel: "Télécharger la spécification (YAML)",
+      specJsonLinkLabel: "Télécharger la spécification (JSON)",
       note: "La référence s'ouvre en plein écran pour une lecture confortable ; utilisez le lien « Retour » qu'elle affiche pour revenir au portail.",
     },
     sdkUsage: {
@@ -1050,6 +1051,7 @@ export const developers = {
       subtitle: "The complete OpenAPI 3.1 specification for /api/v1 — interactive, always in sync with the implementation.",
       openLabel: "Open the interactive reference",
       specLinkLabel: "Download the specification (YAML)",
+      specJsonLinkLabel: "Download the specification (JSON)",
       note: "The reference opens full-screen for comfortable reading; use the “Back” link it displays to return to the portal.",
     },
     sdkUsage: {

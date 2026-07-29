@@ -190,7 +190,7 @@ export async function rotateWebhookEndpointSecret(input: { endpointId: string; s
   return { secret, version: newVersion };
 }
 
-export async function setWebhookEndpointStatus(endpointId: string, status: "active" | "disabled") {
+export async function setWebhookEndpointStatus(endpointId: string, status: "active" | "paused" | "disabled") {
   await db
     .update(webhookEndpoints)
     .set({ status, disabledAt: status === "disabled" ? new Date() : null, updatedAt: new Date() })

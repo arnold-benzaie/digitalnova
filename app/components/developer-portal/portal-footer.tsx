@@ -15,11 +15,11 @@ export function PortalFooter({ t }: { t: FooterDict }) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-pm-gris-2 bg-pm-blanc">
+    <footer className="border-t border-border bg-background">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
           <div className="col-span-2 sm:col-span-1">
-            <p className="max-w-xs text-sm text-pm-gris">{t.tagline}</p>
+            <p className="max-w-xs text-sm text-muted-foreground">{t.tagline}</p>
           </div>
 
           <FooterColumn title={t.columns.documentation.title}>
@@ -42,7 +42,7 @@ export function PortalFooter({ t }: { t: FooterDict }) {
           </FooterColumn>
         </div>
 
-        <p className="text-xs text-pm-gris">{t.copyright(year)}</p>
+        <p className="text-xs text-muted-foreground">{t.copyright(year)}</p>
       </div>
     </footer>
   );
@@ -51,7 +51,7 @@ export function PortalFooter({ t }: { t: FooterDict }) {
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-pm-noir">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-foreground">{title}</p>
       <div className="flex flex-col gap-2">{children}</div>
     </div>
   );
@@ -59,7 +59,7 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
 
 function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="text-sm text-pm-gris hover:text-pm-noir">
+    <Link href={href} className="text-sm text-muted-foreground hover:text-foreground">
       {children}
     </Link>
   );

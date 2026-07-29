@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { getPortalHeaderNav } from "@/lib/developer-portal/nav";
+import { getTheme } from "@/lib/developer-portal/theme";
 import { PortalHeader } from "@/components/developer-portal/portal-header";
 import { PortalFooter } from "@/components/developer-portal/portal-footer";
+import { DeveloperPortalProviders } from "@/components/developer-portal/query-provider";
+import { cn } from "@/lib/utils";
 
 /**
  * Standalone public layout for the whole /developers tree (Stage 1 of the
@@ -30,19 +33,25 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function DevelopersLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  const theme = await getTheme();
   const t = dictionaries[locale].developers;
   const headerNav = getPortalHeaderNav(t);
 
   return (
-    <div className="flex min-h-screen flex-col bg-pm-blanc text-pm-noir">
-      <PortalHeader
-        locale={locale}
-        nav={headerNav}
-        brand={{ name: t.header.brand, suffix: t.header.brandSuffix }}
-        consoleLabel={t.header.console}
-      />
-      <main className="flex-1">{children}</main>
-      <PortalFooter t={t.footer} />
-    </div>
+    <DeveloperPortalProviders>
+      <div className={cn(theme === "dark" && "dark")}>
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
+          <PortalHeader
+            locale={locale}
+            theme={theme}
+            nav={headerNav}
+            brand={{ name: t.header.brand, suffix: t.header.brandSuffix }}
+            consoleLabel={t.header.console}
+          />
+          <main className="flex-1">{children}</main>
+          <PortalFooter t={t.footer} />
+        </div>
+      </div>
+    </DeveloperPortalProviders>
   );
 }

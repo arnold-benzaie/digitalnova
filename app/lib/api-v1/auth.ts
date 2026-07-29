@@ -9,6 +9,7 @@ import { logAudit } from "@/lib/audit";
 import { ApiError, type ApiErrorCode } from "@/lib/api-v1/errors";
 import { resolveApiLimitsForOrg } from "@/lib/api-v1/billing-plan";
 import { buildUsageHeaders, checkRateLimit, type RateLimitCheck } from "@/lib/api-v1/rate-limit";
+import { clientIpFromHeaders } from "@/lib/gbp-audit/client-ip";
 
 /**
  * Authentication for the public `/api/v1/*` REST API. Deliberately a
@@ -277,7 +278,10 @@ export async function authenticateApiRequest(
   }
 
   // Only ever updated on this, the success path — never on a rejected attempt.
-  await db.update(integrationApiKeys).set({ lastUsedAt: new Date() }).where(eq(integrationApiKeys.id, row.id));
+  await db
+    .update(integrationApiKeys)
+    .set({ lastUsedAt: new Date(), lastUsedIp: clientIpFromHeaders(request.headers) })
+    .where(eq(integrationApiKeys.id, row.id));
 
   return {
     apiKeyId: row.id,
