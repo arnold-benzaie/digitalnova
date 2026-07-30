@@ -6,21 +6,29 @@ import { verifyFastspringSignature } from "@/lib/billing/webhook";
 import { notify } from "@/lib/notifications";
 
 /**
- * Real FastSpring webhook receiver. No FASTSPRING_WEBHOOK_SECRET exists
- * yet, so incoming requests are accepted but flagged unverified — once the
- * secret is set in .env.local (from the FastSpring dashboard's webhook
- * config), signature verification becomes mandatory. Payload shape follows
+ * Real FastSpring webhook receiver. Fails closed like every other
+ * unauthenticated-but-write-capable inbound webhook in this codebase (see
+ * app/api/webhooks/n8n/route.ts's identical rationale): until
+ * FASTSPRING_WEBHOOK_SECRET is set in the environment (from the
+ * FastSpring dashboard's webhook config), this endpoint refuses every
+ * request rather than processing an unverified payload — an attacker who
+ * discovers the URL must never be able to forge subscription/invoice
+ * state just because billing isn't connected yet. Payload shape follows
  * FastSpring's documented `{ events: [{ type, data }] }` format — confirm
  * against their current docs when connecting a real account, since this
  * has never received a real payload.
  */
 export async function POST(request: Request) {
+  const secret = process.env.FASTSPRING_WEBHOOK_SECRET;
+  if (!secret) {
+    return new Response("FastSpring webhook not configured", { status: 401 });
+  }
+
   const rawBody = await request.text();
   const signatureHeader = request.headers.get("x-fs-signature");
-  const secret = process.env.FASTSPRING_WEBHOOK_SECRET;
 
-  const verified = secret ? verifyFastspringSignature(rawBody, signatureHeader, secret) : false;
-  if (secret && !verified) {
+  const verified = verifyFastspringSignature(rawBody, signatureHeader, secret);
+  if (!verified) {
     return new Response("Invalid signature", { status: 401 });
   }
 

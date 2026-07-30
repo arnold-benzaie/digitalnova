@@ -17,6 +17,12 @@ export async function setLocale(locale: Locale, redirectTo: string) {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
+    // NOT httpOnly: lib/i18n/client-locale.ts reads this client-side, and
+    // app/error.tsx writes it directly via document.cookie as a fallback
+    // on the error boundary (where a Server Action isn't reliably
+    // reachable) — both by design, both would silently break if this
+    // cookie became invisible/unwritable to JS.
+    secure: process.env.NODE_ENV === "production",
   });
   redirect(redirectTo);
 }

@@ -39,8 +39,9 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
     // Writing document.cookie is the standard browser API for this, not a
     // React-managed value — the react-hooks/immutability rule doesn't
     // distinguish it from mutating component state.
+    const secure = window.location.protocol === "https:" ? "; secure" : "";
     // eslint-disable-next-line react-hooks/immutability
-    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax${secure}`;
     setLocaleState(next);
   }
 

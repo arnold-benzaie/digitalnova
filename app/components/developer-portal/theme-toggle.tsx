@@ -22,7 +22,8 @@ export function ThemeToggle({ theme, className }: { theme: Theme; className?: st
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    document.cookie = `${THEME_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${THEME_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax${secure}`;
     startTransition(() => router.refresh());
   }
 
