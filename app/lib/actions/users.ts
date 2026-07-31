@@ -38,6 +38,8 @@ const MESSAGES = {
     memberNotFoundInOrg: "Ce membre est introuvable dans cette organisation.",
     cannotRemoveLastAdmin: "Impossible de retirer le dernier administrateur actif de l'organisation.",
     noInternalOrganization: "Aucune organisation interne configurée — action impossible.",
+    cannotDeleteSelf: "Vous ne pouvez pas supprimer votre propre compte.",
+    cannotDeleteLastAdmin: "Impossible de supprimer le dernier administrateur actif de l'organisation.",
   },
   en: {
     roleNotFound: (name: string) => `Role "${name}" not found — the roles table is not initialized.`,
@@ -65,6 +67,8 @@ const MESSAGES = {
     memberNotFoundInOrg: "This member could not be found in this organization.",
     cannotRemoveLastAdmin: "Cannot remove the organization's last active administrator.",
     noInternalOrganization: "No internal organization configured — action not possible.",
+    cannotDeleteSelf: "You cannot delete your own account.",
+    cannotDeleteLastAdmin: "Cannot delete the organization's last active administrator.",
   },
 } as const;
 
@@ -555,6 +559,63 @@ export async function removeMember(targetUserId: string) {
     action: "user.access_removed",
     targetType: "user",
     targetId: targetUserId,
+  });
+
+  revalidatePath("/admin/users");
+}
+
+/**
+ * Permanent, hard delete of the `users` row itself — distinct from
+ * removeMember() (drops only the org membership) and suspendUser()
+ * (blocks login, fully reversible). Every FK pointing at users.id is
+ * either onDelete: "cascade" (their own membership row — expected) or
+ * onDelete: "set null" (auditLog.actorUserId, invitations.invitedByUserId,
+ * and the other *ByUserId columns — see db/schema.ts) — so this never
+ * destroys audit history, it only detaches this user's identity from
+ * past entries, exactly like Clerk-side deletion already would.
+ *
+ * Expected, anticipated failures (self-delete, last admin) are returned
+ * as a value rather than thrown — see inviteUser()'s docstring above for
+ * why: Next.js redacts the message of anything thrown out of a Server
+ * Action in production.
+ */
+export async function deleteUser(targetUserId: string): Promise<{ error: string } | undefined> {
+  const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+
+  if (targetUserId === session.userId) {
+    return { error: MESSAGES[locale].cannotDeleteSelf };
+  }
+
+  const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+  if (!targetUser) {
+    return { error: MESSAGES[locale].userNotFound };
+  }
+
+  const [membership] = await db
+    .select({ organizationId: memberships.organizationId, roleName: roles.name })
+    .from(memberships)
+    .innerJoin(roles, eq(memberships.roleId, roles.id))
+    .where(eq(memberships.userId, targetUserId))
+    .limit(1);
+
+  if (membership?.roleName === "admin" && targetUser.status === "active") {
+    const activeAdmins = await countActiveAdminsInOrg(membership.organizationId, locale);
+    if (activeAdmins <= 1) {
+      return { error: MESSAGES[locale].cannotDeleteLastAdmin };
+    }
+  }
+
+  const organizationIdForAudit = membership?.organizationId ?? (await internalOrganizationIdOrThrow(locale));
+
+  await db.delete(users).where(eq(users.id, targetUserId));
+
+  await logAudit({
+    actorUserId: session.userId,
+    organizationId: organizationIdForAudit,
+    action: "user.deleted",
+    targetType: "user",
+    targetId: targetUserId,
+    metadata: { email: targetUser.email, previousStatus: targetUser.status, previousRole: membership?.roleName ?? null },
   });
 
   revalidatePath("/admin/users");

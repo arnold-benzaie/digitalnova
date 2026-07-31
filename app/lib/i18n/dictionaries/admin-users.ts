@@ -94,6 +94,12 @@ export const adminUsers = {
       label: "Annuler l'invitation",
       revoking: "Annulation...",
     },
+    deleteUser: {
+      label: "Supprimer",
+      deleting: "Suppression...",
+      confirm: "Supprimer définitivement cette personne ? Cette action est irréversible : le compte sera entièrement effacé.",
+      disabledTooltip: "Vous ne pouvez pas supprimer votre propre compte.",
+    },
   },
   en: {
     title: "Users",
@@ -182,6 +188,12 @@ export const adminUsers = {
       confirm: "Cancel this invitation?",
       label: "Cancel invitation",
       revoking: "Canceling...",
+    },
+    deleteUser: {
+      label: "Delete",
+      deleting: "Deleting...",
+      confirm: "Permanently delete this person? This action is irreversible: the account will be completely erased.",
+      disabledTooltip: "You cannot delete your own account.",
     },
   },
 } as const;

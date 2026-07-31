@@ -7,6 +7,7 @@ import { InviteUserForm } from "@/components/admin/invite-user-form";
 import { ApproveUserModal } from "@/components/admin/approve-user-modal";
 import {
   ChangeOrganizationSelect,
+  DeleteUserButton,
   MemberRoleSelect,
   ReactivateUserButton,
   RefuseUserButton,
@@ -268,12 +269,16 @@ export function UserManagement({
                             />
                             <SuspendUserButton userId={row.id} confirmText={t.confirm.suspend} label={t.actions.suspend} labelPending="…" locale={locale} />
                             <RemoveMemberButton userId={row.id} disabled={isSelf && row.role === "admin"} locale={locale} />
+                            <DeleteUserButton userId={row.id} disabled={isSelf} locale={locale} />
                           </>
                         )}
                         {row.status === "suspended" && (
-                          <ReactivateUserButton userId={row.id} confirmText={t.confirm.reactivate} label={t.actions.reactivate} labelPending="…" locale={locale} />
+                          <>
+                            <ReactivateUserButton userId={row.id} confirmText={t.confirm.reactivate} label={t.actions.reactivate} labelPending="…" locale={locale} />
+                            <DeleteUserButton userId={row.id} disabled={isSelf} locale={locale} />
+                          </>
                         )}
-                        {row.status === "refused" && <span className="text-xs text-pm-gris">—</span>}
+                        {row.status === "refused" && <DeleteUserButton userId={row.id} disabled={isSelf} locale={locale} />}
                       </div>
                     </td>
                   </tr>
