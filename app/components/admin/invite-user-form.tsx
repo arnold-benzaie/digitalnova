@@ -52,7 +52,11 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
             startTransition(async () => {
               setError(null);
               try {
-                await inviteUser(formData);
+                const result = await inviteUser(formData);
+                if (result?.error) {
+                  setError(result.error);
+                  return;
+                }
                 close();
                 router.refresh();
               } catch (err) {

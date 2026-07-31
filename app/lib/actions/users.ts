@@ -115,18 +115,34 @@ async function countActiveAdminsInOrg(organizationId: string, locale: Locale) {
   return rows.length;
 }
 
-export async function inviteUser(formData: FormData) {
+/**
+ * Expected validation failures (bad input, already-a-member — the normal,
+ * anticipated outcomes of this form, not bugs) are returned as a value
+ * rather than thrown. Next.js redacts the message of ANY error thrown out
+ * of a Server Action in a production build — it can't distinguish an
+ * intentional validation message from a genuine crash — so a thrown
+ * `Error(MESSAGES[locale].alreadyMember)` reaches the browser as the
+ * generic "error occurred in the Server Components render" text instead
+ * of the actual, safe-to-show message (see this Next.js version's own
+ * docs, node_modules/next/dist/docs/01-app/01-getting-started/10-error-handling.md
+ * — "avoid using try/catch blocks and throw errors [for expected errors].
+ * Instead, model expected errors as return values."). Genuinely
+ * unexpected failures (requireAdminSession, a DB error, roleIdByName's
+ * "roles table not initialized") still throw — that's the correct,
+ * intentional Next.js behavior for actual bugs.
+ */
+export async function inviteUser(formData: FormData): Promise<{ error: string } | undefined> {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
 
   const emailRaw = formData.get("email");
   if (typeof emailRaw !== "string" || !emailRaw.trim() || !emailRaw.includes("@")) {
-    throw new Error(MESSAGES[locale].invalidEmail);
+    return { error: MESSAGES[locale].invalidEmail };
   }
   const email = emailRaw.trim().toLowerCase();
 
   const roleValue = formData.get("role");
   if (!isRoleName(roleValue)) {
-    throw new Error(MESSAGES[locale].invalidRole);
+    return { error: MESSAGES[locale].invalidRole };
   }
 
   const [existingMember] = await db
@@ -136,7 +152,7 @@ export async function inviteUser(formData: FormData) {
     .where(and(eq(users.email, email), eq(memberships.organizationId, session.organizationId)))
     .limit(1);
   if (existingMember) {
-    throw new Error(MESSAGES[locale].alreadyMember);
+    return { error: MESSAGES[locale].alreadyMember };
   }
 
   const roleId = await roleIdByName(roleValue, locale);
