@@ -22,6 +22,9 @@ export const accessPending = {
     backToSite: (appName: string) => `Retour au site ${appName}`,
     signOut: "Se déconnecter",
     supportLabel: (appName: string) => `Support ${appName}`,
+    waitingMessage: "Votre demande est en cours de validation. Cette page se mettra automatiquement à jour dès que votre compte sera approuvé.",
+    checkingStatus: "Vérification de votre statut…",
+    approvedRedirecting: "Votre compte a été approuvé. Ouverture de votre espace…",
   },
   en: {
     greeting: (name: string | null) => (name ? `Hello ${name},` : "Hello,"),
@@ -39,6 +42,9 @@ export const accessPending = {
     backToSite: (appName: string) => `Return to ${appName}`,
     signOut: "Sign out",
     supportLabel: (appName: string) => `Support ${appName}`,
+    waitingMessage: "Your request is being reviewed. This page will update automatically once your account is approved.",
+    checkingStatus: "Checking your status…",
+    approvedRedirecting: "Your account has been approved. Opening your workspace…",
   },
 } as const;
 

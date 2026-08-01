@@ -18,7 +18,7 @@ export type CurrentSession = {
   role: AppRole;
 };
 
-type AccessState =
+export type AccessState =
   | { kind: "unauthenticated" }
   | { kind: "pending" }
   | { kind: "refused" }
@@ -106,6 +106,21 @@ export const getCurrentSession = cache(async (): Promise<CurrentSession | null> 
 });
 
 /**
+ * Non-redirecting variant of requireSession(), for polling the current
+ * user's own access state from a client component (see
+ * app/access-pending/access-pending-client.tsx) without triggering a
+ * navigation. Returns the full AccessState — not just active/inactive —
+ * so a pending user who gets refused or suspended (not just approved)
+ * while waiting is routed to the right page, not left polling forever.
+ * Reuses resolveAccessState() exactly (same cache() instance within a
+ * request as every other access decision in this file) — no separate
+ * approval logic.
+ */
+export async function getAccessState(): Promise<AccessState> {
+  return resolveAccessState();
+}
+
+/**
  * Redirect-based gate for Server Components/Actions: never throws, so no
  * raw "Accès refusé" error or Next's generic Server Components crash
  * screen can surface. Distinguishes every access state resolveAccessState()
@@ -124,7 +139,11 @@ export async function requireSession(): Promise<CurrentSession> {
   }
   if (state.kind === "pending") {
     console.warn("[access-control] Clerk user is authenticated but has no membership — redirecting to /access-pending");
-    redirect("/access-pending");
+    // `?ctx=pending` lets app/access-pending/page.tsx tell this genuine
+    // main-app wait apart from requireAuditSession()'s unrelated reuse of
+    // the same page (lib/gbp-audit/session.ts) — see that page's own
+    // header comment for why the distinction matters.
+    redirect("/access-pending?ctx=pending");
   }
   if (state.kind === "refused") {
     redirect("/access-refused");
