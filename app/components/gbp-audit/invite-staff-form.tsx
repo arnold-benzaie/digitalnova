@@ -50,7 +50,12 @@ export function InviteStaffForm({ locale = "fr" }: { locale?: Locale }) {
             startTransition(async () => {
               setError(null);
               try {
-                await inviteAuditStaff(formData);
+                const result = await inviteAuditStaff(formData);
+                if (result?.error) {
+                  setError(result.error);
+                  toast.error(t.inviteError, result.error);
+                  return;
+                }
                 toast.success(t.invited);
                 close();
                 router.refresh();

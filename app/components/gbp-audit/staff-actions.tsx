@@ -35,7 +35,11 @@ export function StaffRoleSelect({ userId, role, disabled, locale = "fr" }: { use
       options={ROLE_OPTIONS}
       action={async (newRole) => {
         try {
-          await updateAuditStaffRole(userId, newRole);
+          const result = await updateAuditStaffRole(userId, newRole);
+          if (result?.error) {
+            toast.error(t.roleUpdateError, result.error);
+            return;
+          }
           toast.success(t.roleUpdated);
         } catch (err) {
           toast.error(t.roleUpdateError, err instanceof Error ? err.message : undefined);
@@ -72,7 +76,11 @@ export function RemoveStaffButton({ userId, name, disabled, locale = "fr" }: { u
           if (!ok) return;
           startTransition(async () => {
             try {
-              await removeAuditStaffMember(userId);
+              const result = await removeAuditStaffMember(userId);
+              if (result?.error) {
+                toast.error(t.removeError, result.error);
+                return;
+              }
               toast.success(t.removed);
               router.refresh();
             } catch (err) {
@@ -105,7 +113,11 @@ export function RevokeStaffInvitationButton({ id, email, locale = "fr" }: { id: 
           if (!ok) return;
           startTransition(async () => {
             try {
-              await revokeAuditInvitation(id);
+              const result = await revokeAuditInvitation(id);
+              if (result?.error) {
+                toast.error(t.cancelInvitationError, result.error);
+                return;
+              }
               toast.success(t.invitationCanceled);
               router.refresh();
             } catch (err) {

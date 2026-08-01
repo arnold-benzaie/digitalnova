@@ -54,17 +54,30 @@ async function countMembersWithRole(roleId: string): Promise<number> {
   return rows.length;
 }
 
-export async function inviteAuditStaff(formData: FormData) {
+/**
+ * Every function below returns `{ error: string } | undefined` for
+ * expected validation/business-rule outcomes instead of throwing —
+ * mirroring lib/actions/users.ts's inviteUser()/deleteUser(). Next.js
+ * redacts the message of any Error thrown out of a Server Action in a
+ * production build (it can't tell an intentional validation message
+ * apart from a genuine bug), so a thrown "Cette personne a déjà accès..."
+ * surfaced to the admin as an unreadable generic error instead of the
+ * real message — this is exactly what silently broke inviting a real
+ * person into this module. roleIdByName()'s throw stays as-is: an
+ * unseeded audit_staff_roles table is a genuine infra bug, not a normal
+ * user-facing outcome.
+ */
+export async function inviteAuditStaff(formData: FormData): Promise<{ error: string } | undefined> {
   const [session, locale] = await Promise.all([requireAuditAdminRole(), getLocale()]);
 
   const emailRaw = formData.get("email");
   if (typeof emailRaw !== "string" || !EMAIL_PATTERN.test(emailRaw.trim())) {
-    throw new Error(MESSAGES[locale].invalidEmail);
+    return { error: MESSAGES[locale].invalidEmail };
   }
   const email = emailRaw.trim().toLowerCase();
 
   const roleValue = formData.get("role");
-  if (!isAuditStaffRole(roleValue)) throw new Error(MESSAGES[locale].invalidRole);
+  if (!isAuditStaffRole(roleValue)) return { error: MESSAGES[locale].invalidRole };
 
   const [existingMember] = await auditDb
     .select({ userId: auditStaffUsers.id })
@@ -72,7 +85,7 @@ export async function inviteAuditStaff(formData: FormData) {
     .innerJoin(auditStaffMemberships, eq(auditStaffMemberships.userId, auditStaffUsers.id))
     .where(eq(auditStaffUsers.email, email))
     .limit(1);
-  if (existingMember) throw new Error(MESSAGES[locale].alreadyHasAccess);
+  if (existingMember) return { error: MESSAGES[locale].alreadyHasAccess };
 
   const roleId = await roleIdByName(roleValue, locale);
 
@@ -90,27 +103,27 @@ export async function inviteAuditStaff(formData: FormData) {
   revalidatePath("/admin/audit/equipe");
 }
 
-export async function revokeAuditInvitation(id: string) {
+export async function revokeAuditInvitation(id: string): Promise<{ error: string } | undefined> {
   const [, locale] = await Promise.all([requireAuditAdminRole(), getLocale()]);
   const { rowCount } = await auditDb.update(auditStaffInvitations).set({ status: "revoked", revokedAt: new Date() }).where(eq(auditStaffInvitations.id, id));
-  if (rowCount === 0) throw new Error(MESSAGES[locale].invitationNotFound);
+  if (rowCount === 0) return { error: MESSAGES[locale].invitationNotFound };
   await logAuditActivity({ action: "staff_invitation_revoked", targetType: "audit_staff_invitations", targetId: id });
   revalidatePath("/admin/audit/equipe");
 }
 
-export async function updateAuditStaffRole(targetUserId: string, roleValue: string) {
+export async function updateAuditStaffRole(targetUserId: string, roleValue: string): Promise<{ error: string } | undefined> {
   const [, locale] = await Promise.all([requireAuditAdminRole(), getLocale()]);
-  if (!isAuditStaffRole(roleValue)) throw new Error(MESSAGES[locale].invalidRole);
+  if (!isAuditStaffRole(roleValue)) return { error: MESSAGES[locale].invalidRole };
 
   const adminRoleId = await roleIdByName("admin", locale);
   const newRoleId = await roleIdByName(roleValue, locale);
 
   const [currentMembership] = await auditDb.select().from(auditStaffMemberships).where(eq(auditStaffMemberships.userId, targetUserId)).limit(1);
-  if (!currentMembership) throw new Error(MESSAGES[locale].memberNotFound);
+  if (!currentMembership) return { error: MESSAGES[locale].memberNotFound };
 
   if (currentMembership.roleId === adminRoleId && newRoleId !== adminRoleId) {
     const adminCount = await countMembersWithRole(adminRoleId);
-    if (adminCount <= 1) throw new Error(MESSAGES[locale].cannotDemoteLastAdmin);
+    if (adminCount <= 1) return { error: MESSAGES[locale].cannotDemoteLastAdmin };
   }
 
   await auditDb.update(auditStaffMemberships).set({ roleId: newRoleId }).where(eq(auditStaffMemberships.userId, targetUserId));
@@ -118,16 +131,16 @@ export async function updateAuditStaffRole(targetUserId: string, roleValue: stri
   revalidatePath("/admin/audit/equipe");
 }
 
-export async function removeAuditStaffMember(targetUserId: string) {
+export async function removeAuditStaffMember(targetUserId: string): Promise<{ error: string } | undefined> {
   const [, locale] = await Promise.all([requireAuditAdminRole(), getLocale()]);
 
   const adminRoleId = await roleIdByName("admin", locale);
   const [currentMembership] = await auditDb.select().from(auditStaffMemberships).where(eq(auditStaffMemberships.userId, targetUserId)).limit(1);
-  if (!currentMembership) throw new Error(MESSAGES[locale].memberNotFound);
+  if (!currentMembership) return { error: MESSAGES[locale].memberNotFound };
 
   if (currentMembership.roleId === adminRoleId) {
     const adminCount = await countMembersWithRole(adminRoleId);
-    if (adminCount <= 1) throw new Error(MESSAGES[locale].cannotRemoveLastAdmin);
+    if (adminCount <= 1) return { error: MESSAGES[locale].cannotRemoveLastAdmin };
   }
 
   await auditDb.delete(auditStaffMemberships).where(eq(auditStaffMemberships.userId, targetUserId));
