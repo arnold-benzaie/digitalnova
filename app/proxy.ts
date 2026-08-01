@@ -17,7 +17,10 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // Clerk session by design — a prospect authenticates with the token in
 // the URL, verified server-side in lib/actions/gbp-audit-portal.ts (see
 // db/audit-schema.ts on gbpReportAccessLinks) — this route MUST stay
-// public or a prospect could never open their own report. Everything
+// public or a prospect could never open their own report. /invitation-link
+// is a static, tokenless fallback page for the invitation email's
+// secondary "copy link" button (see lib/email/invitation.ts) — reached
+// by someone who by definition has no PUBLIC-MAP session yet. Everything
 // else, including "/", requires a valid Clerk session.
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
@@ -29,6 +32,11 @@ const isPublicRoute = createRouteMatcher([
   "/audit-report(.*)",
   "/api/audit-report(.*)",
   "/api/gbp-audit/e2e-db-target",
+  // Static, non-sensitive fallback for the invitation email's secondary
+  // "copy link" button (see lib/email/invitation.ts /
+  // app/invitation-link/page.tsx) — no token, no email, must be reachable
+  // by someone who has no PUBLIC-MAP session at all.
+  "/invitation-link",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
