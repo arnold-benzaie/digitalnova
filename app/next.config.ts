@@ -13,6 +13,15 @@ const isDev = process.env.NODE_ENV !== "production";
 const CLERK_FRONTEND_API = "https://clerk.public-map.com";
 const CLERK_DEV_FRONTEND_API = "https://*.clerk.accounts.dev";
 const clerkSources = isDev ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API}` : CLERK_FRONTEND_API;
+// Clerk loads Cloudflare Turnstile (bot-protection challenge) on sign-up
+// whenever it decides a request needs one — not on every sign-up, which is
+// why this was missed by the original security audit's real-browser CSP
+// checks (they didn't happen to trigger a challenge). Without this origin
+// in script-src/frame-src, Turnstile's script is blocked outright and
+// Clerk surfaces that as a generic "security validation failed" error,
+// silently breaking sign-up for whichever request Clerk decides to
+// challenge. Script + frame only — Turnstile doesn't need connect-src.
+const TURNSTILE_SOURCE = "https://challenges.cloudflare.com";
 
 // Baseline CSP for the whole app. Deliberately does NOT cover
 // /developers/reference/embed (see the dedicated, more permissive rule
@@ -38,12 +47,12 @@ const clerkSources = isDev ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API}` :
 // browser; neither React nor Next.js use eval in production.
 const BASE_CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${clerkSources}${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' ${clerkSources} ${TURNSTILE_SOURCE}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: https://img.clerk.com${isDev ? ` ${CLERK_DEV_FRONTEND_API}` : ""}`,
   "font-src 'self' data:",
   `connect-src 'self' ${clerkSources} https://api.clerk.com`,
-  `frame-src 'self' ${clerkSources}`,
+  `frame-src 'self' ${clerkSources} ${TURNSTILE_SOURCE}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
