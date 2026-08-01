@@ -188,6 +188,8 @@ export const crm = {
       pageOf: (page: number, total: number) => `Page ${page} / ${total}`,
       create: {
         clientPlaceholder: "Client...",
+        otherClient: "Autre (nouveau client)",
+        newClientPlaceholder: "Nom du client *",
         subjectPlaceholder: "Sujet *",
         priorityLow: "Priorité basse",
         priorityMedium: "Priorité moyenne",
@@ -825,6 +827,8 @@ export const crm = {
       pageOf: (page: number, total: number) => `Page ${page} of ${total}`,
       create: {
         clientPlaceholder: "Client...",
+        otherClient: "Other (new client)",
+        newClientPlaceholder: "Client name *",
         subjectPlaceholder: "Subject *",
         priorityLow: "Low priority",
         priorityMedium: "Medium priority",

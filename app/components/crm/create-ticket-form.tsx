@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createTicket } from "@/lib/actions/crm-tickets";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
+const NEW_CLIENT_SENTINEL = "__new__";
+
 export function CreateTicketForm({
   clientOptions,
   fixedClientId,
@@ -18,6 +20,7 @@ export function CreateTicketForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState("");
   const t = dictionaries[locale].crm.tickets.create;
 
   return (
@@ -28,8 +31,13 @@ export function CreateTicketForm({
         startTransition(async () => {
           setError(null);
           try {
-            await createTicket(formData);
+            const result = await createTicket(formData);
+            if (result?.error) {
+              setError(result.error);
+              return;
+            }
             formRef.current?.reset();
+            setSelectedClientId("");
             router.refresh();
           } catch (err) {
             setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
@@ -42,7 +50,8 @@ export function CreateTicketForm({
         <select
           name="clientId"
           required
-          defaultValue=""
+          value={selectedClientId}
+          onChange={(e) => setSelectedClientId(e.target.value)}
           className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
         >
           <option value="" disabled>
@@ -53,7 +62,16 @@ export function CreateTicketForm({
               {c.name}
             </option>
           ))}
+          <option value={NEW_CLIENT_SENTINEL}>{t.otherClient}</option>
         </select>
+      )}
+      {clientOptions && selectedClientId === NEW_CLIENT_SENTINEL && (
+        <input
+          name="newClientName"
+          placeholder={t.newClientPlaceholder}
+          required
+          className="min-w-[160px] rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+        />
       )}
       <input
         name="subject"

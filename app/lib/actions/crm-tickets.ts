@@ -3,28 +3,67 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { tickets } from "@/db/schema";
+import { crmClients, tickets } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
 
 const MESSAGES = {
-  fr: { clientRequired: "Client requis.", subjectRequired: "Sujet requis.", invalidStatus: "Statut invalide.", invalidPriority: "Priorité invalide.", ticketNotFound: "Ticket introuvable." },
-  en: { clientRequired: "Client required.", subjectRequired: "Subject required.", invalidStatus: "Invalid status.", invalidPriority: "Invalid priority.", ticketNotFound: "Ticket not found." },
+  fr: {
+    clientRequired: "Client requis.",
+    newClientNameRequired: "Nom du nouveau client requis.",
+    subjectRequired: "Sujet requis.",
+    invalidStatus: "Statut invalide.",
+    invalidPriority: "Priorité invalide.",
+    ticketNotFound: "Ticket introuvable.",
+  },
+  en: {
+    clientRequired: "Client required.",
+    newClientNameRequired: "New client name required.",
+    subjectRequired: "Subject required.",
+    invalidStatus: "Invalid status.",
+    invalidPriority: "Invalid priority.",
+    ticketNotFound: "Ticket not found.",
+  },
 } as const;
 
 const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 const PRIORITIES = ["low", "medium", "high"] as const;
 
-export async function createTicket(formData: FormData) {
+// Sentinel for "Autre (nouveau client)" in the client <select> — matched
+// against components/crm/create-ticket-form.tsx's own literal value.
+const NEW_CLIENT_SENTINEL = "__new__";
+
+/**
+ * clientId is either an existing crm_clients.id, or the NEW_CLIENT_SENTINEL
+ * paired with a newClientName — tickets.clientId is a required FK (see
+ * db/schema.ts), so "Autre" can't just pass a free-text name through:
+ * a real crm_clients row (stage "lead", same default as every other
+ * client creation path) is created first, and the ticket links to that.
+ * Returns { error } for expected validation outcomes instead of throwing
+ * — same reasoning as lib/actions/users.ts's inviteUser() and
+ * lib/actions/gbp-audit-staff.ts's inviteAuditStaff(): Next.js redacts
+ * thrown Server Action error messages in production builds.
+ */
+export async function createTicket(formData: FormData): Promise<{ error: string } | undefined> {
   const locale = await getLocale();
-  const clientId = formData.get("clientId");
+  const clientIdRaw = formData.get("clientId");
   const subject = formData.get("subject");
-  if (typeof clientId !== "string" || !clientId) {
-    throw new Error(MESSAGES[locale].clientRequired);
+  if (typeof clientIdRaw !== "string" || !clientIdRaw) {
+    return { error: MESSAGES[locale].clientRequired };
   }
   if (typeof subject !== "string" || !subject.trim()) {
-    throw new Error(MESSAGES[locale].subjectRequired);
+    return { error: MESSAGES[locale].subjectRequired };
+  }
+
+  let clientId = clientIdRaw;
+  if (clientIdRaw === NEW_CLIENT_SENTINEL) {
+    const newClientName = formData.get("newClientName");
+    if (typeof newClientName !== "string" || !newClientName.trim()) {
+      return { error: MESSAGES[locale].newClientNameRequired };
+    }
+    const [newClient] = await db.insert(crmClients).values({ name: newClientName.trim(), stage: "lead" }).returning();
+    clientId = newClient.id;
   }
 
   const priority = formData.get("priority");
