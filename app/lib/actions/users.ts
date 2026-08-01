@@ -2,6 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
@@ -96,6 +97,39 @@ function isApprovalRoleName(value: unknown): value is ApprovalRoleName {
 async function requireAdminSession() {
   await requireAdminRole();
   return requireSession();
+}
+
+/**
+ * Real Clerk invitation (locks the email field on /sign-up via Clerk's
+ * "ticket" strategy — the same __clerk_ticket mechanism already used by
+ * e2e/auth-setup.mjs for sign-in tokens, just Clerk's sign-UP variant).
+ * notify:false — Clerk must never send its own invitation email; Resend
+ * (sendInvitationEmail) stays the single source of the actual e-mail.
+ * ignoreExisting:true — an invited address may already have a real Clerk
+ * user (e.g. a previously deleted PUBLIC-MAP account: deleteUser() only
+ * removes our own `users` row, never the underlying Clerk identity), and
+ * that must not block re-inviting them.
+ *
+ * Best-effort only, same rationale as sendInvitationEmail()'s own Resend
+ * failure handling: a Clerk API hiccup must never block the invitation
+ * itself — the internal `invitations` row (already written by the caller)
+ * remains the real source of truth, and the email falls back to its
+ * existing generic /sign-up + /accept-invitation links.
+ */
+async function createClerkInvitationTicket(email: string): Promise<string | undefined> {
+  try {
+    const client = await clerkClient();
+    const invitation = await client.invitations.createInvitation({
+      emailAddress: email,
+      redirectUrl: "https://app.public-map.com/",
+      notify: false,
+      ignoreExisting: true,
+    });
+    if (!invitation.url) return undefined;
+    return new URL(invitation.url).searchParams.get("ticket") ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function roleIdByName(name: string, locale: Locale) {
@@ -205,11 +239,14 @@ export async function inviteUser(formData: FormData): Promise<{ error?: string; 
     metadata: { email, role: roleValue },
   });
 
+  const clerkTicket = await createClerkInvitationTicket(email);
+
   const { sent } = await sendInvitationEmail({
     to: email,
     organizationName: session.organizationName,
     organizationId: session.organizationId,
     locale,
+    clerkTicket,
   });
 
   revalidatePath("/admin/users");

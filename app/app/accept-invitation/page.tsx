@@ -7,9 +7,7 @@ const COPY = {
     signedOutBody:
       "Cette invitation doit être acceptée avec l'adresse e-mail qui l'a reçue. Créez votre compte avec cette adresse pour activer votre accès automatiquement.",
     createAccount: "Créer mon compte",
-    signedInBody:
-      "Vous êtes déjà connecté(e) à PUBLIC-MAP avec un autre compte. Déconnectez-vous avant de continuer ou ouvrez cette invitation dans une fenêtre privée.",
-    signOutAndContinue: "Se déconnecter et continuer",
+    signedInRedirecting: "Vous êtes déjà connecté(e) à PUBLIC-MAP avec un autre compte. Déconnexion et redirection en cours…",
     copyLabel: "Copier le lien",
     copiedLabel: "Lien copié",
     openLabel: "Ouvrir la page d'inscription",
@@ -19,9 +17,7 @@ const COPY = {
     signedOutBody:
       "This invitation must be accepted with the email address it was sent to. Create your account with that address to activate your access automatically.",
     createAccount: "Create my account",
-    signedInBody:
-      "You are already signed in to PUBLIC-MAP with another account. Sign out before continuing or open this invitation in a private window.",
-    signOutAndContinue: "Sign out and continue",
+    signedInRedirecting: "You are already signed in to PUBLIC-MAP with another account. Signing out and redirecting…",
     copyLabel: "Copy the link",
     copiedLabel: "Link copied",
     openLabel: "Open the sign-up page",
@@ -40,14 +36,25 @@ const COPY = {
  * doesn't touch Clerk configuration, and doesn't gate anything: it's a
  * plain public content page that branches on Clerk's own client-side
  * session state (see accept-invitation-client.tsx).
+ *
+ * __clerk_ticket (optional): forwarded from a real Clerk invitation link
+ * (see lib/actions/users.ts's createClerkInvitationTicket()) — passed
+ * through untouched to whichever /sign-up link the client component
+ * renders, so Clerk's ticket strategy can lock the email field there.
+ * Absent for older emails or if ticket creation failed at invite time;
+ * everything below degrades to the previous plain /sign-up behavior.
  */
-export default async function AcceptInvitationPage() {
-  const locale = await getLocale();
+export default async function AcceptInvitationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ __clerk_ticket?: string }>;
+}) {
+  const [locale, params] = await Promise.all([getLocale(), searchParams]);
   const t = COPY[locale];
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-pm-blanc px-6 text-center">
-      <AcceptInvitationClient copy={t} />
+      <AcceptInvitationClient copy={t} clerkTicket={params.__clerk_ticket} />
     </main>
   );
 }

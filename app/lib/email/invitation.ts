@@ -7,6 +7,22 @@ const SIGN_UP_URL = "https://app.public-map.com/sign-up";
 const ACCEPT_INVITATION_URL = "https://app.public-map.com/accept-invitation";
 const INVITATION_LINK_PAGE_URL = "https://app.public-map.com/invitation-link";
 
+/**
+ * When a real Clerk invitation ticket is available (see
+ * lib/actions/users.ts's createClerkInvitationTicket()), appended to the
+ * accept-invitation link as __clerk_ticket — accept-invitation-client.tsx
+ * forwards it into /sign-up, where Clerk's own ticket strategy locks the
+ * email field to exactly this address. Best-effort: if ticket creation
+ * failed, this falls back to the plain /accept-invitation link exactly as
+ * before — never blocks the invitation. The visible plain-text URL and
+ * the /invitation-link secondary button intentionally stay generic
+ * (unchanged) — they're the tokenless fallback for email clients that
+ * strip query params.
+ */
+function acceptInvitationUrl(clerkTicket?: string): string {
+  return clerkTicket ? `${ACCEPT_INVITATION_URL}?__clerk_ticket=${encodeURIComponent(clerkTicket)}` : ACCEPT_INVITATION_URL;
+}
+
 const COPY = {
   fr: {
     subject: (organizationName: string) => `Invitation à rejoindre ${organizationName} sur PUBLIC-MAP`,
@@ -50,7 +66,7 @@ const COPY = {
  * app/invitation-link/page.tsx) where an actual copy button can run.
  * Neither fallback carries any token/email.
  */
-function renderHtml(locale: Locale, organizationName: string): string {
+function renderHtml(locale: Locale, organizationName: string, clerkTicket?: string): string {
   const t = COPY[locale];
   return `
 <div style="background:#fafaf8;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -58,7 +74,7 @@ function renderHtml(locale: Locale, organizationName: string): string {
     <p style="margin:0 0 24px;font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#6b6b6b;">PUBLIC-MAP</p>
     <h1 style="margin:0 0 16px;font-size:20px;line-height:1.4;color:#080808;">${t.heading(organizationName)}</h1>
     <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#6b6b6b;">${t.body}</p>
-    <a href="${ACCEPT_INVITATION_URL}" style="display:inline-block;padding:12px 24px;background:#080808;color:#fafaf8;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${t.cta}</a>
+    <a href="${acceptInvitationUrl(clerkTicket)}" style="display:inline-block;padding:12px 24px;background:#080808;color:#fafaf8;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${t.cta}</a>
     <p style="margin:20px 0 4px;font-size:12px;color:#6b6b6b;">${t.linkLabel}</p>
     <p style="margin:0 0 20px;padding:10px 12px;background:#fafaf8;border:1px solid #e2ddd8;border-radius:8px;font-size:13px;color:#080808;word-break:break-all;">${SIGN_UP_URL}</p>
     <a href="${INVITATION_LINK_PAGE_URL}" style="display:inline-block;padding:10px 20px;background:#ffffff;color:#080808;text-decoration:none;border:1px solid #e2ddd8;border-radius:8px;font-size:13px;font-weight:600;">${t.copyLinkCta}</a>
@@ -84,12 +100,13 @@ export async function sendInvitationEmail(input: {
   organizationName: string;
   organizationId: string;
   locale: Locale;
+  clerkTicket?: string;
 }): Promise<{ sent: boolean; id?: string }> {
   const t = COPY[input.locale];
   const result = await sendEmail({
     to: input.to,
     subject: t.subject(input.organizationName),
-    html: renderHtml(input.locale, input.organizationName),
+    html: renderHtml(input.locale, input.organizationName, input.clerkTicket),
   });
 
   if (!result.sent) {
