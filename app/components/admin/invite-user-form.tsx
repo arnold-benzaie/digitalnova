@@ -11,6 +11,7 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const t = dictionaries[locale].adminUsers;
   const ti = t.invite;
   const ROLE_OPTIONS = [
@@ -21,6 +22,7 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
 
   function open() {
     setError(null);
+    setWarning(null);
     dialogRef.current?.showModal();
   }
 
@@ -28,6 +30,7 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
     dialogRef.current?.close();
     formRef.current?.reset();
     setError(null);
+    setWarning(null);
   }
 
   return (
@@ -51,10 +54,20 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
           action={(formData) =>
             startTransition(async () => {
               setError(null);
+              setWarning(null);
               try {
                 const result = await inviteUser(formData);
                 if (result?.error) {
                   setError(result.error);
+                  return;
+                }
+                if (result?.warning) {
+                  // The invitation itself was created successfully — only the
+                  // email failed — so this stays visible instead of closing
+                  // the dialog, but a re-submit is a safe update, not a
+                  // duplicate (see inviteUser()'s existingInvite branch).
+                  setWarning(result.warning);
+                  router.refresh();
                   return;
                 }
                 close();
@@ -103,6 +116,7 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
           </div>
 
           {error && <p className="text-sm text-pm-rouge">{error}</p>}
+          {warning && <p className="rounded-lg bg-pm-or/10 px-3 py-2 text-sm text-pm-or-2">{warning}</p>}
 
           <div className="mt-2 flex items-center justify-end gap-3">
             <button

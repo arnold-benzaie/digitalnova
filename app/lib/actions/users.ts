@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { requireAdminRole } from "@/lib/dev-role";
+import { sendInvitationEmail } from "@/lib/email/invitation";
 import { notify } from "@/lib/notifications";
 import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
@@ -40,6 +41,7 @@ const MESSAGES = {
     noInternalOrganization: "Aucune organisation interne configurée — action impossible.",
     cannotDeleteSelf: "Vous ne pouvez pas supprimer votre propre compte.",
     cannotDeleteLastAdmin: "Impossible de supprimer le dernier administrateur actif de l'organisation.",
+    invitationEmailNotSent: "Invitation enregistrée, mais l'e-mail n'a pas pu être envoyé. Vous pouvez communiquer le lien de connexion vous-même en attendant.",
   },
   en: {
     roleNotFound: (name: string) => `Role "${name}" not found — the roles table is not initialized.`,
@@ -69,6 +71,7 @@ const MESSAGES = {
     noInternalOrganization: "No internal organization configured — action not possible.",
     cannotDeleteSelf: "You cannot delete your own account.",
     cannotDeleteLastAdmin: "Cannot delete the organization's last active administrator.",
+    invitationEmailNotSent: "Invitation saved, but the email could not be sent. You can share the sign-in link yourself in the meantime.",
   },
 } as const;
 
@@ -135,7 +138,7 @@ async function countActiveAdminsInOrg(organizationId: string, locale: Locale) {
  * "roles table not initialized") still throw — that's the correct,
  * intentional Next.js behavior for actual bugs.
  */
-export async function inviteUser(formData: FormData): Promise<{ error: string } | undefined> {
+export async function inviteUser(formData: FormData): Promise<{ error?: string; warning?: string } | undefined> {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
 
   const emailRaw = formData.get("email");
@@ -202,7 +205,18 @@ export async function inviteUser(formData: FormData): Promise<{ error: string } 
     metadata: { email, role: roleValue },
   });
 
+  const { sent } = await sendInvitationEmail({
+    to: email,
+    organizationName: session.organizationName,
+    organizationId: session.organizationId,
+    locale,
+  });
+
   revalidatePath("/admin/users");
+
+  if (!sent) {
+    return { warning: MESSAGES[locale].invitationEmailNotSent };
+  }
 }
 
 export async function revokeInvitation(id: string) {

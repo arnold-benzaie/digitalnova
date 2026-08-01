@@ -1,0 +1,45 @@
+import "server-only";
+import { Resend } from "resend";
+
+/**
+ * Thin Resend wrapper — the only place in the app that talks to the
+ * email provider. Mirrors the existing "always usable, degrades cleanly
+ * until real credentials exist" convention (lib/esign, lib/billing's mock
+ * provider): with no RESEND_API_KEY, sendEmail() returns a clear
+ * `sent: false` instead of throwing, so callers can decide for themselves
+ * whether an unsent email should block anything (for invitations it
+ * never does — see lib/email/invitation.ts).
+ */
+let cachedClient: Resend | null = null;
+
+function resendClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  if (!cachedClient) cachedClient = new Resend(apiKey);
+  return cachedClient;
+}
+
+export type SendEmailResult = { sent: true; id: string } | { sent: false; reason: string };
+
+export async function sendEmail(input: { to: string; subject: string; html: string }): Promise<SendEmailResult> {
+  const client = resendClient();
+  if (!client) {
+    return { sent: false, reason: "RESEND_API_KEY is not configured." };
+  }
+
+  // Must be an address on the domain actually verified in Resend
+  // (mail.public-map.com) — sending "from" an unverified domain is
+  // rejected by Resend regardless of API key validity.
+  const from = process.env.RESEND_FROM_EMAIL || "PUBLIC-MAP <invitations@mail.public-map.com>";
+  const { data, error } = await client.emails.send({ from, to: input.to, subject: input.subject, html: input.html });
+  if (error) {
+    return { sent: false, reason: error.message };
+  }
+  // A response with neither `error` nor a real `data.id` is not a
+  // confirmed send — never infer success from the mere absence of an
+  // error field.
+  if (!data?.id) {
+    return { sent: false, reason: "Resend returned no email id." };
+  }
+  return { sent: true, id: data.id };
+}
