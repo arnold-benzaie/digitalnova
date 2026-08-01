@@ -4,6 +4,7 @@ import { logAudit } from "@/lib/audit";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
 const SIGN_UP_URL = "https://app.public-map.com/sign-up";
+const ACCEPT_INVITATION_URL = "https://app.public-map.com/accept-invitation";
 const INVITATION_LINK_PAGE_URL = "https://app.public-map.com/invitation-link";
 
 const COPY = {
@@ -32,14 +33,22 @@ const COPY = {
 } as const;
 
 /**
+ * The primary button points to /accept-invitation rather than /sign-up
+ * directly — see app/accept-invitation/page.tsx — so a browser with an
+ * already-active PUBLIC-MAP session gets an explanation and a way to
+ * sign out, instead of Clerk's <SignUp/> silently redirecting straight
+ * to that session's own dashboard. The visible plain-text URL below it
+ * is deliberately still SIGN_UP_URL, not the accept-invitation page —
+ * this is the field to hand-copy directly, kept as short/stable as
+ * possible.
+ *
  * The plain-text URL and the secondary "copy link" button are both
  * deliberate fallbacks for the primary button, not decoration: many
  * email clients (Gmail included) block JavaScript entirely, so
  * navigator.clipboard.writeText() cannot run inside the email itself —
  * the secondary button links out to /invitation-link (a real page, see
  * app/invitation-link/page.tsx) where an actual copy button can run.
- * Neither fallback changes SIGN_UP_URL itself or carries any token/email
- * — see this file's own module-level docstring below.
+ * Neither fallback carries any token/email.
  */
 function renderHtml(locale: Locale, organizationName: string): string {
   const t = COPY[locale];
@@ -49,7 +58,7 @@ function renderHtml(locale: Locale, organizationName: string): string {
     <p style="margin:0 0 24px;font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#6b6b6b;">PUBLIC-MAP</p>
     <h1 style="margin:0 0 16px;font-size:20px;line-height:1.4;color:#080808;">${t.heading(organizationName)}</h1>
     <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#6b6b6b;">${t.body}</p>
-    <a href="${SIGN_UP_URL}" style="display:inline-block;padding:12px 24px;background:#080808;color:#fafaf8;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${t.cta}</a>
+    <a href="${ACCEPT_INVITATION_URL}" style="display:inline-block;padding:12px 24px;background:#080808;color:#fafaf8;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${t.cta}</a>
     <p style="margin:20px 0 4px;font-size:12px;color:#6b6b6b;">${t.linkLabel}</p>
     <p style="margin:0 0 20px;padding:10px 12px;background:#fafaf8;border:1px solid #e2ddd8;border-radius:8px;font-size:13px;color:#080808;word-break:break-all;">${SIGN_UP_URL}</p>
     <a href="${INVITATION_LINK_PAGE_URL}" style="display:inline-block;padding:10px 20px;background:#ffffff;color:#080808;text-decoration:none;border:1px solid #e2ddd8;border-radius:8px;font-size:13px;font-weight:600;">${t.copyLinkCta}</a>

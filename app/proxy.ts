@@ -20,7 +20,14 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // public or a prospect could never open their own report. /invitation-link
 // is a static, tokenless fallback page for the invitation email's
 // secondary "copy link" button (see lib/email/invitation.ts) — reached
-// by someone who by definition has no PUBLIC-MAP session yet. Everything
+// by someone who by definition has no PUBLIC-MAP session yet.
+// /accept-invitation (the email's primary button destination) MUST also
+// stay public for the same reason — a signed-out invitee has to reach it
+// without being bounced to /sign-in first — and it needs to keep working
+// for an ALREADY-signed-in visitor too (it renders a different message
+// in that case via Clerk's useAuth() hook client-side, see
+// app/accept-invitation/accept-invitation-client.tsx), so gating it
+// behind auth.protect() would defeat its purpose either way. Everything
 // else, including "/", requires a valid Clerk session.
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
@@ -37,6 +44,9 @@ const isPublicRoute = createRouteMatcher([
   // app/invitation-link/page.tsx) — no token, no email, must be reachable
   // by someone who has no PUBLIC-MAP session at all.
   "/invitation-link",
+  // Invitation email's primary button destination — see the comment
+  // above and app/accept-invitation/page.tsx.
+  "/accept-invitation",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
