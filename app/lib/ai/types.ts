@@ -19,7 +19,9 @@ export type AuditInput = {
   averageRating: number;
 };
 
+export type OnboardingSummary = { summary: string; nextStep: string };
+
 export interface AIProvider {
   generateAudit(input: AuditInput): Promise<AuditResult>;
-  summarizeOnboarding(answers: Record<string, string>): Promise<string>;
+  summarizeOnboarding(answers: Record<string, string>): Promise<OnboardingSummary>;
 }

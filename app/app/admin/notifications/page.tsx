@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import Link from "next/link";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
@@ -7,6 +8,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import { renderNotification } from "@/lib/i18n/notification-templates";
+import { notificationHref } from "@/lib/notification-href";
 
 export default async function AdminNotificationsPage() {
   await requireStaffRole();
@@ -33,13 +35,23 @@ export default async function AdminNotificationsPage() {
         <div className="mt-6 flex flex-col gap-3">
           {items.map((item) => {
             const rendered = renderNotification(item, locale);
-            return (
-              <div key={item.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            const href = notificationHref(item.type, "/admin");
+            const content = (
+              <>
                 <div className="flex items-start justify-between gap-4">
                   <p className="text-sm font-medium text-pm-noir">{rendered.title}</p>
                   <p className="shrink-0 text-xs text-pm-gris">{formatDate(item.createdAt, locale, { dateStyle: "medium", timeStyle: "short" })}</p>
                 </div>
                 {rendered.body && <p className="mt-1 text-sm text-pm-gris">{rendered.body}</p>}
+              </>
+            );
+            return href ? (
+              <Link key={item.id} href={href} className="block rounded-2xl border border-pm-gris-2 bg-white p-4 transition hover:bg-pm-gris-2/20">
+                {content}
+              </Link>
+            ) : (
+              <div key={item.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+                {content}
               </div>
             );
           })}

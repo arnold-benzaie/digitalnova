@@ -348,6 +348,13 @@ export const onboarding = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     answers: jsonb("answers").notNull().default({}),
     summary: text("summary"),
+    // Split out from `summary`'s trailing sentence so the admin onboarding
+    // detail page (app/admin/onboarding/page.tsx) can show it as its own
+    // section — nullable because existing rows predate this column and are
+    // never backfilled. The client-facing view (app/dashboard/onboarding)
+    // still concatenates summary + nextStep back into one block, so nothing
+    // changes there.
+    nextStep: text("next_step"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

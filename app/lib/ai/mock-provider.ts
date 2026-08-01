@@ -1,4 +1,4 @@
-import type { AIProvider, AuditInput, AuditIssue, AuditResult } from "./types";
+import type { AIProvider, AuditInput, AuditIssue, AuditResult, OnboardingSummary } from "./types";
 
 /**
  * Stands in for a real Claude-backed audit (Vercel AI SDK, per the
@@ -50,7 +50,7 @@ export class MockAIProvider implements AIProvider {
     };
   }
 
-  async summarizeOnboarding(answers: Record<string, string>): Promise<string> {
+  async summarizeOnboarding(answers: Record<string, string>): Promise<OnboardingSummary> {
     const businessName = answers.businessName?.trim() || "cette entreprise";
     const goal = answers.mainGoal?.trim();
     const frustration = answers.frustration?.trim();
@@ -70,8 +70,10 @@ export class MockAIProvider implements AIProvider {
     if (frustration) {
       parts.push(`Point de friction principal signalé : ${frustration}.`);
     }
-    parts.push("Prochaine étape recommandée : connecter Google Business Profile puis lancer un premier audit IA.");
 
-    return parts.join(" ");
+    return {
+      summary: parts.join(" "),
+      nextStep: "Connecter Google Business Profile puis lancer un premier audit IA.",
+    };
   }
 }

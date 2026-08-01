@@ -11,7 +11,7 @@ import { notify } from "@/lib/notifications";
 export async function completeOnboarding(answers: Record<string, string>) {
   const org = await getOrCreateDevOrganization();
   const aiProvider = getAIProvider();
-  const summary = await aiProvider.summarizeOnboarding(answers);
+  const { summary, nextStep } = await aiProvider.summarizeOnboarding(answers);
 
   await db
     .insert(onboarding)
@@ -19,11 +19,12 @@ export async function completeOnboarding(answers: Record<string, string>) {
       organizationId: org.id,
       answers,
       summary,
+      nextStep,
       completedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: onboarding.organizationId,
-      set: { answers, summary, completedAt: new Date() },
+      set: { answers, summary, nextStep, completedAt: new Date() },
     });
 
   await logAudit({
@@ -37,7 +38,10 @@ export async function completeOnboarding(answers: Record<string, string>) {
     organizationId: org.id,
     type: "onboarding.completed",
     metadata: {},
-    rawBody: summary,
+    // Client-facing notification body stays the combined text (same
+    // wording as before this split) — only the admin detail page shows
+    // summary/nextStep as separate sections.
+    rawBody: `${summary} ${nextStep}`,
   });
 
   revalidatePath("/dashboard");

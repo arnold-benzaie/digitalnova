@@ -23,7 +23,7 @@ export default async function OnboardingPage() {
       <div className="mt-6">
         <OnboardingClient
           completed={Boolean(record?.completedAt)}
-          summary={record?.summary ?? null}
+          summary={record ? [record.summary, record.nextStep].filter(Boolean).join(" ") || null : null}
           answers={(record?.answers as Record<string, string>) ?? {}}
           locale={locale}
         />

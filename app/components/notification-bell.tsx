@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { markAllNotificationsRead } from "@/lib/actions/notifications";
+import { markAllNotificationsRead, markNotificationRead } from "@/lib/actions/notifications";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import { renderNotification } from "@/lib/i18n/notification-templates";
+import { notificationHref } from "@/lib/notification-href";
 
 type NotificationItem = {
   id: string;
@@ -92,18 +93,40 @@ export function NotificationBell({
             ) : (
               notifications.map((item) => {
                 const rendered = renderNotification(item, locale);
-                return (
-                  <div key={item.id} className="border-b border-pm-gris-2 px-4 py-3 last:border-b-0">
-                    <div className="flex items-start gap-2">
-                      {!item.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-pm-rouge" />}
-                      <div className={item.read ? "ml-4" : ""}>
-                        <p className="text-sm font-medium text-pm-noir">{rendered.title}</p>
-                        {rendered.body && <p className="mt-0.5 text-xs text-pm-gris">{rendered.body}</p>}
-                        <p className="mt-1 text-[11px] text-pm-gris">
-                          {formatDate(item.createdAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
+                const href = notificationHref(item.type, viewAllHref.startsWith("/admin") ? "/admin" : "/dashboard");
+                const content = (
+                  <div className="flex items-start gap-2">
+                    {!item.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-pm-rouge" />}
+                    <div className={item.read ? "ml-4" : ""}>
+                      <p className="text-sm font-medium text-pm-noir">{rendered.title}</p>
+                      {rendered.body && <p className="mt-0.5 text-xs text-pm-gris">{rendered.body}</p>}
+                      <p className="mt-1 text-[11px] text-pm-gris">
+                        {formatDate(item.createdAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </p>
                     </div>
+                  </div>
+                );
+                return href ? (
+                  <Link
+                    key={item.id}
+                    href={href}
+                    onClick={() => {
+                      setOpen(false);
+                      // Fire-and-forget alongside the navigation, not
+                      // awaited first — revalidatePath (inside
+                      // markNotificationRead) invalidates /admin and
+                      // /dashboard's cached layout data, so the unread
+                      // badge is correct by the time the destination
+                      // page's shared layout renders.
+                      if (!item.read) startTransition(() => markNotificationRead(item.id));
+                    }}
+                    className="block border-b border-pm-gris-2 px-4 py-3 transition last:border-b-0 hover:bg-pm-gris-2/30"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={item.id} className="border-b border-pm-gris-2 px-4 py-3 last:border-b-0">
+                    {content}
                   </div>
                 );
               })
