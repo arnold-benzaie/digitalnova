@@ -40,6 +40,7 @@ export const NAV_ICONS: Record<string, (props: IconProps) => ReactElement> = {
   panelLeft: (p) => <Icon {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></Icon>,
   clock: (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></Icon>,
   gauge: (p) => <Icon {...p}><path d="M4 13a8 8 0 1 1 16 0" /><path d="M12 13l4-4" /><circle cx="12" cy="13" r="1" fill="currentColor" stroke="none" /></Icon>,
+  info: (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none" /></Icon>,
 };
 
 export type NavIconName = keyof typeof NAV_ICONS;

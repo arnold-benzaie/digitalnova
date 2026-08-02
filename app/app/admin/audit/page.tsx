@@ -6,20 +6,33 @@ import {
   auditNotifications,
   auditProspects,
   auditStaffInvitations,
+  auditStaffUsers,
   gbpAuditFindings,
   gbpAudits,
   gbpCorrectionTasks,
   gbpQuoteRequests,
 } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
-import { buildAuditsOverTimeSeries, daysAgo, DASHBOARD_PERIOD_OPTIONS, isDashboardPeriodDays, type DashboardPeriodDays } from "@/lib/gbp-audit/dashboard-stats";
+import {
+  activityIconNameFor,
+  buildAuditsOverTimeSeries,
+  daysAgo,
+  DASHBOARD_PERIOD_OPTIONS,
+  getAuditsCreatedPeriodComparison,
+  isDashboardPeriodDays,
+  resolveActivityHref,
+  type DashboardPeriodDays,
+} from "@/lib/gbp-audit/dashboard-stats";
 import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart } from "@/components/gbp-audit/dashboard-charts";
 import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
+import { SEMANTIC_CLASS, SEMANTIC_DOT, taskPriorityTone } from "@/lib/gbp-audit/status-colors";
 import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
+import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
+import { Badge } from "@/components/crm/badges";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDate } from "@/lib/i18n/format";
 
 const KPI_ICON = {
   prospects: "userCircle",
@@ -32,15 +45,23 @@ const KPI_ICON = {
   notifications: "bell",
 } as const;
 
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 export default async function GbpAuditDashboardPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
   const session = await requireAuditStaffRole();
   const locale = await getLocale();
   const t = dictionaries[locale].auditModule.dashboard;
+  const cp = dictionaries[locale].auditModule.correctionPlan;
   const statusLabel = getAuditStatusLabel(locale);
   const severityLabel = getSeverityLabel(locale);
   const activityLabel = getActivityActionLabel(locale);
   const { days: daysParam } = await searchParams;
   const days: DashboardPeriodDays = isDashboardPeriodDays(Number(daysParam)) ? (Number(daysParam) as DashboardPeriodDays) : 14;
+
+  const phaseTitleByNumber = new Map<number, string>(cp.phases.map((p) => [p.phase, p.title]));
+  const difficultyLabel: Record<string, string> = { low: cp.form.difficultyLow, medium: cp.form.difficultyMedium, high: cp.form.difficultyHigh };
 
   const [counts] = await auditDb
     .select({
@@ -64,19 +85,22 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
   ]);
 
   const kpis = [
-    { label: t.kpis.prospects, value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects },
-    { label: t.kpis.notStarted, value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted },
-    { label: t.kpis.inProgress, value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress },
-    { label: t.kpis.pendingReview, value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview },
-    { label: t.kpis.sent, value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent },
-    { label: t.kpis.quotes, value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes },
-    { label: t.kpis.invitations, value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations },
-    { label: t.kpis.notifications, value: unreadNotifications, href: "/admin/audit/notifications", icon: KPI_ICON.notifications },
+    { key: "prospects", label: t.kpis.prospects, value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects },
+    { key: "notStarted", label: t.kpis.notStarted, value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted },
+    { key: "inProgress", label: t.kpis.inProgress, value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress },
+    { key: "pendingReview", label: t.kpis.pendingReview, value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview },
+    { key: "sent", label: t.kpis.sent, value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent },
+    { key: "quotes", label: t.kpis.quotes, value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes },
+    { key: "invitations", label: t.kpis.invitations, value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations },
+    { key: "notifications", label: t.kpis.notifications, value: unreadNotifications, href: "/admin/audit/notifications", icon: KPI_ICON.notifications },
   ];
 
   // Audits created per day, over the selected period.
   const recentAudits = await auditDb.select({ createdAt: gbpAudits.createdAt }).from(gbpAudits).where(gte(gbpAudits.createdAt, daysAgo(days)));
   const auditsOverTime = buildAuditsOverTimeSeries(recentAudits, days);
+
+  // Real period-over-period comparison — distinct from the at-date KPIs above.
+  const auditsCreatedComparison = await getAuditsCreatedPeriodComparison(days);
 
   // Findings by severity (issues only, not compliant/n-a/n-v).
   const findings = await auditDb
@@ -98,16 +122,63 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
   for (const a of allAudits) statusCounts.set(a.status, (statusCounts.get(a.status) ?? 0) + 1);
   const statusDistribution = Object.entries(statusLabel).map(([status, label]) => ({ status: label, count: statusCounts.get(status) ?? 0 }));
 
-  // Recent activity feed.
-  const recentActivity = await auditDb.select().from(auditActivityLog).orderBy(desc(auditActivityLog.createdAt)).limit(10);
+  // Recent activity feed — now with the real author (join) and a real resolved link.
+  const recentActivityRaw = await auditDb
+    .select({
+      id: auditActivityLog.id,
+      action: auditActivityLog.action,
+      targetType: auditActivityLog.targetType,
+      targetId: auditActivityLog.targetId,
+      metadata: auditActivityLog.metadata,
+      createdAt: auditActivityLog.createdAt,
+      actorFullName: auditStaffUsers.fullName,
+      actorEmail: auditStaffUsers.email,
+    })
+    .from(auditActivityLog)
+    .leftJoin(auditStaffUsers, eq(auditActivityLog.actorUserId, auditStaffUsers.id))
+    .orderBy(desc(auditActivityLog.createdAt))
+    .limit(10);
+  const recentActivity = recentActivityRaw.map((a) => ({
+    id: a.id,
+    action: a.action,
+    label: activityLabel[a.action] ?? t.activityFallback,
+    actorName: a.actorFullName ?? a.actorEmail ?? null,
+    createdAt: a.createdAt,
+    href: resolveActivityHref(a.targetType, a.targetId, a.metadata),
+  }));
+  const now = new Date();
+  const activityGroups: { key: string; label: string; items: typeof recentActivity }[] = [];
+  for (const item of recentActivity) {
+    const dayLabel = isSameDay(item.createdAt, now) ? t.today : formatDate(item.createdAt, locale);
+    const last = activityGroups[activityGroups.length - 1];
+    if (last && last.label === dayLabel) last.items.push(item);
+    else activityGroups.push({ key: item.id, label: dayLabel, items: [item] });
+  }
 
-  // Priority correction tasks (not done, critical/important first).
-  const priorityTasks = await auditDb
+  // Priority correction tasks (not done, critical/important first) — enriched
+  // with only fields already present on the row (phase, difficulty).
+  const priorityTasksRaw = await auditDb
     .select()
     .from(gbpCorrectionTasks)
     .where(sql`${gbpCorrectionTasks.status} != 'done'`)
     .orderBy(sql`case ${gbpCorrectionTasks.priority} when 'critical' then 0 when 'important' then 1 when 'moderate' then 2 else 3 end`)
     .limit(8);
+  const priorityTasks = priorityTasksRaw.map((task) => ({
+    id: task.id,
+    auditId: task.auditId,
+    title: task.title,
+    priority: task.priority,
+    priorityLabel: severityLabel[task.priority as keyof typeof severityLabel] ?? t.priorityFallback,
+    category: `Phase ${task.phase}`,
+    categoryFull: phaseTitleByNumber.get(task.phase) ?? t.priorityFallback,
+    ownerName: task.ownerName,
+    statusLabel: cp.taskStatus[task.status as keyof typeof cp.taskStatus] ?? task.status,
+    etaDays: task.etaDays,
+    difficultyLabel: difficultyLabel[task.difficulty] ?? null,
+  }));
+
+  const notificationBadgeText = unreadNotifications > 99 ? "99+" : String(unreadNotifications);
+  const periodLabel = `${days}${t.periodSuffix}`;
 
   return (
     <>
@@ -132,27 +203,24 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+      {/* KPI — à date, jamais sensibles à la période */}
+      <p className="mt-8 text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.currentSituation}</p>
+      {/* xl (1280px), not lg (1024px): KpiCard's icon badge + text-sm label are heavier than the
+          original compact tile — 8 columns at exactly 1024px overflows (verified), 4 columns fits. */}
+      <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
         {kpis.map((kpi) => {
           const Icon = NAV_ICONS[kpi.icon];
-          const card = (
-            <div className="rounded-2xl border border-pm-gris-2 bg-white p-4 transition-shadow hover:shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-2xl font-semibold text-pm-noir tabular-nums">{kpi.value}</p>
-                <Icon className="text-pm-gris/60" width={16} height={16} />
-              </div>
-              <p className="mt-1 text-xs text-pm-gris">{kpi.label}</p>
-            </div>
-          );
+          const card = <KpiCard label={kpi.label} value={kpi.value} icon={<Icon width={14} height={14} />} />;
           return kpi.href ? (
-            <Link key={kpi.label} href={kpi.href}>
+            <Link key={kpi.key} href={kpi.href} aria-label={kpi.key === "notifications" ? `${kpi.label} — ${kpi.value}` : undefined}>
               {card}
             </Link>
           ) : (
-            <div key={kpi.label}>{card}</div>
+            <div key={kpi.key}>{card}</div>
           );
         })}
       </div>
+      <p className="mt-2 text-[11px] text-pm-gris">{t.currentSituationHint}</p>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">
@@ -166,6 +234,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                     days === option ? "bg-white text-pm-noir shadow-sm" : "text-pm-gris hover:text-pm-noir"
                   }`}
+                  aria-current={days === option ? "true" : undefined}
                 >
                   {option}{t.periodSuffix}
                 </Link>
@@ -174,6 +243,34 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
           </div>
           <AuditsOverTimeChart data={auditsOverTime} locale={locale} />
         </div>
+
+        <div className="flex flex-col justify-center rounded-2xl border border-pm-gris-2 bg-white p-5">
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.auditsCreatedInPeriod}</h2>
+          <p className="mt-0.5 text-[11px] text-pm-gris">{t.auditsCreatedInPeriodHint(periodLabel)}</p>
+          <p className="mt-4 text-3xl font-bold tabular-nums text-pm-noir">{auditsCreatedComparison.currentCount}</p>
+          {auditsCreatedComparison.deltaPercent === null ? (
+            <p className="mt-1 text-xs text-pm-gris">{t.noPreviousPeriodData}</p>
+          ) : (
+            <p
+              className={`mt-1 text-xs font-medium ${
+                auditsCreatedComparison.direction === "up" ? "text-pm-g-green" : auditsCreatedComparison.direction === "down" ? "text-pm-rouge-2" : "text-pm-gris"
+              }`}
+            >
+              {auditsCreatedComparison.direction === "up" ? "▲" : auditsCreatedComparison.direction === "down" ? "▼" : "—"}{" "}
+              {t.vsPreviousPeriod(Math.abs(auditsCreatedComparison.deltaPercent), auditsCreatedComparison.previousCount)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Répartition + Anomalies : rangée dédiée, items-start pour que ces cartes
+          courtes gardent leur propre hauteur naturelle. */}
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.statusDistribution}</h2>
+          <StatusDistributionChart data={statusDistribution} locale={locale} />
+        </div>
+
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
           <h2 className="font-serif text-base font-semibold text-pm-noir">{t.topFindings}</h2>
           {findingsBySeverity.length === 0 ? (
@@ -184,47 +281,107 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.statusDistribution}</h2>
-          <StatusDistributionChart data={statusDistribution} locale={locale} />
-        </div>
+      {/* Tâches prioritaires — sa propre rangée pleine largeur, cartes compactes en grille interne */}
+      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <h2 className="font-serif text-base font-semibold text-pm-noir">{t.priorityTasks}</h2>
+        {priorityTasks.length === 0 ? (
+          <p className="mt-4 text-sm text-pm-gris">{t.noPriorityTasks}</p>
+        ) : (
+          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {priorityTasks.map((task) => (
+              <li key={task.id}>
+                <Link
+                  href={`/admin/audit/${task.auditId}/plan-correction`}
+                  className="block rounded-xl border border-pm-gris-2 p-2.5 transition-colors hover:bg-pm-gris-2/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${SEMANTIC_DOT[taskPriorityTone(task.priority)]}`} aria-hidden="true" />
+                    <p className="line-clamp-1 text-sm font-medium text-pm-noir">{task.title}</p>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1 pl-4 text-[11px] text-pm-gris">
+                    <Badge label={task.priorityLabel} className={`${SEMANTIC_CLASS[taskPriorityTone(task.priority)]} !px-2 !py-0.5`} />
+                    <span title={task.categoryFull} className="rounded-full bg-pm-gris-2/60 px-2 py-0.5">
+                      {task.category}
+                    </span>
+                    <span className="rounded-full bg-pm-gris-2/60 px-2 py-0.5">{task.statusLabel}</span>
+                    {task.difficultyLabel && <span>· {task.difficultyLabel}</span>}
+                    {task.etaDays != null && <span>· {task.etaDays} j</span>}
+                    {task.ownerName && <span className="truncate">· {task.ownerName}</span>}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.priorityTasks}</h2>
-          {priorityTasks.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">{t.noPriorityTasks}</p>
-          ) : (
-            <ul className="mt-3 flex flex-col gap-2">
-              {priorityTasks.map((task) => (
-                <li key={task.id} className="rounded-lg border border-pm-gris-2 px-3 py-2 transition-colors hover:bg-pm-gris-2/20">
-                  <Link href={`/admin/audit/${task.auditId}/plan-correction`} className="text-sm font-medium text-pm-noir hover:underline">
-                    {task.title}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-pm-gris">
-                    {severityLabel[task.priority as keyof typeof severityLabel] ?? t.priorityFallback}
-                    {task.ownerName ? ` · ${task.ownerName}` : ""}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
+      {/* Activité récente + Notifications */}
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
           <h2 className="font-serif text-base font-semibold text-pm-noir">{t.recentActivity}</h2>
           {recentActivity.length === 0 ? (
             <p className="mt-4 text-sm text-pm-gris">{t.noActivity}</p>
           ) : (
-            <ul className="mt-3 flex flex-col gap-2">
-              {recentActivity.map((a) => (
-                <li key={a.id} className="text-xs text-pm-gris">
-                  <span className="font-medium text-pm-noir">{activityLabel[a.action] ?? t.activityFallback}</span>
-                  <span className="ml-1">{formatDateTime(a.createdAt, locale)}</span>
-                </li>
+            <div className="mt-3 flex flex-col gap-3">
+              {activityGroups.map((group) => (
+                <div key={group.key}>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-pm-gris">{group.label}</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {group.items.map((a) => {
+                      const Icon = NAV_ICONS[activityIconNameFor(a.action)];
+                      const content = (
+                        <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-sm transition-colors hover:bg-pm-gris-2/10">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-pm-gris-2/40 text-pm-gris">
+                            <Icon width={12} height={12} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium text-pm-noir">{a.label}</span>
+                            {a.actorName && <span className="text-pm-gris"> · {a.actorName}</span>}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-pm-gris">{formatDate(a.createdAt, locale, { hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                      );
+                      return (
+                        <li key={a.id}>
+                          {a.href ? (
+                            <Link href={a.href} className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20">
+                              {content}
+                            </Link>
+                          ) : (
+                            content
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
+        </div>
+
+        {/* Notifications — compteur exact dans la carte, 99+ uniquement dans le badge compact existant */}
+        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+          <h2 className="font-serif text-base font-semibold text-pm-noir">Notifications</h2>
+          <div className="mt-3 flex items-center gap-4">
+            <div>
+              <p className="text-3xl font-bold tabular-nums text-pm-noir">{unreadNotifications}</p>
+              <p className="text-xs font-medium text-pm-gris">{t.unreadLabel}</p>
+            </div>
+            <span
+              className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-pm-rouge px-1.5 text-[11px] font-semibold text-white"
+              aria-label={`${unreadNotifications} ${t.kpis.notifications}`}
+              title={t.compactBadgeHint}
+            >
+              {notificationBadgeText}
+            </span>
+            <span className="ml-auto flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full text-pm-gris" title={t.notificationsSeverityNote}>
+              <NAV_ICONS.info width={14} height={14} />
+            </span>
+          </div>
+          <Link href="/admin/audit/notifications" className="mt-4 inline-block rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir hover:bg-pm-gris-2/30">
+            {t.viewNotifications}
+          </Link>
         </div>
       </div>
     </>
