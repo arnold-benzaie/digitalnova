@@ -17,15 +17,15 @@ import { getNotificationPreferences, playNotificationSound } from "@/lib/notific
  * minimal `<Toaster>` since components/notification-toaster.tsx is only
  * ever mounted inside AppShellClient, never here.
  */
-export function AccessRefusedToast({ title, body }: { title: string; body: string | null }) {
+export function AccessRefusedToast({ title, body, soundPath }: { title: string; body: string | null; soundPath: string | null }) {
   const firedRef = useRef(false);
 
   useEffect(() => {
     if (firedRef.current) return;
     firedRef.current = true;
     toast(title, { description: body ?? undefined });
-    if (getNotificationPreferences().soundEnabled) playNotificationSound();
-  }, [title, body]);
+    if (soundPath && getNotificationPreferences().soundEnabled) playNotificationSound(soundPath);
+  }, [title, body, soundPath]);
 
   return (
     <Toaster

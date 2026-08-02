@@ -31,23 +31,24 @@ function getPermissionState(): PermissionState {
  * onClick — never on mount/effect — per the explicit requirement that a
  * user must never see a permission prompt before they asked for one.
  *
- * `soundAvailable` (computed server-side, see lib/notification-sound-
- * availability.ts) reflects whether a real /public/sounds/notification.mp3
- * has been supplied yet — it hasn't as of this feature's initial deploy.
- * Rather than let a click silently do nothing (playNotificationSound()
- * already no-ops gracefully on a missing file), the test button is
- * disabled outright with a clear "coming soon" message — never blocks
+ * `soundPath` (computed server-side, see lib/notification-sound-
+ * availability.ts's getNotificationSoundPath()) is the resolved URL of
+ * whichever sound asset actually exists, or null if none does. Rather than
+ * let a click silently do nothing when null (playNotificationSound()
+ * already no-ops gracefully on its own), the test button is disabled
+ * outright with a clear "coming soon" message in that case — never blocks
  * deployment, never a broken-looking control.
  */
 export function NotificationPreferencesControl({
   locale,
   variant = "full",
-  soundAvailable,
+  soundPath,
 }: {
   locale: Locale;
   variant?: "full" | "compact";
-  soundAvailable: boolean;
+  soundPath: string | null;
 }) {
+  const soundAvailable = soundPath !== null;
   const t = dictionaries[locale].settings.notificationPreferences;
   // Both default to the SSR-safe value (localStorage/Notification.permission
   // don't exist server-side) so the client's first render matches the
@@ -94,7 +95,9 @@ export function NotificationPreferencesControl({
             type="button"
             disabled={!soundAvailable}
             title={soundAvailable ? undefined : t.soundComingSoon}
-            onClick={() => void playNotificationSound()}
+            onClick={() => {
+              if (soundPath) playNotificationSound(soundPath);
+            }}
             className="rounded-full border border-pm-gris-2 px-3 py-1 text-xs text-pm-noir transition hover:bg-pm-gris-2/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             {t.testSound}

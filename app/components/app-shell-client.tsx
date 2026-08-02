@@ -133,7 +133,7 @@ export function AppShellClient({
   recentNotifications,
   unreadCount,
   locale,
-  soundAvailable,
+  soundPath,
   children,
 }: {
   role: DevRole;
@@ -141,7 +141,7 @@ export function AppShellClient({
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
   locale: Locale;
-  soundAvailable: boolean;
+  soundPath: string | null;
   children: ReactNode;
 }) {
   const t = dictionaries[locale].navigation;
@@ -276,7 +276,7 @@ export function AppShellClient({
               {role === "client" ? t.shell.clientSpace : t.shell.agencySpace}
             </span>
             <LanguageSwitcher locale={locale} variant="shell" />
-            <NotificationPreferencesControl locale={locale} variant="compact" soundAvailable={soundAvailable} />
+            <NotificationPreferencesControl locale={locale} variant="compact" soundPath={soundPath} />
             <NotificationBell
               notifications={recentNotifications}
               unreadCount={unreadCount}
@@ -288,7 +288,7 @@ export function AppShellClient({
         </header>
         <main className="min-w-0 flex-1 bg-pm-blanc p-4 sm:p-6">{children}</main>
         <NotificationToaster />
-        <NotificationLive initialNotificationIds={recentNotifications.map((n) => n.id)} locale={locale} />
+        <NotificationLive initialNotificationIds={recentNotifications.map((n) => n.id)} locale={locale} soundPath={soundPath} />
       </div>
     </div>
   );

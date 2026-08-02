@@ -8,6 +8,7 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { AccessRefusedIcon, ExternalLinkIcon, MailIcon } from "@/components/icons/access-pending-icons";
 import { renderNotification } from "@/lib/i18n/notification-templates";
+import { getNotificationSoundPath } from "@/lib/notification-sound-availability";
 import { AccessRefusedToast } from "./access-refused-toast";
 
 const CONTACT_EMAIL = "contact@public-map.com";
@@ -34,10 +35,11 @@ export default async function AccessRefusedPage() {
   // creates (lib/actions/users.ts) — this toast IS that notification's
   // one-time delivery, not a second, independently-worded message.
   const toastCopy = renderNotification({ type: "user.refused_self", title: "", body: null, metadata: {} }, locale);
+  const soundPath = getNotificationSoundPath();
 
   return (
     <main className="pm-auth-page flex min-h-screen flex-col items-center justify-center bg-[var(--surface-bg)] px-4 py-10 sm:px-6 sm:py-14">
-      <AccessRefusedToast title={toastCopy.title} body={toastCopy.body} />
+      <AccessRefusedToast title={toastCopy.title} body={toastCopy.body} soundPath={soundPath} />
       <div className="animate-auth-card-in w-full max-w-md rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 text-center shadow-xl shadow-black/[0.04] sm:p-8">
         <Image src="/brand/public-map-logo.png" alt={APP_NAME} width={500} height={174} className="mx-auto h-auto w-32 sm:w-36" priority />
 

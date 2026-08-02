@@ -34,7 +34,15 @@ const POLL_INTERVAL_MS = 12000;
  * what guarantees pre-existing unread notifications never toast on page
  * load, only ones that appear after that.
  */
-export function NotificationLive({ initialNotificationIds, locale }: { initialNotificationIds: string[]; locale: Locale }) {
+export function NotificationLive({
+  initialNotificationIds,
+  locale,
+  soundPath,
+}: {
+  initialNotificationIds: string[];
+  locale: Locale;
+  soundPath: string | null;
+}) {
   const router = useRouter();
   const seenIds = useRef<Set<string>>(new Set(initialNotificationIds));
   const inFlightRef = useRef(false);
@@ -67,7 +75,7 @@ export function NotificationLive({ initialNotificationIds, locale }: { initialNo
           const rendered = renderNotification(row, locale);
           notificationToast.info(rendered.title, rendered.body ?? undefined);
           setAnnouncement(`${t.newNotification} — ${rendered.title}`);
-          if (prefs.soundEnabled) playNotificationSound();
+          if (prefs.soundEnabled && soundPath) playNotificationSound(soundPath);
           if (prefs.browserNotificationsEnabled && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
             // tag: same id can never open two overlapping system
             // notifications, satisfying the "no duplicate" requirement.
@@ -106,7 +114,7 @@ export function NotificationLive({ initialNotificationIds, locale }: { initialNo
       stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [router, locale, t.newNotification]);
+  }, [router, locale, t.newNotification, soundPath]);
 
   return (
     <span className="sr-only" role="status" aria-live="polite">

@@ -10,11 +10,11 @@ import { getOrCreateDevUser } from "@/lib/dev-user";
 import { getReportSchedule } from "@/lib/report-schedule";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { isNotificationSoundAvailable } from "@/lib/notification-sound-availability";
+import { getNotificationSoundPath } from "@/lib/notification-sound-availability";
 
 export default async function SettingsPage() {
   const [org, user, locale] = await Promise.all([getOrCreateDevOrganization(), getOrCreateDevUser(), getLocale()]);
-  const soundAvailable = isNotificationSoundAvailable();
+  const soundPath = getNotificationSoundPath();
   const t = dictionaries[locale].settings;
   const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, org.id)).limit(1);
   const plans = getBillingProvider().listPlans();
@@ -69,7 +69,7 @@ export default async function SettingsPage() {
         </section>
 
         <div>
-          <NotificationPreferencesControl locale={locale} soundAvailable={soundAvailable} />
+          <NotificationPreferencesControl locale={locale} soundPath={soundPath} />
         </div>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6 lg:col-span-2">

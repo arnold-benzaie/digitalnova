@@ -55,20 +55,22 @@ export function setNotificationPreferences(patch: Partial<NotificationPreference
 
 /**
  * Short, quiet chime — never throws, never repeats, never blocks whatever
- * called it. Browsers block autoplay before a user gesture and the asset
- * itself may be temporarily absent (see public/sounds/notification.mp3's
- * own note — a real audio file must be supplied separately); both cases
- * degrade to silent no-ops rather than a console error or a thrown
- * exception reaching components/notification-live.tsx's polling loop.
+ * called it. Browsers block autoplay before a user gesture; both that and
+ * any load/decode failure degrade to a silent no-op rather than a console
+ * error or a thrown exception reaching components/notification-live.tsx's
+ * polling loop. `path` is resolved server-side (see lib/notification-sound-
+ * availability.ts's getNotificationSoundPath()) to whichever asset actually
+ * exists — this function has no fallback logic of its own and never guesses
+ * a filename, so it stays correct automatically if an MP3 is added later.
  * Callers decide whether to gate this on the sound preference — the
  * "Tester le son" button intentionally calls this unconditionally, since
  * testing is the one case where playing regardless of the current
  * preference is exactly the point.
  */
-export function playNotificationSound() {
+export function playNotificationSound(path: string) {
   if (typeof window === "undefined" || typeof Audio === "undefined") return;
   try {
-    const audio = new Audio("/sounds/notification.mp3");
+    const audio = new Audio(path);
     audio.volume = 0.5;
     void audio.play().catch(() => {});
   } catch {

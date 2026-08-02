@@ -6,7 +6,7 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import type { DevRole } from "@/lib/dev-role";
 import { getNavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
 import { getLocale } from "@/lib/i18n/locale";
-import { isNotificationSoundAvailable } from "@/lib/notification-sound-availability";
+import { getNotificationSoundPath } from "@/lib/notification-sound-availability";
 import { requireSession } from "@/lib/session";
 import { AppShellClient } from "@/components/app-shell-client";
 
@@ -46,7 +46,7 @@ export async function AppShell({ children, role }: { children: ReactNode; role: 
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}
       locale={locale}
-      soundAvailable={isNotificationSoundAvailable()}
+      soundPath={getNotificationSoundPath()}
     >
       {children}
     </AppShellClient>

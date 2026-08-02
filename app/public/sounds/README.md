@@ -1,11 +1,15 @@
 # Notification sound
 
-`lib/notification-preferences.ts`'s `playNotificationSound()` plays `/sounds/notification.mp3` — **that file does not exist yet and must be added here before the sound feature is actually audible.**
+`notification.wav` is a short, original two-note digital chime (rising major third, C6 → E6), synthesized entirely locally by `scripts/generate-notification-sound.py` (Python standard library only — `wave`, `struct`, `math` — no external dependency, no downloaded or third-party audio). Regenerate it with:
 
-Requirements (per the approved notification-system plan):
-- Format: `.mp3` (or `.wav`), filename exactly `notification.mp3`.
-- Duration: under 2 seconds.
-- A short, quiet, non-aggressive chime — not a loop, not a jingle.
-- License-free / cleared for use (e.g. a CC0 asset from freesound.org, or a synthesized tone) — do not use a copyrighted sound.
+```
+python3 scripts/generate-notification-sound.py
+```
 
-The code degrades gracefully without this file: `playNotificationSound()` catches a failed/blocked `Audio.play()` silently, so a missing file never surfaces an error to the user — it just plays nothing.
+- Duration: ~0.71s (within the 0.5–1.2s target).
+- Peak amplitude: normalized to 42% of full scale — moderate, not aggressive.
+- Format: mono, 16-bit PCM, 44.1kHz WAV.
+
+No MP3 exists — this environment has no `ffmpeg` (or equivalent) available to convert it. `lib/notification-sound-availability.ts`'s `getNotificationSoundPath()` prefers `notification.mp3` if one is ever added later (e.g. once a conversion tool is available) and falls back to `notification.wav` otherwise, so dropping in a real MP3 here requires no code change.
+
+The code degrades gracefully if neither file exists: `playNotificationSound()` (`lib/notification-preferences.ts`) only ever receives a path the server has already confirmed exists, and still catches a failed/blocked `Audio.play()` silently — a missing or blocked asset never surfaces an error to the user, it just plays nothing.
