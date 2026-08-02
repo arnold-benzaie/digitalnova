@@ -141,6 +141,13 @@
       "when": 1785601918270,
       "tag": "0019_lively_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785624239931,
+      "tag": "0020_steep_paibok",
+      "breakpoints": true
     }
   ]
 }

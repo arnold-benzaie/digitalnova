@@ -50,6 +50,27 @@ const templates: Record<string, (locale: Locale, meta: Record<string, unknown>) 
       ? { title: "Access request refused", body: `${name}'s request was refused.` }
       : { title: "Demande d'accès refusée", body: `La demande de ${name} a été refusée.` };
   },
+  // The two "_self" types below are the PERSONAL counterpart of
+  // "user.approved"/"user.refused" above — those two are the admin-facing
+  // log entry ("X was approved/refused"), these are what the approved/
+  // refused person themselves sees (see notify()'s userId, lib/notifications.ts).
+  // Deliberately a separate type rather than the same one with a viewer-
+  // aware branch: a template here only ever receives (locale, metadata),
+  // never "who's viewing," so it can't tell an admin's view from the
+  // subject's own — two distinct types keeps that structurally impossible
+  // to conflate, and keeps the copy itself genuinely different audiences.
+  "user.approved_self": (locale, meta) => {
+    const organizationName = String(meta.organizationName ?? "");
+    return locale === "en"
+      ? { title: "Your account is active", body: `Welcome to PUBLIC-MAP — your ${organizationName} workspace is now accessible.` }
+      : { title: "Votre compte est actif", body: `Bienvenue sur PUBLIC-MAP. Votre espace ${organizationName} est maintenant accessible.` };
+  },
+  // No reason/detail here on purpose — same "no technical detail exposed"
+  // policy app/access-refused/page.tsx already follows.
+  "user.refused_self": (locale) =>
+    locale === "en"
+      ? { title: "Update on your request", body: "Your access request was not accepted. Contact us if you believe this is a mistake." }
+      : { title: "Mise à jour de votre demande", body: "Votre demande d'accès n'a pas été acceptée. Contactez-nous si vous pensez qu'il s'agit d'une erreur." },
   "user.suspended": (locale, meta) => {
     const name = String(meta.name ?? "");
     return locale === "en" ? { title: "User suspended", body: `${name} was suspended.` } : { title: "Utilisateur suspendu", body: `${name} a été suspendu(e).` };
@@ -72,6 +93,13 @@ const templates: Record<string, (locale: Locale, meta: Record<string, unknown>) 
     const senderRole = meta.senderRole === "client" ? "client" : "staff";
     if (locale === "en") return { title: senderRole === "client" ? "New message from the client" : "New message from your advisor" };
     return { title: senderRole === "client" ? "Nouveau message du client" : "Nouveau message de votre conseiller" };
+  },
+  // subject is user-authored data, not UI text — omitted from the FR/EN
+  // branching itself, stored verbatim via body, same rule as this file's
+  // header comment describes for other user-written content.
+  "ticket.created": (locale, meta) => {
+    const subject = String(meta.subject ?? "");
+    return locale === "en" ? { title: "New support ticket", body: subject } : { title: "Nouveau ticket de support", body: subject };
   },
   "document.uploaded": (locale) => (locale === "en" ? { title: "New document added" } : { title: "Nouveau document ajouté" }),
   "onboarding.completed": (locale) => (locale === "en" ? { title: "Onboarding questionnaire completed" } : { title: "Questionnaire d'accueil complété" }),

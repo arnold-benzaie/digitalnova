@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { crmClients, tickets } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
+import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { getLocale } from "@/lib/i18n/locale";
 
 const MESSAGES = {
@@ -87,6 +88,19 @@ export async function createTicket(formData: FormData): Promise<{ error: string 
   });
 
   await dispatchWebhookEvent("ticket.created", { ticketId: ticket.id, clientId, priority: ticket.priority });
+
+  // Tickets are crm_clients-scoped, not organizationId-scoped, and this is
+  // a staff-facing event (a new client request to triage) — same internal-
+  // organization broadcast target refuseUser() already uses for its own
+  // admin-facing notification.
+  const internalOrgId = await getInternalOrganizationId();
+  if (internalOrgId) {
+    await notify({
+      organizationId: internalOrgId,
+      type: "ticket.created",
+      metadata: { subject: ticket.subject },
+    });
+  }
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/tickets");

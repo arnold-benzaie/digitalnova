@@ -338,6 +338,17 @@ export async function approveUser(formData: FormData) {
     type: "user.approved",
     metadata: { name: targetUser.fullName ?? targetUser.email, role: roleValue, organizationName: targetOrg.name },
   });
+  // Personal notification FOR the approved user themselves, additive to
+  // the admin-facing log entry above — see notify()'s userId doc comment
+  // (lib/notifications.ts) for why this is a second call rather than
+  // reusing "user.approved" with userId set: that type's copy/href are
+  // written for the approving admin's own view, not the subject's.
+  await notify({
+    organizationId,
+    userId,
+    type: "user.approved_self",
+    metadata: { organizationName: targetOrg.name },
+  });
 
   revalidatePath("/admin/users");
 }
@@ -369,6 +380,21 @@ export async function refuseUser(userId: string, reason?: string) {
     organizationId: internalOrgId,
     type: "user.refused",
     metadata: { name: targetUser.fullName ?? targetUser.email },
+  });
+  // Personal record for the refused user themselves — additive, admin-
+  // facing log entry above is unchanged. Note this is NOT actually
+  // reachable via the bell: a refused user is routed to /access-refused,
+  // which never mounts AppShell (see that page for the real delivery
+  // mechanism, a one-time toast). Still worth writing: harmless, and
+  // gives this event the same audit-trail shape as every other type.
+  // organizationId reuses the internal org purely because the column is
+  // NOT NULL and this user will never have a real membership — the read
+  // path (userId = them) ignores it, same as refuseUser's own call above.
+  await notify({
+    organizationId: internalOrgId,
+    userId,
+    type: "user.refused_self",
+    metadata: {},
   });
 
   revalidatePath("/admin/users");

@@ -6,6 +6,9 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 import { NotificationBell } from "@/components/notification-bell";
+import { NotificationLive } from "@/components/notification-live";
+import { NotificationToaster } from "@/components/notification-toaster";
+import { NotificationPreferencesControl } from "@/components/notification-preferences";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { getStaffNavSections, getClientNavSections, type NavSection } from "@/components/app-sidebar-nav";
@@ -130,6 +133,7 @@ export function AppShellClient({
   recentNotifications,
   unreadCount,
   locale,
+  soundAvailable,
   children,
 }: {
   role: DevRole;
@@ -137,6 +141,7 @@ export function AppShellClient({
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
   locale: Locale;
+  soundAvailable: boolean;
   children: ReactNode;
 }) {
   const t = dictionaries[locale].navigation;
@@ -271,6 +276,7 @@ export function AppShellClient({
               {role === "client" ? t.shell.clientSpace : t.shell.agencySpace}
             </span>
             <LanguageSwitcher locale={locale} variant="shell" />
+            <NotificationPreferencesControl locale={locale} variant="compact" soundAvailable={soundAvailable} />
             <NotificationBell
               notifications={recentNotifications}
               unreadCount={unreadCount}
@@ -281,6 +287,8 @@ export function AppShellClient({
           </div>
         </header>
         <main className="min-w-0 flex-1 bg-pm-blanc p-4 sm:p-6">{children}</main>
+        <NotificationToaster />
+        <NotificationLive initialNotificationIds={recentNotifications.map((n) => n.id)} locale={locale} />
       </div>
     </div>
   );

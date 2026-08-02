@@ -313,6 +313,14 @@ export const notifications = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    // Nullable — null means "broadcast to every member of organizationId"
+    // (the original, still-default behavior). Set means "private to this
+    // one user": every read query below OR's `userId = me` together with
+    // the organization-broadcast clause, so a personal row (e.g. "your
+    // account was approved") is invisible to the rest of the organization,
+    // which plain organization-scoping could never guarantee. See notify()
+    // in lib/notifications.ts.
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     type: text("type").notNull(), // e.g. "audit.generated", "message.received", "user.pending_approval"
     title: text("title").notNull(),
     body: text("body"),
@@ -325,6 +333,7 @@ export const notifications = pgTable(
   },
   (table) => [
     index("notifications_organization_id_idx").on(table.organizationId),
+    index("notifications_user_id_idx").on(table.userId),
     // At most one unread "new pending user" notification per user, ever —
     // the DB constraint is the real dedup guarantee (app code re-checks
     // too, but this is what makes it safe under concurrent requests).

@@ -7,6 +7,15 @@ import { enqueueIntegrationEvent } from "@/lib/integrations/outbox";
 
 type NotifyInput = {
   organizationId: string;
+  /** When set, this row is private to exactly this user — every read
+   * query (app-shell, /dashboard|/admin/notifications, the live poller,
+   * mark-as-read) OR's `userId = viewer` together with the organization-
+   * broadcast clause, so a personal notification (e.g. "your account was
+   * approved") never appears for any other member of `organizationId`.
+   * Omitted/undefined means the original, still-default behavior: visible
+   * to every member of the organization. See db/schema.ts's notifications
+   * table for the column this maps to. */
+  userId?: string;
   type: string;
   /** Structured data used to render this notification per-locale later
    * (see lib/i18n/notification-templates.ts) — required for every type
@@ -29,16 +38,30 @@ type NotifyInput = {
  * copy) AND the structured `metadata` those templates need, so
  * lib/i18n/notification-templates.ts's renderNotification() can re-render
  * the same row in English at read time without ever re-writing the row.
+ *
+ * Never throws: a notification is a best-effort side effect of whatever
+ * real state change triggered it (a user got approved, a message got
+ * sent, a ticket got filed) — that change has already happened by the
+ * time notify() runs, and every caller (see lib/actions/users.ts's
+ * approveUser()/refuseUser() for the clearest example) relies on a failed
+ * notification never surfacing as a failed approval/refusal/etc. Logs the
+ * type only, never `metadata` (may contain a name/email) or the DB error's
+ * own message (could echo back query text).
  */
 export async function notify(input: NotifyInput) {
-  const rendered = renderNotificationFr(input.type, input.metadata);
-  await db.insert(notifications).values({
-    organizationId: input.organizationId,
-    type: input.type,
-    title: rendered?.title ?? input.type,
-    body: input.rawBody ?? rendered?.body,
-    metadata: input.metadata,
-  });
+  try {
+    const rendered = renderNotificationFr(input.type, input.metadata);
+    await db.insert(notifications).values({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      type: input.type,
+      title: rendered?.title ?? input.type,
+      body: input.rawBody ?? rendered?.body,
+      metadata: input.metadata,
+    });
+  } catch {
+    console.error(`[notifications] Échec de création d'une notification (type: ${input.type}) — l'action déclenchante n'a pas été bloquée.`);
+  }
 }
 
 /**

@@ -38,6 +38,20 @@ export function notificationHref(type: string, base: "/admin" | "/dashboard"): s
     case "user.role_changed":
     case "user.organization_changed":
       return isAdmin ? "/admin/users" : null;
+    // The personal counterpart of user.approved — always rendered for the
+    // approved person's own viewer role, so `base` already IS their
+    // correct landing area (client → /dashboard, staff/admin → /admin);
+    // no need to carry their role through metadata just to recompute it.
+    case "user.approved_self":
+      return base;
+    // No sensible in-app destination — a refused user never gets a real
+    // session/dashboard to link to (see app/access-refused/page.tsx, the
+    // one place this notification is actually surfaced, via a one-time
+    // toast rather than the bell).
+    case "user.refused_self":
+      return null;
+    case "ticket.created":
+      return isAdmin ? "/admin/crm/tickets" : null;
     case "document.uploaded":
       return isAdmin ? "/admin/crm/clients" : "/dashboard/documents";
     case "audit.generated":

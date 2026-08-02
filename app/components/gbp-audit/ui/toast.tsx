@@ -1,27 +1,17 @@
 "use client";
 
-import { Toaster, toast as sonnerToast } from "sonner";
+import { toast as sonnerToast } from "sonner";
 
-/** Mounted once in app/admin/audit/layout.tsx — styled to match the pm-* tokens instead of sonner's default theme. */
-export function AuditToaster() {
-  return (
-    <Toaster
-      position="top-right"
-      toastOptions={{
-        classNames: {
-          toast: "!rounded-xl !border !border-pm-gris-2 !bg-white !text-pm-noir !shadow-lg",
-          title: "!text-sm !font-medium",
-          description: "!text-xs !text-pm-gris",
-          success: "!border-l-4 !border-l-emerald-500",
-          error: "!border-l-4 !border-l-pm-rouge",
-          warning: "!border-l-4 !border-l-pm-or",
-          info: "!border-l-4 !border-l-pm-noir",
-        },
-      }}
-    />
-  );
-}
-
+/**
+ * Thin wrapper around sonner's toast() — the actual `<Toaster/>` host that
+ * renders these calls is components/notification-toaster.tsx, mounted once
+ * in the shared components/app-shell-client.tsx (covers every /admin and
+ * /dashboard page, audit module included). This file used to mount its own
+ * `<Toaster/>` here too (AuditToaster, scoped to app/admin/audit/layout.tsx);
+ * sonner's toast() is a global singleton, so two mounted instances rendered
+ * every call twice on audit pages once AppShellClient gained its own — see
+ * components/notification-toaster.tsx's header comment for the full story.
+ */
 export const toast = {
   success: (message: string, description?: string) => sonnerToast.success(message, { description }),
   error: (message: string, description?: string) => sonnerToast.error(message, { description }),

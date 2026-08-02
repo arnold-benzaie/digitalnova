@@ -150,12 +150,12 @@ test("real run: SET LOCAL search_path is sent inside the same transaction that l
   assert.ok(setLocalIndex < rollbackIndex, "SET LOCAL must run before ROLLBACK, i.e. inside the same transaction");
 });
 
-test("integration: dry-running the engine against all 19 real db/migrations files produces a clean, fully-preview-qualified plan", async () => {
+test("integration: dry-running the engine against all 21 real db/migrations files produces a clean, fully-preview-qualified plan", async () => {
   const dir = join("db", "migrations");
   const files = readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
-  assert.equal(files.length, 19);
+  assert.equal(files.length, 21);
 
   const result = await applyPreviewSchemaMigrations({ files, targetSchema: "preview", dryRun: true });
   assert.equal(result.dryRun, true);

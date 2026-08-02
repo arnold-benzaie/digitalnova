@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { subscriptions } from "@/db/schema";
 import { NotificationToggle, OrganizationForm, ProfileForm } from "@/components/settings-forms";
+import { NotificationPreferencesControl } from "@/components/notification-preferences";
 import { ReportScheduleForm } from "@/components/report-schedule-form";
 import { getBillingProvider } from "@/lib/billing";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
@@ -9,9 +10,11 @@ import { getOrCreateDevUser } from "@/lib/dev-user";
 import { getReportSchedule } from "@/lib/report-schedule";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { isNotificationSoundAvailable } from "@/lib/notification-sound-availability";
 
 export default async function SettingsPage() {
   const [org, user, locale] = await Promise.all([getOrCreateDevOrganization(), getOrCreateDevUser(), getLocale()]);
+  const soundAvailable = isNotificationSoundAvailable();
   const t = dictionaries[locale].settings;
   const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, org.id)).limit(1);
   const plans = getBillingProvider().listPlans();
@@ -64,6 +67,10 @@ export default async function SettingsPage() {
             <NotificationToggle enabled={org.emailNotificationsEnabled} locale={locale} />
           </div>
         </section>
+
+        <div>
+          <NotificationPreferencesControl locale={locale} soundAvailable={soundAvailable} />
+        </div>
 
         <section className="rounded-2xl border border-pm-gris-2 bg-white p-6 lg:col-span-2">
           <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.reportSchedule.title}</h2>
