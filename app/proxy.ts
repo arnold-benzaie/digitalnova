@@ -57,7 +57,12 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // wav/mp3 added for public/sounds/notification.{wav,mp3} (see
+    // lib/notification-sound-availability.ts) — without them here, a
+    // signed-out request for this static asset hits auth.protect() like
+    // any protected page instead of being served as the plain static file
+    // it is, same as every other extension already listed below.
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|wav|mp3)).*)",
     "/(api|trpc)(.*)",
   ],
 };
