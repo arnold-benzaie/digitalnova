@@ -7,6 +7,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const PAGE_SIZE = 30;
 
@@ -72,8 +73,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.countSummary(totalCount, overallCount, hasFilters)}</p>
+      <AdminPageHero title={t.title} subtitle={t.countSummary(totalCount, overallCount, hasFilters)} />
 
       <form action="/admin/audit-log" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">

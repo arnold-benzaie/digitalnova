@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser } from "@/lib/actions/users";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
+import { heroPrimaryButtonClass } from "@/components/admin/page-hero";
 
 export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
       <button
         type="button"
         onClick={open}
-        className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
+        className={heroPrimaryButtonClass}
       >
         {ti.openButton}
       </button>

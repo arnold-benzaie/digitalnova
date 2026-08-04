@@ -8,6 +8,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
 import { getOnboardingQuestions } from "@/lib/onboarding-questions";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 /**
  * Reached by clicking an "onboarding.completed" notification (see
@@ -34,8 +35,7 @@ export default async function AdminOnboardingPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead} />
 
       {!record || !record.completedAt ? (
         <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">

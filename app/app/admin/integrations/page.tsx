@@ -4,6 +4,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatNumber } from "@/lib/i18n/format";
 import { listOrganizationsWithIntegrationCounts } from "@/lib/integrations/queries";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function IntegrationsOrgPickerPage() {
   await requireStaffRole();
@@ -14,8 +15,7 @@ export default async function IntegrationsOrgPickerPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.subtitle}</p>
+      <AdminPageHero title={t.title} subtitle={t.subtitle} />
 
       {orgs.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">

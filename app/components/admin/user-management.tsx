@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/crm/badges";
 import { InviteUserForm } from "@/components/admin/invite-user-form";
+import { AdminPageHero } from "@/components/admin/page-hero";
 import { ApproveUserModal } from "@/components/admin/approve-user-modal";
 import {
   ChangeOrganizationSelect,
@@ -98,13 +99,7 @@ export function UserManagement({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{organizationName}</p>
-        </div>
-        <InviteUserForm locale={locale} />
-      </div>
+      <AdminPageHero title={t.title} subtitle={organizationName} actions={<InviteUserForm locale={locale} />} />
 
       <div className="mt-6 flex gap-1 border-b border-pm-gris-2" role="tablist">
         {STATUS_TABS.map((tab) => (

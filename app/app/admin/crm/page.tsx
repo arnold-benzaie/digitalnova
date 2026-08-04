@@ -7,6 +7,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, formatNumber } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const DEAL_STAGE_ORDER = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 
@@ -40,8 +41,7 @@ export default async function CrmDashboardPage() {
   if (allClients.length === 0 && archivedClients.length === 0) {
     return (
       <>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="mt-2 text-sm text-pm-gris">{t.subtitle}</p>
+        <AdminPageHero title={t.title} subtitle={t.subtitle} />
         <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
           <p className="font-serif text-lg font-semibold text-pm-noir">{t.emptyTitle}</p>
           <p className="mt-1 text-sm text-pm-gris">
@@ -78,12 +78,7 @@ export default async function CrmDashboardPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.overviewSubtitle}</p>
-        </div>
-      </div>
+      <AdminPageHero title={t.title} subtitle={t.overviewSubtitle} />
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">

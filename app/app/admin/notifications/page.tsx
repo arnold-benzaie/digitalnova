@@ -7,6 +7,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/session";
 import { NotificationsList } from "@/components/notifications-list";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function AdminNotificationsPage() {
   await requireStaffRole();
@@ -22,8 +23,7 @@ export default async function AdminNotificationsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title(org.name)}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.subtitle}</p>
+      <AdminPageHero title={t.title(org.name)} subtitle={t.subtitle} />
       <NotificationsList items={items} locale={locale} base="/admin" />
     </>
   );

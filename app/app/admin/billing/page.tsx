@@ -8,6 +8,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function BillingPage() {
   await requireStaffRole();
@@ -32,8 +33,7 @@ export default async function BillingPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{tb.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{tb.lead(org.name)}</p>
+      <AdminPageHero title={tb.title} subtitle={tb.lead(org.name)} />
 
       {subscription && subscription.status !== "canceled" ? (
         <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
