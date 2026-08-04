@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAuditStatusLabel, getSubscoreLabel, scoreBand, SUBSCORE_LABEL } from "@/lib/gbp-audit/checklist";
 import { AuditStatusControl } from "@/components/gbp-audit/audit-status-control";
 import { ProfileStatusControl } from "@/components/gbp-audit/profile-status-control";
+import { ScoreRing } from "@/components/gbp-audit/ui/score-ring";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
@@ -143,10 +144,13 @@ export function AuditDetailView({
         {audit.scoreOverall === null ? (
           <p className="mt-2 text-lg font-medium text-pm-gris">{t.scoreNotComputed}</p>
         ) : (
-          <>
-            <p className="mt-2 text-3xl font-semibold text-pm-noir">{audit.scoreOverall} / 100</p>
-            {band && <p className="mt-1 text-sm font-medium text-pm-noir">{band.label} — {band.description}</p>}
-          </>
+          <div className="mt-3 flex items-center gap-4">
+            <ScoreRing score={audit.scoreOverall} size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-pm-gris">{audit.scoreOverall} / 100</p>
+              {band && <p className="mt-0.5 text-sm font-medium text-pm-noir">{band.label} — {band.description}</p>}
+            </div>
+          </div>
         )}
         <p className="mt-1 text-xs text-pm-gris">{t.scoreDisclaimer}</p>
 

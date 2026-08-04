@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCorrectionTask, updateCorrectionTaskStatus } from "@/lib/actions/gbp-audit-correction";
 import { getSeverityLabel } from "@/lib/gbp-audit/checklist";
+import { SEMANTIC_DOT, taskPriorityTone } from "@/lib/gbp-audit/status-colors";
 import { Select } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
@@ -70,7 +71,8 @@ export function CorrectionTaskRow({ auditId, task, offers, locale = "fr" }: { au
       {dialog}
       <div>
         <p className={`text-sm font-medium text-pm-noir transition-opacity ${task.status === "done" ? "line-through opacity-60" : ""}`}>{task.title}</p>
-        <p className="mt-0.5 text-xs text-pm-gris">
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-pm-gris">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${SEMANTIC_DOT[taskPriorityTone(task.priority)]}`} aria-hidden="true" />
           {severityLabel[task.priority as keyof typeof severityLabel] ?? t.priorityFallback} · {task.ownerName ?? t.unassigned}
           {task.etaDays ? ` · ${t.etaSuffix(task.etaDays)}` : ""}
         </p>

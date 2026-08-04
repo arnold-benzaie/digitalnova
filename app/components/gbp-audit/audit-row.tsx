@@ -5,19 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
+import { ScoreBadge } from "@/components/gbp-audit/ui/score-ring";
+import { auditStatusTone, SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
 import type { AuditListRow } from "@/components/gbp-audit/audit-dashboard-view";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
-
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  not_started: "bg-pm-gris-2/60 text-pm-gris",
-  in_progress: "bg-blue-100 text-blue-700",
-  pending_review: "bg-amber-100 text-amber-700",
-  changes_requested: "bg-orange-100 text-orange-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  sent: "bg-pm-noir text-white",
-};
 
 /** The whole row navigates to the audit on click; the action menu button
  * stops propagation so it doesn't also trigger that navigation. */
@@ -62,11 +55,13 @@ export function AuditRow({ audit, locale = "fr" }: { audit: AuditListRow; locale
         {audit.prospectFirstName} {audit.prospectLastName}
       </td>
       <td className="px-5 py-3">
-        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[audit.status] ?? "bg-pm-gris-2/60 text-pm-gris"}`}>
+        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${SEMANTIC_CLASS[auditStatusTone(audit.status)]}`}>
           {statusLabel[audit.status] ?? t.commandPalette.audit}
         </span>
       </td>
-      <td className="px-5 py-3 text-pm-gris tabular-nums">{audit.scoreOverall ?? "—"}</td>
+      <td className="px-5 py-3">
+        <ScoreBadge score={audit.scoreOverall} />
+      </td>
       <td className="px-5 py-3 text-pm-gris">{audit.assignedAgentName ?? "—"}</td>
       <td className="px-5 py-3 text-pm-gris">{formatDate(audit.createdAt, locale)}</td>
       <td className="px-5 py-3 text-right">

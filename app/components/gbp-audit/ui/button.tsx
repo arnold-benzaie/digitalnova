@@ -6,10 +6,10 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 type Size = "sm" | "md";
 
 const VARIANT_CLASS: Record<Variant, string> = {
-  primary: "bg-pm-noir text-white hover:bg-pm-noir-2 focus-visible:ring-pm-noir/30",
-  secondary: "border border-pm-gris-2 bg-white text-pm-noir hover:bg-pm-gris-2/30 focus-visible:ring-pm-noir/20",
+  primary: "bg-pm-bleu-eu text-white shadow-pm-sm hover:bg-pm-g-blue-2 hover:shadow-pm-md focus-visible:ring-pm-g-blue/35",
+  secondary: "border border-pm-g-blue/20 bg-white text-pm-bleu-eu shadow-pm-sm hover:border-pm-g-blue/35 hover:bg-pm-g-blue/5 focus-visible:ring-pm-g-blue/25",
   danger: "border border-pm-rouge/30 bg-white text-pm-rouge-2 hover:bg-pm-rouge/10 focus-visible:ring-pm-rouge/25",
-  ghost: "text-pm-gris hover:text-pm-noir hover:bg-pm-gris-2/30 focus-visible:ring-pm-noir/20",
+  ghost: "text-pm-gris hover:bg-pm-g-blue/5 hover:text-pm-bleu-eu focus-visible:ring-pm-g-blue/25",
 };
 
 const SIZE_CLASS: Record<Size, string> = {
@@ -29,7 +29,7 @@ export function Button({
   return (
     <button
       className={[
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-200 active:translate-y-px",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
         "disabled:cursor-not-allowed disabled:opacity-50",
         VARIANT_CLASS[variant],

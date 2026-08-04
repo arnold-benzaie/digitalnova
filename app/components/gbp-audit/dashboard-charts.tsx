@@ -19,8 +19,6 @@ import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { auditStatusTone, type SemanticTone } from "@/lib/gbp-audit/status-colors";
 
-const PM_NOIR = "#080808";
-
 /**
  * Recharts renders SVG fills directly, so it can't read Tailwind classes or
  * CSS custom properties reliably — these hex values must stay mirrored to
@@ -55,7 +53,7 @@ export function AuditsOverTimeChart({ data, locale = "fr" }: { data: { date: str
         <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#6b6b6b" />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#6b6b6b" />
         <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} formatter={(value) => [String(value), t.auditsCreatedSeries]} />
-        <Line type="monotone" dataKey="count" stroke={PM_NOIR} strokeWidth={2} dot={{ r: 3 }} name={t.auditsCreatedSeries} />
+        <Line type="monotone" dataKey="count" stroke={TONE_HEX.info} strokeWidth={2.5} dot={{ r: 3, fill: "#ffffff", stroke: TONE_HEX.info, strokeWidth: 2 }} name={t.auditsCreatedSeries} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -78,7 +76,7 @@ export function FindingsBySeverityChart({ data, locale = "fr" }: { data: { sever
   );
 }
 
-export function StatusDistributionChart({ data, locale = "fr" }: { data: { status: string; count: number }[]; locale?: Locale }) {
+export function StatusDistributionChart({ data, locale = "fr" }: { data: { status: string; statusKey?: string; count: number }[]; locale?: Locale }) {
   const t = dictionaries[locale].auditModule.dashboard;
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -89,7 +87,7 @@ export function StatusDistributionChart({ data, locale = "fr" }: { data: { statu
         <Tooltip contentStyle={TOOLTIP_STYLE.contentStyle} labelStyle={TOOLTIP_STYLE.labelStyle} cursor={TOOLTIP_STYLE.cursor} formatter={(value) => [String(value), t.auditsSeries]} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]} name={t.auditsSeries}>
           {data.map((entry) => (
-            <Cell key={entry.status} fill={TONE_HEX[auditStatusTone(entry.status)]} />
+            <Cell key={entry.statusKey ?? entry.status} fill={TONE_HEX[auditStatusTone(entry.statusKey ?? entry.status)]} />
           ))}
         </Bar>
       </BarChart>

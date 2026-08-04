@@ -58,7 +58,10 @@ const BASE_CSP = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'self'",
-  "upgrade-insecure-requests",
+  // The local Next server is intentionally HTTP. Keeping this production
+  // browser directive in development upgrades RSC refreshes to HTTPS and
+  // breaks mutations after otherwise successful Server Actions.
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 // /developers/reference/embed (see that route's own docstring) is the

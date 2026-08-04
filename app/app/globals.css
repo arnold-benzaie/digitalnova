@@ -24,6 +24,19 @@
   --pm-g-red: #ea4335;
   --pm-g-yellow: #fbbc05;
   --pm-g-green: #34a853;
+
+  /*
+   * Audit module semantic palette additions (local prototype,
+   * see lib/gbp-audit/status-colors.ts). --pm-g-blue-2 is a darker text
+   * pairing for --pm-g-blue on tinted badges (raw --pm-g-blue on a 10%
+   * tint is ~3:1, below AA 4.5:1 for normal text — same fix already
+   * applied to --pm-or in components/integrations/badges.tsx).
+   * --pm-violet/--pm-violet-2 are reserved for real AI-generated content
+   * only; unused until that content exists.
+   */
+  --pm-g-blue-2: #1d4ed8;
+  --pm-violet: #6c5aa8;
+  --pm-violet-2: #4f4394;
 }
 
 @theme inline {
@@ -42,6 +55,25 @@
   --color-pm-g-red: var(--pm-g-red);
   --color-pm-g-yellow: var(--pm-g-yellow);
   --color-pm-g-green: var(--pm-g-green);
+
+  --color-pm-g-blue-2: var(--pm-g-blue-2);
+  --color-pm-violet: var(--pm-violet);
+  --color-pm-violet-2: var(--pm-violet-2);
+
+  /* Premium surface tokens — Audit module redesign. Discreet, layered
+     shadows (never a hard drop-shadow) for cards/panels/popovers, and a
+     shared easing/duration scale for the short, professional transitions
+     used by the new AI/premium components. Bridged here so `shadow-pm-*`
+     and arbitrary `duration-[var(--pm-duration-base)]` work like any
+     other Tailwind utility. */
+  --shadow-pm-sm: 0 1px 2px rgba(8, 8, 8, 0.04), 0 1px 1px rgba(8, 8, 8, 0.03);
+  --shadow-pm-md: 0 4px 16px rgba(8, 8, 8, 0.06), 0 1px 2px rgba(8, 8, 8, 0.04);
+  --shadow-pm-lg: 0 12px 32px rgba(8, 8, 8, 0.08), 0 2px 6px rgba(8, 8, 8, 0.05);
+
+  --ease-pm: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-pm-fast: 120ms;
+  --duration-pm-base: 200ms;
+  --duration-pm-slow: 320ms;
 
   --font-sans: var(--font-outfit);
   --font-serif: var(--font-cormorant);
@@ -204,4 +236,31 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-auth-card-in { animation: none; }
+}
+
+/* Premium/AI component entrance — shorter and flatter than panel-in
+   (no vertical travel), for cards that mount inside an already-open
+   surface (KPI cards, AI panels) rather than an expanding accordion. */
+@keyframes premium-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-premium-fade-in {
+  animation: premium-fade-in var(--duration-pm-base) var(--ease-pm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-premium-fade-in { animation: none; }
+}
+
+/* AI "generating" indicator — a slow, low-contrast opacity breathe, never
+   a spinner (calmer, matches the "aucun gadget visuel inutile" brief). */
+@keyframes ai-generating-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.animate-ai-generating {
+  animation: ai-generating-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ai-generating { animation: none; }
 }
