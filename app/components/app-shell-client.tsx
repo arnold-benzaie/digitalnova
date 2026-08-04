@@ -66,6 +66,7 @@ function SectionBlock({
   pendingBadgeLabel: (count: number) => string;
 }) {
   const sectionHasActive = section.items.some((item) => isActive(item.href, pathname));
+  const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
 
   return (
     <div className="flex flex-col gap-0.5">
@@ -95,7 +96,13 @@ function SectionBlock({
                 aria-current={active ? "page" : undefined}
                 className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                   collapsed ? "justify-center" : ""
-                } ${active ? "bg-pm-gris-2/60 font-medium text-pm-noir" : "text-pm-gris hover:bg-pm-gris-2/40 hover:text-pm-noir"}`}
+                } ${
+                  active
+                    ? isAuditArea
+                      ? "bg-pm-g-blue/10 font-medium text-pm-bleu-eu ring-1 ring-inset ring-pm-g-blue/10"
+                      : "bg-pm-gris-2/60 font-medium text-pm-noir"
+                    : "text-pm-gris hover:bg-pm-gris-2/40 hover:text-pm-noir"
+                }`}
               >
                 <Icon className="shrink-0" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -146,6 +153,7 @@ export function AppShellClient({
 }) {
   const t = dictionaries[locale].navigation;
   const pathname = usePathname() ?? "";
+  const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
   const sections = useMemo(() => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t)), [role, t]);
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 
@@ -223,7 +231,7 @@ export function AppShellClient({
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex min-h-screen ${isAuditArea ? "bg-[#f7f9fe]" : ""}`}>
       {/* Desktop sidebar */}
       <aside
         className={`hidden shrink-0 flex-col overflow-y-auto border-r border-pm-gris-2 bg-white p-4 transition-[width] duration-150 md:flex ${
@@ -257,7 +265,7 @@ export function AppShellClient({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-pm-gris-2 bg-white px-4 sm:px-6">
+        <header className={`flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6 ${isAuditArea ? "border-pm-g-blue/15 shadow-[0_1px_0_rgba(37,99,235,0.04)]" : "border-pm-gris-2"}`}>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -272,7 +280,11 @@ export function AppShellClient({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3 sm:gap-4">
-            <span className="hidden rounded-full bg-pm-gris-2/40 px-3 py-1 text-xs font-medium uppercase tracking-wide text-pm-gris sm:inline-block">
+            <span
+              className={`hidden rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide sm:inline-block ${
+                isAuditArea ? "bg-pm-g-blue/10 text-pm-bleu-eu" : "bg-pm-gris-2/40 text-pm-gris"
+              }`}
+            >
               {role === "client" ? t.shell.clientSpace : t.shell.agencySpace}
             </span>
             <LanguageSwitcher locale={locale} variant="shell" />
@@ -286,7 +298,7 @@ export function AppShellClient({
             <UserButton />
           </div>
         </header>
-        <main className="min-w-0 flex-1 bg-pm-blanc p-4 sm:p-6">{children}</main>
+        <main className={`min-w-0 flex-1 p-4 sm:p-6 ${isAuditArea ? "bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.06),transparent_28rem),#f7f9fe]" : "bg-pm-blanc"}`}>{children}</main>
         <NotificationToaster />
         <NotificationLive initialNotificationIds={recentNotifications.map((n) => n.id)} locale={locale} soundPath={soundPath} />
       </div>

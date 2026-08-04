@@ -4,16 +4,13 @@ import { auditDb } from "@/db/audit-index";
 import { auditBusinesses, auditProspects, gbpAuditReports, gbpAudits, gbpReportAccessLinks } from "@/db/audit-schema";
 import { requireAuditStaffRole } from "@/lib/gbp-audit/session";
 import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
+import { auditStatusTone, SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
+import { ScoreBadge } from "@/components/gbp-audit/ui/score-ring";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { Badge } from "@/components/crm/badges";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
-
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  approved: "bg-emerald-100 text-emerald-700",
-  sent: "bg-pm-noir text-white",
-};
 
 // A report row's underlying audit can only be in one of these two states —
 // approved (report generated, not yet marked sent) or sent — every other
@@ -153,9 +150,11 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
                       {r.prospectFirstName} {r.prospectLastName}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge label={statusLabel[r.auditStatus] ?? t.statusFallback} className={STATUS_BADGE_CLASS[r.auditStatus] ?? "bg-pm-gris-2/60 text-pm-gris"} />
+                      <Badge label={statusLabel[r.auditStatus] ?? t.statusFallback} className={SEMANTIC_CLASS[auditStatusTone(r.auditStatus)]} />
                     </td>
-                    <td className="px-5 py-3 text-pm-gris tabular-nums">{r.scoreOverall ?? "—"}</td>
+                    <td className="px-5 py-3">
+                      <ScoreBadge score={r.scoreOverall} />
+                    </td>
                     <td className="px-5 py-3 text-pm-gris">{formatDate(r.createdAt, locale)}</td>
                     <td className="px-5 py-3 text-pm-gris">{r.sentAt ? formatDate(r.sentAt, locale) : "—"}</td>
                     <td className="px-5 py-3 text-right">

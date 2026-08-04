@@ -21,8 +21,8 @@ export function Tabs({
             role="tab"
             aria-selected={active === tab.key}
             onClick={() => setActive(tab.key)}
-            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-              active === tab.key ? "border-pm-noir text-pm-noir" : "border-transparent text-pm-gris hover:text-pm-noir"
+            className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-g-blue/25 focus-visible:ring-inset ${
+              active === tab.key ? "border-pm-g-blue text-pm-bleu-eu" : "border-transparent text-pm-gris hover:text-pm-noir"
             }`}
           >
             {tab.label}

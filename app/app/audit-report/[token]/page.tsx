@@ -6,6 +6,8 @@ import { gbpAuditFindings, gbpCorrectionTasks, gbpServiceOffers } from "@/db/aud
 import { getAuditChecksBySection, getAuditSections, getSeverityLabel, scoreBand } from "@/lib/gbp-audit/checklist";
 import { QuoteRequestForm } from "@/components/gbp-audit/quote-request-form";
 import { getAuditSettings } from "@/lib/gbp-audit/settings";
+import { ScoreRing } from "@/components/gbp-audit/ui/score-ring";
+import { SEMANTIC_CLASS, SEMANTIC_DOT, taskPriorityTone, taskStatusTone } from "@/lib/gbp-audit/status-colors";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
@@ -75,10 +77,8 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
         <p className="text-sm text-pm-gris">{t.greeting(prospect.firstName)}</p>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-pm-noir">{business.legalName}</h1>
         <div className="mt-4 flex items-center justify-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-pm-noir">
-            <span className="text-2xl font-semibold text-pm-noir">{audit.scoreOverall ?? "—"}</span>
-          </div>
-          <div className="text-left">
+          <ScoreRing score={audit.scoreOverall} size="lg" />
+          <div className="min-w-0 flex-1 text-left">
             {band && <p className="font-medium text-pm-noir">{band.label}</p>}
             {band && <p className="text-xs text-pm-gris">{band.description}</p>}
           </div>
@@ -94,18 +94,33 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
         </a>
       </section>
 
+      {/* Numbers stay text-pm-noir (safe at any size) — the colored dot
+          carries the tone instead of the digit itself. --pm-g-green and
+          --pm-or-2 both fall short of WCAG AA at this text size with no
+          darker brand variant to fall back to (same gap noted in
+          lib/gbp-audit/status-colors.ts); --pm-rouge-2 would pass on its
+          own, but stays consistent with the other two for a uniform look. */}
       <section className="mt-6 grid grid-cols-3 gap-3 text-center">
         <div className="rounded-xl border border-pm-gris-2 bg-white p-4">
-          <p className="text-xl font-semibold text-emerald-600">{compliantCount}</p>
-          <p className="text-xs text-pm-gris">{t.compliantPoints}</p>
+          <p className="text-xl font-semibold text-pm-noir">{compliantCount}</p>
+          <p className="mt-0.5 flex items-center justify-center gap-1.5 text-xs text-pm-gris">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pm-g-green" aria-hidden="true" />
+            {t.compliantPoints}
+          </p>
         </div>
         <div className="rounded-xl border border-pm-gris-2 bg-white p-4">
-          <p className="text-xl font-semibold text-pm-rouge">{criticalFindings.length}</p>
-          <p className="text-xs text-pm-gris">{t.criticalIssues}</p>
+          <p className="text-xl font-semibold text-pm-noir">{criticalFindings.length}</p>
+          <p className="mt-0.5 flex items-center justify-center gap-1.5 text-xs text-pm-gris">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pm-rouge" aria-hidden="true" />
+            {t.criticalIssues}
+          </p>
         </div>
         <div className="rounded-xl border border-pm-gris-2 bg-white p-4">
-          <p className="text-xl font-semibold text-amber-600">{importantFindings.length}</p>
-          <p className="text-xs text-pm-gris">{t.importantIssues}</p>
+          <p className="text-xl font-semibold text-pm-noir">{importantFindings.length}</p>
+          <p className="mt-0.5 flex items-center justify-center gap-1.5 text-xs text-pm-gris">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-pm-or" aria-hidden="true" />
+            {t.importantIssues}
+          </p>
         </div>
       </section>
 
@@ -133,7 +148,7 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
                 <p className="text-xs font-medium uppercase tracking-wide text-pm-gris">{SECTION_TITLE[f.sectionCode]}</p>
                 <p className="mt-1 text-sm font-medium text-pm-noir">{CHECK_LABEL[`${f.sectionCode}:${f.checkKey}`] ?? t.archivedFinding}</p>
                 {f.recommendation && <p className="mt-1 text-sm text-pm-gris">{f.recommendation}</p>}
-                <span className="mt-2 inline-block rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] text-pm-gris">
+                <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${SEMANTIC_CLASS[taskPriorityTone(f.severity ?? "moderate")]}`}>
                   {severityLabel[f.severity as keyof typeof severityLabel] ?? t.severityFallback}
                 </span>
               </div>
@@ -149,7 +164,7 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
             <span className="text-xs text-pm-gris">{t.tasksDone(doneTasks, totalTasks)}</span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-pm-gris-2/50">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0}%` }} />
+            <div className="h-full rounded-full bg-pm-g-green transition-all" style={{ width: `${totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0}%` }} />
           </div>
 
           <div className="mt-4 flex flex-col gap-4">
@@ -160,8 +175,8 @@ export default async function AuditReportPortalPage({ params }: { params: Promis
                   {tasks.map((task) => (
                     <div key={task.id} className="flex items-center gap-2 text-sm">
                       <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${
-                          task.status === "done" ? "bg-emerald-500 text-white" : task.status === "in_progress" ? "bg-amber-400 text-white" : "bg-pm-gris-2 text-pm-gris"
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${SEMANTIC_DOT[taskStatusTone(task.status)]} ${
+                          task.status === "todo" ? "text-pm-gris" : "text-white"
                         }`}
                       >
                         {task.status === "done" ? "✓" : ""}

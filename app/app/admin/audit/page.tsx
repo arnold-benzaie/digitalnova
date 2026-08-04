@@ -25,7 +25,7 @@ import {
 } from "@/lib/gbp-audit/dashboard-stats";
 import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart } from "@/components/gbp-audit/dashboard-charts";
 import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
-import { SEMANTIC_CLASS, SEMANTIC_DOT, taskPriorityTone } from "@/lib/gbp-audit/status-colors";
+import { SEMANTIC_CLASS, SEMANTIC_DOT, taskPriorityTone, type SemanticTone } from "@/lib/gbp-audit/status-colors";
 import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
@@ -84,15 +84,22 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
       .where(and(eq(auditNotifications.recipientUserId, session.userId), sql`${auditNotifications.readAt} is null`)),
   ]);
 
-  const kpis = [
-    { key: "prospects", label: t.kpis.prospects, value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects },
-    { key: "notStarted", label: t.kpis.notStarted, value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted },
-    { key: "inProgress", label: t.kpis.inProgress, value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress },
-    { key: "pendingReview", label: t.kpis.pendingReview, value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview },
-    { key: "sent", label: t.kpis.sent, value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent },
-    { key: "quotes", label: t.kpis.quotes, value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes },
-    { key: "invitations", label: t.kpis.invitations, value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations },
-    { key: "notifications", label: t.kpis.notifications, value: unreadNotifications, href: "/admin/audit/notifications", icon: KPI_ICON.notifications },
+  const kpis: { key: string; label: string; value: number; href?: string; icon: keyof typeof NAV_ICONS; tone: SemanticTone }[] = [
+    { key: "prospects", label: t.kpis.prospects, value: counts?.totalProspects ?? 0, icon: KPI_ICON.prospects, tone: "info" },
+    { key: "notStarted", label: t.kpis.notStarted, value: counts?.notStarted ?? 0, icon: KPI_ICON.notStarted, tone: "neutral" },
+    { key: "inProgress", label: t.kpis.inProgress, value: counts?.inProgress ?? 0, icon: KPI_ICON.inProgress, tone: "info" },
+    { key: "pendingReview", label: t.kpis.pendingReview, value: counts?.pendingReview ?? 0, icon: KPI_ICON.pendingReview, tone: "warm" },
+    { key: "sent", label: t.kpis.sent, value: counts?.sent ?? 0, href: "/admin/audit/rapports", icon: KPI_ICON.sent, tone: "good" },
+    { key: "quotes", label: t.kpis.quotes, value: pendingQuoteRequests, href: "/admin/audit/devis", icon: KPI_ICON.quotes, tone: "warm" },
+    { key: "invitations", label: t.kpis.invitations, value: pendingInvitations, href: "/admin/audit/equipe", icon: KPI_ICON.invitations, tone: "info" },
+    {
+      key: "notifications",
+      label: t.kpis.notifications,
+      value: unreadNotifications,
+      href: "/admin/audit/notifications",
+      icon: KPI_ICON.notifications,
+      tone: unreadNotifications > 0 ? "bad" : "neutral",
+    },
   ];
 
   // Audits created per day, over the selected period.
@@ -120,7 +127,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
   const allAudits = await auditDb.select({ status: gbpAudits.status }).from(gbpAudits);
   const statusCounts = new Map<string, number>();
   for (const a of allAudits) statusCounts.set(a.status, (statusCounts.get(a.status) ?? 0) + 1);
-  const statusDistribution = Object.entries(statusLabel).map(([status, label]) => ({ status: label, count: statusCounts.get(status) ?? 0 }));
+  const statusDistribution = Object.entries(statusLabel).map(([statusKey, label]) => ({ statusKey, status: label, count: statusCounts.get(statusKey) ?? 0 }));
 
   // Recent activity feed — now with the real author (join) and a real resolved link.
   const recentActivityRaw = await auditDb
@@ -182,21 +189,21 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-5 overflow-hidden rounded-2xl border border-pm-bleu-eu/20 bg-[linear-gradient(115deg,#071b3d_0%,#0b347c_58%,#2563eb_100%)] px-5 py-6 shadow-pm-md sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-8">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{dictionaries[locale].navigation.items.dashboard}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.greeting(session.fullName ?? session.email)}</p>
+          <h1 className="font-serif text-3xl font-semibold text-white sm:text-4xl">{dictionaries[locale].navigation.items.dashboard}</h1>
+          <p className="mt-2 text-sm text-white/80">{t.greeting(session.fullName ?? session.email)}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Link
             href="/admin/audit/liste"
-            className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition-colors hover:bg-pm-gris-2/30"
+            className="rounded-lg border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/55 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-pm-bleu-eu"
           >
             {t.viewAllAudits}
           </Link>
           <Link
             href="/admin/audit/nouveau"
-            className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pm-noir-2"
+            className="rounded-lg bg-[#2f7df6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(0,0,0,0.22)] transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:bg-[#438afa] hover:shadow-[0_13px_28px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 focus-visible:ring-offset-2 focus-visible:ring-offset-pm-bleu-eu"
           >
             {t.newAudit}
           </Link>
@@ -210,7 +217,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
       <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
         {kpis.map((kpi) => {
           const Icon = NAV_ICONS[kpi.icon];
-          const card = <KpiCard label={kpi.label} value={kpi.value} icon={<Icon width={14} height={14} />} />;
+          const card = <KpiCard label={kpi.label} value={kpi.value} icon={<Icon width={14} height={14} />} tone={kpi.tone} />;
           return kpi.href ? (
             <Link key={kpi.key} href={kpi.href} aria-label={kpi.key === "notifications" ? `${kpi.label} — ${kpi.value}` : undefined}>
               {card}
@@ -232,7 +239,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
                   key={option}
                   href={`/admin/audit?days=${option}`}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    days === option ? "bg-white text-pm-noir shadow-sm" : "text-pm-gris hover:text-pm-noir"
+                    days === option ? "bg-pm-g-blue/10 text-pm-bleu-eu shadow-sm" : "text-pm-gris hover:bg-white/70 hover:text-pm-noir"
                   }`}
                   aria-current={days === option ? "true" : undefined}
                 >
@@ -244,10 +251,10 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
           <AuditsOverTimeChart data={auditsOverTime} locale={locale} />
         </div>
 
-        <div className="flex flex-col justify-center rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className="flex flex-col justify-center rounded-2xl border border-pm-g-blue/20 bg-pm-g-blue/[0.03] p-5">
           <h2 className="font-serif text-base font-semibold text-pm-noir">{t.auditsCreatedInPeriod}</h2>
           <p className="mt-0.5 text-[11px] text-pm-gris">{t.auditsCreatedInPeriodHint(periodLabel)}</p>
-          <p className="mt-4 text-3xl font-bold tabular-nums text-pm-noir">{auditsCreatedComparison.currentCount}</p>
+          <p className="mt-4 text-3xl font-bold tabular-nums text-pm-bleu-eu">{auditsCreatedComparison.currentCount}</p>
           {auditsCreatedComparison.deltaPercent === null ? (
             <p className="mt-1 text-xs text-pm-gris">{t.noPreviousPeriodData}</p>
           ) : (
@@ -361,7 +368,7 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
         </div>
 
         {/* Notifications — compteur exact dans la carte, 99+ uniquement dans le badge compact existant */}
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className={`rounded-2xl border bg-white p-5 ${unreadNotifications > 0 ? "border-pm-rouge/25" : "border-pm-gris-2"}`}>
           <h2 className="font-serif text-base font-semibold text-pm-noir">Notifications</h2>
           <div className="mt-3 flex items-center gap-4">
             <div>
@@ -369,7 +376,9 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
               <p className="text-xs font-medium text-pm-gris">{t.unreadLabel}</p>
             </div>
             <span
-              className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-pm-rouge px-1.5 text-[11px] font-semibold text-white"
+              className={`flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                unreadNotifications > 0 ? "bg-pm-rouge text-white" : "bg-pm-gris-2/60 text-pm-gris"
+              }`}
               aria-label={`${unreadNotifications} ${t.kpis.notifications}`}
               title={t.compactBadgeHint}
             >

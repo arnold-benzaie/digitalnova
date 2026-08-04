@@ -7,8 +7,8 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTML
  * fix focus rings, error states, or spacing across all 10+ forms.
  */
 const baseControl =
-  "w-full rounded-lg border bg-white px-3 py-2 text-sm text-pm-noir shadow-sm transition-colors placeholder:text-pm-gris/70 focus:outline-none focus:ring-2 focus:ring-pm-noir/15 disabled:cursor-not-allowed disabled:bg-pm-gris-2/20 disabled:text-pm-gris";
-const borderOk = "border-pm-gris-2 focus:border-pm-noir";
+  "w-full rounded-lg border bg-white px-3 py-2 text-sm text-pm-noir shadow-pm-sm transition-[border-color,box-shadow] duration-200 placeholder:text-pm-gris/70 focus:outline-none focus:ring-2 focus:ring-pm-g-blue/20 disabled:cursor-not-allowed disabled:bg-pm-gris-2/20 disabled:text-pm-gris";
+const borderOk = "border-pm-gris-2 focus:border-pm-g-blue";
 const borderError = "border-pm-rouge focus:border-pm-rouge focus:ring-pm-rouge/15";
 
 function controlClass(hasError?: boolean, className?: string) {

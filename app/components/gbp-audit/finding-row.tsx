@@ -14,6 +14,7 @@ import {
 import { Field, Input, Select, Textarea } from "@/components/gbp-audit/ui/field";
 import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
+import { correctionStatusTone, findingResultTone, SEMANTIC_DOT } from "@/lib/gbp-audit/status-colors";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
@@ -28,15 +29,6 @@ export type FindingState = {
   etaDays: number | null;
   correctionStatus: string;
   evidenceCount: number;
-};
-
-const RESULT_DOT: Record<string, string> = {
-  compliant: "bg-emerald-500",
-  improvement_recommended: "bg-amber-400",
-  major_issue: "bg-orange-500",
-  critical_issue: "bg-pm-rouge",
-  not_verifiable: "bg-pm-gris-2",
-  not_applicable: "bg-pm-gris-2",
 };
 
 const EMPTY: FindingState = {
@@ -77,6 +69,7 @@ export function FindingRow({
   const [isStatusPending, startStatusTransition] = useTransition();
 
   const dirty = JSON.stringify(state) !== JSON.stringify(saved);
+  const isSaved = justSaved || (!dirty && Boolean(state.id));
 
   function save() {
     startTransition(async () => {
@@ -129,7 +122,7 @@ export function FindingRow({
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20 focus-visible:ring-inset"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${RESULT_DOT[state.result] ?? "bg-pm-gris-2"}`} aria-hidden="true" />
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${SEMANTIC_DOT[findingResultTone(state.result)]}`} aria-hidden="true" />
           <span className="truncate text-sm font-medium text-pm-noir">{check.label}</span>
           {state.evidenceCount > 0 && (
             <span className="shrink-0 rounded-full bg-pm-gris-2/50 px-2 py-0.5 text-[10px] text-pm-gris">{t.evidenceCount(state.evidenceCount)}</span>
@@ -185,16 +178,22 @@ export function FindingRow({
                 htmlFor={`${check.key}-correction-status`}
                 hint={!state.id ? t.correctionStatusHint : undefined}
               >
-                <Select
-                  id={`${check.key}-correction-status`}
-                  value={state.correctionStatus}
-                  disabled={!state.id || isStatusPending}
-                  onChange={(e) => changeCorrectionStatus(e.target.value)}
-                >
-                  {GBP_CORRECTION_STATUSES.map((s) => (
-                    <option key={s} value={s}>{correctionStatusLabel[s]}</option>
-                  ))}
-                </Select>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${SEMANTIC_DOT[correctionStatusTone(state.correctionStatus)]}`}
+                    aria-hidden="true"
+                  />
+                  <Select
+                    id={`${check.key}-correction-status`}
+                    value={state.correctionStatus}
+                    disabled={!state.id || isStatusPending}
+                    onChange={(e) => changeCorrectionStatus(e.target.value)}
+                  >
+                    {GBP_CORRECTION_STATUSES.map((s) => (
+                      <option key={s} value={s}>{correctionStatusLabel[s]}</option>
+                    ))}
+                  </Select>
+                </div>
               </Field>
             )}
           </div>
@@ -202,7 +201,7 @@ export function FindingRow({
             <Button size="sm" loading={isPending} disabled={!dirty && !isPending} onClick={save}>
               {t.save}
             </Button>
-            {justSaved && !isPending && (
+            {isSaved && !isPending && (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                 <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg>
                 {t.saved}
