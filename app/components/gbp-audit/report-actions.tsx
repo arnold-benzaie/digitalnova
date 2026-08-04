@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { approveAudit, markAuditSent, requestAuditChanges, submitAuditForReview } from "@/lib/actions/gbp-audit-report";
 import type { AuditStaffRole } from "@/lib/gbp-audit/session";
@@ -16,18 +16,13 @@ export function ReportActions({ auditId, status, role, clientSummary, locale = "
   const [isPending, startTransition] = useTransition();
   const [summary, setSummary] = useState(clientSummary);
   const [note, setNote] = useState("");
-  const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
-  const summaryRef = useRef(clientSummary);
-  const noteRef = useRef("");
-  const displayStatus = optimisticStatus ?? status;
 
   const isSupervisor = role === "admin" || role === "supervisor";
 
-  function run(fn: () => Promise<void>, successMessage: string, nextStatus?: string) {
+  function run(fn: () => Promise<void>, successMessage: string) {
     startTransition(async () => {
       try {
         await fn();
-        if (nextStatus) setOptimisticStatus(nextStatus);
         toast.success(successMessage);
         router.refresh();
       } catch (err) {
@@ -40,46 +35,30 @@ export function ReportActions({ auditId, status, role, clientSummary, locale = "
     <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
       <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
 
-      {displayStatus === "not_started" || displayStatus === "in_progress" ? (
+      {status === "not_started" || status === "in_progress" ? (
         <div className="mt-4">
           <p className="text-sm text-pm-gris">{t.notStartedLead}</p>
-          <Button className="mt-3" loading={isPending} onClick={() => run(() => submitAuditForReview(auditId), t.submitted, "pending_review")}>
+          <Button className="mt-3" loading={isPending} onClick={() => run(() => submitAuditForReview(auditId), t.submitted)}>
             {t.submitForReview}
           </Button>
         </div>
-      ) : displayStatus === "pending_review" ? (
+      ) : status === "pending_review" ? (
         isSupervisor ? (
           <div className="mt-4 flex flex-col gap-4">
             <Field label={t.clientSummaryLabel} htmlFor="client-summary">
-              <Textarea
-                id="client-summary"
-                rows={3}
-                value={summary}
-                onChange={(e) => {
-                  summaryRef.current = e.target.value;
-                  setSummary(e.target.value);
-                }}
-              />
+              <Textarea id="client-summary" rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} />
             </Field>
-            <Button loading={isPending} disabled={!summary.trim()} onClick={() => run(() => approveAudit(auditId, summaryRef.current), t.approved, "approved")} className="w-fit">
+            <Button loading={isPending} disabled={!summary.trim()} onClick={() => run(() => approveAudit(auditId, summary), t.approved)} className="w-fit">
               {t.approve}
             </Button>
             <Field label={t.refusalReasonLabel} hint={t.refusalReasonHint} htmlFor="change-note">
-              <Textarea
-                id="change-note"
-                rows={2}
-                value={note}
-                onChange={(e) => {
-                  noteRef.current = e.target.value;
-                  setNote(e.target.value);
-                }}
-              />
+              <Textarea id="change-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
             </Field>
             <Button
               variant="secondary"
               loading={isPending}
               disabled={!note.trim()}
-              onClick={() => run(() => requestAuditChanges(auditId, noteRef.current), t.changesRequested, "changes_requested")}
+              onClick={() => run(() => requestAuditChanges(auditId, note), t.changesRequested)}
               className="w-fit"
             >
               {t.requestChanges}
@@ -88,17 +67,17 @@ export function ReportActions({ auditId, status, role, clientSummary, locale = "
         ) : (
           <p className="mt-4 text-sm text-pm-gris">{t.pendingReviewLead}</p>
         )
-      ) : displayStatus === "changes_requested" ? (
+      ) : status === "changes_requested" ? (
         <div className="mt-4">
           <p className="text-sm text-pm-gris">{t.changesRequestedLead}</p>
-          <Button className="mt-3" loading={isPending} onClick={() => run(() => submitAuditForReview(auditId), t.resubmitted, "pending_review")}>
+          <Button className="mt-3" loading={isPending} onClick={() => run(() => submitAuditForReview(auditId), t.resubmitted)}>
             {t.resubmit}
           </Button>
         </div>
-      ) : displayStatus === "approved" ? (
+      ) : status === "approved" ? (
         <div className="mt-4">
           <p className="text-sm text-pm-gris">{t.approvedLead}</p>
-          <Button className="mt-3" loading={isPending} onClick={() => run(() => markAuditSent(auditId), t.sent, "sent")}>
+          <Button className="mt-3" loading={isPending} onClick={() => run(() => markAuditSent(auditId), t.sent)}>
             {t.markSent}
           </Button>
         </div>

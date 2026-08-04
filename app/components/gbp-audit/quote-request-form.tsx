@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { submitPortalQuoteRequest } from "@/lib/actions/gbp-audit-portal";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
@@ -8,7 +8,6 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 export function QuoteRequestForm({ token, offers, locale = "fr" }: { token: string; offers: { id: string; label: string }[]; locale?: Locale }) {
   const t = dictionaries[locale].auditModule.quotes.form;
   const [message, setMessage] = useState("");
-  const messageRef = useRef("");
   const [serviceOfferId, setServiceOfferId] = useState("");
   const [isPending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
@@ -45,10 +44,7 @@ export function QuoteRequestForm({ token, offers, locale = "fr" }: { token: stri
       )}
       <textarea
         value={message}
-        onChange={(e) => {
-          messageRef.current = e.target.value;
-          setMessage(e.target.value);
-        }}
+        onChange={(e) => setMessage(e.target.value)}
         rows={3}
         className="mt-3 w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
         placeholder={t.messagePlaceholder}
@@ -60,7 +56,7 @@ export function QuoteRequestForm({ token, offers, locale = "fr" }: { token: stri
           startTransition(async () => {
             setError(null);
             try {
-              await submitPortalQuoteRequest(token, serviceOfferId || null, messageRef.current, locale);
+              await submitPortalQuoteRequest(token, serviceOfferId || null, message, locale);
               setDone(true);
             } catch (err) {
               setError(err instanceof Error ? err.message : t.error);
