@@ -6,7 +6,7 @@ import { useTransition } from "react";
 import { markAllNotificationsRead, markNotificationRead } from "@/lib/actions/notifications";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, resolveDisplayTimeZone } from "@/lib/i18n/format";
 import { renderNotification } from "@/lib/i18n/notification-templates";
 import { notificationHref } from "@/lib/notification-href";
 
@@ -33,6 +33,10 @@ export function NotificationsList({ items, locale, base }: { items: Notification
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const unreadCount = items.filter((item) => !item.read).length;
+  // organizationTimeZone is null until organizations.timezone exists — see
+  // resolveDisplayTimeZone's docstring; this is where that column's value
+  // will plug in later without changing this call site.
+  const timeZone = resolveDisplayTimeZone({ organizationTimeZone: null, isAdminSpace: base === "/admin" });
 
   if (items.length === 0) {
     return (
@@ -69,7 +73,7 @@ export function NotificationsList({ items, locale, base }: { items: Notification
             <div className={item.read ? "ml-4 flex-1" : "flex-1"}>
               <div className="flex items-start justify-between gap-4">
                 <p className="text-sm font-medium text-pm-noir">{rendered.title}</p>
-                <p className="shrink-0 text-xs text-pm-gris">{formatDate(item.createdAt, locale, { dateStyle: "medium", timeStyle: "short" })}</p>
+                <p className="shrink-0 text-xs text-pm-gris">{formatDate(item.createdAt, locale, { dateStyle: "medium", timeStyle: "short", timeZone })}</p>
               </div>
               {rendered.body && <p className="mt-1 text-sm text-pm-gris">{rendered.body}</p>}
             </div>

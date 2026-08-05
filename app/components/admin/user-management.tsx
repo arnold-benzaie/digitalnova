@@ -18,6 +18,7 @@ import {
 } from "@/components/admin/user-actions";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { formatDate, resolveDisplayTimeZone } from "@/lib/i18n/format";
 
 const STATUS_TABS = ["pending", "active", "refused", "suspended"] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
@@ -96,6 +97,11 @@ export function UserManagement({
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => pushParams({ q: value || null, page: null }), 300);
   }
+
+  // This table lists users across organizations, not a single one, so
+  // there's no single org.timezone to look up even once that column
+  // exists — always admin-space (Mauritius).
+  const timeZone = resolveDisplayTimeZone({ organizationTimeZone: null, isAdminSpace: true });
 
   return (
     <>
@@ -205,9 +211,9 @@ export function UserManagement({
                       <div className="text-xs text-pm-gris">{row.email}</div>
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-pm-gris">{row.clerkUserId}</td>
-                    <td className="px-5 py-3 text-pm-gris">{new Date(row.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}</td>
+                    <td className="px-5 py-3 text-pm-gris">{formatDate(row.createdAt, locale, { timeZone })}</td>
                     <td className="px-5 py-3 text-pm-gris">
-                      {row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR") : t.never}
+                      {row.lastLoginAt ? formatDate(row.lastLoginAt, locale, { timeZone }) : t.never}
                     </td>
                     <td className="px-5 py-3">
                       <Badge label={t.status[row.status]} className={STATUS_BADGE_CLASS[row.status]} />
@@ -227,7 +233,7 @@ export function UserManagement({
                         <>
                           {row.lastModifiedBy}
                           <br />
-                          {row.lastModifiedAt && new Date(row.lastModifiedAt).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}
+                          {row.lastModifiedAt && formatDate(row.lastModifiedAt, locale, { timeZone })}
                         </>
                       ) : (
                         "—"

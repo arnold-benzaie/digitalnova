@@ -5,6 +5,7 @@ import { ProfileStatusControl } from "@/components/gbp-audit/profile-status-cont
 import { ScoreRing } from "@/components/gbp-audit/ui/score-ring";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, HeroControlChip } from "@/components/admin/page-hero";
 
 export type AuditDetailBusiness = {
   id: string;
@@ -81,16 +82,16 @@ export function AuditDetailView({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.kicker}</p>
-          <h1 className="mt-1 font-serif text-3xl font-semibold text-pm-noir">{business.legalName}</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            {prospect.firstName} {prospect.lastName} · {prospect.email ?? t.emailMissing}
-          </p>
-        </div>
-        <AuditStatusControl auditId={audit.id} status={audit.status} locale={locale} />
-      </div>
+      <AdminPageHero
+        eyebrow={t.kicker}
+        title={business.legalName}
+        subtitle={`${prospect.firstName} ${prospect.lastName} · ${prospect.email ?? t.emailMissing}`}
+        actions={
+          <HeroControlChip>
+            <AuditStatusControl auditId={audit.id} status={audit.status} locale={locale} />
+          </HeroControlChip>
+        }
+      />
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">

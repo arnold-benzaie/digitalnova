@@ -11,6 +11,7 @@ import { Badge } from "@/components/crm/badges";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 // A report row's underlying audit can only be in one of these two states —
 // approved (report generated, not yet marked sent) or sent — every other
@@ -70,10 +71,7 @@ export default async function AuditReportsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.resultsCount(reports.length, totalReports, hasFilters)}</p>
-      </div>
+      <AdminPageHero title={t.title} subtitle={t.resultsCount(reports.length, totalReports, hasFilters)} />
 
       <form action="/admin/audit/rapports" className="mt-6 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">{t.searchLabel}</label>

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const ROLE_CLASS: Record<string, string> = {
   admin: "bg-pm-g-green/10 text-pm-g-green",
@@ -52,13 +53,7 @@ export function StaffManagement({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.countSummary(members.length, invitations.length)}</p>
-        </div>
-        <InviteStaffForm locale={locale} />
-      </div>
+      <AdminPageHero title={t.pageTitle} subtitle={t.countSummary(members.length, invitations.length)} actions={<InviteStaffForm locale={locale} />} />
 
       <div className="mt-6 w-full sm:max-w-xs">
         <label htmlFor="staff-search" className="sr-only">

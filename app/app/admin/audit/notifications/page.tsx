@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { NotificationRow } from "@/components/gbp-audit/notification-row";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function AuditNotificationsPage() {
   const session = await requireAuditStaffRole();
@@ -21,8 +22,7 @@ export default async function AuditNotificationsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead} />
 
       {items.length === 0 ? (
         <div className="mt-8">
