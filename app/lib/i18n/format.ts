@@ -7,14 +7,70 @@ function intlLocale(locale: Locale): string {
   return locale === "en" ? "en-US" : "fr-FR";
 }
 
+/**
+ * PUBLIC-MAP's own operating base (Mauritius) — the deterministic timezone
+ * for admin-space (staff-facing) date rendering. Never inferred from the
+ * FR/EN locale or from a client organization's market/currency.
+ */
+export const DEFAULT_ADMIN_TIMEZONE = "Indian/Mauritius";
+
+/**
+ * Safe, neutral technical fallback used wherever no admin-space context and
+ * no client organization timezone applies. Timestamps themselves stay
+ * stored in UTC in the database regardless of display timezone.
+ */
+export const SAFE_FALLBACK_TIMEZONE = "UTC";
+
+/**
+ * IANA timezones PUBLIC-MAP's client organizations can be configured with
+ * (Europe + Canada, the product's current target markets). Not yet backed
+ * by a real `organizations.timezone` column — this list documents what
+ * `resolveDisplayTimeZone` below is ready to accept once that column
+ * exists; it enforces nothing on its own today.
+ */
+export const SUPPORTED_ORGANIZATION_TIMEZONES = [
+  "Europe/Paris",
+  "Europe/Brussels",
+  "Europe/Berlin",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Halifax",
+] as const;
+
+/**
+ * Which timezone to render an organization's dates in: its own IANA
+ * timezone when configured, else the admin-space default (Mauritius, where
+ * PUBLIC-MAP itself operates from) for staff-facing pages, else the safe
+ * UTC fallback for client-facing pages. Never inferred from the FR/EN
+ * locale, a market, or a currency — always an explicit, real value or a
+ * fixed fallback. `organizationTimeZone` is `null`/`undefined` everywhere
+ * today (no `organizations.timezone` column exists yet); this function is
+ * the single place that will pick it up once that column is added, without
+ * any call site needing to change.
+ */
+export function resolveDisplayTimeZone(params: { organizationTimeZone?: string | null; isAdminSpace: boolean }): string {
+  if (params.organizationTimeZone) return params.organizationTimeZone;
+  return params.isAdminSpace ? DEFAULT_ADMIN_TIMEZONE : SAFE_FALLBACK_TIMEZONE;
+}
+
+/**
+ * Without an explicit `timeZone`, `Intl.DateTimeFormat` uses the runtime's
+ * local timezone — UTC on the Vercel server, the visitor's own timezone in
+ * the browser. Those differ, so the server-rendered text and the
+ * client-hydrated text diverge, which is exactly what triggers React's
+ * hydration-mismatch error (#418). Defaulting to a fixed, safe timezone
+ * here makes every call site deterministic (same output server and
+ * client) unless it explicitly opts into a different one — typically via
+ * `resolveDisplayTimeZone` above.
+ */
 export function formatDate(date: Date | string, locale: Locale, options?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat(intlLocale(locale), options).format(d);
+  return new Intl.DateTimeFormat(intlLocale(locale), { timeZone: SAFE_FALLBACK_TIMEZONE, ...options }).format(d);
 }
 
 export function formatDateTime(date: Date | string, locale: Locale, options?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: "medium", timeStyle: "short", ...options }).format(d);
+  return new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: "medium", timeStyle: "short", timeZone: SAFE_FALLBACK_TIMEZONE, ...options }).format(d);
 }
 
 export function formatNumber(value: number, locale: Locale, options?: Intl.NumberFormatOptions): string {

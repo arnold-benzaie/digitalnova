@@ -19,6 +19,7 @@ import {
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 function ConfigState({ configured, label }: { configured: boolean; label: { configured: string; notConfigured: string } }) {
   return (
@@ -278,10 +279,7 @@ export default async function AuditSettingsPage() {
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
-      </div>
+      <AdminPageHero title={t.pageTitle} subtitle={t.pageLead} />
 
       <div className="mt-6">
         <Tabs

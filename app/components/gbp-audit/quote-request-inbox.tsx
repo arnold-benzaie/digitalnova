@@ -10,6 +10,7 @@ import { toast } from "@/components/gbp-audit/ui/toast";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const STATUS_CLASS: Record<string, string> = {
   new: "bg-pm-or/10 text-pm-or-2",
@@ -48,10 +49,7 @@ export function QuoteRequestInbox({ requests, locale = "fr" }: { requests: Quote
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.countSummary(requests.length, newCount)}</p>
-      </div>
+      <AdminPageHero title={t.title} subtitle={t.countSummary(requests.length, newCount)} />
 
       <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label={t.filterAriaLabel}>
         <button

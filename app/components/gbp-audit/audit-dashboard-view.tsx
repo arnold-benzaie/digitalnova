@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { AuditRow } from "@/components/gbp-audit/audit-row";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, heroPrimaryButtonClass } from "@/components/admin/page-hero";
 
 export type AuditListRow = {
   id: string;
@@ -53,18 +54,15 @@ export function AuditDashboardView({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.resultsCount(filteredCount, totalAudits, hasFilters)}</p>
-        </div>
-        <Link
-          href="/admin/audit/nouveau"
-          className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pm-noir-2"
-        >
-          {dictionaries[locale].auditModule.dashboard.newAudit}
-        </Link>
-      </div>
+      <AdminPageHero
+        title={t.title}
+        subtitle={t.resultsCount(filteredCount, totalAudits, hasFilters)}
+        actions={
+          <Link href="/admin/audit/nouveau" className={heroPrimaryButtonClass}>
+            {dictionaries[locale].auditModule.dashboard.newAudit}
+          </Link>
+        }
+      />
 
       <form action="/admin/audit/liste" className="mt-6 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">{t.searchLabel}</label>

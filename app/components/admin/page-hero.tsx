@@ -6,16 +6,33 @@ import type { ReactNode } from "react";
  * system"), extracted here so every other admin page picks up the identical
  * treatment instead of re-pasting the class string.
  */
-export function AdminPageHero({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function AdminPageHero({
+  eyebrow,
+  title,
+  subtitle,
+  actions,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-5 overflow-hidden rounded-2xl border border-pm-bleu-eu/20 bg-[linear-gradient(115deg,#071b3d_0%,#0b347c_58%,#2563eb_100%)] px-5 py-6 shadow-pm-md sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-8">
       <div>
-        <h1 className="font-serif text-3xl font-semibold text-white sm:text-4xl">{title}</h1>
+        {eyebrow && <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{eyebrow}</p>}
+        <h1 className={`font-serif text-3xl font-semibold text-white sm:text-4xl ${eyebrow ? "mt-1" : ""}`}>{title}</h1>
         {subtitle && <p className="mt-2 text-sm text-white/80">{subtitle}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
+}
+
+/** Wraps a light-colored control (badge, select) so it stays legible sitting
+ * directly on the hero's dark gradient, instead of floating unstyled. */
+export function HeroControlChip({ children }: { children: ReactNode }) {
+  return <div className="rounded-lg border border-white/25 bg-white/95 px-3 py-1.5 shadow-pm-sm">{children}</div>;
 }
 
 export const heroPrimaryButtonClass =
