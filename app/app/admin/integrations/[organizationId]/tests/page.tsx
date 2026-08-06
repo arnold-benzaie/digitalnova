@@ -9,6 +9,7 @@ import { Pagination } from "@/components/gbp-audit/ui/pagination";
 import { TestPanel } from "@/components/integrations/tests/test-panel";
 import { TriggerWorkerPanel } from "@/components/integrations/tests/trigger-worker-panel";
 import { TestHistoryTable, type TestRunRow } from "@/components/integrations/tests/test-history-table";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const PAGE_SIZE = 20;
 const SUPPORTED_EVENT_TYPE = "user.pending.created";
@@ -60,8 +61,9 @@ export default async function IntegrationTestsPage({
       <Link href={`/admin/integrations/${organizationId}`} className="text-sm text-pm-gris hover:text-pm-noir">
         ← {org.name}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{t.tests.title}</h1>
-      <p className="mt-1 text-sm text-pm-gris">{t.tests.subtitle}</p>
+      <div className="mt-2">
+        <AdminPageHero title={t.tests.title} subtitle={t.tests.subtitle} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="tests" locale={locale} />
 

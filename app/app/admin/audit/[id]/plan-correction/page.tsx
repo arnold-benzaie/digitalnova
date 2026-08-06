@@ -8,6 +8,7 @@ import { CorrectionTaskForm } from "@/components/gbp-audit/correction-task-form"
 import { CorrectionTaskRow } from "@/components/gbp-audit/correction-task-row";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function CorrectionPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
@@ -30,18 +31,15 @@ export default async function CorrectionPlanPage({ params }: { params: Promise<{
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
-      </div>
+      <AdminPageHero title={audit.businessName} subtitle={t.pageLead} />
       <AuditTabs auditId={id} active="plan-correction" locale={locale} />
 
       <div className="mt-6 flex flex-col gap-6">
         {t.phases.map((p) => {
           const phaseTasks = tasks.filter((task) => task.phase === p.phase);
           return (
-            <div key={p.phase} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-              <h2 className="font-serif text-lg font-semibold text-pm-noir">{p.title}</h2>
+            <div key={p.phase} className={panelClass}>
+              <h2 className={panelTitleClass}>{p.title}</h2>
               <p className="mt-1 text-xs text-pm-gris">{p.description}</p>
               <div className="mt-4 flex flex-col gap-2">
                 {phaseTasks.map((task) => (

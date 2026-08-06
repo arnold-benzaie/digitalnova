@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 import { setEmailNotificationsEnabled, updateOrganizationName, updateProfile } from "@/lib/actions/settings";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Field, Input } from "@/components/gbp-audit/ui/field";
+import { Button } from "@/components/gbp-audit/ui/button";
 
 function SavedHint({ show, locale }: { show: boolean; locale: Locale }) {
   if (!show) return null;
@@ -29,33 +31,16 @@ export function ProfileForm({ fullName, email, locale = "fr" }: { fullName: stri
         })
       }
     >
-      <div>
-        <label className="text-xs font-medium text-pm-gris">{t.profile.fullName}</label>
-        <input
-          name="fullName"
-          defaultValue={fullName}
-          onChange={() => setSaved(false)}
-          className="mt-1 w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
-        />
-      </div>
-      <div>
-        <label className="text-xs font-medium text-pm-gris">{t.profile.email}</label>
-        <input
-          name="email"
-          type="email"
-          defaultValue={email}
-          onChange={() => setSaved(false)}
-          className="mt-1 w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
-        />
-      </div>
+      <Field label={t.profile.fullName}>
+        <Input name="fullName" defaultValue={fullName} onChange={() => setSaved(false)} />
+      </Field>
+      <Field label={t.profile.email}>
+        <Input name="email" type="email" defaultValue={email} onChange={() => setSaved(false)} />
+      </Field>
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="self-start rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-        >
+        <Button type="submit" size="sm" loading={isPending} className="self-start">
           {isPending ? tCommon.saving : tCommon.save}
-        </button>
+        </Button>
         <SavedHint show={saved && !isPending} locale={locale} />
       </div>
     </form>
@@ -80,23 +65,13 @@ export function OrganizationForm({ name, locale = "fr" }: { name: string; locale
         })
       }
     >
-      <div>
-        <label className="text-xs font-medium text-pm-gris">{t.organization.name}</label>
-        <input
-          name="name"
-          defaultValue={name}
-          onChange={() => setSaved(false)}
-          className="mt-1 w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
-        />
-      </div>
+      <Field label={t.organization.name}>
+        <Input name="name" defaultValue={name} onChange={() => setSaved(false)} />
+      </Field>
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="self-start rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-        >
+        <Button type="submit" size="sm" loading={isPending} className="self-start">
           {isPending ? tCommon.saving : tCommon.save}
-        </button>
+        </Button>
         <SavedHint show={saved && !isPending} locale={locale} />
       </div>
     </form>
@@ -124,7 +99,7 @@ export function NotificationToggle({ enabled, locale = "fr" }: { enabled: boolea
             router.refresh();
           })
         }
-        className="h-5 w-5 shrink-0 rounded border-pm-gris-2 accent-pm-noir"
+        className="h-5 w-5 shrink-0 rounded border-pm-gris-2 accent-pm-bleu-eu"
       />
     </label>
   );

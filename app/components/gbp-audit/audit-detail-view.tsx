@@ -5,7 +5,7 @@ import { ProfileStatusControl } from "@/components/gbp-audit/profile-status-cont
 import { ScoreRing } from "@/components/gbp-audit/ui/score-ring";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { AdminPageHero, HeroControlChip } from "@/components/admin/page-hero";
+import { AdminPageHero, HeroControlChip, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export type AuditDetailBusiness = {
   id: string;
@@ -94,8 +94,8 @@ export function AuditDetailView({
       />
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.businessTitle}</h2>
+        <div className={`lg:col-span-2 ${panelClass}`}>
+          <h2 className={panelTitleClass}>{t.businessTitle}</h2>
           <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <Field label={t.businessFields.googleDisplayName} value={business.googleDisplayName} />
             <Field label={t.businessFields.industry} value={business.industry} />
@@ -118,8 +118,8 @@ export function AuditDetailView({
           </dl>
         </div>
 
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.prospectTitle}</h2>
+        <div className={panelClass}>
+          <h2 className={panelTitleClass}>{t.prospectTitle}</h2>
           <dl className="mt-4 flex flex-col gap-3 text-sm">
             <Field label={t.prospectFields.phone} value={prospect.phone} />
             <Field label={t.prospectFields.whatsapp} value={prospect.whatsapp} />
@@ -137,9 +137,9 @@ export function AuditDetailView({
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.globalScore}</h2>
+          <h2 className={panelTitleClass}>{t.globalScore}</h2>
           <span className="text-xs text-pm-gris">{t.statusPrefix}{statusLabel[audit.status] ?? t.statusFallback}</span>
         </div>
         {audit.scoreOverall === null ? (
@@ -168,9 +168,9 @@ export function AuditDetailView({
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 flex items-center justify-between ${panelClass}`}>
         <div>
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.controlsTitle}</h2>
+          <h2 className={panelTitleClass}>{t.controlsTitle}</h2>
           <p className="mt-1 text-sm text-pm-gris">{t.controlsLead}</p>
         </div>
         <Link

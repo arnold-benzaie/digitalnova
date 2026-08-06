@@ -189,7 +189,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
 
   return (
     <>
-      <div className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 shadow-[0_8px_22px_rgba(13,36,67,0.05)] sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="font-serif text-3xl font-semibold text-pm-noir">{client.name}</h1>
@@ -219,7 +219,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.gbp.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
@@ -234,7 +234,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </Link>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.searchConsole.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
@@ -249,7 +249,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </Link>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.analytics.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
@@ -264,7 +264,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </Link>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.seo.title}</p>
           <p className="mt-1 text-sm text-pm-gris">
@@ -287,7 +287,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.deals}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientDeals.map((deal) => (
-            <div key={deal.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={deal.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div>
                 <p className="font-medium text-pm-noir">{deal.title}</p>
                 <p className="text-sm text-pm-gris">{formatNumber(deal.valueEuros, locale)} €</p>
@@ -310,7 +310,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.contracts}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientContracts.map((contract) => (
-            <div key={contract.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={contract.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-pm-noir">{contract.title}</p>
                 <Badge
@@ -345,7 +345,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.quotes}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientQuotes.map((quote) => (
-            <div key={quote.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={quote.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-pm-noir">{quote.quoteNumber} — {quote.title}</p>
@@ -385,7 +385,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.invoices}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientInvoices.map((invoice) => (
-            <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-pm-noir">{invoice.invoiceNumber} — {invoice.title}</p>
@@ -431,7 +431,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
           {clientDocuments.map((doc) => (
             <div
               key={doc.id}
-              className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4"
+              className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]"
             >
               <div>
                 <a
@@ -459,7 +459,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tickets}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientTickets.map((ticket) => (
-            <div key={ticket.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={ticket.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-medium text-pm-noir">{ticket.subject}</p>
                 <div className="flex shrink-0 items-center gap-2">
@@ -485,7 +485,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tasks}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientTasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div>
                 <p className="font-medium text-pm-noir">{task.title}</p>
                 <p className="text-xs text-pm-gris">
@@ -511,7 +511,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.projects}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientProjects.map((project) => (
-            <div key={project.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={project.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div>
                 <p className="font-medium text-pm-noir">{project.name}</p>
                 {project.description && <p className="text-sm text-pm-gris">{project.description}</p>}
@@ -534,7 +534,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.calendar}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientEvents.map((event) => (
-            <div key={event.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={event.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <p className="font-medium text-pm-noir">{event.title}</p>
               <div className="flex shrink-0 items-center gap-3">
                 <span className="text-xs text-pm-gris">
@@ -554,7 +554,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.addInteraction}</h2>
-        <div className="mt-3 rounded-2xl border border-pm-gris-2 bg-white p-4">
+        <div className="mt-3 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
           <CreateInteractionForm clientId={client.id} locale={locale} />
         </div>
       </section>
@@ -563,7 +563,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.activityHistory}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {activity.map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={entry.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm text-pm-noir">{describeAuditEntry(entry, locale)}</p>
                 <p className="shrink-0 text-xs text-pm-gris">{formatDateTime(entry.createdAt, locale)}</p>

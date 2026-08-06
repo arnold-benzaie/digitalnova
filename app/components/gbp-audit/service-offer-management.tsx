@@ -11,6 +11,7 @@ import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
 import { toast } from "@/components/gbp-audit/ui/toast";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, heroPrimaryButtonClass, panelClass } from "@/components/admin/page-hero";
 
 type Offer = { id: string; key: string; label: string; description: string | null; ctaUrl: string | null; active: boolean; createdAt: string };
 
@@ -20,15 +21,15 @@ export function ServiceOfferManagement({ offers, locale = "fr" }: { offers: Offe
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.countSummary(offers.length)}</p>
-        </div>
-        <Button type="button" onClick={() => setCreating((c) => !c)}>
-          {creating ? t.close : t.newOffer}
-        </Button>
-      </div>
+      <AdminPageHero
+        title={t.title}
+        subtitle={t.countSummary(offers.length)}
+        actions={
+          <button type="button" className={heroPrimaryButtonClass} onClick={() => setCreating((c) => !c)}>
+            {creating ? t.close : t.newOffer}
+          </button>
+        }
+      />
 
       {creating && <OfferForm onDone={() => setCreating(false)} locale={locale} />}
 
@@ -70,7 +71,7 @@ function OfferForm({ offer, onDone, locale = "fr" }: { offer?: Offer; onDone: ()
 
   return (
     <form
-      className="mt-4 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-5"
+      className={`mt-4 flex flex-col gap-4 ${panelClass}`}
       action={(formData) =>
         startTransition(async () => {
           setError(null);
@@ -120,7 +121,7 @@ function OfferRow({ offer, locale = "fr" }: { offer: Offer; locale?: Locale }) {
   if (editing) return <OfferForm offer={offer} onDone={() => setEditing(false)} locale={locale} />;
 
   return (
-    <div className="rounded-xl border border-pm-gris-2 bg-white p-4">
+    <div className="rounded-xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
       {dialog}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">

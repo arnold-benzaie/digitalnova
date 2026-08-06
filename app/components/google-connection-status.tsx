@@ -37,11 +37,11 @@ export async function GoogleConnectionStatus({
   const missingScope = !overview.connected || !overview.gbp.scopeGranted || !overview.searchConsole.scopeGranted || !overview.analytics.scopeGranted;
 
   return (
-    <div className="mb-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+    <div className="mb-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.title}</p>
         {missingScope && (
-          <a href={reconnectHref} className="text-xs font-medium text-pm-noir underline">
+          <a href={reconnectHref} className="text-xs font-medium text-pm-bleu-eu underline transition hover:text-pm-g-blue-2">
             {overview.connected ? t.reconnect : t.connect}
           </a>
         )}

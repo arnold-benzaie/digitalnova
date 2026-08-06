@@ -7,7 +7,7 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 export default async function AdminMessagesPage() {
   await requireStaffRole();
@@ -28,7 +28,7 @@ export default async function AdminMessagesPage() {
         <MessageThread messages={thread} locale={locale} />
       </div>
 
-      <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className={`mt-4 ${panelClass}`}>
         <SendMessageForm locale={locale} />
       </div>
     </>

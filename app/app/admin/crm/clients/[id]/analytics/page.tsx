@@ -12,6 +12,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection, isGoogleOAuthConfigured } from "@/lib/google/oauth";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function CrmClientAnalyticsPage({
   params,
@@ -49,7 +50,7 @@ export default async function CrmClientAnalyticsPage({
     return (
       <>
         {backLink}
-        <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
+        <div className={`mt-4 ${panelClass}`}>
           <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
           {client.organizationId && isGoogleOAuthConfigured() && (
             <GoogleConnectionStatus
@@ -58,7 +59,7 @@ export default async function CrmClientAnalyticsPage({
               locale={locale}
             />
           )}
-          <p className="font-serif text-xl font-semibold text-pm-noir">{t.analytics.connectTitle(client.name)}</p>
+          <p className={panelTitleClass}>{t.analytics.connectTitle(client.name)}</p>
           <p className="mt-2 text-sm text-pm-gris">
             {isGoogleOAuthConfigured() ? t.analytics.connectDescription : t.envMissing}
           </p>
@@ -91,12 +92,12 @@ export default async function CrmClientAnalyticsPage({
         reconnectHref={`/api/auth/google/connect?clientId=${id}&returnTo=/admin/crm/clients/${id}/analytics`}
         locale={locale}
       />
-      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.analytics.heading(client.name)}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.connectedAs(googleAccount.googleAccountEmail)}</p>
-        </div>
-        <SyncAnalyticsForClientButton clientId={id} locale={locale} />
+      <div className="mt-4">
+        <AdminPageHero
+          title={t.analytics.heading(client.name)}
+          subtitle={t.connectedAs(googleAccount.googleAccountEmail)}
+          actions={<SyncAnalyticsForClientButton clientId={id} locale={locale} />}
+        />
       </div>
 
       <div className="mt-6">
@@ -106,9 +107,9 @@ export default async function CrmClientAnalyticsPage({
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.analytics.propertiesTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {orgProperties.map((property) => (
-          <div key={property.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-            <p className="font-serif text-lg font-semibold text-pm-noir">{property.displayName}</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-pm-gris">{property.propertyResourceName}</p>
+          <div key={property.id} className={panelClass}>
+            <p className={panelTitleClass}>{property.displayName}</p>
+            <p className="mt-1.5 text-xs uppercase tracking-wide text-pm-gris">{property.propertyResourceName}</p>
           </div>
         ))}
         {orgProperties.length === 0 && <p className="text-sm text-pm-gris">{t.analytics.noProperties}</p>}

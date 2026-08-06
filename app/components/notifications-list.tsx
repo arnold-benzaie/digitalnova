@@ -9,6 +9,8 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, resolveDisplayTimeZone } from "@/lib/i18n/format";
 import { renderNotification } from "@/lib/i18n/notification-templates";
 import { notificationHref } from "@/lib/notification-href";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 type NotificationItem = {
   id: string;
@@ -40,8 +42,8 @@ export function NotificationsList({ items, locale, base }: { items: Notification
 
   if (items.length === 0) {
     return (
-      <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-        <p className="font-serif text-lg font-semibold text-pm-noir">{tPage.empty}</p>
+      <div className="mt-8">
+        <EmptyState icon={<NAV_ICONS.bell width={22} height={22} />} title={tPage.empty} />
       </div>
     );
   }
@@ -58,7 +60,7 @@ export function NotificationsList({ items, locale, base }: { items: Notification
               router.refresh();
             })
           }
-          className="self-end text-xs text-pm-gris underline hover:text-pm-noir disabled:opacity-50"
+          className="self-end text-xs text-pm-gris underline transition hover:text-pm-bleu-eu disabled:opacity-50"
         >
           {t.markAllRead}
         </button>
@@ -87,7 +89,7 @@ export function NotificationsList({ items, locale, base }: { items: Notification
             key={item.id}
             href={href}
             onClick={markRead}
-            className="block rounded-2xl border border-pm-gris-2 bg-white p-4 transition hover:bg-pm-gris-2/20"
+            className="block rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-pm-g-blue/25 hover:bg-pm-g-blue/[0.03] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]"
           >
             {content}
           </Link>
@@ -97,7 +99,7 @@ export function NotificationsList({ items, locale, base }: { items: Notification
             type="button"
             onClick={markRead}
             disabled={item.read}
-            className="block w-full rounded-2xl border border-pm-gris-2 bg-white p-4 text-left transition enabled:hover:bg-pm-gris-2/20 disabled:cursor-default"
+            className="block w-full rounded-2xl border border-pm-gris-2 bg-white p-4 text-left shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 enabled:hover:border-pm-g-blue/25 enabled:hover:bg-pm-g-blue/[0.03] enabled:hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)] disabled:cursor-default"
           >
             {content}
           </button>

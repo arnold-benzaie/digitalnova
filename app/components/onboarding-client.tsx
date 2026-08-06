@@ -4,6 +4,7 @@ import { useState } from "react";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass } from "@/components/admin/page-hero";
 
 export function OnboardingClient({
   completed,
@@ -24,13 +25,13 @@ export function OnboardingClient({
   }
 
   return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-6">
+    <div className={panelClass}>
       <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.summaryTitle}</p>
       <p className="mt-2 text-sm text-pm-noir">{summary}</p>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="mt-4 text-sm text-pm-gris underline hover:text-pm-noir"
+        className="mt-4 text-sm text-pm-gris underline transition hover:text-pm-bleu-eu"
       >
         {t.editAnswers}
       </button>

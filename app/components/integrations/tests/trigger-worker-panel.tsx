@@ -7,6 +7,7 @@ import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
 import { triggerWorkerNowAction } from "@/lib/actions/integrations-tests";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 type WorkerResult = Awaited<ReturnType<typeof triggerWorkerNowAction>>;
 
@@ -34,8 +35,8 @@ export function TriggerWorkerPanel({ organizationId, locale = "fr" }: { organiza
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-pm-gris-2 bg-white p-6">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+    <div className={`flex flex-col gap-3 ${panelClass}`}>
+      <h2 className={panelTitleClass}>{t.title}</h2>
       <p className="text-sm text-pm-gris">{t.hint}</p>
 
       <div>

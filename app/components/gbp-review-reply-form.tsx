@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Button } from "@/components/gbp-audit/ui/button";
 
 export function GbpReviewReplyForm({
   reviewId,
@@ -26,7 +27,7 @@ export function GbpReviewReplyForm({
 
   if (!editing && existingReply) {
     return (
-      <div className="mt-2 rounded-lg bg-pm-gris-2/20 p-2 text-xs text-pm-noir">
+      <div className="mt-2 rounded-lg bg-pm-g-blue/[0.04] p-2 text-xs text-pm-noir shadow-pm-sm">
         <p className="font-medium text-pm-gris">{t.yourReply}</p>
         <p className="mt-0.5">{existingReply}</p>
         <button type="button" onClick={() => setEditing(true)} className="mt-1 text-pm-gris underline">
@@ -46,9 +47,10 @@ export function GbpReviewReplyForm({
         className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-xs text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
       />
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="button"
-          disabled={isPending}
+          size="sm"
+          loading={isPending}
           onClick={() => {
             setError(null);
             startTransition(async () => {
@@ -61,10 +63,9 @@ export function GbpReviewReplyForm({
               }
             });
           }}
-          className="self-start rounded-lg bg-pm-noir px-3 py-1.5 text-xs font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
         >
           {isPending ? t.sending : t.reply}
-        </button>
+        </Button>
         {existingReply && (
           <button
             type="button"

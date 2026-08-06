@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { syncGbpData } from "@/lib/actions/gbp";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { heroSecondaryButtonClass } from "@/components/admin/page-hero";
 
 export function SyncGbpButton({ locale = "fr" }: { locale?: Locale }) {
   const t = dictionaries[locale].dashboard.googleIntegration.sync;
@@ -21,7 +22,7 @@ export function SyncGbpButton({ locale = "fr" }: { locale?: Locale }) {
           router.refresh();
         })
       }
-      className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/40 disabled:opacity-50"
+      className={`${heroSecondaryButtonClass} disabled:opacity-50`}
     >
       {isPending ? t.syncing : t.syncGbp}
     </button>

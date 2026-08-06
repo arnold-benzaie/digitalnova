@@ -7,6 +7,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatNumber } from "@/lib/i18n/format";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 export default async function CrmPipelinePage() {
   await requireStaffRole();
@@ -22,12 +23,12 @@ export default async function CrmPipelinePage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {t.summary(allDeals.length, formatNumber(allDeals.reduce((sum, d) => sum + d.valueEuros, 0), locale))}
-      </p>
+      <AdminPageHero
+        title={t.title}
+        subtitle={t.summary(allDeals.length, formatNumber(allDeals.reduce((sum, d) => sum + d.valueEuros, 0), locale))}
+      />
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         <CreateDealForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} locale={locale} />
       </div>
 

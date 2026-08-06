@@ -8,7 +8,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, panelClass, panelTitleClass, tableWrapperClass } from "@/components/admin/page-hero";
 
 export default async function BillingPage() {
   await requireStaffRole();
@@ -36,7 +36,7 @@ export default async function BillingPage() {
       <AdminPageHero title={tb.title} subtitle={tb.lead(org.name)} />
 
       {subscription && subscription.status !== "canceled" ? (
-        <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className={`mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${panelClass}`}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.currentPlan}</p>
             <p className="mt-1 font-serif text-2xl font-bold text-pm-noir">
@@ -58,9 +58,9 @@ export default async function BillingPage() {
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.offersTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {plans.map((plan) => (
-          <div key={plan.id} className="flex flex-col justify-between rounded-2xl border border-pm-gris-2 bg-white p-5">
+          <div key={plan.id} className={`flex flex-col justify-between ${panelClass}`}>
             <div>
-              <p className="font-serif text-lg font-semibold text-pm-noir">{plan.name}</p>
+              <p className={panelTitleClass}>{plan.name}</p>
               <p className="mt-1 font-serif text-2xl font-bold text-pm-noir">
                 {plan.priceEuros} € <span className="text-sm font-normal text-pm-gris">{tb.perMonth}</span>
               </p>
@@ -81,7 +81,7 @@ export default async function BillingPage() {
       {orgInvoices.length === 0 ? (
         <p className="mt-3 text-sm text-pm-gris">{tb.noInvoices}</p>
       ) : (
-        <div className="mt-3 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+        <div className={`mt-3 overflow-hidden ${tableWrapperClass}`}>
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>

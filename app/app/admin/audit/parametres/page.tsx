@@ -19,7 +19,7 @@ import {
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 function ConfigState({ configured, label }: { configured: boolean; label: { configured: string; notConfigured: string } }) {
   return (
@@ -53,8 +53,8 @@ export default async function AuditSettingsPage() {
 
   const generalTab = (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.general.accountTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.general.accountTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.general.name}</dt>
@@ -73,8 +73,8 @@ export default async function AuditSettingsPage() {
           {t.general.teamHint}<span className="font-medium text-pm-noir">{t.general.teamLink}</span>.
         </p>
       </div>
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.general.contactTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.general.contactTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.general.contactLead}</p>
         <div className="mt-4">
           <GeneralSettingsForm settings={settings} locale={locale} />
@@ -85,15 +85,15 @@ export default async function AuditSettingsPage() {
 
   const scoringTab = (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.penaltiesTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.scoring.penaltiesTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.scoring.penaltiesLead}</p>
         <div className="mt-4">
           <ScoringSettingsForm settings={settings} locale={locale} />
         </div>
       </div>
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.subscoresTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.scoring.subscoresTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.scoring.subscoresLead}</p>
         <ul className="mt-4 grid grid-cols-2 gap-2 text-sm text-pm-noir sm:grid-cols-4">
           {Object.values(getSubscoreLabel(locale)).map((s) => (
@@ -101,8 +101,8 @@ export default async function AuditSettingsPage() {
           ))}
         </ul>
       </div>
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.scoring.bandsTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.scoring.bandsTitle}</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-pm-gris">
@@ -123,8 +123,8 @@ export default async function AuditSettingsPage() {
   );
 
   const pdfTab = (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.pdf.title}</h2>
+    <div className={panelClass}>
+      <h2 className={panelTitleClass}>{t.pdf.title}</h2>
       <p className="mt-1 text-sm text-pm-gris">{t.pdf.lead}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-pm-gris-2 p-3 text-center">
@@ -150,8 +150,8 @@ export default async function AuditSettingsPage() {
   );
 
   const notificationsTab = (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.notifications.title}</h2>
+    <div className={panelClass}>
+      <h2 className={panelTitleClass}>{t.notifications.title}</h2>
       <p className="mt-1 text-sm text-pm-gris">{t.notifications.lead}</p>
       <div className="mt-4">
         <NotificationSettingsForm settings={settings} locale={locale} />
@@ -164,9 +164,9 @@ export default async function AuditSettingsPage() {
 
   const webhooksTab = (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={panelClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.webhooks.integrationTitle}</h2>
+          <h2 className={panelTitleClass}>{t.webhooks.integrationTitle}</h2>
           <ConfigState configured={webhookConfigured} label={configuredLabel} />
         </div>
         <div className="mt-4">
@@ -174,7 +174,7 @@ export default async function AuditSettingsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={panelClass}>
         <h3 className="font-serif text-base font-semibold text-pm-noir">{t.webhooks.recentDeliveriesTitle}</h3>
         <p className="mt-1 text-sm text-pm-gris">{t.webhooks.recentDeliveriesLead}</p>
 
@@ -233,15 +233,15 @@ export default async function AuditSettingsPage() {
 
   const securityTab = (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.rateLimitsTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.security.rateLimitsTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.security.rateLimitsLead}</p>
         <div className="mt-4">
           <SecuritySettingsForm settings={settings} locale={locale} />
         </div>
       </div>
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.secureLinksTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.security.secureLinksTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-pm-gris-2 p-3">
             <dt className="text-xs font-medium text-pm-gris">{t.security.defaultExpiry}</dt>
@@ -260,8 +260,8 @@ export default async function AuditSettingsPage() {
           {t.security.editableHintPrefix}<span className="font-medium text-pm-noir">{t.security.editableHintLink}</span>.
         </p>
       </div>
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.security.technicalTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.security.technicalTitle}</h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-xl border border-pm-gris-2 p-3">
             <dt className="text-sm text-pm-noir">{t.security.evidenceStorage}</dt>

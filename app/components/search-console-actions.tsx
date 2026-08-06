@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { connectSearchConsole } from "@/lib/actions/search-console";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { heroSecondaryButtonClass } from "@/components/admin/page-hero";
 
 export function SyncSearchConsoleButton({ locale = "fr" }: { locale?: Locale }) {
   const t = dictionaries[locale].dashboard.googleIntegration.sync;
@@ -29,7 +30,7 @@ export function SyncSearchConsoleButton({ locale = "fr" }: { locale?: Locale }) 
             }
           });
         }}
-        className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/40 disabled:opacity-50"
+        className={`${heroSecondaryButtonClass} disabled:opacity-50`}
       >
         {isPending ? t.syncing : t.syncSearchConsole}
       </button>

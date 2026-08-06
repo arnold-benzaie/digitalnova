@@ -1,6 +1,8 @@
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 type Message = {
   id: string;
@@ -14,12 +16,7 @@ export function MessageThread({ messages, locale = "fr" }: { messages: Message[]
   const t = dictionaries[locale].dashboard.messages;
 
   if (messages.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-        <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
-        <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
-      </div>
-    );
+    return <EmptyState icon={<NAV_ICONS.mail width={22} height={22} />} title={t.empty} description={t.emptyHint} />;
   }
 
   return (
@@ -29,8 +26,8 @@ export function MessageThread({ messages, locale = "fr" }: { messages: Message[]
         return (
           <div key={message.id} className={`flex ${isStaff ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-md rounded-2xl px-4 py-3 ${
-                isStaff ? "bg-pm-noir text-white" : "border border-pm-gris-2 bg-white text-pm-noir"
+              className={`max-w-md rounded-2xl px-4 py-3 shadow-pm-sm ${
+                isStaff ? "bg-pm-bleu-eu text-white" : "border border-pm-gris-2 bg-white text-pm-noir"
               }`}
             >
               <div className="flex items-center justify-between gap-4">

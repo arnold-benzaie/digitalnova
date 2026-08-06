@@ -5,6 +5,7 @@ import { OnboardingClient } from "@/components/onboarding-client";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function OnboardingPage() {
   const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
@@ -17,8 +18,7 @@ export default async function OnboardingPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead} />
 
       <div className="mt-6">
         <OnboardingClient

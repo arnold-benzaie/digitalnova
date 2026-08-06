@@ -21,6 +21,7 @@ export function KpiCard({
   value,
   icon,
   trend,
+  footer,
   tone = "neutral",
   className = "",
 }: {
@@ -28,6 +29,9 @@ export function KpiCard({
   value: string | number;
   icon?: ReactNode;
   trend?: { direction: "up" | "down" | "flat"; label: string };
+  /** Free-form caption under the label — a link, a count, anything that
+   * isn't a directional trend (use `trend` for that instead). */
+  footer?: ReactNode;
   tone?: SemanticTone;
   className?: string;
 }) {
@@ -40,13 +44,15 @@ export function KpiCard({
   const arrowTone = trend ? (trend.direction === "up" ? "text-pm-g-green" : trend.direction === "down" ? "text-pm-rouge-2" : "text-pm-gris") : "";
   const toneStyle = TONE_STYLE[tone];
   return (
-    <div className={`animate-premium-fade-in relative overflow-hidden rounded-2xl border border-pm-gris-2 bg-white p-5 shadow-pm-sm transition-shadow hover:shadow-pm-md ${className}`}>
-      <span className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${toneStyle.accent}`} aria-hidden="true" />
+    <div
+      className={`animate-premium-fade-in relative min-h-[112px] overflow-hidden rounded-2xl border border-pm-gris-2 bg-white p-5 shadow-[0_7px_18px_rgba(13,36,67,0.06)] transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#d7e2f0] hover:shadow-[0_13px_28px_rgba(13,36,67,0.12)] ${className}`}
+    >
+      <span className={`absolute inset-x-4 top-0 h-[3px] rounded-b-full ${toneStyle.accent}`} aria-hidden="true" />
       <div className="flex items-center justify-between">
-        <p className="text-2xl font-bold tabular-nums text-pm-noir">{value}</p>
-        {icon && <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${toneStyle.icon}`}>{icon}</span>}
+        <p className="text-[26px] font-bold leading-none tabular-nums text-pm-noir">{value}</p>
+        {icon && <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${toneStyle.icon}`}>{icon}</span>}
       </div>
-      <p className="mt-1 text-sm font-medium text-pm-gris">{label}</p>
+      <p className="mt-3.5 text-[13px] font-semibold leading-snug text-pm-gris">{label}</p>
       {trend && (
         <p className="mt-2 text-xs font-medium text-pm-gris">
           <span className={arrowTone} aria-hidden="true">
@@ -55,6 +61,7 @@ export function KpiCard({
           {trend.label}
         </p>
       )}
+      {footer}
     </div>
   );
 }

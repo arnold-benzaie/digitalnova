@@ -10,6 +10,7 @@ import { replayTestRunAction } from "@/lib/actions/integrations-tests";
 import { formatDateTime } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelTitleClass, tableWrapperClass } from "@/components/admin/page-hero";
 
 const RESULT_CLASS: Record<"ok" | "failed" | "preview", string> = {
   ok: "bg-pm-g-green/10 text-pm-g-green",
@@ -72,7 +73,7 @@ export function TestHistoryTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+      <h2 className={panelTitleClass}>{t.title}</h2>
 
       {error && (
         <p className="text-sm text-pm-rouge" role="alert">
@@ -86,7 +87,7 @@ export function TestHistoryTable({
           <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+        <div className={`overflow-x-auto ${tableWrapperClass}`}>
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>

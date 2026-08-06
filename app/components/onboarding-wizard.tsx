@@ -6,6 +6,8 @@ import { completeOnboarding } from "@/lib/actions/onboarding";
 import { getOnboardingQuestions } from "@/lib/onboarding-questions";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Button } from "@/components/gbp-audit/ui/button";
+import { panelClass } from "@/components/admin/page-hero";
 
 export function OnboardingWizard({
   initialAnswers,
@@ -55,13 +57,13 @@ export function OnboardingWizard({
   }
 
   return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-6">
+    <div className={panelClass}>
       <div className="flex items-center justify-between text-xs text-pm-gris">
         <span>{t.questionOf(step + 1, questions.length)}</span>
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-pm-gris-2/50">
         <div
-          className="h-full rounded-full bg-pm-noir transition-all"
+          className="h-full rounded-full bg-pm-bleu-eu transition-all"
           style={{ width: `${((step + 1) / questions.length) * 100}%` }}
         />
       </div>
@@ -78,8 +80,8 @@ export function OnboardingWizard({
                 onClick={() => setValue(choice)}
                 className={`rounded-lg border px-4 py-2 text-left text-sm transition ${
                   currentValue === choice
-                    ? "border-pm-noir bg-pm-noir text-white"
-                    : "border-pm-gris-2 bg-white text-pm-noir hover:bg-pm-gris-2/30"
+                    ? "border-pm-bleu-eu bg-pm-bleu-eu text-white"
+                    : "border-pm-gris-2 bg-white text-pm-noir hover:border-pm-g-blue/30 hover:bg-pm-g-blue/5"
                 }`}
               >
                 {choice}
@@ -91,14 +93,14 @@ export function OnboardingWizard({
             value={currentValue}
             onChange={(e) => setValue(e.target.value)}
             rows={3}
-            className="w-full resize-none rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
+            className="w-full resize-none rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-g-blue/20"
           />
         ) : (
           <input
             type="text"
             value={currentValue}
             onChange={(e) => setValue(e.target.value)}
-            className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
+            className="w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-g-blue/20"
           />
         )}
       </div>
@@ -110,18 +112,13 @@ export function OnboardingWizard({
           type="button"
           onClick={goBack}
           disabled={step === 0 || isPending}
-          className="text-sm text-pm-gris underline disabled:opacity-0"
+          className="text-sm text-pm-gris underline transition hover:text-pm-bleu-eu disabled:opacity-0"
         >
           {dictionaries[locale].common.previous}
         </button>
-        <button
-          type="button"
-          onClick={goNext}
-          disabled={isPending}
-          className="rounded-lg bg-pm-noir px-5 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-        >
+        <Button type="button" onClick={goNext} loading={isPending}>
           {isPending ? t.analyzing : isLast ? t.finish : dictionaries[locale].common.next}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { toast } from "@/components/gbp-audit/ui/toast";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export type AuditComment = { id: string; authorName: string; body: string; createdAt: string };
 
@@ -22,9 +23,9 @@ export function AuditComments({ auditId, comments, locale = "fr" }: { auditId: s
   const { confirm, dialog } = useConfirmDialog(locale);
 
   return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+    <div className={panelClass}>
       {dialog}
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+      <h2 className={panelTitleClass}>{t.title}</h2>
       <p className="mt-1 text-xs text-pm-gris">{t.visibility}</p>
 
       {comments.length === 0 ? (

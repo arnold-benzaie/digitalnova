@@ -3,6 +3,7 @@
 import type { TestResult } from "@/components/integrations/tests/test-form";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass } from "@/components/admin/page-hero";
 
 export function TestResultPanel({ result, locale = "fr" }: { result: TestResult; locale?: Locale }) {
   const t = dictionaries[locale].integrations.tests.result;
@@ -13,8 +14,8 @@ export function TestResultPanel({ result, locale = "fr" }: { result: TestResult;
   const titleClass = isPreview ? "text-pm-noir" : ok ? "text-pm-g-green" : "text-pm-rouge-2";
 
   return (
-    <div className="mt-4 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6">
-      <h3 className={`font-serif text-lg font-semibold ${titleClass}`}>{title}</h3>
+    <div className={`mt-4 flex flex-col gap-4 ${panelClass}`}>
+      <h3 className={`font-serif text-xl font-semibold tracking-tight ${titleClass}`}>{title}</h3>
       {isPreview && <p className="text-sm text-pm-gris">{t.previewNote}</p>}
 
       {!isPreview && (

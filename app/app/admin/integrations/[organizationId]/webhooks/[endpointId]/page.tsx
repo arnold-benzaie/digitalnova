@@ -11,6 +11,7 @@ import {
 import { INTEGRATION_EVENT_CATALOG } from "@/lib/integrations/governance";
 import { IntegrationsNav } from "@/components/integrations/integrations-nav";
 import { EndpointDetail, type DeliveryHistoryRow, type SubscriptionRow } from "@/components/integrations/webhooks/endpoint-detail";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const EVENT_TYPES = Object.keys(INTEGRATION_EVENT_CATALOG);
 
@@ -58,7 +59,9 @@ export default async function IntegrationWebhookEndpointDetailPage({
       <Link href={`/admin/integrations/${organizationId}/webhooks`} className="text-sm text-pm-gris hover:text-pm-noir">
         {t.webhooks.detail.backTo}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{endpoint.name}</h1>
+      <div className="mt-2">
+        <AdminPageHero title={endpoint.name} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="webhooks" locale={locale} />
 

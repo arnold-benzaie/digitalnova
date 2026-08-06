@@ -7,6 +7,7 @@ import { getOrganizationById, listApiKeysForOrg } from "@/lib/integrations/queri
 import { INTEGRATION_SCOPES } from "@/lib/integrations/governance";
 import { IntegrationsNav } from "@/components/integrations/integrations-nav";
 import { ApiKeysManager, type ApiKeyRow } from "@/components/integrations/api-keys/api-keys-manager";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function IntegrationApiKeysPage({
   params,
@@ -36,8 +37,9 @@ export default async function IntegrationApiKeysPage({
       <Link href={`/admin/integrations/${organizationId}`} className="text-sm text-pm-gris hover:text-pm-noir">
         ← {org.name}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{t.apiKeys.title}</h1>
-      <p className="mt-1 text-sm text-pm-gris">{t.apiKeys.subtitle}</p>
+      <div className="mt-2">
+        <AdminPageHero title={t.apiKeys.title} subtitle={t.apiKeys.subtitle} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="api-keys" locale={locale} />
 

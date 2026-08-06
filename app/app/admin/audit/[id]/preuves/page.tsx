@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { getAuditChecksBySection, getAuditSections } from "@/lib/gbp-audit/checklist";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function EvidencePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
@@ -58,10 +59,7 @@ export default async function EvidencePage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.pageLead(evidence.length)}</p>
-      </div>
+      <AdminPageHero title={audit.businessName} subtitle={t.pageLead(evidence.length)} />
       <AuditTabs auditId={id} active="preuves" locale={locale} />
 
       <div className="mt-6">

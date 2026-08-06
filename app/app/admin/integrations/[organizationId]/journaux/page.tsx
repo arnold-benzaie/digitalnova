@@ -13,6 +13,7 @@ import { WEBHOOK_DELIVERY_STATUSES, type WebhookDeliveryStatus } from "@/lib/int
 import { IntegrationsNav } from "@/components/integrations/integrations-nav";
 import { Pagination } from "@/components/gbp-audit/ui/pagination";
 import { DeliveryTable, type DeliveryRow } from "@/components/integrations/journal/delivery-table";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const PAGE_SIZE = 20;
 
@@ -89,8 +90,9 @@ export default async function IntegrationJournauxPage({
       <Link href={`/admin/integrations/${organizationId}`} className="text-sm text-pm-gris hover:text-pm-noir">
         ← {org.name}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{t.journaux.title}</h1>
-      <p className="mt-1 text-sm text-pm-gris">{t.journaux.subtitle}</p>
+      <div className="mt-2">
+        <AdminPageHero title={t.journaux.title} subtitle={t.journaux.subtitle} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="journaux" locale={locale} />
 

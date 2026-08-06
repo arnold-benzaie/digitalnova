@@ -5,6 +5,7 @@ import { getAuditSections, getAuditChecksBySection } from "@/lib/gbp-audit/check
 import { FindingRow, type FindingState } from "@/components/gbp-audit/finding-row";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { tableWrapperClass } from "@/components/admin/page-hero";
 
 export function AuditChecklistView({
   auditId,
@@ -69,7 +70,7 @@ export function AuditChecklistView({
         const panelId = `section-panel-${section.code}`;
 
         return (
-          <div key={section.code} className="overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+          <div key={section.code} className={`overflow-hidden ${tableWrapperClass}`}>
             <button
               type="button"
               onClick={() => setOpenSection(isOpen ? "" : section.code)}
@@ -81,7 +82,7 @@ export function AuditChecklistView({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pm-noir text-xs font-semibold text-white">
                   {section.letter}
                 </span>
-                <span className="font-serif text-base font-semibold text-pm-noir">{section.title}</span>
+                <span className="font-serif text-lg font-semibold tracking-tight text-pm-noir">{section.title}</span>
               </div>
               <div className="flex items-center gap-3">
                 {stats.issues > 0 && (

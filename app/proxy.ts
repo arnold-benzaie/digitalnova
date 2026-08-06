@@ -37,6 +37,10 @@ const isPublicRoute = createRouteMatcher([
   "/api/v1(.*)",
   "/developers(.*)",
   "/audit-report(.*)",
+  // Local-only visual presentation route. Its page returns 404 in production,
+  // so this entry never makes a production interface publicly reachable.
+  "/audit-premium-showcase",
+  "/audit-visual-preview",
   "/api/audit-report(.*)",
   "/api/gbp-audit/e2e-db-target",
   // Static, non-sensitive fallback for the invitation email's secondary

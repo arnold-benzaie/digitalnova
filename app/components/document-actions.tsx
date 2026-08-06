@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteDocument, uploadDocument } from "@/lib/actions/documents";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Button } from "@/components/gbp-audit/ui/button";
 
 export function UploadDocumentForm({ locale = "fr" }: { locale?: Locale }) {
   const t = dictionaries[locale].dashboard.documents;
@@ -35,15 +36,11 @@ export function UploadDocumentForm({ locale = "fr" }: { locale?: Locale }) {
         type="file"
         name="file"
         required
-        className="text-sm text-pm-gris file:mr-3 file:rounded-lg file:border-0 file:bg-pm-gris-2/60 file:px-3 file:py-2 file:text-xs file:font-medium file:text-pm-noir hover:file:bg-pm-gris-2"
+        className="text-sm text-pm-gris file:mr-3 file:rounded-lg file:border-0 file:bg-pm-g-blue/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-pm-bleu-eu hover:file:bg-pm-g-blue/20"
       />
-      <button
-        type="submit"
-        disabled={isPending}
-        className="shrink-0 rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-      >
+      <Button type="submit" loading={isPending} className="shrink-0">
         {isPending ? t.uploading : t.add}
-      </button>
+      </Button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>
   );
@@ -65,7 +62,7 @@ export function DeleteDocumentButton({ id, locale = "fr" }: { id: string; locale
           router.refresh();
         })
       }
-      className="text-xs text-pm-gris underline hover:text-pm-rouge disabled:opacity-50"
+      className="text-xs text-pm-gris underline transition hover:text-pm-rouge-2 disabled:opacity-50"
     >
       {isPending ? t.deleting : tCommon.delete}
     </button>

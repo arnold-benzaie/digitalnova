@@ -6,6 +6,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/session";
 import { NotificationsList } from "@/components/notifications-list";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 export default async function NotificationsPage() {
   const [org, session, locale] = await Promise.all([getOrCreateDevOrganization(), requireSession(), getLocale()]);
@@ -19,8 +20,7 @@ export default async function NotificationsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{dictionaries[locale].navigation.bell.heading}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.subtitle}</p>
+      <AdminPageHero title={dictionaries[locale].navigation.bell.heading} subtitle={t.subtitle} />
       <NotificationsList items={items} locale={locale} base="/dashboard" />
     </>
   );

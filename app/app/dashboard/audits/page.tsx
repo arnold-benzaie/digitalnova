@@ -1,5 +1,4 @@
 import { desc, eq } from "drizzle-orm";
-import Link from "next/link";
 import { db } from "@/db";
 import { auditIssues, audits, gbpConnections } from "@/db/schema";
 import { RunAuditButton } from "@/components/audit-actions";
@@ -7,6 +6,9 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { AdminPageHero, heroPrimaryButtonClass, panelClass } from "@/components/admin/page-hero";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 } as const;
 const PRIORITY_CLASS: Record<string, string> = {
@@ -28,16 +30,21 @@ export default async function AuditsPage() {
 
   if (!connection || connection.status !== "connected") {
     return (
-      <div className="rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-        <p className="font-serif text-lg font-semibold text-pm-noir">{t.notConnectedTitle}</p>
-        <p className="mt-1 text-sm text-pm-gris">{t.notConnectedBody}</p>
-        <Link
-          href="/dashboard/gbp"
-          className="mt-4 inline-block rounded-lg bg-pm-noir px-4 py-2 text-xs font-medium uppercase tracking-wide text-white transition hover:bg-pm-noir-2"
-        >
-          {t.goToGbp}
-        </Link>
-      </div>
+      <>
+        <AdminPageHero title={t.title} subtitle={t.notConnectedBody} />
+        <div className="mt-6">
+          <EmptyState
+            icon={<NAV_ICONS.mapPin width={22} height={22} />}
+            title={t.notConnectedTitle}
+            description={t.notConnectedBody}
+            action={
+              <a href="/dashboard/gbp" className={heroPrimaryButtonClass}>
+                {t.goToGbp}
+              </a>
+            }
+          />
+        </div>
+      </>
     );
   }
 
@@ -56,32 +63,25 @@ export default async function AuditsPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.lead}</p>
-        </div>
-        <RunAuditButton locale={locale} />
-      </div>
+      <AdminPageHero title={t.title} subtitle={t.lead} actions={<RunAuditButton locale={locale} />} />
 
       {!latestAudit ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
-          <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
+        <div className="mt-8">
+          <EmptyState icon={<NAV_ICONS.barChart width={22} height={22} />} title={t.empty} description={t.emptyHint} />
         </div>
       ) : (
         <>
-          <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+          <div className={`mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8 ${panelClass}`}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.globalScore}</div>
-                <div className="mt-1 font-serif text-4xl font-bold text-pm-noir">{latestAudit.score}/100</div>
+                <div className="mt-1 font-serif text-4xl font-bold text-pm-bleu-eu">{latestAudit.score}/100</div>
               </div>
               <p className="text-sm text-pm-gris">{latestAudit.summary}</p>
             </div>
             <a
               href="/api/reports/audit"
-              className="shrink-0 self-start rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-xs font-medium uppercase tracking-wide text-pm-noir transition hover:bg-pm-gris-2/40"
+              className="inline-flex shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-pm-g-blue/20 bg-white px-3 py-1.5 text-xs font-medium text-pm-bleu-eu shadow-pm-sm transition-[color,background-color,border-color,box-shadow] duration-200 hover:border-pm-g-blue/35 hover:bg-pm-g-blue/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-g-blue/25 focus-visible:ring-offset-1"
             >
               {t.downloadPdf}
             </a>
@@ -90,7 +90,7 @@ export default async function AuditsPage() {
           <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.recommendationsTitle}</h2>
           <div className="mt-3 flex flex-col gap-3">
             {sortedIssues.map((issue) => (
-              <div key={issue.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+              <div key={issue.id} className={panelClass}>
                 <div className="flex items-center justify-between gap-4">
                   <p className="font-medium text-pm-noir">{issue.title}</p>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${PRIORITY_CLASS[issue.priority] ?? ""}`}>
@@ -111,7 +111,7 @@ export default async function AuditsPage() {
           {previousAudits.length > 1 && (
             <>
               <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.historyTitle}</h2>
-              <div className="mt-3 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+              <div className="mt-3 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white shadow-[0_8px_22px_rgba(13,36,67,0.05)]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                     <tr>

@@ -7,6 +7,7 @@ import { Field, Select } from "@/components/gbp-audit/ui/field";
 import { previewTestEventAction, sendTestDeliveryAction, type SerializedTestRun } from "@/lib/actions/integrations-tests";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export type TestResult = { run: SerializedTestRun; headers?: Record<string, string>; ok?: boolean };
 
@@ -59,8 +60,8 @@ export function TestForm({
   }
 
   return (
-    <form className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
+    <form className={`flex flex-col gap-4 ${panelClass}`}>
+      <h2 className={panelTitleClass}>{t.title}</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t.endpointLabel} required htmlFor="test-endpoint-id">

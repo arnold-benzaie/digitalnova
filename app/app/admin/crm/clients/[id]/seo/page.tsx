@@ -22,6 +22,7 @@ import {
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -80,16 +81,12 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
         {backLinkLabel}
       </Link>
 
-      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.heading(client.name)}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.subtitle}</p>
-        </div>
-        <AddWebsiteForm clientId={id} locale={locale} />
+      <div className="mt-4">
+        <AdminPageHero title={t.heading(client.name)} subtitle={t.subtitle} actions={<AddWebsiteForm clientId={id} locale={locale} />} />
       </div>
 
       {websiteData.length === 0 && (
-        <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-8 text-sm text-pm-gris">
+        <div className={`mt-6 ${panelClass} text-sm text-pm-gris`}>
           {t.noWebsites}
         </div>
       )}
@@ -99,7 +96,7 @@ export default async function CrmClientSeoPage({ params }: { params: Promise<{ i
           const band = latestCompleted ? seoScoreBand(latestCompleted.score ?? 0, locale) : null;
 
           return (
-            <section key={website.id} className="rounded-2xl border border-pm-gris-2 bg-white p-6">
+            <section key={website.id} className={panelClass}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="font-serif text-lg font-semibold text-pm-noir">{website.label || website.url}</p>

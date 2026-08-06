@@ -93,7 +93,7 @@ test("Tableau de bord : KPI, graphiques, filtres de période, sans erreur consol
   // Period filter — switching to 30j updates the URL and the chart heading.
   await page.getByRole("link", { name: "30j" }).click();
   await page.waitForURL(/days=30/);
-  await expect(page.getByText("Évolution des audits (30 derniers jours)")).toBeVisible();
+  await expect(page.getByText("Audits créés (30 derniers jours)")).toBeVisible();
 
   expect(errors, `erreurs runtime sur le tableau de bord : ${errors.join(" | ")}`).toEqual([]);
 });

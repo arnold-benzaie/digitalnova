@@ -8,7 +8,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
 import { getOnboardingQuestions } from "@/lib/onboarding-questions";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 /**
  * Reached by clicking an "onboarding.completed" notification (see
@@ -44,7 +44,7 @@ export default async function AdminOnboardingPage() {
         </div>
       ) : (
         <>
-          <div className="mt-6 grid grid-cols-1 gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 sm:grid-cols-2">
+          <div className={`mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 ${panelClass}`}>
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.clientLabel}</div>
               {clientMembers.length > 0 ? (
@@ -83,14 +83,14 @@ export default async function AdminOnboardingPage() {
           </div>
 
           {record.summary && (
-            <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-6">
+            <div className={`mt-6 ${panelClass}`}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.summaryTitle}</h2>
               <p className="mt-2 text-sm text-pm-noir">{record.summary}</p>
             </div>
           )}
 
           {record.nextStep && (
-            <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-6">
+            <div className={`mt-4 ${panelClass}`}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.nextStepTitle}</h2>
               <p className="mt-2 text-sm text-pm-noir">{record.nextStep}</p>
             </div>
@@ -102,7 +102,7 @@ export default async function AdminOnboardingPage() {
               const answer = (record.answers as Record<string, string>)[question.key];
               if (!answer) return null;
               return (
-                <div key={question.key} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+                <div key={question.key} className={panelClass}>
                   <p className="text-sm font-medium text-pm-noir">{question.label}</p>
                   <p className="mt-1 text-sm text-pm-gris">{answer}</p>
                 </div>

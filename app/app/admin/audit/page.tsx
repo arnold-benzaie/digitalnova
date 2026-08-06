@@ -25,14 +25,14 @@ import {
 } from "@/lib/gbp-audit/dashboard-stats";
 import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart } from "@/components/gbp-audit/dashboard-charts";
 import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
-import { SEMANTIC_CLASS, SEMANTIC_DOT, taskPriorityTone, type SemanticTone } from "@/lib/gbp-audit/status-colors";
+import { SEMANTIC_DOT, taskPriorityTone, type SemanticTone } from "@/lib/gbp-audit/status-colors";
 import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
-import { Badge } from "@/components/crm/badges";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatDate } from "@/lib/i18n/format";
+import { formatRelativeTime } from "@/lib/i18n/format";
+import { AdminPageHero, heroPrimaryButtonClass, heroSecondaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 const KPI_ICON = {
   prospects: "userCircle",
@@ -45,23 +45,15 @@ const KPI_ICON = {
   notifications: "bell",
 } as const;
 
-function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
 export default async function GbpAuditDashboardPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
   const session = await requireAuditStaffRole();
   const locale = await getLocale();
   const t = dictionaries[locale].auditModule.dashboard;
-  const cp = dictionaries[locale].auditModule.correctionPlan;
   const statusLabel = getAuditStatusLabel(locale);
   const severityLabel = getSeverityLabel(locale);
   const activityLabel = getActivityActionLabel(locale);
   const { days: daysParam } = await searchParams;
   const days: DashboardPeriodDays = isDashboardPeriodDays(Number(daysParam)) ? (Number(daysParam) as DashboardPeriodDays) : 14;
-
-  const phaseTitleByNumber = new Map<number, string>(cp.phases.map((p) => [p.phase, p.title]));
-  const difficultyLabel: Record<string, string> = { low: cp.form.difficultyLow, medium: cp.form.difficultyMedium, high: cp.form.difficultyHigh };
 
   const [counts] = await auditDb
     .select({
@@ -153,17 +145,8 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     createdAt: a.createdAt,
     href: resolveActivityHref(a.targetType, a.targetId, a.metadata),
   }));
-  const now = new Date();
-  const activityGroups: { key: string; label: string; items: typeof recentActivity }[] = [];
-  for (const item of recentActivity) {
-    const dayLabel = isSameDay(item.createdAt, now) ? t.today : formatDate(item.createdAt, locale);
-    const last = activityGroups[activityGroups.length - 1];
-    if (last && last.label === dayLabel) last.items.push(item);
-    else activityGroups.push({ key: item.id, label: dayLabel, items: [item] });
-  }
 
-  // Priority correction tasks (not done, critical/important first) — enriched
-  // with only fields already present on the row (phase, difficulty).
+  // Priority correction tasks (not done, critical/important first).
   const priorityTasksRaw = await auditDb
     .select()
     .from(gbpCorrectionTasks)
@@ -176,45 +159,30 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     title: task.title,
     priority: task.priority,
     priorityLabel: severityLabel[task.priority as keyof typeof severityLabel] ?? t.priorityFallback,
-    category: `Phase ${task.phase}`,
-    categoryFull: phaseTitleByNumber.get(task.phase) ?? t.priorityFallback,
-    ownerName: task.ownerName,
-    statusLabel: cp.taskStatus[task.status as keyof typeof cp.taskStatus] ?? task.status,
-    etaDays: task.etaDays,
-    difficultyLabel: difficultyLabel[task.difficulty] ?? null,
   }));
-
-  const notificationBadgeText = unreadNotifications > 99 ? "99+" : String(unreadNotifications);
-  const periodLabel = `${days}${t.periodSuffix}`;
 
   return (
     <>
-      <div className="flex flex-col gap-5 overflow-hidden rounded-2xl border border-pm-bleu-eu/20 bg-[linear-gradient(115deg,#071b3d_0%,#0b347c_58%,#2563eb_100%)] px-5 py-6 shadow-pm-md sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-8">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-white sm:text-4xl">{dictionaries[locale].navigation.items.dashboard}</h1>
-          <p className="mt-2 text-sm text-white/80">{t.greeting(session.fullName ?? session.email)}</p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Link
-            href="/admin/audit/liste"
-            className="rounded-lg border border-white/35 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/55 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-pm-bleu-eu"
-          >
-            {t.viewAllAudits}
-          </Link>
-          <Link
-            href="/admin/audit/nouveau"
-            className="rounded-lg bg-[#2f7df6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(0,0,0,0.22)] transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:bg-[#438afa] hover:shadow-[0_13px_28px_rgba(0,0,0,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 focus-visible:ring-offset-2 focus-visible:ring-offset-pm-bleu-eu"
-          >
-            {t.newAudit}
-          </Link>
-        </div>
-      </div>
+      <AdminPageHero
+        title={dictionaries[locale].navigation.items.dashboard}
+        subtitle={t.greeting(session.fullName ?? session.email)}
+        actions={
+          <>
+            <Link href="/admin/audit/liste" className={heroSecondaryButtonClass}>
+              {t.viewAllAudits}
+            </Link>
+            <Link href="/admin/audit/nouveau" className={heroPrimaryButtonClass}>
+              {t.newAudit}
+            </Link>
+          </>
+        }
+      />
 
       {/* KPI — à date, jamais sensibles à la période */}
       <p className="mt-8 text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.currentSituation}</p>
       {/* xl (1280px), not lg (1024px): KpiCard's icon badge + text-sm label are heavier than the
           original compact tile — 8 columns at exactly 1024px overflows (verified), 4 columns fits. */}
-      <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
+      <div className="mt-2 grid grid-cols-2 gap-5 sm:grid-cols-4 xl:grid-cols-8">
         {kpis.map((kpi) => {
           const Icon = NAV_ICONS[kpi.icon];
           const card = <KpiCard label={kpi.label} value={kpi.value} icon={<Icon width={14} height={14} />} tone={kpi.tone} />;
@@ -230,9 +198,23 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
       <p className="mt-2 text-[11px] text-pm-gris">{t.currentSituationHint}</p>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5 lg:col-span-2">
+        <div className={`${panelClass} lg:col-span-2`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-serif text-base font-semibold text-pm-noir">{t.auditsOverTime(days)}</h2>
+            <div>
+              <h2 className={panelTitleClass}>{t.auditsOverTime(days)}</h2>
+              {auditsCreatedComparison.deltaPercent === null ? (
+                <p className="mt-0.5 text-xs text-pm-gris">{t.noPreviousPeriodData}</p>
+              ) : (
+                <p
+                  className={`mt-0.5 text-xs font-medium ${
+                    auditsCreatedComparison.direction === "up" ? "text-pm-g-green" : auditsCreatedComparison.direction === "down" ? "text-pm-rouge-2" : "text-pm-gris"
+                  }`}
+                >
+                  {auditsCreatedComparison.direction === "up" ? "▲" : auditsCreatedComparison.direction === "down" ? "▼" : "—"}{" "}
+                  {t.vsPreviousPeriod(Math.abs(auditsCreatedComparison.deltaPercent), auditsCreatedComparison.previousCount)}
+                </p>
+              )}
+            </div>
             <div className="flex gap-1 rounded-lg bg-pm-gris-2/30 p-1">
               {DASHBOARD_PERIOD_OPTIONS.map((option) => (
                 <Link
@@ -251,35 +233,8 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
           <AuditsOverTimeChart data={auditsOverTime} locale={locale} />
         </div>
 
-        <div className="flex flex-col justify-center rounded-2xl border border-pm-g-blue/20 bg-pm-g-blue/[0.03] p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.auditsCreatedInPeriod}</h2>
-          <p className="mt-0.5 text-[11px] text-pm-gris">{t.auditsCreatedInPeriodHint(periodLabel)}</p>
-          <p className="mt-4 text-3xl font-bold tabular-nums text-pm-bleu-eu">{auditsCreatedComparison.currentCount}</p>
-          {auditsCreatedComparison.deltaPercent === null ? (
-            <p className="mt-1 text-xs text-pm-gris">{t.noPreviousPeriodData}</p>
-          ) : (
-            <p
-              className={`mt-1 text-xs font-medium ${
-                auditsCreatedComparison.direction === "up" ? "text-pm-g-green" : auditsCreatedComparison.direction === "down" ? "text-pm-rouge-2" : "text-pm-gris"
-              }`}
-            >
-              {auditsCreatedComparison.direction === "up" ? "▲" : auditsCreatedComparison.direction === "down" ? "▼" : "—"}{" "}
-              {t.vsPreviousPeriod(Math.abs(auditsCreatedComparison.deltaPercent), auditsCreatedComparison.previousCount)}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Répartition + Anomalies : rangée dédiée, items-start pour que ces cartes
-          courtes gardent leur propre hauteur naturelle. */}
-      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.statusDistribution}</h2>
-          <StatusDistributionChart data={statusDistribution} locale={locale} />
-        </div>
-
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.topFindings}</h2>
+        <div className={panelClass}>
+          <h2 className={panelTitleClass}>{t.topFindings}</h2>
           {findingsBySeverity.length === 0 ? (
             <p className="mt-4 text-sm text-pm-gris">{t.noFindings}</p>
           ) : (
@@ -288,110 +243,95 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
         </div>
       </div>
 
-      {/* Tâches prioritaires — sa propre rangée pleine largeur, cartes compactes en grille interne */}
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-base font-semibold text-pm-noir">{t.priorityTasks}</h2>
-        {priorityTasks.length === 0 ? (
-          <p className="mt-4 text-sm text-pm-gris">{t.noPriorityTasks}</p>
-        ) : (
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {priorityTasks.map((task) => (
-              <li key={task.id}>
-                <Link
-                  href={`/admin/audit/${task.auditId}/plan-correction`}
-                  className="block rounded-xl border border-pm-gris-2 p-2.5 transition-colors hover:bg-pm-gris-2/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${SEMANTIC_DOT[taskPriorityTone(task.priority)]}`} aria-hidden="true" />
-                    <p className="line-clamp-1 text-sm font-medium text-pm-noir">{task.title}</p>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1 pl-4 text-[11px] text-pm-gris">
-                    <Badge label={task.priorityLabel} className={`${SEMANTIC_CLASS[taskPriorityTone(task.priority)]} !px-2 !py-0.5`} />
-                    <span title={task.categoryFull} className="rounded-full bg-pm-gris-2/60 px-2 py-0.5">
-                      {task.category}
-                    </span>
-                    <span className="rounded-full bg-pm-gris-2/60 px-2 py-0.5">{task.statusLabel}</span>
-                    {task.difficultyLabel && <span>· {task.difficultyLabel}</span>}
-                    {task.etaDays != null && <span>· {task.etaDays} j</span>}
-                    {task.ownerName && <span className="truncate">· {task.ownerName}</span>}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+        <div className={panelClass}>
+          <h2 className={panelTitleClass}>{t.statusDistribution}</h2>
+          <StatusDistributionChart data={statusDistribution} locale={locale} />
+        </div>
 
-      {/* Activité récente + Notifications */}
-      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <h2 className="font-serif text-base font-semibold text-pm-noir">{t.recentActivity}</h2>
-          {recentActivity.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">{t.noActivity}</p>
+        <div className={panelClass}>
+          <h2 className={panelTitleClass}>{t.priorityTasks}</h2>
+          {priorityTasks.length === 0 ? (
+            <p className="mt-4 text-sm text-pm-gris">{t.noPriorityTasks}</p>
           ) : (
-            <div className="mt-3 flex flex-col gap-3">
-              {activityGroups.map((group) => (
-                <div key={group.key}>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-pm-gris">{group.label}</p>
-                  <ul className="flex flex-col gap-1.5">
-                    {group.items.map((a) => {
-                      const Icon = NAV_ICONS[activityIconNameFor(a.action)];
-                      const content = (
-                        <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-sm transition-colors hover:bg-pm-gris-2/10">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-pm-gris-2/40 text-pm-gris">
-                            <Icon width={12} height={12} />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="font-medium text-pm-noir">{a.label}</span>
-                            {a.actorName && <span className="text-pm-gris"> · {a.actorName}</span>}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-pm-gris">{formatDate(a.createdAt, locale, { hour: "2-digit", minute: "2-digit" })}</span>
-                        </div>
-                      );
-                      return (
-                        <li key={a.id}>
-                          {a.href ? (
-                            <Link href={a.href} className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20">
-                              {content}
-                            </Link>
-                          ) : (
-                            content
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
+            <div className="mt-2">
+              {priorityTasks.slice(0, 5).map((task) => (
+                <Link
+                  key={task.id}
+                  href={`/admin/audit/${task.auditId}/plan-correction`}
+                  className="flex items-center gap-3 rounded-lg border-t border-pm-gris-2 px-1.5 py-3.5 text-sm transition-colors first:border-t-0 hover:bg-pm-gris-2/15"
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${SEMANTIC_DOT[taskPriorityTone(task.priority)]}`} aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-pm-noir">{task.title}</span>
+                    <span className="block text-xs text-pm-gris">{task.priorityLabel}</span>
+                  </span>
+                  <span className="text-lg text-pm-gris" aria-hidden="true">›</span>
+                </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Notifications — compteur exact dans la carte, 99+ uniquement dans le badge compact existant */}
-        <div className={`rounded-2xl border bg-white p-5 ${unreadNotifications > 0 ? "border-pm-rouge/25" : "border-pm-gris-2"}`}>
-          <h2 className="font-serif text-base font-semibold text-pm-noir">Notifications</h2>
-          <div className="mt-3 flex items-center gap-4">
-            <div>
-              <p className="text-3xl font-bold tabular-nums text-pm-noir">{unreadNotifications}</p>
-              <p className="text-xs font-medium text-pm-gris">{t.unreadLabel}</p>
+        <div className={panelClass}>
+          <h2 className={panelTitleClass}>{t.recentActivity}</h2>
+          {recentActivity.length === 0 ? (
+            <p className="mt-4 text-sm text-pm-gris">{t.noActivity}</p>
+          ) : (
+            <div className="mt-2">
+              {recentActivity.slice(0, 5).map((a) => {
+                const Icon = NAV_ICONS[activityIconNameFor(a.action)];
+                const content = (
+                  <div className="flex items-center gap-3 border-t border-pm-gris-2 py-3.5 text-sm transition-colors first:border-t-0 hover:bg-pm-gris-2/10">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-pm-g-blue/10 text-pm-bleu-eu">
+                      <Icon width={14} height={14} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-pm-noir">{a.label}</span>
+                      {a.actorName && <span className="block truncate text-xs text-pm-gris">{a.actorName}</span>}
+                    </span>
+                    <span className="shrink-0 text-xs text-pm-gris">{formatRelativeTime(a.createdAt, locale)}</span>
+                  </div>
+                );
+                return (
+                  <div key={a.id}>
+                    {a.href ? (
+                      <Link href={a.href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/20">
+                        {content}
+                      </Link>
+                    ) : (
+                      content
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <span
-              className={`flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                unreadNotifications > 0 ? "bg-pm-rouge text-white" : "bg-pm-gris-2/60 text-pm-gris"
-              }`}
-              aria-label={`${unreadNotifications} ${t.kpis.notifications}`}
-              title={t.compactBadgeHint}
-            >
-              {notificationBadgeText}
-            </span>
-            <span className="ml-auto flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full text-pm-gris" title={t.notificationsSeverityNote}>
-              <NAV_ICONS.info width={14} height={14} />
-            </span>
-          </div>
-          <Link href="/admin/audit/notifications" className="mt-4 inline-block rounded-lg border border-pm-gris-2 bg-white px-3 py-1.5 text-xs font-medium text-pm-noir hover:bg-pm-gris-2/30">
-            {t.viewNotifications}
-          </Link>
+          )}
         </div>
+      </div>
+
+      <div
+        className={`mt-6 flex items-center justify-between gap-4 rounded-2xl border bg-white px-6 py-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)] ${
+          unreadNotifications > 0 ? "border-pm-rouge/25" : "border-pm-gris-2 hover:border-[#d9e3ef]"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+              unreadNotifications > 0 ? "bg-pm-rouge/10 text-pm-rouge" : "bg-pm-g-blue/10 text-pm-bleu-eu"
+            }`}
+            aria-hidden="true"
+          >
+            <NAV_ICONS.bell width={16} height={16} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-pm-noir">Notifications</p>
+            <p className="text-xs text-pm-gris">{unreadNotifications > 0 ? t.notificationsUnreadCount(unreadNotifications) : t.notificationsEmpty}</p>
+          </div>
+        </div>
+        <Link href="/admin/audit/notifications" className="shrink-0 text-xs font-medium text-pm-bleu-eu transition-colors hover:text-pm-g-blue-2">
+          {t.viewNotifications}
+        </Link>
       </div>
     </>
   );

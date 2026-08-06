@@ -6,15 +6,9 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime, formatNumber } from "@/lib/i18n/format";
 import { getOrgIntegrationStats, getOrganizationById } from "@/lib/integrations/queries";
 import { IntegrationsNav } from "@/components/integrations/integrations-nav";
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-pm-noir">{value}</p>
-    </div>
-  );
-}
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 export default async function IntegrationOrganizationDashboardPage({
   params,
@@ -37,8 +31,9 @@ export default async function IntegrationOrganizationDashboardPage({
       <Link href="/admin/integrations" className="text-sm text-pm-gris hover:text-pm-noir">
         {t.backToList}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{org.name}</h1>
-      <p className="mt-1 text-sm text-pm-gris">{t.subtitle(org.name)}</p>
+      <div className="mt-2">
+        <AdminPageHero title={org.name} subtitle={t.subtitle(org.name)} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="dashboard" locale={locale} />
 
@@ -49,19 +44,21 @@ export default async function IntegrationOrganizationDashboardPage({
         </div>
       ) : (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard label={t.integrations} value={formatNumber(stats.integrationCount, locale)} />
-            <StatCard label={t.apiKeys} value={formatNumber(stats.activeApiKeyCount, locale)} />
-            <StatCard label={t.endpoints} value={formatNumber(stats.activeEndpointCount, locale)} />
-            <StatCard label={t.pendingEvents} value={formatNumber(stats.pendingEventCount, locale)} />
-            <StatCard
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+            <KpiCard label={t.integrations} value={formatNumber(stats.integrationCount, locale)} icon={<NAV_ICONS.zap width={14} height={14} />} tone="info" />
+            <KpiCard label={t.apiKeys} value={formatNumber(stats.activeApiKeyCount, locale)} icon={<NAV_ICONS.settings width={14} height={14} />} tone="good" />
+            <KpiCard label={t.endpoints} value={formatNumber(stats.activeEndpointCount, locale)} icon={<NAV_ICONS.mapPin width={14} height={14} />} tone="info" />
+            <KpiCard label={t.pendingEvents} value={formatNumber(stats.pendingEventCount, locale)} icon={<NAV_ICONS.clock width={14} height={14} />} tone="warm" />
+            <KpiCard
               label={t.lastDelivery}
               value={stats.lastDeliveryAt ? formatDateTime(stats.lastDeliveryAt, locale) : t.never}
+              icon={<NAV_ICONS.history width={14} height={14} />}
+              tone="neutral"
             />
           </div>
 
-          <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-            <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.deliveries30d}</h2>
+          <div className={panelClass}>
+            <h2 className={panelTitleClass}>{t.deliveries30d}</h2>
             {deliveryStatusEntries.length === 0 ? (
               <p className="mt-2 text-sm text-pm-gris">{t.noActivity}</p>
             ) : (

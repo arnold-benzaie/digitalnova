@@ -11,6 +11,7 @@ import { getReportSchedule } from "@/lib/report-schedule";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { getNotificationSoundPath } from "@/lib/notification-sound-availability";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function SettingsPage() {
   const [org, user, locale] = await Promise.all([getOrCreateDevOrganization(), getOrCreateDevUser(), getLocale()]);
@@ -22,28 +23,27 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead} />
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.profile.title}</h2>
+        <section className={panelClass}>
+          <h2 className={panelTitleClass}>{t.profile.title}</h2>
           <p className="mt-1 text-xs text-pm-gris">{t.profile.demoNotice}</p>
           <div className="mt-4">
             <ProfileForm fullName={user.fullName ?? ""} email={user.email} locale={locale} />
           </div>
         </section>
 
-        <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.organization.title}</h2>
+        <section className={panelClass}>
+          <h2 className={panelTitleClass}>{t.organization.title}</h2>
           <p className="mt-1 text-xs text-pm-gris">{t.organization.lead}</p>
           <div className="mt-4">
             <OrganizationForm name={org.name} locale={locale} />
           </div>
         </section>
 
-        <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.subscription.title}</h2>
+        <section className={panelClass}>
+          <h2 className={panelTitleClass}>{t.subscription.title}</h2>
           <p className="mt-1 text-xs text-pm-gris">{t.subscription.lead}</p>
           <div className="mt-4">
             {subscription && subscription.status !== "canceled" ? (
@@ -61,8 +61,8 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.notifications.title}</h2>
+        <section className={panelClass}>
+          <h2 className={panelTitleClass}>{t.notifications.title}</h2>
           <div className="mt-4">
             <NotificationToggle enabled={org.emailNotificationsEnabled} locale={locale} />
           </div>
@@ -72,8 +72,8 @@ export default async function SettingsPage() {
           <NotificationPreferencesControl locale={locale} soundPath={soundPath} />
         </div>
 
-        <section className="rounded-2xl border border-pm-gris-2 bg-white p-6 lg:col-span-2">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.reportSchedule.title}</h2>
+        <section className={`${panelClass} lg:col-span-2`}>
+          <h2 className={panelTitleClass}>{t.reportSchedule.title}</h2>
           <p className="mt-1 text-xs text-pm-gris">{t.reportSchedule.lead}</p>
           <div className="mt-4">
             <ReportScheduleForm frequency={schedule?.frequency ?? "monthly"} enabled={schedule?.enabled ?? false} locale={locale} />

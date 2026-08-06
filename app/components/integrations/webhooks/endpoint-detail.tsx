@@ -18,6 +18,7 @@ import type { TestDeliveryResult } from "@/lib/integrations/endpoints";
 import { formatDateTime } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export type EndpointDetailData = {
   id: string;
@@ -156,9 +157,9 @@ export function EndpointDetail({
 
   return (
     <div className="mt-6 flex flex-col gap-6">
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={panelClass}>
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.detail.generalTitle}</h2>
+          <h2 className={panelTitleClass}>{t.detail.generalTitle}</h2>
           <Badge label={t.status[endpoint.status as keyof typeof t.status] ?? endpoint.status} className={ENDPOINT_STATUS_CLASS[endpoint.status] ?? ""} />
         </div>
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
@@ -202,8 +203,8 @@ export function EndpointDetail({
         {dialog}
       </div>
 
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.detail.subscriptionsTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.detail.subscriptionsTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.detail.subscriptionsHint}</p>
         <div className="mt-3 flex flex-col gap-2">
           {eventTypes.map((eventType) => (
@@ -226,8 +227,8 @@ export function EndpointDetail({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.detail.testTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.detail.testTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.detail.testHint}</p>
         <div className="mt-3">
           <Button type="button" variant="secondary" size="sm" loading={testPending} disabled={endpoint.status !== "active"} onClick={handleTest}>
@@ -258,8 +259,8 @@ export function EndpointDetail({
         )}
       </div>
 
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.detail.historyTitle}</h2>
+      <div className={panelClass}>
+        <h2 className={panelTitleClass}>{t.detail.historyTitle}</h2>
         {history.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-pm-gris-2 p-6 text-center">
             <p className="text-sm font-medium text-pm-noir">{t.detail.historyEmpty}</p>

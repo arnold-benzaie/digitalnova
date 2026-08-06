@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { sendMessage } from "@/lib/actions/messages";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Button } from "@/components/gbp-audit/ui/button";
 
 export function SendMessageForm({ locale = "fr" }: { locale?: Locale }) {
   const t = dictionaries[locale].dashboard.messages;
@@ -36,15 +37,11 @@ export function SendMessageForm({ locale = "fr" }: { locale?: Locale }) {
         required
         rows={2}
         placeholder={t.placeholder}
-        className="flex-1 resize-none rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir placeholder:text-pm-gris focus:outline-none focus:ring-2 focus:ring-pm-noir/20"
+        className="flex-1 resize-none rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir placeholder:text-pm-gris focus:outline-none focus:ring-2 focus:ring-pm-g-blue/20"
       />
-      <button
-        type="submit"
-        disabled={isPending}
-        className="shrink-0 rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-      >
+      <Button type="submit" loading={isPending} className="shrink-0">
         {isPending ? tCommon.sending : tCommon.send}
-      </button>
+      </Button>
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
     </form>
   );

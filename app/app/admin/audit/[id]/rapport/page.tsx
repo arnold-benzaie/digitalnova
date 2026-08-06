@@ -10,6 +10,7 @@ import { ReportAccessLinkPanel } from "@/components/gbp-audit/report-access-link
 import { getAuditStatusLabel } from "@/lib/gbp-audit/checklist";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireAuditStaffRole();
@@ -44,10 +45,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{business.legalName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.statusPrefix}{statusLabel[audit.status] ?? t.statusFallback}</p>
-      </div>
+      <AdminPageHero title={business.legalName} subtitle={`${t.statusPrefix}${statusLabel[audit.status] ?? t.statusFallback}`} />
       <AuditTabs auditId={id} active="rapport" locale={locale} />
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -55,8 +53,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         <ReportAccessLinkPanel auditId={id} link={link} viewCount={viewCount} origin={origin} locale={locale} />
       </div>
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.pdfPreviewTitle}</h2>
+      <div className={`mt-6 ${panelClass}`}>
+        <h2 className={panelTitleClass}>{t.pdfPreviewTitle}</h2>
         <p className="mt-1 text-sm text-pm-gris">{t.pdfPreviewLead}</p>
         <div className="mt-3 flex flex-wrap gap-3">
           <a href={`/api/gbp-audit/${id}/pdf`} target="_blank" rel="noreferrer" className="rounded-lg border border-pm-gris-2 px-4 py-2 text-sm font-medium text-pm-noir hover:bg-pm-gris-2/30">

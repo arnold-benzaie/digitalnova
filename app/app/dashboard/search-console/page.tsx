@@ -10,6 +10,7 @@ import { GoogleOAuthBanner } from "@/components/google-oauth-banner";
 import { GoogleConnectionStatus } from "@/components/google-connection-status";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function SearchConsolePage({
   searchParams,
@@ -25,32 +26,35 @@ export default async function SearchConsolePage({
 
   if (!googleAccount || !hasSearchConsole) {
     return (
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-8">
-        <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
-        {isGoogleOAuthConfigured() && (
-          <GoogleConnectionStatus
-            organizationId={org.id}
-            reconnectHref={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/search-console`}
-            locale={locale}
-          />
-        )}
-        <p className="font-serif text-xl font-semibold text-pm-noir">{t.connectTitle}</p>
-        <p className="mt-2 text-sm text-pm-gris">
-          {isGoogleOAuthConfigured()
-            ? t.connectDescriptionConfigured
-            : dictionaries[locale].dashboard.googleIntegration.notConfigured}
-        </p>
-        {isGoogleOAuthConfigured() && (
-          <div className="mt-4">
-            <a
-              href={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/search-console`}
-              className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
-            >
-              {t.connectButton}
-            </a>
-          </div>
-        )}
-      </div>
+      <>
+        <AdminPageHero title={t.pageTitle} subtitle={t.connectTitle} />
+        <div className="mt-6 rounded-2xl border border-pm-g-blue/25 bg-pm-g-blue/[0.025] p-8 shadow-[0_8px_22px_rgba(13,36,67,0.05)]">
+          <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
+          {isGoogleOAuthConfigured() && (
+            <GoogleConnectionStatus
+              organizationId={org.id}
+              reconnectHref={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/search-console`}
+              locale={locale}
+            />
+          )}
+          <p className={panelTitleClass}>{t.connectTitle}</p>
+          <p className="mt-2 text-sm text-pm-gris">
+            {isGoogleOAuthConfigured()
+              ? t.connectDescriptionConfigured
+              : dictionaries[locale].dashboard.googleIntegration.notConfigured}
+          </p>
+          {isGoogleOAuthConfigured() && (
+            <div className="mt-4">
+              <a
+                href={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/search-console`}
+                className={heroPrimaryButtonClass}
+              >
+                {t.connectButton}
+              </a>
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -76,13 +80,7 @@ export default async function SearchConsolePage({
         reconnectHref={`/api/auth/google/connect?organizationId=${org.id}&returnTo=/dashboard/search-console`}
         locale={locale}
       />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.pageTitle}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.connectedAs(googleAccount.googleAccountEmail)}</p>
-        </div>
-        <SyncSearchConsoleButton locale={locale} />
-      </div>
+      <AdminPageHero title={t.pageTitle} subtitle={t.connectedAs(googleAccount.googleAccountEmail)} actions={<SyncSearchConsoleButton locale={locale} />} />
 
       <div className="mt-6">
         <SearchConsoleStats stats={stats} locale={locale} />
@@ -94,10 +92,10 @@ export default async function SearchConsolePage({
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {orgProperties.map((property) => (
-            <div key={property.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-              <p className="font-serif text-lg font-semibold text-pm-noir">{property.siteUrl}</p>
+            <div key={property.id} className={panelClass}>
+              <p className={panelTitleClass}>{property.siteUrl}</p>
               {property.permissionLevel && (
-                <p className="mt-1 text-xs uppercase tracking-wide text-pm-gris">{property.permissionLevel}</p>
+                <p className="mt-1.5 text-xs uppercase tracking-wide text-pm-gris">{property.permissionLevel}</p>
               )}
             </div>
           ))}

@@ -4,7 +4,7 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatNumber } from "@/lib/i18n/format";
 import { listOrganizationsWithIntegrationCounts } from "@/lib/integrations/queries";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, tableWrapperClass } from "@/components/admin/page-hero";
 
 export default async function IntegrationsOrgPickerPage() {
   await requireStaffRole();
@@ -23,7 +23,7 @@ export default async function IntegrationsOrgPickerPage() {
           <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
         </div>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+        <div className={`mt-8 overflow-hidden ${tableWrapperClass}`}>
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>

@@ -7,7 +7,9 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, formatNumber } from "@/lib/i18n/format";
-import { AdminPageHero } from "@/components/admin/page-hero";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
+import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 const DEAL_STAGE_ORDER = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 
@@ -80,37 +82,47 @@ export default async function CrmDashboardPage() {
     <>
       <AdminPageHero title={t.title} subtitle={t.overviewSubtitle} />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.cards.clients}</div>
-          <div className="mt-2 font-serif text-3xl font-bold text-pm-noir">{allClients.length}</div>
-          <p className="mt-1 text-xs text-pm-gris">
-            {t.cards.clientsSummary(clientsByStage.client ?? 0, clientsByStage.lead ?? 0, clientsByStage.prospect ?? 0, archivedClients.length)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.cards.openPipeline}</div>
-          <div className="mt-2 font-serif text-3xl font-bold text-pm-noir">
-            {formatNumber(pipelineValue, locale)} €
-          </div>
-          <p className="mt-1 text-xs text-pm-gris">{t.cards.openDealsSummary(openDeals.length)}</p>
-        </div>
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.cards.openTickets}</div>
-          <div className="mt-2 font-serif text-3xl font-bold text-pm-noir">{openTickets.length}</div>
-          <Link href="/admin/crm/tickets" className="mt-1 inline-block text-xs text-pm-gris underline">
-            {t.cards.viewTickets}
-          </Link>
-        </div>
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.cards.activeProjects}</div>
-          <div className="mt-2 font-serif text-3xl font-bold text-pm-noir">{activeProjects.length}</div>
-          <p className="mt-1 text-xs text-pm-gris">{t.cards.wonValueSummary(`${formatNumber(wonValue, locale)} €`)}</p>
-        </div>
+      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label={t.cards.clients}
+          value={allClients.length}
+          icon={<NAV_ICONS.users width={14} height={14} />}
+          tone="info"
+          footer={
+            <p className="mt-1 text-xs text-pm-gris">
+              {t.cards.clientsSummary(clientsByStage.client ?? 0, clientsByStage.lead ?? 0, clientsByStage.prospect ?? 0, archivedClients.length)}
+            </p>
+          }
+        />
+        <KpiCard
+          label={t.cards.openPipeline}
+          value={`${formatNumber(pipelineValue, locale)} €`}
+          icon={<NAV_ICONS.creditCard width={14} height={14} />}
+          tone="good"
+          footer={<p className="mt-1 text-xs text-pm-gris">{t.cards.openDealsSummary(openDeals.length)}</p>}
+        />
+        <KpiCard
+          label={t.cards.openTickets}
+          value={openTickets.length}
+          icon={<NAV_ICONS.lifeBuoy width={14} height={14} />}
+          tone="warm"
+          footer={
+            <Link href="/admin/crm/tickets" className="mt-1 inline-block text-xs text-pm-gris underline">
+              {t.cards.viewTickets}
+            </Link>
+          }
+        />
+        <KpiCard
+          label={t.cards.activeProjects}
+          value={activeProjects.length}
+          icon={<NAV_ICONS.briefcase width={14} height={14} />}
+          tone="info"
+          footer={<p className="mt-1 text-xs text-pm-gris">{t.cards.wonValueSummary(`${formatNumber(wonValue, locale)} €`)}</p>}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className={panelClass}>
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-pm-noir">{t.pipelineByStage}</p>
             <Link href="/admin/crm/pipeline" className="text-xs text-pm-gris underline">
@@ -136,7 +148,7 @@ export default async function CrmDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className={panelClass}>
           <p className="text-sm font-medium text-pm-noir">{t.upcomingEvents}</p>
           {upcomingEvents.length === 0 ? (
             <p className="mt-3 text-sm text-pm-gris">{t.noUpcomingEvents}</p>
@@ -169,7 +181,7 @@ export default async function CrmDashboardPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className={panelClass}>
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-pm-noir">{t.pendingTasks}</p>
             <Link href="/admin/crm/tasks" className="text-xs text-pm-gris underline">
@@ -192,7 +204,7 @@ export default async function CrmDashboardPage() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
+        <div className={panelClass}>
           <p className="text-sm font-medium text-pm-noir">{t.recentInteractions}</p>
           {recentInteractions.length === 0 ? (
             <p className="mt-3 text-sm text-pm-gris">{t.noRecentInteractions}</p>

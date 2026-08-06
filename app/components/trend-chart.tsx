@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate as formatDateIntl, formatNumber } from "@/lib/i18n/format";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 const WIDTH = 640;
 const HEIGHT = 220;
 const PADDING = { top: 16, right: 16, bottom: 28, left: 40 };
 const COLOR = "#3b6fd1"; // validated categorical blue — see dataviz palette check
 const SURFACE = "#ffffff";
+const PERIOD_OPTIONS = [7, 14, 30, 90] as const;
 
 function niceMax(value: number): number {
   if (value <= 0) return 10;
@@ -23,14 +25,20 @@ export function TrendChart({ data, label, locale }: { data: { date: string; valu
   const t = dictionaries[locale].dashboard.chart;
   const formatDate = (iso: string) => formatDateIntl(iso, locale, { day: "numeric", month: "short" });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [periodDays, setPeriodDays] = useState<number>(30);
+
+  // Client-side slice of the already-fetched full series — no new query, no
+  // new server computation, same pattern already used for the calls/
+  // directions sparkline series in app/dashboard/page.tsx (slice(-12)).
+  const periodData = useMemo(() => data.slice(-periodDays), [data, periodDays]);
 
   const { path, points, yTicks, maxValue } = useMemo(() => {
     const plotWidth = WIDTH - PADDING.left - PADDING.right;
     const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
-    const max = niceMax(Math.max(...data.map((d) => d.value), 1));
+    const max = niceMax(Math.max(...periodData.map((d) => d.value), 1));
 
-    const pts = data.map((d, index) => {
-      const x = PADDING.left + (data.length === 1 ? 0 : (index / (data.length - 1)) * plotWidth);
+    const pts = periodData.map((d, index) => {
+      const x = PADDING.left + (periodData.length === 1 ? 0 : (index / (periodData.length - 1)) * plotWidth);
       const y = PADDING.top + plotHeight - (d.value / max) * plotHeight;
       return { x, y, ...d };
     });
@@ -42,7 +50,7 @@ export function TrendChart({ data, label, locale }: { data: { date: string; valu
     }));
 
     return { path: linePath, points: pts, yTicks: ticks, maxValue: max };
-  }, [data]);
+  }, [periodData]);
 
   const hovered = hoverIndex !== null ? points[hoverIndex] : null;
 
@@ -63,10 +71,30 @@ export function TrendChart({ data, label, locale }: { data: { date: string; valu
   }
 
   return (
-    <div className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLOR }} />
-        <p className="text-sm font-medium text-pm-noir">{label}</p>
+    <div className={panelClass}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLOR }} />
+          <p className={panelTitleClass}>{label}</p>
+        </div>
+        <div className="flex gap-1 rounded-lg bg-pm-gris-2/30 p-1">
+          {PERIOD_OPTIONS.map((days) => (
+            <button
+              key={days}
+              type="button"
+              aria-pressed={periodDays === days}
+              onClick={() => {
+                setPeriodDays(days);
+                setHoverIndex(null);
+              }}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-[background-color,box-shadow,color] duration-200 ${
+                periodDays === days ? "bg-white text-pm-bleu-eu shadow-[0_1px_3px_rgba(13,36,67,0.12)]" : "text-pm-gris hover:text-pm-noir"
+              }`}
+            >
+              {t.periodDays(days)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <svg
@@ -153,7 +181,7 @@ export function TrendChart({ data, label, locale }: { data: { date: string; valu
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
+              {periodData.map((d) => (
                 <tr key={d.date} className="border-t border-pm-gris-2">
                   <td className="px-3 py-1.5 text-pm-gris">{formatDate(d.date)}</td>
                   <td className="px-3 py-1.5 text-pm-noir">{formatNumber(d.value, locale)}</td>

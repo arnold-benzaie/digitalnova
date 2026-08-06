@@ -10,6 +10,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 const PAGE_SIZE = 20;
 
@@ -65,15 +66,14 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">
-        {t.resultsSummary(totalCount, overallCount, hasFilters)}
-        {paidByCurrency.length > 0 && (
-          <> — {t.collectedPrefix} {paidByCurrency.map((p) => formatMoney(p.sum, p.currency, locale)).join(" + ")}</>
-        )}
-      </p>
+      <AdminPageHero
+        title={t.title}
+        subtitle={`${t.resultsSummary(totalCount, overallCount, hasFilters)}${
+          paidByCurrency.length > 0 ? ` — ${t.collectedPrefix} ${paidByCurrency.map((p) => formatMoney(p.sum, p.currency, locale)).join(" + ")}` : ""
+        }`}
+      />
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         <BillingDocumentForm
           action={createInvoice}
           submitLabel={t.createSubmitLabel}
@@ -114,7 +114,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
         <>
           <div className="mt-6 flex flex-col gap-3">
             {allInvoices.map((invoice) => (
-              <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+              <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Link href={`/admin/crm/clients/${invoice.clientId}`} className="font-medium text-pm-noir hover:underline">

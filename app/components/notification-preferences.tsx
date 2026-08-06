@@ -98,7 +98,7 @@ export function NotificationPreferencesControl({
             onClick={() => {
               if (soundPath) playNotificationSound(soundPath);
             }}
-            className="rounded-full border border-pm-gris-2 px-3 py-1 text-xs text-pm-noir transition hover:bg-pm-gris-2/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="rounded-full border border-pm-gris-2 px-3 py-1 text-xs text-pm-noir transition hover:border-pm-g-blue/30 hover:bg-pm-g-blue/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             {t.testSound}
           </button>
@@ -107,7 +107,7 @@ export function NotificationPreferencesControl({
             onClick={toggleSound}
             aria-pressed={prefs.soundEnabled}
             className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              prefs.soundEnabled ? "bg-pm-noir text-white" : "border border-pm-gris-2 text-pm-gris hover:bg-pm-gris-2/40"
+              prefs.soundEnabled ? "bg-pm-bleu-eu text-white" : "border border-pm-gris-2 text-pm-gris hover:border-pm-g-blue/30 hover:bg-pm-g-blue/5"
             }`}
           >
             {prefs.soundEnabled ? t.soundDisable : t.soundEnable}
@@ -128,7 +128,7 @@ export function NotificationPreferencesControl({
           <button
             type="button"
             onClick={() => void requestBrowserPermission()}
-            className="rounded-full bg-pm-noir px-3 py-1 text-xs font-medium text-white transition hover:bg-pm-noir/90"
+            className="rounded-full bg-pm-bleu-eu px-3 py-1 text-xs font-medium text-white transition hover:bg-pm-g-blue-2"
           >
             {t.browserEnableButton}
           </button>
@@ -139,8 +139,8 @@ export function NotificationPreferencesControl({
 
   if (variant === "full") {
     return (
-      <div className="rounded-2xl border border-pm-gris-2 bg-white p-4">
-        <h3 className="text-sm font-semibold text-pm-noir">{t.title}</h3>
+      <div className="rounded-2xl border border-pm-gris-2 bg-white p-6 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
+        <h3 className="font-serif text-xl font-semibold tracking-tight text-pm-noir">{t.title}</h3>
         <div className="mt-4">{body}</div>
       </div>
     );
@@ -152,14 +152,14 @@ export function NotificationPreferencesControl({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={t.title}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-pm-gris-2 bg-white text-pm-noir transition hover:bg-pm-gris-2/40"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-pm-gris-2 bg-white text-pm-noir shadow-pm-sm transition hover:border-pm-g-blue/25 hover:bg-pm-g-blue/5"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
-      {open && <div className="absolute right-0 z-10 mt-2 w-72 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-lg">{body}</div>}
+      {open && <div className="absolute right-0 z-10 mt-2 w-72 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-pm-lg">{body}</div>}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { EditContractForm, SendContractButton, SimulateSignatureButton } from "@
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero } from "@/components/admin/page-hero";
 
 const STATUS_VALUES = ["draft", "sent", "signed", "declined"];
 const PAGE_SIZE = 20;
@@ -57,8 +58,7 @@ export default async function CrmContractsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.summary(totalCount, overallCount, hasFilters)}</p>
+      <AdminPageHero title={t.title} subtitle={t.summary(totalCount, overallCount, hasFilters)} />
 
       <form action="/admin/crm/contracts" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
@@ -94,7 +94,7 @@ export default async function CrmContractsPage({ searchParams }: { searchParams:
         <>
           <div className="mt-6 flex flex-col gap-3">
             {allContracts.map((contract) => (
-              <div key={contract.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+              <div key={contract.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Link href={`/admin/crm/clients/${contract.clientId}`} className="font-medium text-pm-noir hover:underline">

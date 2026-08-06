@@ -9,6 +9,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero, heroSecondaryButtonClass, tableWrapperClass } from "@/components/admin/page-hero";
 
 const STAGE_VALUES = CLIENT_STAGE_OPTIONS.map((o) => o.value);
 const PAGE_SIZE = 20;
@@ -72,27 +73,21 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-          <p className="mt-1 text-sm text-pm-gris">{t.resultsSummary(totalCount, overallCount, hasFilters)}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <a
-            href={buildExportHref(params, "csv")}
-            className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
-          >
-            {t.exportCsv}
-          </a>
-          <a
-            href={buildExportHref(params, "pdf")}
-            className="rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
-          >
-            {t.exportPdf}
-          </a>
-          {overallCount === 0 && <SeedCrmButton locale={locale} />}
-        </div>
-      </div>
+      <AdminPageHero
+        title={t.title}
+        subtitle={t.resultsSummary(totalCount, overallCount, hasFilters)}
+        actions={
+          <>
+            <a href={buildExportHref(params, "csv")} className={heroSecondaryButtonClass}>
+              {t.exportCsv}
+            </a>
+            <a href={buildExportHref(params, "pdf")} className={heroSecondaryButtonClass}>
+              {t.exportPdf}
+            </a>
+            {overallCount === 0 && <SeedCrmButton locale={locale} />}
+          </>
+        }
+      />
 
       <div className="mt-6">
         <CreateClientForm locale={locale} />
@@ -161,7 +156,7 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
         </div>
       ) : (
         <>
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+          <div className={`mt-6 overflow-x-auto ${tableWrapperClass}`}>
             <table className="w-full text-left text-sm">
               <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                 <tr>

@@ -5,6 +5,8 @@ import { useTransition } from "react";
 import { updateReportSchedule } from "@/lib/actions/reports";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { Select } from "@/components/gbp-audit/ui/field";
+import { Button } from "@/components/gbp-audit/ui/button";
 
 export function ReportScheduleForm({
   frequency,
@@ -31,21 +33,17 @@ export function ReportScheduleForm({
       }
     >
       <div className="flex items-center gap-3">
-        <input type="checkbox" name="enabled" defaultChecked={enabled} disabled={isPending} className="h-5 w-5 rounded border-pm-gris-2 accent-pm-noir" />
+        <input type="checkbox" name="enabled" defaultChecked={enabled} disabled={isPending} className="h-5 w-5 rounded border-pm-gris-2 accent-pm-bleu-eu" />
         <span className="text-sm text-pm-noir">{t.reportSchedule.enable}</span>
       </div>
-      <select name="frequency" defaultValue={frequency} disabled={isPending} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+      <Select name="frequency" defaultValue={frequency} disabled={isPending} className="sm:w-48">
         <option value="weekly">{t.reportSchedule.weekly}</option>
         <option value="monthly">{t.reportSchedule.monthly}</option>
         <option value="quarterly">{t.reportSchedule.quarterly}</option>
-      </select>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2 disabled:opacity-50"
-      >
+      </Select>
+      <Button type="submit" size="sm" loading={isPending} className="shrink-0">
         {isPending ? tCommon.saving : tCommon.save}
-      </button>
+      </Button>
     </form>
   );
 }

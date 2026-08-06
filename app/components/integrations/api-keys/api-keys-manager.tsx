@@ -13,6 +13,7 @@ import { revokeIntegrationApiKey, rotateIntegrationApiKey } from "@/lib/actions/
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { tableWrapperClass } from "@/components/admin/page-hero";
 
 export type ApiKeyRow = {
   id: string;
@@ -128,7 +129,7 @@ export function ApiKeysManager({
           <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+        <div className={`overflow-hidden ${tableWrapperClass}`}>
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>

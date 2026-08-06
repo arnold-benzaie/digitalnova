@@ -7,6 +7,7 @@ import { Dialog } from "@/components/integrations/ui/dialog";
 import { formatDateTime } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { tableWrapperClass } from "@/components/admin/page-hero";
 
 export type DeliveryAttemptRow = {
   id: string;
@@ -37,7 +38,7 @@ export function DeliveryTable({ deliveries, locale = "fr" }: { deliveries: Deliv
 
   return (
     <>
-      <div className="overflow-x-auto rounded-2xl border border-pm-gris-2 bg-white">
+      <div className={`overflow-x-auto ${tableWrapperClass}`}>
         <table className="w-full text-left text-sm">
           <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
             <tr>

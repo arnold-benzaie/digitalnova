@@ -22,7 +22,7 @@ export function NotificationRow({ item, locale = "fr" }: { item: NotificationLis
 
   const card = (
     <div
-      className={`rounded-2xl border p-4 shadow-pm-sm transition-shadow hover:shadow-pm-md ${
+      className={`rounded-2xl border p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)] ${
         item.read ? "border-pm-gris-2 bg-white" : "border-pm-g-blue/25 bg-pm-g-blue/[0.025]"
       }`}
     >

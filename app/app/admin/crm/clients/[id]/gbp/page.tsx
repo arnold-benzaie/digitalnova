@@ -14,6 +14,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection, isGoogleOAuthConfigured } from "@/lib/google/oauth";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export default async function CrmClientGbpPage({
   params,
@@ -48,9 +49,9 @@ export default async function CrmClientGbpPage({
     return (
       <>
         {backLink}
-        <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
+        <div className={`mt-4 ${panelClass}`}>
           <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
-          <p className="font-serif text-xl font-semibold text-pm-noir">
+          <p className={panelTitleClass}>
             {t.gbp.connectTitle(client.name)}
           </p>
           <p className="mt-2 text-sm text-pm-gris">
@@ -75,7 +76,7 @@ export default async function CrmClientGbpPage({
     return (
       <>
         {backLink}
-        <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-8">
+        <div className={`mt-4 ${panelClass}`}>
           <GoogleOAuthBanner flag={google} reason={reason} locale={locale} />
           {isGoogleOAuthConfigured() && (
             <GoogleConnectionStatus
@@ -84,7 +85,7 @@ export default async function CrmClientGbpPage({
               locale={locale}
             />
           )}
-          <p className="font-serif text-xl font-semibold text-pm-noir">
+          <p className={panelTitleClass}>
             {t.gbp.connectTitle(client.name)}
           </p>
           {realConnectLink && <div className="mt-4">{realConnectLink}</div>}
@@ -122,15 +123,12 @@ export default async function CrmClientGbpPage({
           locale={locale}
         />
       )}
-      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.gbp.heading(client.name)}</h1>
-          <p className="mt-1 text-sm text-pm-gris">
-            {t.connectedAsPrefix} {connection.googleAccountEmail}
-            {!hasRealGbp && t.gbp.missingScopesSuffix}.
-          </p>
-        </div>
-        <SyncGbpForClientButton clientId={id} locale={locale} />
+      <div className="mt-4">
+        <AdminPageHero
+          title={t.gbp.heading(client.name)}
+          subtitle={`${t.connectedAsPrefix} ${connection.googleAccountEmail}${!hasRealGbp ? t.gbp.missingScopesSuffix : ""}.`}
+          actions={<SyncGbpForClientButton clientId={id} locale={locale} />}
+        />
       </div>
 
       <div className="mt-6">
@@ -140,9 +138,9 @@ export default async function CrmClientGbpPage({
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.gbp.locationsTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {orgLocations.map((location) => (
-          <div key={location.id} className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-            <p className="font-serif text-lg font-semibold text-pm-noir">{location.name}</p>
-            <p className="mt-1 text-sm text-pm-gris">{location.address}</p>
+          <div key={location.id} className={panelClass}>
+            <p className={panelTitleClass}>{location.name}</p>
+            <p className="mt-1.5 text-sm text-pm-gris">{location.address}</p>
             {location.phone && <p className="mt-1 text-sm text-pm-gris">{location.phone}</p>}
             {location.websiteUrl && (
               <a href={location.websiteUrl} target="_blank" rel="noreferrer" className="mt-1 block text-sm text-pm-noir underline">
@@ -161,7 +159,7 @@ export default async function CrmClientGbpPage({
       ) : (
         <div className="mt-3 flex flex-col gap-3">
           {allReviews.slice(0, 10).map((review) => (
-            <div key={review.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+            <div key={review.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-pm-noir">{review.authorName}</p>
                 <span className="text-sm text-pm-or">{"★".repeat(review.rating)}</span>

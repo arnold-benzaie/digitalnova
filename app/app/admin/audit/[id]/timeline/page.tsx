@@ -9,6 +9,7 @@ import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 export default async function AuditTimelinePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
@@ -68,13 +69,10 @@ export default async function AuditTimelinePage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <div>
-        <h1 className="font-serif text-3xl font-semibold text-pm-noir">{audit.businessName}</h1>
-        <p className="mt-1 text-sm text-pm-gris">{t.pageLead}</p>
-      </div>
+      <AdminPageHero title={audit.businessName} subtitle={t.pageLead} />
       <AuditTabs auditId={id} active="timeline" locale={locale} />
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         {entries.length === 0 ? (
           <p className="text-sm text-pm-gris">{t.empty}</p>
         ) : (

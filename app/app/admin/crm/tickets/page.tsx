@@ -16,6 +16,7 @@ import { updateTicketStatus } from "@/lib/actions/crm-tickets";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 const STATUS_VALUES = TICKET_STATUS_OPTIONS.map((o) => o.value);
 const PRIORITY_VALUES = ["low", "medium", "high"];
@@ -69,10 +70,9 @@ export default async function CrmTicketsPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.resultsSummary(totalCount, overallCount, hasFilters)}</p>
+      <AdminPageHero title={t.title} subtitle={t.resultsSummary(totalCount, overallCount, hasFilters)} />
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         <CreateTicketForm clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))} locale={locale} />
       </div>
 
@@ -115,7 +115,7 @@ export default async function CrmTicketsPage({ searchParams }: { searchParams: P
         <>
           <div className="mt-6 flex flex-col gap-3">
             {allTickets.map((ticket) => (
-              <div key={ticket.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4">
+              <div key={ticket.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <Link href={`/admin/crm/clients/${ticket.clientId}`} className="font-medium text-pm-noir hover:underline">

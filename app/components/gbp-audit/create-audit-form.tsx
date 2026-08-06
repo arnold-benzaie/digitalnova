@@ -9,6 +9,7 @@ import { Button } from "@/components/gbp-audit/ui/button";
 import { toast } from "@/components/gbp-audit/ui/toast";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 export function CreateAuditForm({ locale = "fr" }: { locale?: Locale }) {
   const t = dictionaries[locale].auditModule.createAudit;
@@ -36,8 +37,8 @@ export function CreateAuditForm({ locale = "fr" }: { locale?: Locale }) {
         })
       }
     >
-      <fieldset className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">{t.prospectLegend}</legend>
+      <fieldset className={panelClass}>
+        <legend className={`px-2 ${panelTitleClass}`}>{t.prospectLegend}</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t.fields.firstName} required htmlFor="firstName">
             <Input id="firstName" name="firstName" required />
@@ -78,8 +79,8 @@ export function CreateAuditForm({ locale = "fr" }: { locale?: Locale }) {
         </div>
       </fieldset>
 
-      <fieldset className="rounded-2xl border border-pm-gris-2 bg-white p-5">
-        <legend className="px-2 font-serif text-lg font-semibold text-pm-noir">{t.businessLegend}</legend>
+      <fieldset className={panelClass}>
+        <legend className={`px-2 ${panelTitleClass}`}>{t.businessLegend}</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t.fields.legalName} required htmlFor="legalName">
             <Input id="legalName" name="legalName" required />

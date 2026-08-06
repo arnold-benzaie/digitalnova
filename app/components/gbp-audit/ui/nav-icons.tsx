@@ -42,6 +42,13 @@ export const NAV_ICONS: Record<string, (props: IconProps) => ReactElement> = {
   gauge: (p) => <Icon {...p}><path d="M4 13a8 8 0 1 1 16 0" /><path d="M12 13l4-4" /><circle cx="12" cy="13" r="1" fill="currentColor" stroke="none" /></Icon>,
   alertTriangle: (p) => <Icon {...p}><path d="M12 3 2.8 20h18.4L12 3z" /><path d="M12 9v4" /><circle cx="12" cy="16.5" r=".8" fill="currentColor" stroke="none" /></Icon>,
   info: (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none" /></Icon>,
+  phone: (p) => <Icon {...p}><path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4a2 2 0 0 1-2 2A15 15 0 0 1 4 6a2 2 0 0 1 0-2z" strokeLinejoin="round" /></Icon>,
+  star: (p) => <Icon {...p}><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.3 6.2 20.5l1.1-6.5-4.8-4.6 6.6-.9z" strokeLinejoin="round" /></Icon>,
+  eye: (p) => <Icon {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></Icon>,
+  mapPin: (p) => <Icon {...p}><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" strokeLinejoin="round" /><circle cx="12" cy="9" r="2.5" /></Icon>,
+  search: (p) => <Icon {...p}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></Icon>,
+  barChart: (p) => <Icon {...p}><path d="M4 20V10M12 20V4M20 20v-7" /></Icon>,
+  upload: (p) => <Icon {...p}><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></Icon>,
 };
 
 export type NavIconName = keyof typeof NAV_ICONS;

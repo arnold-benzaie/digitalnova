@@ -8,6 +8,7 @@ import { getOrganizationById } from "@/lib/integrations/queries";
 import { INTEGRATION_EVENT_CATALOG } from "@/lib/integrations/governance";
 import { MAX_WEBHOOK_ATTEMPTS, WEBHOOK_ATTEMPT_DELAYS_MS, WEBHOOK_HTTP_TIMEOUT_MS } from "@/lib/integrations/worker";
 import { IntegrationsNav } from "@/components/integrations/integrations-nav";
+import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 
 const EXAMPLE_ENVELOPE = {
   id: "b8f0b9d2-6b7e-4b8a-9b0e-2b1a6d6b0f2a",
@@ -23,8 +24,8 @@ const EXAMPLE_ENVELOPE = {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-pm-gris-2 bg-white p-6">
-      <h2 className="font-serif text-lg font-semibold text-pm-noir">{title}</h2>
+    <section className={panelClass}>
+      <h2 className={panelTitleClass}>{title}</h2>
       <div className="mt-3 flex flex-col gap-3 text-sm text-pm-noir">{children}</div>
     </section>
   );
@@ -60,8 +61,9 @@ export default async function IntegrationDocsPage({
       <Link href={`/admin/integrations/${organizationId}`} className="text-sm text-pm-gris hover:text-pm-noir">
         ← {org.name}
       </Link>
-      <h1 className="mt-2 font-serif text-3xl font-semibold text-pm-noir">{t.docs.title}</h1>
-      <p className="mt-1 text-sm text-pm-gris">{t.docs.subtitle}</p>
+      <div className="mt-2">
+        <AdminPageHero title={t.docs.title} subtitle={t.docs.subtitle} />
+      </div>
 
       <IntegrationsNav organizationId={organizationId} active="docs" locale={locale} />
 

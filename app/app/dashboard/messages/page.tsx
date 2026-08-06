@@ -7,6 +7,7 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { APP_NAME } from "@/lib/brand";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 
 export default async function MessagesPage() {
   const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
@@ -19,14 +20,13 @@ export default async function MessagesPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead(APP_NAME)}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead(APP_NAME)} />
 
       <div className="mt-6">
         <MessageThread messages={thread} locale={locale} />
       </div>
 
-      <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-4">
+      <div className={`mt-4 ${panelClass}`}>
         <SendMessageForm locale={locale} />
       </div>
     </>

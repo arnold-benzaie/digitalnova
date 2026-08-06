@@ -6,6 +6,9 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
+import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 export default async function DocumentsPage() {
   const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
@@ -25,20 +28,18 @@ export default async function DocumentsPage() {
 
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold text-pm-noir">{t.title}</h1>
-      <p className="mt-2 text-sm text-pm-gris">{t.lead}</p>
+      <AdminPageHero title={t.title} subtitle={t.lead} />
 
-      <div className="mt-6 rounded-2xl border border-pm-gris-2 bg-white p-5">
+      <div className={`mt-6 ${panelClass}`}>
         <UploadDocumentForm locale={locale} />
       </div>
 
       {orgDocuments.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-pm-gris-2 bg-white p-8 text-center">
-          <p className="font-serif text-lg font-semibold text-pm-noir">{t.empty}</p>
-          <p className="mt-1 text-sm text-pm-gris">{t.emptyHint}</p>
+        <div className="mt-6">
+          <EmptyState icon={<NAV_ICONS.upload width={22} height={22} />} title={t.empty} description={t.emptyHint} />
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-pm-gris-2 bg-white shadow-[0_8px_22px_rgba(13,36,67,0.05)]">
           <table className="w-full text-left text-sm">
             <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
               <tr>
