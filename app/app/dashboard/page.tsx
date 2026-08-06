@@ -1,19 +1,21 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
-import { audits, gbpConnections, locationMetrics, locations, onboarding, reviews } from "@/db/schema";
+import { audits, gbpConnections, locationMetrics, locations, notifications, onboarding, reviews } from "@/db/schema";
 import { Sparkline } from "@/components/sparkline";
 import { TrendChart } from "@/components/trend-chart";
 import { RatingDistributionChart } from "@/components/rating-distribution-chart";
 import { MetricsSummaryChart } from "@/components/metrics-summary-chart";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
-import { APP_NAME } from "@/lib/brand";
+import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatNumber, formatRelativeTime } from "@/lib/i18n/format";
-import { AdminPageHero, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { AdminPageHero, HeroControlChip, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { GreetingText } from "@/components/greeting-text";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
+import type { CurrentSession } from "@/lib/session";
 
 const RED = "#d52b1e";
 const GOLD = "#c8922a";
@@ -22,6 +24,55 @@ const GREEN = "#34a853";
 
 function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+// Presentation-only demo series shown until a real Google Business Profile
+// connection produces real rows — never written to the database, and
+// replaced field-by-field the moment the corresponding real data exists
+// (see isConnected below). Deterministic (no Math.random) so the server
+// render is stable across requests.
+function buildDemoViewsSeries(days: number): { date: string; value: number }[] {
+  const today = new Date();
+  const series: { date: string; value: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const base = 34 + Math.round(13 * Math.sin(i / 5.5)) + Math.round((days - i) * 0.35);
+    series.push({ date: toDateKey(d), value: Math.max(9, base) });
+  }
+  return series;
+}
+
+const DEMO_VIEWS_SERIES = buildDemoViewsSeries(90);
+const DEMO_CALLS_SERIES = [4, 6, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11];
+const DEMO_TOTAL_VIEWS = DEMO_VIEWS_SERIES.slice(-30).reduce((sum, d) => sum + d.value, 0);
+const DEMO_TOTAL_CALLS = 86;
+const DEMO_TOTAL_DIRECTIONS = 54;
+const DEMO_TOTAL_WEBSITE_CLICKS = 37;
+const DEMO_LOCATIONS_COUNT = 1;
+const DEMO_PENDING_REVIEWS_COUNT = 2;
+const DEMO_LAST30_VIEWS = DEMO_TOTAL_VIEWS;
+const DEMO_VIEWS_DELTA_PCT = 18;
+const DEMO_SCORE = 78;
+const DEMO_RATING_COUNTS = [
+  { rating: 5, count: 14 },
+  { rating: 4, count: 6 },
+  { rating: 3, count: 2 },
+  { rating: 2, count: 1 },
+  { rating: 1, count: 0 },
+];
+const DEMO_REVIEWS_TOTAL = DEMO_RATING_COUNTS.reduce((sum, r) => sum + r.count, 0);
+const DEMO_AVERAGE_RATING = DEMO_RATING_COUNTS.reduce((sum, r) => sum + r.rating * r.count, 0) / DEMO_REVIEWS_TOTAL;
+function buildDemoRecentReviews(locale: string) {
+  const names = locale === "en" ? ["Sam R.", "Jamie B.", "Alex L.", "Morgan D."] : ["Camille R.", "Yanis B.", "Sophie L.", "Marc D."];
+  const ratings = [5, 4, 5, 4];
+  const daysAgo = [1, 3, 5, 8];
+  const today = new Date();
+  return names.map((authorName, i) => {
+    const publishedAt = new Date(today);
+    publishedAt.setDate(publishedAt.getDate() - daysAgo[i]);
+    return { id: `demo-${i}`, authorName, rating: ratings[i], publishedAt };
+  });
 }
 
 function PriorityActionRow({ href, title, tone }: { href: string; title: string; tone: "info" | "warm" }) {
@@ -38,119 +89,132 @@ function PriorityActionRow({ href, title, tone }: { href: string; title: string;
   );
 }
 
+// Per-user greeting name — never a hardcoded name, always derived from the
+// real signed-in session. Priority: personal first name > full name >
+// organization name > local part of the email (never the full address) >
+// null (generic "Bonjour/Hello 👋" fallback). Trimmed and length-capped so a
+// malformed Clerk profile field can't blow up the hero layout.
+// String.slice() cuts by UTF-16 code unit, which can split a surrogate
+// pair (e.g. an emoji in a display name) or a combined grapheme in half,
+// producing a broken character — Intl.Segmenter truncates by whole
+// grapheme instead. value.length is always >= the grapheme count, so
+// checking it first is a safe, cheap way to skip segmentation entirely
+// for the (overwhelmingly common) short-name case.
+function truncateName(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  const graphemes = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value), (s) => s.segment);
+  return graphemes.length <= maxLength ? value : `${graphemes.slice(0, maxLength).join("")}…`;
+}
+
+function resolveGreetingName(session: CurrentSession): string | null {
+  const candidates = [session.firstName, session.fullName, session.organizationName, session.email.split("@")[0]];
+  for (const candidate of candidates) {
+    const cleaned = candidate?.trim();
+    if (cleaned && cleaned.toLowerCase() !== "null" && cleaned.toLowerCase() !== "undefined") {
+      return truncateName(cleaned, 40);
+    }
+  }
+  return null;
+}
+
 export default async function DashboardPage() {
-  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
+  const [org, locale, session] = await Promise.all([getOrCreateDevOrganization(), getLocale(), requireSession()]);
   const t = dictionaries[locale].dashboard.home;
 
-  const [connection] = await db
-    .select()
-    .from(gbpConnections)
-    .where(eq(gbpConnections.organizationId, org.id))
-    .limit(1);
-
+  // These four queries are independent of each other (none reads another's
+  // result), so they run concurrently instead of as four sequential
+  // round trips — this also directly speeds up the full-page reload a
+  // language switch forces (see components/language-switcher.tsx).
+  const [[connection], [onboardingRecord], [latestAudit], [{ count: unreadNotifications }]] = await Promise.all([
+    db.select().from(gbpConnections).where(eq(gbpConnections.organizationId, org.id)).limit(1),
+    db.select().from(onboarding).where(eq(onboarding.organizationId, org.id)).limit(1),
+    // Independent of the GBP connection — an audit can exist (or not) either way.
+    db.select().from(audits).where(eq(audits.organizationId, org.id)).orderBy(desc(audits.createdAt)).limit(1),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notifications)
+      .where(
+        and(
+          or(and(eq(notifications.organizationId, org.id), isNull(notifications.userId)), eq(notifications.userId, session.userId)),
+          eq(notifications.read, false),
+        ),
+      ),
+  ]);
   const isConnected = connection?.status === "connected";
 
-  const [onboardingRecord] = await db
-    .select()
-    .from(onboarding)
-    .where(eq(onboarding.organizationId, org.id))
-    .limit(1);
-  const onboardingBanner = !onboardingRecord?.completedAt && (
-    <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 shadow-[0_8px_22px_rgba(13,36,67,0.05)] sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className={panelTitleClass}>{t.onboardingBannerTitle}</p>
-        <p className="mt-1.5 text-sm text-pm-gris">{t.onboardingBannerBody}</p>
-      </div>
-      <Link
-        href="/dashboard/onboarding"
-        className="shrink-0 self-start rounded-lg bg-pm-noir px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-white shadow-[0_6px_16px_rgba(8,8,8,0.18)] transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:bg-pm-noir-2 hover:shadow-[0_9px_20px_rgba(8,8,8,0.24)]"
-      >
-        {t.onboardingBannerCta}
-      </Link>
-    </div>
-  );
+  let viewsSeries = DEMO_VIEWS_SERIES;
+  let callsSeries: number[] = DEMO_CALLS_SERIES;
+  let totalViews = DEMO_TOTAL_VIEWS;
+  let totalCalls = DEMO_TOTAL_CALLS;
+  let totalDirections = DEMO_TOTAL_DIRECTIONS;
+  let totalWebsiteClicks = DEMO_TOTAL_WEBSITE_CLICKS;
+  let locationsCount = DEMO_LOCATIONS_COUNT;
+  let last30Views = DEMO_LAST30_VIEWS;
+  let viewsDeltaPct: number | null = DEMO_VIEWS_DELTA_PCT;
+  let averageRating: number | null = DEMO_AVERAGE_RATING;
+  let ratingCounts = DEMO_RATING_COUNTS;
+  let reviewsTotal = DEMO_REVIEWS_TOTAL;
+  let recentReviews: { id: string; authorName: string; rating: number; publishedAt: Date }[] = buildDemoRecentReviews(locale);
+  let pendingReviewsCount = 0;
 
-  if (!isConnected) {
-    return (
-      <>
-        <AdminPageHero title={t.greeting} subtitle={t.introNotConnected(APP_NAME)} />
+  if (isConnected) {
+    const orgLocations = await db.select().from(locations).where(eq(locations.organizationId, org.id));
+    const locationIds = orgLocations.map((l) => l.id);
 
-        {onboardingBanner}
+    // Both only depend on locationIds, not on each other — run concurrently.
+    const [metrics, orgReviews] = await Promise.all([
+      locationIds.length ? db.select().from(locationMetrics).where(inArray(locationMetrics.locationId, locationIds)) : Promise.resolve([]),
+      locationIds.length ? db.select().from(reviews).where(inArray(reviews.locationId, locationIds)) : Promise.resolve([]),
+    ]);
 
-        <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-pm-g-blue/25 bg-pm-g-blue/[0.025] p-6 shadow-[0_8px_22px_rgba(13,36,67,0.05)] sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className={panelTitleClass}>{t.gbpNotConnectedTitle}</p>
-            <p className="mt-1.5 text-sm text-pm-gris">{t.gbpNotConnectedBody}</p>
-          </div>
-          <Link href="/dashboard/gbp" className={`shrink-0 self-start ${heroPrimaryButtonClass}`}>
-            {t.connect}
-          </Link>
-        </div>
+    const dailyTotals = new Map<string, { views: number; calls: number; directionRequests: number; websiteClicks: number }>();
+    for (const row of metrics) {
+      const key = toDateKey(row.date);
+      const existing = dailyTotals.get(key) ?? { views: 0, calls: 0, directionRequests: 0, websiteClicks: 0 };
+      existing.views += row.views;
+      existing.calls += row.calls;
+      existing.directionRequests += row.directionRequests;
+      existing.websiteClicks += row.websiteClicks;
+      dailyTotals.set(key, existing);
+    }
+    const sortedDates = [...dailyTotals.keys()].sort();
 
-        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label={t.tiles.auditScore} value="—" icon={<NAV_ICONS.gauge width={14} height={14} />} tone="info" />
-          <KpiCard label={t.tiles.profileViews} value="—" icon={<NAV_ICONS.eye width={14} height={14} />} tone="good" />
-          <KpiCard label={t.tiles.calls} value="—" icon={<NAV_ICONS.phone width={14} height={14} />} tone="warm" />
-          <KpiCard label={t.tiles.reviews} value="—" icon={<NAV_ICONS.star width={14} height={14} />} tone="good" />
-        </div>
-      </>
-    );
+    viewsSeries = sortedDates.map((date) => ({ date, value: dailyTotals.get(date)!.views }));
+    callsSeries = sortedDates.slice(-12).map((date) => dailyTotals.get(date)!.calls);
+
+    totalViews = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
+    totalCalls = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.calls, 0);
+    totalDirections = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.directionRequests, 0);
+    totalWebsiteClicks = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.websiteClicks, 0);
+    locationsCount = orgLocations.length;
+
+    // Presentation-only comparison, computed in JS from the metrics rows
+    // already fetched above — no new query. Undefined (not 0%) when there's
+    // no prior-period data to compare against, so we never show a misleading
+    // +/-Infinity% delta.
+    last30Views = sortedDates.slice(-30).reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
+    const prev30Dates = sortedDates.slice(-60, -30);
+    const prev30Views = prev30Dates.reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
+    viewsDeltaPct = prev30Views > 0 ? Math.round(((last30Views - prev30Views) / prev30Views) * 100) : null;
+
+    averageRating = orgReviews.length > 0 ? orgReviews.reduce((sum, r) => sum + r.rating, 0) / orgReviews.length : null;
+    ratingCounts = [5, 4, 3, 2, 1].map((rating) => ({ rating, count: orgReviews.filter((r) => r.rating === rating).length }));
+    reviewsTotal = orgReviews.length;
+    const pendingReviews = orgReviews.filter((r) => !r.replyText);
+    pendingReviewsCount = pendingReviews.length;
+    recentReviews = [...orgReviews].sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).slice(0, 4);
   }
-
-  const orgLocations = await db.select().from(locations).where(eq(locations.organizationId, org.id));
-  const locationIds = orgLocations.map((l) => l.id);
-
-  const metrics = locationIds.length
-    ? await db.select().from(locationMetrics).where(inArray(locationMetrics.locationId, locationIds))
-    : [];
-
-  const dailyTotals = new Map<string, { views: number; calls: number; directionRequests: number }>();
-  for (const row of metrics) {
-    const key = toDateKey(row.date);
-    const existing = dailyTotals.get(key) ?? { views: 0, calls: 0, directionRequests: 0 };
-    existing.views += row.views;
-    existing.calls += row.calls;
-    existing.directionRequests += row.directionRequests;
-    dailyTotals.set(key, existing);
-  }
-  const sortedDates = [...dailyTotals.keys()].sort();
-
-  const viewsSeries = sortedDates.map((date) => ({ date, value: dailyTotals.get(date)!.views }));
-  const callsSeries = sortedDates.slice(-12).map((date) => dailyTotals.get(date)!.calls);
-
-  const totalViews = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
-  const totalCalls = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.calls, 0);
-  const totalDirections = sortedDates.reduce((sum, date) => sum + dailyTotals.get(date)!.directionRequests, 0);
-
-  // Presentation-only comparison, computed in JS from the metrics rows
-  // already fetched above — no new query. Undefined (not 0%) when there's
-  // no prior-period data to compare against, so we never show a misleading
-  // +/-Infinity% delta.
-  const last30Views = sortedDates.slice(-30).reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
-  const prev30Dates = sortedDates.slice(-60, -30);
-  const prev30Views = prev30Dates.reduce((sum, date) => sum + dailyTotals.get(date)!.views, 0);
-  const viewsDeltaPct = prev30Views > 0 ? Math.round(((last30Views - prev30Views) / prev30Views) * 100) : null;
-
-  const orgReviews = locationIds.length
-    ? await db.select().from(reviews).where(inArray(reviews.locationId, locationIds))
-    : [];
-  const averageRating =
-    orgReviews.length > 0 ? orgReviews.reduce((sum, r) => sum + r.rating, 0) / orgReviews.length : null;
-  const ratingCounts = [5, 4, 3, 2, 1].map((rating) => ({ rating, count: orgReviews.filter((r) => r.rating === rating).length }));
-  const pendingReviews = orgReviews.filter((r) => !r.replyText);
-  const recentReviews = [...orgReviews].sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).slice(0, 4);
-
-  const [latestAudit] = await db
-    .select()
-    .from(audits)
-    .where(eq(audits.organizationId, org.id))
-    .orderBy(desc(audits.createdAt))
-    .limit(1);
 
   const priorityActions: { key: string; title: string; href: string; tone: "info" | "warm" }[] = [];
+  if (!isConnected) priorityActions.push({ key: "connect-gbp", title: t.priorityConnectGbp, href: "/dashboard/gbp", tone: "warm" });
   if (!onboardingRecord?.completedAt) priorityActions.push({ key: "onboarding", title: t.onboardingBannerTitle, href: "/dashboard/onboarding", tone: "warm" });
-  if (!latestAudit) priorityActions.push({ key: "audit", title: t.priorityRunAudit, href: "/dashboard/audits", tone: "info" });
-  if (pendingReviews.length > 0) priorityActions.push({ key: "reviews", title: t.priorityPendingReviews(pendingReviews.length), href: "/dashboard/gbp", tone: "warm" });
+  if (isConnected && !latestAudit) priorityActions.push({ key: "audit", title: t.priorityRunAudit, href: "/dashboard/audits", tone: "info" });
+  if (isConnected && pendingReviewsCount > 0) priorityActions.push({ key: "reviews", title: t.priorityPendingReviews(pendingReviewsCount), href: "/dashboard/gbp", tone: "warm" });
+
+  // Priority actions above only ever reflect real pending reviews (never
+  // fabricated) — this display value is separate, for the KPI tile only,
+  // and falls back to a demo count when disconnected like the rest of the row.
+  const pendingReviewsDisplay = isConnected ? pendingReviewsCount : DEMO_PENDING_REVIEWS_COUNT;
 
   const metricsSummaryData = [
     { label: t.tiles.profileViews, value: totalViews, color: BLUE },
@@ -158,39 +222,44 @@ export default async function DashboardPage() {
     { label: t.tiles.directions, value: totalDirections, color: GREEN },
   ];
 
+  const auditScoreValue = latestAudit ? latestAudit.score : isConnected ? t.auditScoreEmpty : DEMO_SCORE;
+
   return (
     <>
       <AdminPageHero
-        title={t.greeting}
-        subtitle={t.introConnected}
+        title={<GreetingText name={resolveGreetingName(session)} locale={locale} />}
+        subtitle={isConnected ? t.introRealData : undefined}
         actions={
           <Link href="/dashboard/audits" className={heroPrimaryButtonClass}>
             {t.viewAudits}
           </Link>
         }
       />
+      {!isConnected && (
+        <div className="-mt-4 mb-8">
+          <HeroControlChip>
+            <p className="text-xs font-medium text-pm-noir">{t.demoBadgeText}</p>
+          </HeroControlChip>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <p className="mt-8 text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.currentSituation}</p>
+      <div className="mt-2 grid grid-cols-2 gap-5 sm:grid-cols-4 xl:grid-cols-8">
         <KpiCard
           label={t.auditScoreLabel}
-          value={latestAudit ? latestAudit.score : "—"}
+          value={auditScoreValue}
           icon={<NAV_ICONS.gauge width={14} height={14} />}
           tone="info"
           footer={
-            !latestAudit && (
+            isConnected && !latestAudit && (
               <Link href="/dashboard/audits" className="mt-2 inline-block text-xs text-pm-gris underline">
-                {t.runAudit}
+                {t.priorityRunAudit}
               </Link>
             )
           }
         />
 
-        <KpiCard
-          label={t.profileViews30d}
-          value={formatNumber(totalViews, locale)}
-          icon={<NAV_ICONS.eye width={14} height={14} />}
-          tone="good"
-        />
+        <KpiCard label={t.profileViews30d} value={formatNumber(totalViews, locale)} icon={<NAV_ICONS.eye width={14} height={14} />} tone="good" />
 
         <KpiCard
           label={t.calls30d}
@@ -202,12 +271,26 @@ export default async function DashboardPage() {
 
         <KpiCard
           label={t.tiles.reviews}
-          value={averageRating !== null ? `${averageRating.toFixed(1)} ★` : "—"}
+          value={averageRating !== null ? `${averageRating.toFixed(1)} ★` : t.reviewsEmptyShort}
           icon={<NAV_ICONS.star width={14} height={14} />}
           tone="good"
-          footer={<p className="mt-1 text-xs text-pm-gris">{t.reviewsCount(orgReviews.length)}</p>}
+          footer={<p className="mt-1 text-xs text-pm-gris">{t.reviewsCount(reviewsTotal)}</p>}
+        />
+
+        <KpiCard label={t.directionsLabel} value={formatNumber(totalDirections, locale)} icon={<NAV_ICONS.mapPin width={14} height={14} />} tone="info" />
+
+        <KpiCard label={t.websiteClicksLabel} value={formatNumber(totalWebsiteClicks, locale)} icon={<NAV_ICONS.zap width={14} height={14} />} tone="warm" />
+
+        <KpiCard label={t.locationsLabel} value={formatNumber(locationsCount, locale)} icon={<NAV_ICONS.building width={14} height={14} />} tone="neutral" />
+
+        <KpiCard
+          label={t.pendingReviewsLabel}
+          value={formatNumber(pendingReviewsDisplay, locale)}
+          icon={<NAV_ICONS.clock width={14} height={14} />}
+          tone={pendingReviewsDisplay > 0 ? "warm" : "neutral"}
         />
       </div>
+      <p className="mt-2 text-[11px] text-pm-gris">{t.currentSituationHint}</p>
 
       <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -225,13 +308,14 @@ export default async function DashboardPage() {
               {Math.abs(viewsDeltaPct)}% {t.vsPreviousPeriod}
             </p>
           )}
+          {isConnected && last30Views === 0 && <p className="mt-3 text-xs text-pm-gris">{t.noActivityThisPeriod}</p>}
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <div className={panelClass}>
           <p className={panelTitleClass}>{t.ratingDistributionTitle}</p>
-          {orgReviews.length === 0 ? (
+          {reviewsTotal === 0 ? (
             <p className="mt-4 text-sm text-pm-gris">{t.ratingDistributionEmpty}</p>
           ) : (
             <div className="mt-2">
@@ -247,7 +331,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className={`${panelClass} sm:col-span-2 xl:col-span-1`}>
+        <div className={panelClass}>
           <p className={panelTitleClass}>{t.priorityActionsTitle}</p>
           {priorityActions.length === 0 ? (
             <p className="mt-4 text-sm text-pm-gris">{t.priorityActionsEmpty}</p>
@@ -264,7 +348,7 @@ export default async function DashboardPage() {
       <div className={`mt-5 ${panelClass}`}>
         <div className="flex items-center justify-between">
           <p className={panelTitleClass}>{t.recentActivityTitle}</p>
-          {orgReviews.length > 0 && (
+          {reviewsTotal > 0 && (
             <Link href="/dashboard/gbp" className="text-xs font-medium text-pm-bleu-eu transition-colors hover:text-pm-g-blue-2">
               {t.seeAllReviews}
             </Link>
@@ -289,6 +373,30 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div
+        className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border bg-white px-6 py-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)] ${
+          unreadNotifications > 0 ? "border-pm-rouge/25" : "border-pm-gris-2 hover:border-[#d9e3ef]"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+              unreadNotifications > 0 ? "bg-pm-rouge/10 text-pm-rouge" : "bg-pm-g-blue/10 text-pm-bleu-eu"
+            }`}
+            aria-hidden="true"
+          >
+            <NAV_ICONS.bell width={16} height={16} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-pm-noir">{t.notificationsTitle}</p>
+            <p className="text-xs text-pm-gris">{unreadNotifications > 0 ? t.notificationsUnreadCount(unreadNotifications) : t.notificationsEmpty}</p>
+          </div>
+        </div>
+        <Link href="/dashboard/notifications" className="shrink-0 text-xs font-medium text-pm-bleu-eu transition-colors hover:text-pm-g-blue-2">
+          {t.viewNotifications}
+        </Link>
       </div>
     </>
   );

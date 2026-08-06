@@ -13,6 +13,7 @@ export type CurrentSession = {
   clerkUserId: string;
   email: string;
   fullName: string | null;
+  firstName: string | null;
   organizationId: string;
   organizationName: string;
   role: AppRole;
@@ -90,6 +91,7 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
       clerkUserId,
       email: appUser.email,
       fullName: appUser.fullName,
+      firstName: appUser.firstName,
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
       role: membership.roleName as AppRole,

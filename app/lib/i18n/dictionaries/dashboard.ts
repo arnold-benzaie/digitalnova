@@ -9,10 +9,24 @@
 export const dashboard = {
   fr: {
     home: {
-      greeting: "Bonjour 👋",
+      // Time-agnostic — the stable server-rendered fallback shown before
+      // GreetingText (components/greeting-text.tsx) can read the visitor's
+      // local clock client-side. The 👋 is rendered separately (animated,
+      // aria-hidden) rather than baked into this string.
+      greeting: (name: string | null) => (name ? `Bonjour ${name}` : "Bonjour"),
+      greetingByPeriod: (period: "morning" | "afternoon" | "evening", name: string | null) => {
+        const word = period === "morning" ? "Bonjour" : period === "afternoon" ? "Bon après-midi" : "Bonsoir";
+        return name ? `${word} ${name}` : word;
+      },
       introNotConnected: (appName: string) =>
         `Tableau de bord Phase 1 du portail ${appName}. Connectez votre profil Google Business pour débloquer l'audit IA et les métriques de performance.`,
-      introConnected: "Données simulées sur les 30 derniers jours, en attendant l'accès réel à l'API Google Business Profile.",
+      introDemo: "Données de démonstration — connectez votre profil Google Business pour voir vos vraies statistiques.",
+      introRealData: "Vue d'ensemble de votre activité Google Business Profile.",
+      demoBadgeText: "Mode démonstration — les données réelles apparaîtront dès que l'accès à l'API Google Business Profile sera actif.",
+      notificationsTitle: "Notifications",
+      auditScoreEmpty: "Pas encore disponible",
+      reviewsEmptyShort: "Aucun avis",
+      noActivityThisPeriod: "Aucune activité détectée sur cette période.",
       onboardingBannerTitle: "Complétez votre profil d'accueil",
       onboardingBannerBody: "Quelques questions pour que votre conseiller comprenne vos besoins et priorités.",
       onboardingBannerCta: "Répondre",
@@ -26,6 +40,10 @@ export const dashboard = {
       profileViews30d: "Vues du profil (30j)",
       calls30d: "Appels (30j)",
       directions30d: "Itinéraires (12j)",
+      directionsLabel: "Itinéraires (30j)",
+      websiteClicksLabel: "Clics site web (30j)",
+      locationsLabel: "Établissements actifs",
+      pendingReviewsLabel: "Avis en attente",
       averageRating: "Note moyenne",
       reviewsCount: (n: number) => `${n} avis`,
       viewsInPeriod: "Vues sur la période",
@@ -41,6 +59,11 @@ export const dashboard = {
       ratingDistributionTitle: "Avis par note",
       ratingDistributionEmpty: "Aucun avis pour le moment.",
       metricsSummaryTitle: "Répartition des indicateurs (30j)",
+      notificationsEmpty: "Aucune nouvelle notification",
+      notificationsUnreadCount: (n: number) => `${n} notification${n > 1 ? "s" : ""} non lue${n > 1 ? "s" : ""}`,
+      viewNotifications: "Voir les notifications",
+      currentSituation: "Situation actuelle",
+      currentSituationHint: "Totaux sur les 30 derniers jours — indépendants du sélecteur de période du graphique ci-dessous.",
     },
     chart: {
       evolutionAriaLabel: (label: string) => `${label} — évolution sur les 30 derniers jours`,
@@ -50,6 +73,8 @@ export const dashboard = {
       maxValueSr: (max: number) => `Valeur maximale affichée : ${max}.`,
       trendAriaLabel: (days: number) => `Tendance sur les ${days} derniers jours`,
       periodDays: (days: number) => `${days}j`,
+      evolutionEmptyTitle: "Aucune vue du profil enregistrée sur cette période.",
+      evolutionEmptyHint: "Synchronisez votre fiche Google Business Profile pour afficher les performances.",
     },
     adminOverview: {
       title: "Organisations",
@@ -197,10 +222,20 @@ export const dashboard = {
   },
   en: {
     home: {
-      greeting: "Hello 👋",
+      greeting: (name: string | null) => (name ? `Hello ${name}` : "Hello"),
+      greetingByPeriod: (period: "morning" | "afternoon" | "evening", name: string | null) => {
+        const word = period === "morning" ? "Good morning" : period === "afternoon" ? "Good afternoon" : "Good evening";
+        return name ? `${word} ${name}` : word;
+      },
       introNotConnected: (appName: string) =>
         `${appName} portal dashboard — Phase 1. Connect your Google Business profile to unlock the AI audit and performance metrics.`,
-      introConnected: "Simulated data for the last 30 days, pending real access to the Google Business Profile API.",
+      introDemo: "Demo data — connect your Google Business profile to see your real stats.",
+      introRealData: "Overview of your Google Business Profile activity.",
+      demoBadgeText: "Demo mode — real data will appear once Google Business Profile API access is active.",
+      notificationsTitle: "Notifications",
+      auditScoreEmpty: "Not available yet",
+      reviewsEmptyShort: "No reviews",
+      noActivityThisPeriod: "No activity detected for this period.",
       onboardingBannerTitle: "Complete your onboarding profile",
       onboardingBannerBody: "A few questions so your advisor understands your needs and priorities.",
       onboardingBannerCta: "Answer now",
@@ -214,6 +249,10 @@ export const dashboard = {
       profileViews30d: "Profile views (30d)",
       calls30d: "Calls (30d)",
       directions30d: "Directions (12d)",
+      directionsLabel: "Directions (30d)",
+      websiteClicksLabel: "Website clicks (30d)",
+      locationsLabel: "Active locations",
+      pendingReviewsLabel: "Pending reviews",
       averageRating: "Average rating",
       reviewsCount: (n: number) => `${n} reviews`,
       viewsInPeriod: "Views over the period",
@@ -229,6 +268,11 @@ export const dashboard = {
       ratingDistributionTitle: "Reviews by rating",
       ratingDistributionEmpty: "No reviews yet.",
       metricsSummaryTitle: "Metrics breakdown (30d)",
+      notificationsEmpty: "No new notifications",
+      notificationsUnreadCount: (n: number) => `${n} unread notification${n > 1 ? "s" : ""}`,
+      viewNotifications: "View notifications",
+      currentSituation: "Current situation",
+      currentSituationHint: "Totals over the last 30 days — independent of the chart's period selector below.",
     },
     chart: {
       evolutionAriaLabel: (label: string) => `${label} — trend over the last 30 days`,
@@ -238,6 +282,8 @@ export const dashboard = {
       maxValueSr: (max: number) => `Maximum value shown: ${max}.`,
       trendAriaLabel: (days: number) => `Trend over the last ${days} days`,
       periodDays: (days: number) => `${days}d`,
+      evolutionEmptyTitle: "No profile views recorded during this period.",
+      evolutionEmptyHint: "Sync your Google Business Profile to display performance data.",
     },
     adminOverview: {
       title: "Organizations",

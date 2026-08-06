@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
@@ -14,8 +15,12 @@ import { requireSession } from "@/lib/session";
  * resolved session pointing at an org row that doesn't exist, which should
  * never happen given the FK, so it stays a hard error rather than a
  * redirect.
+ *
+ * Wrapped in React `cache()` like requireSession() itself — both AppShell
+ * and the page it wraps call this per request, and without memoization
+ * that ran the same `organizations` SELECT twice on every single request.
  */
-export async function getOrCreateDevOrganization() {
+export const getOrCreateDevOrganization = cache(async () => {
   const session = await requireSession();
 
   const [org] = await db
@@ -27,4 +32,4 @@ export async function getOrCreateDevOrganization() {
     throw new Error("Organisation introuvable pour ce compte.");
   }
   return org;
-}
+});

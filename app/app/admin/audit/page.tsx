@@ -23,9 +23,9 @@ import {
   resolveActivityHref,
   type DashboardPeriodDays,
 } from "@/lib/gbp-audit/dashboard-stats";
-import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart } from "@/components/gbp-audit/dashboard-charts";
+import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart, SEVERITY_HEX } from "@/components/gbp-audit/dashboard-charts";
 import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
-import { SEMANTIC_DOT, taskPriorityTone, type SemanticTone } from "@/lib/gbp-audit/status-colors";
+import { type SemanticTone } from "@/lib/gbp-audit/status-colors";
 import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
@@ -261,7 +261,11 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
                   href={`/admin/audit/${task.auditId}/plan-correction`}
                   className="flex items-center gap-3 rounded-lg border-t border-pm-gris-2 px-1.5 py-3.5 text-sm transition-colors first:border-t-0 hover:bg-pm-gris-2/15"
                 >
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${SEMANTIC_DOT[taskPriorityTone(task.priority)]}`} aria-hidden="true" />
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: SEVERITY_HEX[task.priority as keyof typeof SEVERITY_HEX] ?? SEVERITY_HEX.opportunity }}
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-pm-noir">{task.title}</span>
                     <span className="block text-xs text-pm-gris">{task.priorityLabel}</span>

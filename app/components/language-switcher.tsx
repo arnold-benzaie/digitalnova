@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useFormStatus } from "react-dom";
 import { setLocale } from "@/lib/actions/locale";
 import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
@@ -60,18 +61,35 @@ export function LanguageSwitcher({
         const ringClass = variant === "shell" ? "focus-visible:ring-destructive/60" : "focus-visible:ring-pm-rouge/60";
         return (
           <form key={option} action={setLocale.bind(null, option, target)}>
-            <button
-              type="submit"
-              aria-label={LOCALE_NAME[option]}
-              aria-current={active ? "true" : undefined}
-              disabled={active}
-              className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${ringClass} ${activeClass}`}
-            >
-              {LOCALE_LABEL[option]}
-            </button>
+            <LanguageSwitcherButton label={LOCALE_LABEL[option]} name={LOCALE_NAME[option]} active={active} className={`${ringClass} ${activeClass}`} />
           </form>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * A `<button>` inside the `<form>` above, split into its own component
+ * because `useFormStatus()` only sees the pending state of the closest
+ * parent `<form>` — it can't be called in the component that renders the
+ * form itself. Gives the clicked option an immediate visual response
+ * (dim + non-interactive) while the Server Action round trip is in
+ * flight, so the switch doesn't feel stuck during that brief window —
+ * no new i18n mechanism, purely a loading-state affordance on top of the
+ * existing cookie + redirect flow.
+ */
+function LanguageSwitcherButton({ label, name, active, className }: { label: string; name: string; active: boolean; className: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      aria-label={name}
+      aria-current={active ? "true" : undefined}
+      disabled={active || pending}
+      className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${pending ? "opacity-50" : ""} ${className}`}
+    >
+      {label}
+    </button>
   );
 }

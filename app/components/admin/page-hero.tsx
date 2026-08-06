@@ -21,7 +21,7 @@ export function AdminPageHero({
   actions,
 }: {
   eyebrow?: string;
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   actions?: ReactNode;
 }) {

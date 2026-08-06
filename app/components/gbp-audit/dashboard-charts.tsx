@@ -33,10 +33,13 @@ const TONE_HEX: Record<SemanticTone, string> = {
   ai: "#6c5aa8", // --pm-violet
 };
 
-// Severity buckets (GBP_SEVERITIES): critical/important both read as urgent
-// on a dashboard chart, so important gets a deeper gold than moderate to
-// stay legend-distinguishable while remaining in the same WARM family.
-const COLORS = { critical: TONE_HEX.bad, important: "#c8922a", moderate: "#e8b84b", opportunity: TONE_HEX.neutral };
+// Severity buckets (GBP_SEVERITIES) — four visually distinct colors so
+// critical/important/moderate/opportunity never collapse into the same
+// hue on a chart legend or a priority-action dot. Exported for reuse by
+// any severity-driven dot/legend outside this file (e.g. the "Actions
+// prioritaires" list), which otherwise has no reason to import Recharts.
+export const SEVERITY_HEX = { critical: "#dc2626", important: "#b45309", moderate: "#e0a82e", opportunity: "#6b7280" };
+const COLORS = SEVERITY_HEX;
 
 const TOOLTIP_STYLE = {
   contentStyle: { borderRadius: 10, border: "1px solid #e2ddd8", fontSize: 12, padding: "8px 12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },

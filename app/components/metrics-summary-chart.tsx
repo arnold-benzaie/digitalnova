@@ -27,7 +27,7 @@ export function MetricsSummaryChart({
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2ddd8" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#6b6b6b" interval={0} />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="#6b6b6b" interval={0} angle={-15} textAnchor="end" height={50} />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#6b6b6b" tickFormatter={(v: number) => formatNumber(v, locale)} />
         <Tooltip
           contentStyle={TOOLTIP_STYLE.contentStyle}
