@@ -53,7 +53,7 @@ export async function markCrmInvoicePaidFromFastSpringEvent(event: {
     action: "crm.invoice_status_changed",
     targetType: "crm_invoice",
     targetId: invoice.id,
-    clientId: invoice.clientId,
+    clientId: invoice.clientId ?? undefined,
     metadata: { status: "paid", invoiceNumber: invoice.invoiceNumber, source: "fastspring_webhook_prepared" },
   });
 

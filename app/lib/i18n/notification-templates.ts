@@ -149,6 +149,22 @@ const templates: Record<string, (locale: Locale, meta: Record<string, unknown>) 
     return locale === "en" ? { title: `${planName} subscription activated`, body: `€${priceEuros}/month` } : { title: `Abonnement ${planName} activé`, body: `${priceEuros} €/mois` };
   },
   "billing.canceled": (locale) => (locale === "en" ? { title: "Subscription canceled" } : { title: "Abonnement annulé" }),
+  "invoice.sent": (locale, meta) => {
+    const invoiceNumber = String(meta.invoiceNumber ?? "");
+    return locale === "en"
+      ? { title: "Invoice sent successfully", body: invoiceNumber }
+      : { title: "Facture envoyée avec succès", body: invoiceNumber };
+  },
+  // No technical error detail here on purpose — same "no raw provider
+  // error exposed" policy as everywhere else in this file; the real
+  // reason stays in lastDeliveryError (crm_invoices) and the audit log,
+  // both staff-only.
+  "invoice.delivery_failed": (locale, meta) => {
+    const invoiceNumber = String(meta.invoiceNumber ?? "");
+    return locale === "en"
+      ? { title: "Invoice delivery failed", body: invoiceNumber }
+      : { title: "Échec de l'envoi de la facture", body: invoiceNumber };
+  },
   "fastspring._generic": (locale) => (locale === "en" ? { title: "Billing update" } : { title: "Mise à jour de facturation" }),
   "report.generated": (locale, meta) => {
     const frequencyLabelsFr: Record<string, string> = { weekly: "hebdomadaire", monthly: "mensuel", quarterly: "trimestriel" };

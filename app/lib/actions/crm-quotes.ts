@@ -249,7 +249,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
     action: "crm.invoice_created_from_quote",
     targetType: "crm_invoice",
     targetId: invoice.id,
-    clientId: invoice.clientId,
+    clientId: invoice.clientId ?? undefined,
     metadata: { invoiceNumber, quoteNumber: quote.quoteNumber, totalCents: invoice.totalCents },
   });
 

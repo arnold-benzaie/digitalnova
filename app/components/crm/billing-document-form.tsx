@@ -3,11 +3,13 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeTotals, formatMoney, getCurrencyOptions } from "@/lib/crm-billing";
-import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
+import { dictionaries, LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
 type Item = { description: string; quantity: string; unitPrice: string };
-type ClientOption = { id: string; name: string };
+type ClientOption = { id: string; name: string; preferredLocale?: string | null; email?: string | null };
 type DealOption = { id: string; title: string };
+
+const NEW_CLIENT_SENTINEL = "__new__";
 
 type Initial = {
   clientId: string;
@@ -31,6 +33,10 @@ export function BillingDocumentForm({
   initial,
   onDone,
   locale = "fr",
+  /** Gates the invoice-only controls (document language, "Autre client…"
+   * manual entry, auto-send + preview) — quotes reuse this same component
+   * without them, since crm_quotes has no locale/auto-send concept. */
+  showInvoiceOptions = false,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   submitLabel: string;
@@ -41,6 +47,7 @@ export function BillingDocumentForm({
   initial?: Initial;
   onDone?: () => void;
   locale?: Locale;
+  showInvoiceOptions?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -55,6 +62,31 @@ export function BillingDocumentForm({
       ? initial.items.map((i) => ({ description: i.description, quantity: String(i.quantity), unitPrice: (i.unitPriceCents / 100).toFixed(2) }))
       : [{ description: "", quantity: "1", unitPrice: "" }],
   );
+
+  // Invoice-only state — inert (never read/rendered) when showInvoiceOptions
+  // is false, so quotes are entirely unaffected.
+  const [selectedClientId, setSelectedClientId] = useState(initial?.clientId ?? "");
+  const [documentLocale, setDocumentLocale] = useState<Locale>(locale);
+  const [manualEmail, setManualEmail] = useState("");
+  const [sendAutomatically, setSendAutomatically] = useState(false);
+
+  function handleClientChange(id: string) {
+    setSelectedClientId(id);
+    if (id === NEW_CLIENT_SENTINEL) {
+      setManualEmail("");
+      return;
+    }
+    // Priority (documented in the approved plan): the selected client's own
+    // saved preference wins over whatever locale was showing before —
+    // still just a form default, the staff member can change it again.
+    const option = clientOptions?.find((c) => c.id === id);
+    if (option?.preferredLocale === "fr" || option?.preferredLocale === "en") {
+      setDocumentLocale(option.preferredLocale);
+    }
+  }
+
+  const selectedClientEmail =
+    selectedClientId === NEW_CLIENT_SENTINEL ? manualEmail.trim() || null : clientOptions?.find((c) => c.id === selectedClientId)?.email ?? null;
 
   const parsedItems = items
     .filter((i) => i.description.trim())
@@ -88,6 +120,10 @@ export function BillingDocumentForm({
             await action(formData);
             formRef.current?.reset();
             setItems([{ description: "", quantity: "1", unitPrice: "" }]);
+            setSelectedClientId("");
+            setManualEmail("");
+            setSendAutomatically(false);
+            setDocumentLocale(locale);
             onDone?.();
             router.refresh();
           } catch (err) {
@@ -101,7 +137,8 @@ export function BillingDocumentForm({
           <select
             name="clientId"
             required
-            defaultValue={initial?.clientId ?? ""}
+            value={selectedClientId}
+            onChange={(e) => handleClientChange(e.target.value)}
             className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
           >
             <option value="" disabled>
@@ -112,9 +149,55 @@ export function BillingDocumentForm({
                 {c.name}
               </option>
             ))}
+            {showInvoiceOptions && <option value={NEW_CLIENT_SENTINEL}>{t.otherClient}</option>}
           </select>
         )}
         {fixedClientId && <input type="hidden" name="clientId" value={fixedClientId} />}
+
+        {showInvoiceOptions && selectedClientId === NEW_CLIENT_SENTINEL && (
+          <div className="flex flex-col gap-3 rounded-lg border border-pm-gris-2 bg-pm-gris-2/10 p-3 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.newClientTitle}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input name="newClientName" required placeholder={t.newClientNamePlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientContactName" placeholder={t.newClientContactPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input
+                name="newClientEmail"
+                type="email"
+                value={manualEmail}
+                onChange={(e) => setManualEmail(e.target.value)}
+                placeholder={t.newClientEmailPlaceholder}
+                className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+              />
+              <input name="newClientPhone" placeholder={t.newClientPhonePlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientAddress" placeholder={t.newClientAddressPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir sm:col-span-2" />
+              <input name="newClientCity" placeholder={t.newClientCityPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientRegion" placeholder={t.newClientRegionPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientPostalCode" placeholder={t.newClientPostalCodePlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientCountry" placeholder={t.newClientCountryPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <input name="newClientTaxNumber" placeholder={t.newClientTaxNumberPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+              <label className="flex flex-col gap-1 text-xs text-pm-gris">
+                {t.newClientPreferredLocaleLabel}
+                <select
+                  name="newClientPreferredLocale"
+                  defaultValue={locale}
+                  onChange={(e) => setDocumentLocale(e.target.value === "en" ? "en" : "fr")}
+                  className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+                >
+                  {LOCALES.map((l) => (
+                    <option key={l} value={l}>
+                      {l === "en" ? t.localeEn : t.localeFr}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <textarea name="newClientNotes" rows={2} placeholder={t.newClientNotesPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+            <label className="flex items-center gap-2 text-sm text-pm-noir">
+              <input type="checkbox" name="saveNewClient" className="h-4 w-4 rounded border-pm-gris-2" />
+              {t.saveNewClientLabel}
+            </label>
+          </div>
+        )}
 
         {dealOptions && dealOptions.length > 0 && (
           <select name="dealId" defaultValue={initial?.dealId ?? ""} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
@@ -147,6 +230,25 @@ export function BillingDocumentForm({
             </option>
           ))}
         </select>
+
+        {showInvoiceOptions && (
+          <label className="flex flex-col gap-1 text-xs text-pm-gris">
+            {t.invoiceLocaleLabel}
+            <select
+              name="locale"
+              value={documentLocale}
+              onChange={(e) => setDocumentLocale(e.target.value === "en" ? "en" : "fr")}
+              className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+              aria-label={t.invoiceLocaleLabel}
+            >
+              {LOCALES.map((l) => (
+                <option key={l} value={l}>
+                  {l === "en" ? t.localeEn : t.localeFr}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="flex flex-col gap-1 text-xs text-pm-gris">
           {dateField.label}
@@ -228,6 +330,26 @@ export function BillingDocumentForm({
         <p className="text-pm-gris">{t.taxTotalLabel} {formatMoney(totals.taxCents, currency, locale)}</p>
         <p className="font-semibold text-pm-noir">{t.totalLabel} {formatMoney(totals.totalCents, currency, locale)}</p>
       </div>
+
+      {showInvoiceOptions && (
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm text-pm-noir">
+            <input
+              type="checkbox"
+              name="sendAutomatically"
+              checked={sendAutomatically}
+              onChange={(e) => setSendAutomatically(e.target.checked)}
+              className="h-4 w-4 rounded border-pm-gris-2"
+            />
+            {t.sendAutomaticallyLabel}
+          </label>
+          {sendAutomatically && (
+            <p className="text-xs text-pm-gris">
+              {selectedClientEmail ? t.previewWillSendTo(selectedClientEmail) : t.previewNoEmail}
+            </p>
+          )}
+        </div>
+      )}
 
       {error && <p className="text-sm text-pm-rouge">{error}</p>}
 

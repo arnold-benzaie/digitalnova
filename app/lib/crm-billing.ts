@@ -24,12 +24,20 @@ export const QUOTE_STATUS_OPTIONS_EN = [
   { value: "expired", label: "Expired" },
 ];
 
+// "delivery_failed" is a system-set outcome of a failed send attempt (see
+// lib/actions/crm-invoices.ts's deliverInvoiceEmail) — included here so it
+// DISPLAYS correctly wherever the current status is shown (the list badge,
+// the dropdown's own current value, the PDF), but
+// lib/actions/crm-invoices.ts's updateInvoiceStatus() explicitly rejects
+// it as a manually-chosen target — staff retries via RetryInvoiceDeliveryButton
+// instead, never by picking this value from the dropdown.
 export const INVOICE_STATUS_OPTIONS = [
   { value: "draft", label: "Brouillon" },
   { value: "sent", label: "Envoyée" },
   { value: "paid", label: "Payée" },
   { value: "canceled", label: "Annulée" },
   { value: "refunded", label: "Remboursée" },
+  { value: "delivery_failed", label: "Échec d'envoi" },
 ];
 export const INVOICE_STATUS_OPTIONS_EN = [
   { value: "draft", label: "Draft" },
@@ -37,6 +45,7 @@ export const INVOICE_STATUS_OPTIONS_EN = [
   { value: "paid", label: "Paid" },
   { value: "canceled", label: "Canceled" },
   { value: "refunded", label: "Refunded" },
+  { value: "delivery_failed", label: "Delivery failed" },
 ];
 
 export const QUOTE_STATUS_VALUES = QUOTE_STATUS_OPTIONS.map((o) => o.value);

@@ -5,11 +5,17 @@ import { crmClients, crmQuoteItems, crmQuotes } from "@/db/schema";
 import { QUOTE_STATUS_OPTIONS } from "@/lib/crm-billing";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { getCurrentSession } from "@/lib/session";
+import { getLocale } from "@/lib/i18n/locale";
 
 const STATUS_LABEL = Object.fromEntries(QUOTE_STATUS_OPTIONS.map((o) => [o.value, o.label]));
 
+// Quotes have no stored locale of their own (unlike invoices — see
+// db/schema.ts's crmInvoices.locale) — out of this task's scope. This
+// renders in whichever locale the requesting staff member currently has
+// active, same as every other staff-facing page; not a regression from
+// the previous always-French behavior.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
+  const [session, viewerLocale] = await Promise.all([getCurrentSession(), getLocale()]);
   if (!session || session.role === "client") {
     return new Response("Non autorisé", { status: 401 });
   }
@@ -29,6 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     BillingDocumentPdf({
       data: {
         kind: "quote",
+        locale: viewerLocale,
         number: quote.quoteNumber,
         title: quote.title,
         statusLabel: STATUS_LABEL[quote.status] ?? quote.status,

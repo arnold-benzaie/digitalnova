@@ -386,6 +386,17 @@ export const crmClients = pgTable(
     email: text("email"),
     phone: text("phone"),
     address: text("address"),
+    city: text("city"),
+    region: text("region"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    taxNumber: text("tax_number"),
+    // Language this client's own documents (invoices, quotes) should be
+    // generated in — distinct from pm_locale (the STAFF member's own UI
+    // language, see lib/i18n/shared.ts). Nullable: falls back to the
+    // creating staff member's active locale when unset (see
+    // lib/actions/crm-invoices.ts's createInvoice()).
+    preferredLocale: text("preferred_locale"), // "fr" | "en" | null
     stage: text("stage").notNull().default("lead"), // "lead" | "prospect" | "client" | "churned"
     source: text("source"), // e.g. "site web", "recommandation", "salon"
     ownerName: text("owner_name"), // assigned staff member (text — no real staff users until Clerk)
@@ -658,19 +669,49 @@ export const crmQuoteItems = pgTable(
  * FastSpring integration (see lib/billing/crm-invoice-webhook.ts) — not
  * wired to any live checkout or webhook yet.
  */
+export type CrmInvoiceClientSnapshot = {
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+  taxNumber: string | null;
+};
+
 export const crmInvoices = pgTable(
   "crm_invoices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    clientId: uuid("client_id")
-      .notNull()
-      .references(() => crmClients.id, { onDelete: "cascade" }),
+    // Nullable: an "Autre client…" invoice for a contact the staff member
+    // chose NOT to save as a permanent crm_clients row has no client to
+    // reference — clientSnapshot below is its only record of who it's for.
+    clientId: uuid("client_id").references(() => crmClients.id, { onDelete: "set null" }),
+    // Captured once at creation from either the real crm_clients row or the
+    // manual "Autre client…" entry — the PDF/email always render from this,
+    // never a live join, so editing (or archiving/deleting) a client later
+    // never changes an invoice already issued. Nullable only for rows
+    // created before this column existed.
+    clientSnapshot: jsonb("client_snapshot").$type<CrmInvoiceClientSnapshot>(),
     quoteId: uuid("quote_id").references(() => crmQuotes.id, { onDelete: "set null" }),
     dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
     invoiceNumber: text("invoice_number").notNull(),
     title: text("title").notNull(),
     currency: text("currency").notNull().default("EUR"), // "EUR" | "CAD"
-    status: text("status").notNull().default("draft"), // "draft" | "sent" | "paid" | "canceled" | "refunded"
+    // "delivery_failed" added alongside the original 5 values — reachable
+    // only from a real, attempted send that failed (see deliverInvoiceEmail
+    // in lib/actions/crm-invoices.ts); every prior value/transition is
+    // unchanged.
+    status: text("status").notNull().default("draft"), // "draft" | "sent" | "paid" | "canceled" | "refunded" | "delivery_failed"
+    // Language this specific invoice was generated in — set once at
+    // creation (see lib/actions/crm-invoices.ts's resolveInvoiceLocale()),
+    // editable only while still "draft", immutable afterward. Drives the
+    // PDF template and the send email, independent of whichever locale the
+    // staff member viewing it happens to have active later.
+    locale: text("locale").notNull().default("fr"), // "fr" | "en"
     taxLabel: text("tax_label"),
     taxRateBasisPoints: integer("tax_rate_basis_points").notNull().default(0),
     subtotalCents: integer("subtotal_cents").notNull().default(0),
@@ -682,6 +723,13 @@ export const crmInvoices = pgTable(
     paidAt: timestamp("paid_at", { withTimezone: true }),
     canceledAt: timestamp("canceled_at", { withTimezone: true }),
     refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    // Email-delivery bookkeeping — see deliverInvoiceEmail(). Distinct from
+    // `status`/`sentAt`, which only ever reflect a CONFIRMED successful
+    // send; these track the attempt itself, success or failure.
+    emailDeliveryStatus: text("email_delivery_status"), // "sent" | "failed" | null (never attempted)
+    emailMessageId: text("email_message_id"), // Resend's returned id, once sent
+    deliveryAttempts: integer("delivery_attempts").notNull().default(0),
+    lastDeliveryError: text("last_delivery_error"),
     fastspringReference: text("fastspring_reference"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -691,6 +739,36 @@ export const crmInvoices = pgTable(
     index("crm_invoices_quote_id_idx").on(table.quoteId),
     index("crm_invoices_deal_id_idx").on(table.dealId),
     index("crm_invoices_fastspring_reference_idx").on(table.fastspringReference),
+  ],
+);
+
+/**
+ * Secure token-based access to a single invoice's PDF for its (external,
+ * unauthenticated) client — mirrors gbpReportAccessLinks in
+ * db/audit-schema.ts exactly (same shape, same reasoning): a random,
+ * unguessable token is the sole credential, rate-limited and attempt-
+ * capped at resolution time (see lib/actions/crm-invoice-access.ts), never
+ * the raw invoice id. The staff-facing PDF route
+ * (app/api/crm/invoices/[id]/pdf/route.ts, session-gated) is unaffected —
+ * this is an additional, separate, public-but-token-gated route.
+ */
+export const crmInvoiceAccessLinks = pgTable(
+  "crm_invoice_access_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => crmInvoices.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(20),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("crm_invoice_access_links_invoice_id_idx").on(table.invoiceId),
+    uniqueIndex("crm_invoice_access_links_token_idx").on(table.token),
   ],
 );
 

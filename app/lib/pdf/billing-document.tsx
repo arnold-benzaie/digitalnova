@@ -4,6 +4,50 @@ import type { ReactElement } from "react";
 import { formatMoney } from "@/lib/crm-billing";
 import { APP_NAME } from "@/lib/brand";
 import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
+import { formatDate } from "@/lib/i18n/format";
+import type { Locale } from "@/lib/i18n/dictionaries";
+
+/** PDF-only label set — the document's own language is whatever locale is
+ * stored on the invoice/quote row (see BillingDocumentData.locale), never
+ * the viewing staff member's current UI locale. Colocated here rather than
+ * in lib/i18n/dictionaries/crm.ts on purpose: this is the one place in the
+ * app that renders a legal/accounting DOCUMENT rather than UI chrome, and
+ * keeping its (small, stable) label set next to the template that consumes
+ * it avoids coupling a PDF layout change to the shared CRM dictionary. Same
+ * "colocated FR/EN map" convention already used for MESSAGES/COPY
+ * elsewhere (lib/actions/crm-invoices.ts, lib/email/invitation.ts) — not a
+ * second i18n system, just this file's own small resource.
+ */
+const PDF_LABELS = {
+  fr: {
+    quote: "DEVIS",
+    invoice: "FACTURE",
+    recipient: "Destinataire",
+    issuedOn: "Émis le",
+    description: "Description",
+    quantity: "Qté",
+    unitPrice: "Prix unitaire",
+    total: "Total",
+    subtotal: "Sous-total",
+    tax: (percent: string) => `Taxe (${percent}%)`,
+    quoteFooter: (appName: string) => `Ce devis est généré automatiquement depuis le CRM ${appName}.`,
+    invoiceFooter: (appName: string) => `Cette facture est générée automatiquement depuis le CRM ${appName}.`,
+  },
+  en: {
+    quote: "QUOTE",
+    invoice: "INVOICE",
+    recipient: "Recipient",
+    issuedOn: "Issued on",
+    description: "Description",
+    quantity: "Qty",
+    unitPrice: "Unit price",
+    total: "Total",
+    subtotal: "Subtotal",
+    tax: (percent: string) => `Tax (${percent}%)`,
+    quoteFooter: (appName: string) => `This quote was automatically generated from the ${appName} CRM.`,
+    invoiceFooter: (appName: string) => `This invoice was automatically generated from the ${appName} CRM.`,
+  },
+} as const;
 
 const PM_NOIR = "#080808";
 const PM_GRIS = "#6b6b6b";
@@ -45,6 +89,9 @@ const styles = StyleSheet.create({
 
 export type BillingDocumentData = {
   kind: "quote" | "invoice";
+  /** The document's OWN language — stored on the invoice/quote row, not
+   * the viewing staff member's current UI locale. See PDF_LABELS above. */
+  locale: Locale;
   number: string;
   title: string;
   statusLabel: string;
@@ -65,7 +112,8 @@ export type BillingDocumentData = {
 };
 
 export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): ReactElement<DocumentProps> {
-  const docLabel = data.kind === "quote" ? "DEVIS" : "FACTURE";
+  const t = PDF_LABELS[data.locale];
+  const docLabel = data.kind === "quote" ? t.quote : t.invoice;
   const taxPercent = (data.taxRateBasisPoints / 100).toFixed(2).replace(/\.00$/, "");
 
   return (
@@ -82,7 +130,7 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
 
         <View style={styles.metaBlock}>
           <View style={styles.clientBlock}>
-            <Text style={styles.label}>Destinataire</Text>
+            <Text style={styles.label}>{t.recipient}</Text>
             <Text style={styles.clientName}>{data.clientName}</Text>
             {data.clientContact && <Text style={styles.clientLine}>{data.clientContact}</Text>}
             {data.clientEmail && <Text style={styles.clientLine}>{data.clientEmail}</Text>}
@@ -90,10 +138,12 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
           </View>
           <View style={styles.datesBlock}>
             <Text style={styles.label}>{data.title}</Text>
-            <Text style={styles.dateLine}>Émis le {data.issuedAt.toLocaleDateString("fr-FR")}</Text>
+            <Text style={styles.dateLine}>
+              {t.issuedOn} {formatDate(data.issuedAt, data.locale)}
+            </Text>
             {data.secondaryDate && (
               <Text style={styles.dateLine}>
-                {data.secondaryDate.label} {data.secondaryDate.date.toLocaleDateString("fr-FR")}
+                {data.secondaryDate.label} {formatDate(data.secondaryDate.date, data.locale)}
               </Text>
             )}
           </View>
@@ -101,18 +151,18 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
 
         <View style={styles.table}>
           <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.headerCell, styles.colDescription]}>Description</Text>
-            <Text style={[styles.headerCell, styles.colQuantity]}>Qté</Text>
-            <Text style={[styles.headerCell, styles.colUnitPrice]}>Prix unitaire</Text>
-            <Text style={[styles.headerCell, styles.colLineTotal]}>Total</Text>
+            <Text style={[styles.headerCell, styles.colDescription]}>{t.description}</Text>
+            <Text style={[styles.headerCell, styles.colQuantity]}>{t.quantity}</Text>
+            <Text style={[styles.headerCell, styles.colUnitPrice]}>{t.unitPrice}</Text>
+            <Text style={[styles.headerCell, styles.colLineTotal]}>{t.total}</Text>
           </View>
           {data.items.map((item, index) => (
             <View key={index} style={styles.row}>
               <Text style={[styles.cell, styles.colDescription]}>{item.description}</Text>
               <Text style={[styles.cell, styles.colQuantity]}>{item.quantity}</Text>
-              <Text style={[styles.cell, styles.colUnitPrice]}>{formatMoney(item.unitPriceCents, data.currency)}</Text>
+              <Text style={[styles.cell, styles.colUnitPrice]}>{formatMoney(item.unitPriceCents, data.currency, data.locale)}</Text>
               <Text style={[styles.cell, styles.colLineTotal]}>
-                {formatMoney(item.quantity * item.unitPriceCents, data.currency)}
+                {formatMoney(item.quantity * item.unitPriceCents, data.currency, data.locale)}
               </Text>
             </View>
           ))}
@@ -120,26 +170,22 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
 
         <View style={styles.totalsBlock}>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Sous-total</Text>
-            <Text style={styles.totalsValue}>{formatMoney(data.subtotalCents, data.currency)}</Text>
+            <Text style={styles.totalsLabel}>{t.subtotal}</Text>
+            <Text style={styles.totalsValue}>{formatMoney(data.subtotalCents, data.currency, data.locale)}</Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>{data.taxLabel || `Taxe (${taxPercent}%)`}</Text>
-            <Text style={styles.totalsValue}>{formatMoney(data.taxCents, data.currency)}</Text>
+            <Text style={styles.totalsLabel}>{data.taxLabel || t.tax(taxPercent)}</Text>
+            <Text style={styles.totalsValue}>{formatMoney(data.taxCents, data.currency, data.locale)}</Text>
           </View>
           <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalLabel}>Total</Text>
-            <Text style={styles.grandTotalValue}>{formatMoney(data.totalCents, data.currency)}</Text>
+            <Text style={styles.grandTotalLabel}>{t.total}</Text>
+            <Text style={styles.grandTotalValue}>{formatMoney(data.totalCents, data.currency, data.locale)}</Text>
           </View>
         </View>
 
         {data.notes && <Text style={styles.notes}>{data.notes}</Text>}
 
-        <Text style={styles.footer}>
-          {docLabel === "DEVIS"
-            ? `Ce devis est généré automatiquement depuis le CRM ${APP_NAME}.`
-            : `Cette facture est générée automatiquement depuis le CRM ${APP_NAME}.`}
-        </Text>
+        <Text style={styles.footer}>{data.kind === "quote" ? t.quoteFooter(APP_NAME) : t.invoiceFooter(APP_NAME)}</Text>
       </Page>
     </Document>
   );

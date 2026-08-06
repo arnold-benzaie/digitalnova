@@ -5,7 +5,7 @@ import { crmClients, crmInvoices } from "@/db/schema";
 import { createInvoice } from "@/lib/actions/crm-invoices";
 import { formatMoney, getInvoiceStatusOptions, INVOICE_STATUS_VALUES } from "@/lib/crm-billing";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
-import { DeleteInvoiceButton, InvoiceStatusSelect } from "@/components/crm/quote-invoice-actions";
+import { DeleteInvoiceButton, InvoiceStatusSelect, ResendInvoiceButton, RetryInvoiceDeliveryButton } from "@/components/crm/quote-invoice-actions";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
@@ -77,9 +77,10 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
         <BillingDocumentForm
           action={createInvoice}
           submitLabel={t.createSubmitLabel}
-          clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))}
+          clientOptions={allClients.map((c) => ({ id: c.id, name: c.name, preferredLocale: c.preferredLocale, email: c.email }))}
           dateField={{ name: "dueAt", label: t.dueLabel }}
           locale={locale}
+          showInvoiceOptions
         />
       </div>
 
@@ -117,11 +118,17 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
               <div key={invoice.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <Link href={`/admin/crm/clients/${invoice.clientId}`} className="font-medium text-pm-noir hover:underline">
-                      {invoice.invoiceNumber} — {invoice.title}
-                    </Link>
+                    {invoice.clientId ? (
+                      <Link href={`/admin/crm/clients/${invoice.clientId}`} className="font-medium text-pm-noir hover:underline">
+                        {invoice.invoiceNumber} — {invoice.title}
+                      </Link>
+                    ) : (
+                      <p className="font-medium text-pm-noir">
+                        {invoice.invoiceNumber} — {invoice.title}
+                      </p>
+                    )}
                     <p className="text-xs text-pm-gris">
-                      {clientNameById.get(invoice.clientId) ?? t.noValue} · {formatMoney(invoice.totalCents, invoice.currency, locale)}
+                      {(invoice.clientId ? clientNameById.get(invoice.clientId) : invoice.clientSnapshot?.name) ?? t.noValue} · {formatMoney(invoice.totalCents, invoice.currency, locale)}
                       {invoice.dueAt && ` · ${t.duePrefix} ${formatDate(invoice.dueAt, locale)}`}
                     </p>
                   </div>
@@ -138,6 +145,17 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
                 {invoice.status === "draft" && (
                   <div className="mt-2">
                     <DeleteInvoiceButton id={invoice.id} locale={locale} />
+                  </div>
+                )}
+                {invoice.status === "sent" && (
+                  <div className="mt-2">
+                    <ResendInvoiceButton id={invoice.id} locale={locale} />
+                  </div>
+                )}
+                {invoice.status === "delivery_failed" && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-pm-rouge">{t.deliveryFailedNotice}</span>
+                    <RetryInvoiceDeliveryButton id={invoice.id} locale={locale} />
                   </div>
                 )}
               </div>

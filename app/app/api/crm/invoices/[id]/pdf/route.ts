@@ -2,58 +2,42 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices } from "@/db/schema";
-import { INVOICE_STATUS_OPTIONS } from "@/lib/crm-billing";
+import { getInvoiceStatusOptions } from "@/lib/crm-billing";
+import { buildInvoicePdfData, invoicePdfFileName } from "@/lib/pdf/invoice-data";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { getCurrentSession } from "@/lib/session";
+import { getLocale } from "@/lib/i18n/locale";
 
-const STATUS_LABEL = Object.fromEntries(INVOICE_STATUS_OPTIONS.map((o) => [o.value, o.label]));
+const UNAUTHORIZED = { fr: "Non autorisé", en: "Unauthorized" };
+const NOT_FOUND = { fr: "Facture introuvable", en: "Invoice not found" };
 
+/** Staff-only — session-gated, addressed by the real invoice id. The
+ * public, token-gated counterpart for emailing a client is
+ * app/api/invoices/[token]/pdf/route.ts. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getCurrentSession();
+  const [session, viewerLocale] = await Promise.all([getCurrentSession(), getLocale()]);
   if (!session || session.role === "client") {
-    return new Response("Non autorisé", { status: 401 });
+    return new Response(UNAUTHORIZED[viewerLocale], { status: 401 });
   }
 
   const { id } = await params;
   const [invoice] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!invoice) return new Response("Facture introuvable", { status: 404 });
+  if (!invoice) return new Response(NOT_FOUND[viewerLocale], { status: 404 });
 
-  const [client] = await db.select().from(crmClients).where(eq(crmClients.id, invoice.clientId)).limit(1);
-  const items = await db
-    .select()
-    .from(crmInvoiceItems)
-    .where(eq(crmInvoiceItems.invoiceId, id))
-    .orderBy(crmInvoiceItems.position);
+  const clientId = invoice.clientId;
+  const [items, client] = await Promise.all([
+    db.select().from(crmInvoiceItems).where(eq(crmInvoiceItems.invoiceId, id)).orderBy(crmInvoiceItems.position),
+    clientId ? db.select().from(crmClients).where(eq(crmClients.id, clientId)).limit(1).then((r) => r[0]) : Promise.resolve(undefined),
+  ]);
 
-  const buffer = await renderToBuffer(
-    BillingDocumentPdf({
-      data: {
-        kind: "invoice",
-        number: invoice.invoiceNumber,
-        title: invoice.title,
-        statusLabel: STATUS_LABEL[invoice.status] ?? invoice.status,
-        currency: invoice.currency,
-        clientName: client?.name ?? "—",
-        clientContact: client?.contactName,
-        clientEmail: client?.email,
-        clientAddress: client?.address,
-        issuedAt: invoice.issuedAt,
-        secondaryDate: invoice.dueAt ? { label: "Échéance :", date: invoice.dueAt } : null,
-        taxLabel: invoice.taxLabel,
-        taxRateBasisPoints: invoice.taxRateBasisPoints,
-        subtotalCents: invoice.subtotalCents,
-        taxCents: invoice.taxCents,
-        totalCents: invoice.totalCents,
-        notes: invoice.notes,
-        items: items.map((i) => ({ description: i.description, quantity: i.quantity, unitPriceCents: i.unitPriceCents })),
-      },
-    }),
-  );
+  const statusLabel = Object.fromEntries(getInvoiceStatusOptions(invoice.locale === "en" ? "en" : "fr").map((o) => [o.value, o.label]))[invoice.status] ?? invoice.status;
+  const data = buildInvoicePdfData(invoice, items, client, statusLabel);
+  const buffer = await renderToBuffer(BillingDocumentPdf({ data }));
 
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+      "Content-Disposition": `attachment; filename="${invoicePdfFileName(invoice)}"`,
     },
   });
 }
