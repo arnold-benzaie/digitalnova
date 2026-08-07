@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /dashboard
+Disallow: /auth
+Disallow: /auth/
+
+Sitemap: https://www.public-map.com/sitemap.xml
