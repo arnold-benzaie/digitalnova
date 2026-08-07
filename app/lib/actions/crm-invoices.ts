@@ -16,6 +16,7 @@ import { sendInvoiceEmail } from "@/lib/email/invoice";
 import { createOrGetInvoiceAccessLink } from "@/lib/actions/crm-invoice-access";
 import { buildInvoicePdfData, invoicePdfFileName } from "@/lib/pdf/invoice-data";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
+import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
 
 const INVOICE_ACCESS_BASE_URL = "https://app.public-map.com";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,6 +39,7 @@ const MESSAGES = {
     deliveryFailedNotManual: "Ce statut ne peut pas être défini manuellement — utilisez « Réessayer l'envoi ».",
     resendOnlyAfterFirstSend: "Impossible de renvoyer une facture qui n'a encore jamais été envoyée.",
     noRecipientEmail: "Aucune adresse email n'est associée à ce client — impossible d'envoyer la facture.",
+    serverBusy: "Le serveur est momentanément occupé. Veuillez réessayer dans quelques secondes.",
   },
   en: {
     clientRequired: "Client required.",
@@ -55,6 +57,7 @@ const MESSAGES = {
     deliveryFailedNotManual: "This status cannot be set manually — use “Retry sending” instead.",
     resendOnlyAfterFirstSend: "Cannot resend an invoice that has never been sent yet.",
     noRecipientEmail: "No email address is on file for this client — the invoice cannot be sent.",
+    serverBusy: "The server is temporarily busy. Please try again in a few seconds.",
   },
 } as const;
 
@@ -214,6 +217,14 @@ export async function createInvoice(formData: FormData) {
   const currency = formData.get("currency");
   if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
 
+  try {
+    return await createInvoiceCore(formData, locale, currency, title);
+  } catch (err) {
+    rethrowFriendlyIfTransient(err, locale);
+  }
+}
+
+async function createInvoiceCore(formData: FormData, locale: Locale, currency: string, title: string) {
   const sendAutomatically = formData.get("sendAutomatically") === "on" || formData.get("sendAutomatically") === "true";
   const { clientId, snapshot } = await resolveInvoiceClient(formData, locale, sendAutomatically);
   // Priority (documented in the approved plan): the client's own saved
@@ -364,6 +375,14 @@ export async function updateInvoiceStatus(id: string, status: string) {
   // not one this dropdown-driven action may transition INTO.
   if (status === "delivery_failed") throw new Error(MESSAGES[locale].deliveryFailedNotManual);
 
+  try {
+    await updateInvoiceStatusCore(id, status, locale);
+  } catch (err) {
+    rethrowFriendlyIfTransient(err, locale);
+  }
+}
+
+async function updateInvoiceStatusCore(id: string, status: string, locale: Locale) {
   const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
   if (existing.status === "refunded") throw new Error(MESSAGES[locale].refundedCannotChange);
@@ -527,34 +546,49 @@ async function recordDeliveryFailure(invoiceId: string, clientId: string | null,
  * attempt, not a resend of a success that never happened) — see the guard below. */
 export async function resendInvoice(id: string) {
   const locale = await getLocale();
-  const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
-  if (existing.status !== "sent") throw new Error(MESSAGES[locale].resendOnlyAfterFirstSend);
-  if (!existing.clientSnapshot?.email) throw new Error(MESSAGES[locale].noRecipientEmail);
+  try {
+    const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
+    if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
+    if (existing.status !== "sent") throw new Error(MESSAGES[locale].resendOnlyAfterFirstSend);
+    if (!existing.clientSnapshot?.email) throw new Error(MESSAGES[locale].noRecipientEmail);
 
-  await deliverInvoiceEmail(id, { isResend: true });
+    await deliverInvoiceEmail(id, { isResend: true });
+  } catch (err) {
+    rethrowFriendlyIfTransient(err, locale);
+  }
 }
 
 /** Only a draft invoice can be permanently deleted — a sent/paid/canceled/
  * refunded one must remain in the record for accounting continuity. */
 export async function deleteInvoice(id: string) {
   const locale = await getLocale();
-  const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
-  if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
-  if (existing.status !== "draft") {
-    throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
+  try {
+    const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
+    if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
+    if (existing.status !== "draft") {
+      throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
+    }
+
+    // .returning() confirms a row was actually removed — without it, a
+    // WHERE clause that (for any reason) matches nothing still returns
+    // normally, and the caller would report "deleted" for a row that never
+    // moved. Caught directly here (not the generic transient-error path)
+    // because a 0-row delete after a successful select is unexpected, not
+    // a known connection failure.
+    const [deleted] = await db.delete(crmInvoices).where(eq(crmInvoices.id, id)).returning({ id: crmInvoices.id });
+    if (!deleted) throw new Error(MESSAGES[locale].invoiceNotFound);
+
+    await logCrmAudit({
+      action: "crm.invoice_deleted",
+      targetType: "crm_invoice",
+      targetId: id,
+      clientId: existing.clientId ?? undefined,
+      metadata: { invoiceNumber: existing.invoiceNumber },
+    });
+
+    revalidatePath("/admin/crm/invoices");
+    if (existing.clientId) revalidatePath(`/admin/crm/clients/${existing.clientId}`);
+  } catch (err) {
+    rethrowFriendlyIfTransient(err, locale);
   }
-
-  await db.delete(crmInvoices).where(eq(crmInvoices.id, id));
-
-  await logCrmAudit({
-    action: "crm.invoice_deleted",
-    targetType: "crm_invoice",
-    targetId: id,
-    clientId: existing.clientId ?? undefined,
-    metadata: { invoiceNumber: existing.invoiceNumber },
-  });
-
-  revalidatePath("/admin/crm/invoices");
-  if (existing.clientId) revalidatePath(`/admin/crm/clients/${existing.clientId}`);
 }
