@@ -59,20 +59,36 @@
 
   if (existing) return; // already decided on a prior visit — no banner needed
 
-  var isEnglish = (navigator.language || "").toLowerCase().indexOf("en") === 0;
-  var copy = isEnglish
-    ? {
-        text: "We use cookies to measure site traffic (Google Analytics). No personal data is collected in these events.",
-        accept: "Accept",
-        reject: "Reject",
-        link: "Privacy policy",
-      }
-    : {
-        text: "Nous utilisons des cookies pour mesurer l'audience du site (Google Analytics). Aucune donnée personnelle n'est collectée dans ces événements.",
-        accept: "Accepter",
-        reject: "Refuser",
-        link: "Politique de confidentialité",
-      };
+  // Reuses the site's own FR/EN system rather than a second one: both the
+  // homepage (i18n-sparkles.js) and the legal pages (their own inline
+  // toggle) already persist the active language under this exact
+  // localStorage key, regardless of which of the two implementations is
+  // present on a given page.
+  var SITE_LANG_KEY = "digitalnova-lang";
+  var COPY = {
+    fr: {
+      text: "Nous utilisons des cookies pour mesurer le trafic du site avec Google Analytics. Aucune donnée personnelle n'est collectée dans ces événements.",
+      accept: "Accepter",
+      reject: "Refuser",
+      link: "Politique de confidentialité",
+    },
+    en: {
+      text: "We use cookies to measure site traffic with Google Analytics. No personal data is collected in these events.",
+      accept: "Accept",
+      reject: "Reject",
+      link: "Privacy policy",
+    },
+  };
+
+  function currentSiteLang() {
+    var saved;
+    try {
+      saved = localStorage.getItem(SITE_LANG_KEY);
+    } catch (e) {
+      saved = null;
+    }
+    return saved === "en" ? "en" : "fr"; // same default as both existing toggles
+  }
 
   function renderBanner() {
     var bar = document.createElement("div");
@@ -86,31 +102,38 @@
 
     var text = document.createElement("span");
     text.style.cssText = "flex:1 1 320px;min-width:200px;";
-    text.textContent = copy.text + " ";
     var link = document.createElement("a");
     link.href = "/privacy";
-    link.textContent = copy.link;
     link.style.cssText = "color:#7ab8ff;text-decoration:underline;";
-    text.appendChild(link);
 
     var actions = document.createElement("div");
     actions.style.cssText = "display:flex;gap:10px;flex:0 0 auto;";
 
     var rejectBtn = document.createElement("button");
     rejectBtn.type = "button";
-    rejectBtn.textContent = copy.reject;
     rejectBtn.style.cssText =
       "padding:9px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.35);background:transparent;color:#fff;cursor:pointer;font-size:14px;";
 
     var acceptBtn = document.createElement("button");
     acceptBtn.type = "button";
-    acceptBtn.textContent = copy.accept;
     acceptBtn.style.cssText =
       "padding:9px 18px;border-radius:8px;border:none;background:#0039e4;color:#fff;cursor:pointer;font-weight:600;font-size:14px;";
+
+    function applyCopy() {
+      var t = COPY[currentSiteLang()];
+      text.textContent = t.text + " ";
+      link.textContent = t.link;
+      text.appendChild(link);
+      rejectBtn.textContent = t.reject;
+      acceptBtn.textContent = t.accept;
+    }
+    applyCopy();
 
     function dismiss(granted) {
       applyChoice(granted);
       bar.remove();
+      document.removeEventListener("click", onPossibleLangClick, true);
+      document.removeEventListener("digitalnova:language-updated", applyCopy);
     }
     rejectBtn.addEventListener("click", function () {
       dismiss(false);
@@ -123,6 +146,26 @@
     actions.appendChild(acceptBtn);
     bar.appendChild(text);
     bar.appendChild(actions);
+
+    // Language change never resets the consent choice — this only
+    // updates the banner's own displayed text, and only while it's
+    // still on screen (pre-decision). Two hooks, since the site's two
+    // toggle implementations don't share one signal: i18n-sparkles.js
+    // (homepage) dispatches this event; the legal pages' inline toggle
+    // doesn't, so a delegated click listener on any [data-lang] control
+    // covers both without assuming either page's exact markup.
+    function onPossibleLangClick(e) {
+      if (e.target && e.target.closest && e.target.closest("[data-lang]")) {
+        // Deferred: this runs in the bubble phase, which can still fire
+        // before the site's own click handler (registration order isn't
+        // guaranteed across independent scripts) — setTimeout(0) waits
+        // until that handler's synchronous work (including its
+        // localStorage write) has actually finished.
+        setTimeout(applyCopy, 0);
+      }
+    }
+    document.addEventListener("digitalnova:language-updated", applyCopy);
+    document.addEventListener("click", onPossibleLangClick);
 
     if (document.body) {
       document.body.appendChild(bar);
