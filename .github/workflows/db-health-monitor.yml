@@ -1,0 +1,32 @@
+name: Database health monitor
+
+# Vercel Hobby caps Cron Jobs at once/day, which is too coarse for
+# EMAXCONNSESSION (intermittent, resolves in minutes) — this workflow is
+# the hourly trigger for the read-only /api/cron/db-health endpoint
+# instead. See the EMAXCONNSESSION diagnostic / persistent-monitoring
+# chantier for context.
+on:
+  schedule:
+    - cron: "13 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  db-health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call /api/cron/db-health
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # --fail-with-body: non-2xx exits non-zero (fails the job) while
+          # still printing the response body for debugging — safe here
+          # since the route's response is always the minimal
+          # {status, latencyMs, timestamp} shape or a plain "Unauthorized"
+          # string, never the secret itself. GitHub Actions also
+          # automatically redacts any literal occurrence of a configured
+          # secret's value in logs, as a second layer.
+          curl --fail-with-body --silent --show-error \
+            --max-time 15 --retry 2 --retry-delay 3 --retry-connrefused \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://app.public-map.com/api/cron/db-health

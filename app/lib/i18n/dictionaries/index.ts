@@ -25,6 +25,7 @@ import { crm } from "./crm";
 import { integrations } from "./integrations";
 import { developers } from "./developers";
 import { developerConsole } from "./developer-console";
+import { systemHealth } from "./system-health";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -47,6 +48,7 @@ export const dictionaries = {
     integrations: integrations.fr,
     developers: developers.fr,
     developerConsole: developerConsole.fr,
+    systemHealth: systemHealth.fr,
   },
   en: {
     common: common.en,
@@ -65,5 +67,6 @@ export const dictionaries = {
     integrations: integrations.en,
     developers: developers.en,
     developerConsole: developerConsole.en,
+    systemHealth: systemHealth.en,
   },
 } as const;

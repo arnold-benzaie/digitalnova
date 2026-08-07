@@ -1,0 +1,51 @@
+/**
+ * Admin-only infra monitoring page (app/admin/system-health/page.tsx) —
+ * staff/admin visibility into the EMAXCONNSESSION mitigation's effect.
+ * Never shown to clients.
+ */
+export const systemHealth = {
+  fr: {
+    title: "Surveillance système",
+    subtitle: "Historique des vérifications automatiques de la base de données (toutes les heures).",
+    currentStatus: "Statut actuel",
+    lastCheck: "Dernière vérification",
+    currentLatency: "Latence actuelle",
+    statusHealthy: "Opérationnel",
+    statusDegraded: "Dégradé",
+    statusUnhealthy: "Indisponible",
+    noCheckYet: "Aucune vérification enregistrée pour le moment.",
+    incidents24h: "Incidents (24h)",
+    emaxconnCount: "Occurrences EMAXCONNSESSION",
+    failedChecks: "Vérifications échouées",
+    lastRecovery: "Dernière récupération",
+    neverRecovered: "Aucune",
+    recentChecksTitle: "Vérifications récentes",
+    columnTime: "Heure",
+    columnStatus: "Statut",
+    columnLatency: "Latence",
+    columnError: "Erreur",
+    noError: "—",
+  },
+  en: {
+    title: "System health",
+    subtitle: "Automated database health-check history (hourly).",
+    currentStatus: "Current status",
+    lastCheck: "Last check",
+    currentLatency: "Current latency",
+    statusHealthy: "Healthy",
+    statusDegraded: "Degraded",
+    statusUnhealthy: "Unhealthy",
+    noCheckYet: "No check recorded yet.",
+    incidents24h: "Incidents (24h)",
+    emaxconnCount: "EMAXCONNSESSION occurrences",
+    failedChecks: "Failed checks",
+    lastRecovery: "Last recovery",
+    neverRecovered: "None",
+    recentChecksTitle: "Recent checks",
+    columnTime: "Time",
+    columnStatus: "Status",
+    columnLatency: "Latency",
+    columnError: "Error",
+    noError: "—",
+  },
+} as const;

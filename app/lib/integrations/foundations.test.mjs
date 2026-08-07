@@ -158,7 +158,14 @@ test("internal worker route fails closed and accepts only CRON_SECRET", async ()
   const cronSecret = randomBytes(32).toString("base64url");
   try {
     delete process.env.CRON_SECRET;
-    assert.equal((await runWorkerRoute(new Request("https://app.example.test/api/cron/integration-webhooks"))).status, 503);
+    assert.equal((await runWorkerRoute(new Request("https://app.example.test/api/cron/integration-webhooks"))).status, 401);
+
+    // Regression: an empty-string CRON_SECRET (env var present but blank —
+    // the exact production state that let /api/cron/reports run
+    // unauthenticated) must fail closed exactly like an unset one, never
+    // silently skip the check.
+    process.env.CRON_SECRET = "";
+    assert.equal((await runWorkerRoute(new Request("https://app.example.test/api/cron/integration-webhooks"))).status, 401);
 
     process.env.CRON_SECRET = cronSecret;
     assert.equal((await runWorkerRoute(new Request("https://app.example.test/api/cron/integration-webhooks"))).status, 401);

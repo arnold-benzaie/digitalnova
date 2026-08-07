@@ -1328,3 +1328,34 @@ export const analyticsMetrics = pgTable(
   },
   (table) => [uniqueIndex("analytics_metrics_property_date_idx").on(table.propertyId, table.date)],
 );
+
+/**
+ * Persistent infra health-check history (Vercel Cron -> /api/cron/db-health
+ * -> here), deliberately NOT reusing auditLog: this is high-frequency,
+ * platform-wide operational noise (no organizationId makes sense), needs
+ * its own typed columns for cheap querying (status/latency/error), and its
+ * own 30-day retention independent of the business audit trail. See the
+ * EMAXCONNSESSION investigation for why this exists.
+ */
+export const systemHealthChecks = pgTable(
+  "system_health_checks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    service: text("service").notNull(), // e.g. "database"
+    status: text("status").notNull(), // "healthy" | "degraded" | "unhealthy"
+    latencyMs: integer("latency_ms"),
+    errorCode: text("error_code"),
+    errorCategory: text("error_category"), // e.g. "connection_exhausted" | "connection_error" | "timeout" | "unknown"
+    // Set only on the check that actually triggered an alert email — lets
+    // the cooldown/recovery logic in lib/system-alerts.ts find "was an
+    // alert already sent for this error category in the last N minutes"
+    // and "was the outage we're recovering from ever actually announced"
+    // without a second table.
+    alertSentAt: timestamp("alert_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("system_health_checks_service_created_idx").on(table.service, table.createdAt),
+    index("system_health_checks_status_idx").on(table.status),
+  ],
+);

@@ -4,23 +4,17 @@ import { audits, organizations, reportSchedules } from "@/db/schema";
 import { computeNextRun } from "@/lib/report-schedule";
 import { notify } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 /**
- * Vercel Cron target (see vercel.json in this directory — not yet deployed,
- * the second Vercel project doesn't exist; see README). Vercel signs cron
- * requests with `Authorization: Bearer $CRON_SECRET` when CRON_SECRET is
- * set; unset here, so this only enforces the check once configured.
- * No email provider is wired up (Resend/Postmark), so "delivery" means an
- * in-app notification for now, not an actual email attachment.
+ * Vercel Cron target (see vercel.json). Vercel signs cron requests with
+ * `Authorization: Bearer $CRON_SECRET`. No email provider is wired up
+ * (Resend/Postmark), so "delivery" means an in-app notification for now,
+ * not an actual email attachment.
  */
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-  }
+  const authError = checkCronAuth(request);
+  if (authError) return authError;
 
   const due = await db
     .select()
