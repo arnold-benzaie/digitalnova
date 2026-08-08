@@ -1249,6 +1249,19 @@ export const googleOauthConnections = pgTable(
     refreshToken: text("refresh_token"),
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
     grantedScopes: jsonb("granted_scopes").notNull().default([]),
+    // Set on the last successful sync for each product — distinguishes
+    // "scope granted, never actually synced" (readyToSync) from "synced
+    // at least once" (the UI's 5-state model needs this to stop treating
+    // "ready" as if it meant "done"). Null until the first successful
+    // sync. lastSyncError mirrors it for the failure case (cleared on the
+    // next success) — set independently per product since one product's
+    // sync can fail while another's succeeds.
+    gbpLastSyncedAt: timestamp("gbp_last_synced_at", { withTimezone: true }),
+    gbpLastSyncError: text("gbp_last_sync_error"),
+    analyticsLastSyncedAt: timestamp("analytics_last_synced_at", { withTimezone: true }),
+    analyticsLastSyncError: text("analytics_last_sync_error"),
+    searchConsoleLastSyncedAt: timestamp("search_console_last_synced_at", { withTimezone: true }),
+    searchConsoleLastSyncError: text("search_console_last_sync_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -7,7 +7,7 @@ import { gbpConnections, locationMetrics, locations, organizations, reviews } fr
 import { logAudit } from "@/lib/audit";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getGbpProvider, type GbpLocation } from "@/lib/gbp";
-import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
+import { getGoogleConnection, recordGbpSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
@@ -132,6 +132,12 @@ export async function connectGbp(organizationId?: string) {
     });
   }
 
+  // syncGbpData() below only overwrites this when it actually processed
+  // >0 locations — with 0 locations (this exact error case), it leaves
+  // this result untouched, so the connect-time error is what the status
+  // UI ends up showing rather than being silently cleared.
+  await recordGbpSyncResult(org.id, locationsError ? locationsError.message : null);
+
   await logAudit({
     organizationId: org.id,
     action: "gbp.connected",
@@ -215,6 +221,14 @@ export async function syncGbpData(organizationId?: string) {
     targetId: org.id,
     metadata: { locationCount: orgLocations.length, newReviewCount, reviewsUnavailable, metricsUnavailable, lastError },
   });
+
+  // Only record a result when there was actually something to sync —
+  // with 0 locations (e.g. the connect-time API call failed), leave
+  // whatever recordGbpSyncResult() already wrote in connectGbp() alone
+  // rather than overwriting a real error with a false "success".
+  if (orgLocations.length > 0) {
+    await recordGbpSyncResult(org.id, metricsUnavailable || reviewsUnavailable ? (lastError?.message ?? null) : null);
+  }
 
   if (newReviewCount > 0) {
     await dispatchWebhookEvent("gbp.reviews_received", { organizationId: org.id, count: newReviewCount });

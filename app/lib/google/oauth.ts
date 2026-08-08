@@ -1,7 +1,7 @@
-import { and, count as sqlCount, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { google } from "googleapis";
 import { db } from "@/db";
-import { auditLog, googleOauthConnections, locations } from "@/db/schema";
+import { googleOauthConnections } from "@/db/schema";
 
 /**
  * Architecture decision (validated by the user): ONE Google OAuth grant per
@@ -175,24 +175,70 @@ export function sanitizeGoogleError(err: unknown): SanitizedGoogleError {
   };
 }
 
+/** `state` is only meaningful when `scopeGranted` is true — the UI layers
+ * `notConnected`/`apiPending` on top of this for the other two cases.
+ * `error` takes priority over a past `lastSyncedAt`: it reflects the
+ * MOST RECENT sync attempt, which stays "error" until the next attempt
+ * succeeds (successAt is left untouched by a failed attempt, so the last
+ * known-good date is never lost, but the state itself still reads as
+ * failing until proven otherwise). */
+export type ServiceSyncState = "ready_to_sync" | "synced" | "error";
+
+export type GoogleServiceOverview = {
+  scopeGranted: boolean;
+  state?: ServiceSyncState;
+  lastSyncedAt?: Date;
+  lastError?: string;
+};
+
 export type GoogleConnectionOverview = {
   connected: boolean;
   googleAccountEmail?: string;
-  gbp: { scopeGranted: boolean; lastError?: string };
-  searchConsole: { scopeGranted: boolean };
-  analytics: { scopeGranted: boolean };
+  gbp: GoogleServiceOverview;
+  searchConsole: GoogleServiceOverview;
+  analytics: GoogleServiceOverview;
 };
+
+function serviceOverview(scopeGranted: boolean, lastSyncedAt: Date | null, lastSyncError: string | null): GoogleServiceOverview {
+  if (!scopeGranted) return { scopeGranted: false };
+  if (lastSyncError) return { scopeGranted: true, state: "error", lastSyncedAt: lastSyncedAt ?? undefined, lastError: lastSyncError };
+  if (lastSyncedAt) return { scopeGranted: true, state: "synced", lastSyncedAt };
+  return { scopeGranted: true, state: "ready_to_sync" };
+}
+
+/** Called by lib/actions/{gbp,analytics,search-console}.ts at the end of
+ * every sync attempt — `error: null` records a success (bumps
+ * lastSyncedAt, clears any previous error); a message records a failure
+ * (lastSyncedAt is left untouched, so the last known-good date survives a
+ * later failed attempt). Each product tracked independently since one
+ * can fail while the others succeed. */
+export async function recordGbpSyncResult(organizationId: string, error: string | null): Promise<void> {
+  await db
+    .update(googleOauthConnections)
+    .set(error === null ? { gbpLastSyncedAt: new Date(), gbpLastSyncError: null } : { gbpLastSyncError: error })
+    .where(eq(googleOauthConnections.organizationId, organizationId));
+}
+
+export async function recordAnalyticsSyncResult(organizationId: string, error: string | null): Promise<void> {
+  await db
+    .update(googleOauthConnections)
+    .set(error === null ? { analyticsLastSyncedAt: new Date(), analyticsLastSyncError: null } : { analyticsLastSyncError: error })
+    .where(eq(googleOauthConnections.organizationId, organizationId));
+}
+
+export async function recordSearchConsoleSyncResult(organizationId: string, error: string | null): Promise<void> {
+  await db
+    .update(googleOauthConnections)
+    .set(error === null ? { searchConsoleLastSyncedAt: new Date(), searchConsoleLastSyncError: null } : { searchConsoleLastSyncError: error })
+    .where(eq(googleOauthConnections.organizationId, organizationId));
+}
 
 /** Assembles the "what's actually usable right now" view shown in the UI —
  * scope grant is checked directly on the stored connection (source of
- * truth for "can we call this API at all"). The GBP detail message is
- * driven by the CURRENT location count, not just the single latest audit
- * entry: a `gbp.synced` run with 0 locations processed still logs as
- * "clean" (metricsUnavailable: false — there was nothing to fail on), which
- * would otherwise mask an earlier `gbp.connect_error` explaining why there
- * are 0 locations in the first place. So: if there are genuinely 0
- * locations stored, surface the most recent connect_error regardless of
- * what happened after it; only clear the error once real locations exist. */
+ * truth for "can we call this API at all"); sync state/timestamp/error
+ * per product come straight from the columns the record*SyncResult
+ * helpers above write at the end of each sync attempt, not recomputed
+ * from audit-log history on every render. */
 export async function getGoogleConnectionOverview(organizationId: string): Promise<GoogleConnectionOverview> {
   const connection = await getGoogleConnection(organizationId);
   if (!connection) {
@@ -204,45 +250,19 @@ export async function getGoogleConnectionOverview(organizationId: string): Promi
     };
   }
 
-  const gbpScopeGranted = connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.gbp);
-  let gbpLastError: string | undefined;
-
-  if (gbpScopeGranted) {
-    const [{ count: locationCount }] = await db
-      .select({ count: sqlCount() })
-      .from(locations)
-      .where(eq(locations.organizationId, organizationId));
-
-    if (Number(locationCount) === 0) {
-      const [lastError] = await db
-        .select()
-        .from(auditLog)
-        .where(and(eq(auditLog.organizationId, organizationId), eq(auditLog.action, "gbp.connect_error")))
-        .orderBy(desc(auditLog.createdAt))
-        .limit(1);
-      if (lastError) {
-        const meta = (lastError.metadata ?? {}) as SanitizedGoogleError;
-        gbpLastError = meta.message;
-      }
-    } else {
-      const [lastEntry] = await db
-        .select()
-        .from(auditLog)
-        .where(and(eq(auditLog.organizationId, organizationId), eq(auditLog.action, "gbp.synced")))
-        .orderBy(desc(auditLog.createdAt))
-        .limit(1);
-      if (lastEntry) {
-        const meta = (lastEntry.metadata ?? {}) as { metricsUnavailable?: boolean; lastError?: SanitizedGoogleError };
-        if (meta.metricsUnavailable && meta.lastError?.message) gbpLastError = meta.lastError.message;
-      }
-    }
-  }
-
   return {
     connected: true,
     googleAccountEmail: connection.googleAccountEmail,
-    gbp: { scopeGranted: gbpScopeGranted, lastError: gbpLastError },
-    searchConsole: { scopeGranted: connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.searchConsole) },
-    analytics: { scopeGranted: connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.analytics) },
+    gbp: serviceOverview(connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.gbp), connection.gbpLastSyncedAt, connection.gbpLastSyncError),
+    searchConsole: serviceOverview(
+      connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.searchConsole),
+      connection.searchConsoleLastSyncedAt,
+      connection.searchConsoleLastSyncError,
+    ),
+    analytics: serviceOverview(
+      connectionHasScope(connection, GOOGLE_OAUTH_SCOPES.analytics),
+      connection.analyticsLastSyncedAt,
+      connection.analyticsLastSyncError,
+    ),
   };
 }

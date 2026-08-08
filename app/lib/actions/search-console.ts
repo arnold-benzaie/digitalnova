@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { organizations, searchConsoleMetrics, searchConsoleProperties } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
-import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
+import { getGoogleConnection, recordSearchConsoleSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { getSearchConsoleProvider, type SearchConsoleProperty } from "@/lib/searchconsole";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
@@ -82,6 +82,11 @@ export async function connectSearchConsole(organizationId?: string) {
     });
   }
 
+  // See lib/actions/gbp.ts::connectGbp for why this runs before
+  // syncSearchConsoleData() below: with 0 properties, that call leaves
+  // this result untouched instead of overwriting it with a false "success".
+  await recordSearchConsoleSyncResult(org.id, propertiesError ? propertiesError.message : null);
+
   await logAudit({
     organizationId: org.id,
     action: "search_console.connected",
@@ -139,6 +144,10 @@ export async function syncSearchConsoleData(organizationId?: string) {
     targetId: org.id,
     metadata: { propertyCount: orgProperties.length, metricsUnavailable, lastError },
   });
+
+  if (orgProperties.length > 0) {
+    await recordSearchConsoleSyncResult(org.id, metricsUnavailable ? (lastError?.message ?? null) : null);
+  }
 
   await notify({
     organizationId: org.id,

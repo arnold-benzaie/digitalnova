@@ -169,6 +169,13 @@
       "when": 1786128066524,
       "tag": "0023_previous_timeslip",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786202620731,
+      "tag": "0024_lethal_mindworm",
+      "breakpoints": true
     }
   ]
 }

@@ -137,6 +137,9 @@ export const dashboard = {
         searchConsoleLine: "Search Console",
         analyticsLine: "Google Analytics",
         readyToSync: "Prêt à synchroniser",
+        syncedAt: (date: string) => `Synchronisé — dernière synchronisation ${date}`,
+        error: "Erreur",
+        gbpUnavailable: "Google Business Profile n'est pas encore disponible pour ce projet. Google doit d'abord approuver l'accès API.",
       },
       oauthBanner: {
         connected: "Compte Google connecté avec succès.",
@@ -346,6 +349,9 @@ export const dashboard = {
         searchConsoleLine: "Search Console",
         analyticsLine: "Google Analytics",
         readyToSync: "Ready to sync",
+        syncedAt: (date: string) => `Synced — last sync ${date}`,
+        error: "Error",
+        gbpUnavailable: "Google Business Profile isn't available for this project yet. Google needs to approve API access first.",
       },
       oauthBanner: {
         connected: "Google account connected successfully.",

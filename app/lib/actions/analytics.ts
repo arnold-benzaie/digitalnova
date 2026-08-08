@@ -7,7 +7,7 @@ import { analyticsMetrics, analyticsProperties, organizations } from "@/db/schem
 import { logAudit } from "@/lib/audit";
 import { getAnalyticsProvider, type AnalyticsProperty } from "@/lib/analytics";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
-import { getGoogleConnection, sanitizeGoogleError } from "@/lib/google/oauth";
+import { getGoogleConnection, recordAnalyticsSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
@@ -80,6 +80,11 @@ export async function connectAnalytics(organizationId?: string) {
     });
   }
 
+  // See lib/actions/gbp.ts::connectGbp for why this runs before
+  // syncAnalyticsData() below: with 0 properties, that call leaves this
+  // result untouched instead of overwriting it with a false "success".
+  await recordAnalyticsSyncResult(org.id, propertiesError ? propertiesError.message : null);
+
   await logAudit({
     organizationId: org.id,
     action: "analytics.connected",
@@ -136,6 +141,10 @@ export async function syncAnalyticsData(organizationId?: string) {
     targetId: org.id,
     metadata: { propertyCount: orgProperties.length, metricsUnavailable, lastError },
   });
+
+  if (orgProperties.length > 0) {
+    await recordAnalyticsSyncResult(org.id, metricsUnavailable ? (lastError?.message ?? null) : null);
+  }
 
   await notify({
     organizationId: org.id,
