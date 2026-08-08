@@ -1359,3 +1359,18 @@ export const systemHealthChecks = pgTable(
     index("system_health_checks_status_idx").on(table.status),
   ],
 );
+
+/**
+ * Generic key/value cache for the internal /admin/analytics dashboard
+ * (lib/site-analytics/cache.ts) — a DB-backed cache rather than in-memory,
+ * since Vercel serverless functions don't share memory across invocations
+ * (same lesson as the connection-pool investigation). One row per report
+ * shape; freshness is enforced at read time by comparing fetchedAt to a
+ * 5-minute TTL, not by a separate expiry job.
+ */
+export const siteAnalyticsCache = pgTable("site_analytics_cache", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  cacheKey: text("cache_key").notNull(),
+  payload: jsonb("payload").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("site_analytics_cache_key_idx").on(table.cacheKey)]);

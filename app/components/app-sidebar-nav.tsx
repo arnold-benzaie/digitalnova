@@ -13,7 +13,7 @@ type NavDict = {
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
     team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string;
-    auditLog: string; systemHealth: string; crmDashboard: string; clients: string; pipeline: string; contracts: string; quotes: string;
+    auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string;
   };
@@ -56,6 +56,7 @@ export function getStaffNavSections(t: NavDict): NavSection[] {
         { label: t.items.users, href: "/admin/users", icon: "users" },
         { label: t.items.auditLog, href: "/admin/audit-log", icon: "history" },
         { label: t.items.systemHealth, href: "/admin/system-health", icon: "gauge" },
+        { label: t.items.siteAnalytics, href: "/admin/analytics", icon: "barChart" },
       ],
     },
     {

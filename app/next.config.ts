@@ -10,9 +10,19 @@ import path from "node:path";
 // only in their own environment — production must never widen to the dev
 // wildcard.
 const isDev = process.env.NODE_ENV !== "production";
+// Vercel always builds with NODE_ENV=production, including Preview
+// deployments — so `isDev` alone can't gate this. Preview deployments on
+// the `preview/public-map-audit` branch get Clerk Development keys (see
+// e2e/README.md), whose scripts load from *.clerk.accounts.dev; without
+// this, the CSP blocks Clerk entirely on any deployed Preview (confirmed
+// via a real Playwright run against a live Preview URL: "Failed to load
+// Clerk JS" / CSP script-src violation). VERCEL_ENV is Vercel's own
+// system env var ("production" | "preview" | "development") — checking
+// it, not the branch name, so this holds for any Preview deployment.
+const allowClerkDevDomain = isDev || process.env.VERCEL_ENV === "preview";
 const CLERK_FRONTEND_API = "https://clerk.public-map.com";
 const CLERK_DEV_FRONTEND_API = "https://*.clerk.accounts.dev";
-const clerkSources = isDev ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API}` : CLERK_FRONTEND_API;
+const clerkSources = allowClerkDevDomain ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API}` : CLERK_FRONTEND_API;
 // Clerk loads Cloudflare Turnstile (bot-protection challenge) on sign-up
 // whenever it decides a request needs one — not on every sign-up, which is
 // why this was missed by the original security audit's real-browser CSP
@@ -49,7 +59,7 @@ const BASE_CSP = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${clerkSources} ${TURNSTILE_SOURCE}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: https://img.clerk.com${isDev ? ` ${CLERK_DEV_FRONTEND_API}` : ""}`,
+  `img-src 'self' data: https://img.clerk.com${allowClerkDevDomain ? ` ${CLERK_DEV_FRONTEND_API}` : ""}`,
   "font-src 'self' data:",
   `connect-src 'self' ${clerkSources} https://api.clerk.com`,
   `frame-src 'self' ${clerkSources} ${TURNSTILE_SOURCE}`,
