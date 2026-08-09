@@ -4,9 +4,11 @@ import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices } from "@/db/schema";
 import { getInvoiceStatusOptions } from "@/lib/crm-billing";
 import { buildInvoicePdfData, invoicePdfFileName } from "@/lib/pdf/invoice-data";
+import { buildInvoiceQrDataUri } from "@/lib/pdf/invoice-qr";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { getCurrentSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
+import { createOrGetInvoiceAccessLink } from "@/lib/actions/crm-invoice-access";
 
 const UNAUTHORIZED = { fr: "Non autorisé", en: "Unauthorized" };
 const NOT_FOUND = { fr: "Facture introuvable", en: "Invoice not found" };
@@ -31,7 +33,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   ]);
 
   const statusLabel = Object.fromEntries(getInvoiceStatusOptions(invoice.locale === "en" ? "en" : "fr").map((o) => [o.value, o.label]))[invoice.status] ?? invoice.status;
-  const data = buildInvoicePdfData(invoice, items, client, statusLabel);
+  const accessLink = await createOrGetInvoiceAccessLink(invoice.id);
+  const qrCodeDataUri = await buildInvoiceQrDataUri(accessLink.token);
+  const data = buildInvoicePdfData(invoice, items, client, statusLabel, qrCodeDataUri);
   const buffer = await renderToBuffer(BillingDocumentPdf({ data }));
 
   return new Response(new Uint8Array(buffer), {

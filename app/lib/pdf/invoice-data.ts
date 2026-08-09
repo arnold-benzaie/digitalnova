@@ -19,10 +19,17 @@ type ClientRow = typeof crmClients.$inferSelect;
  * never change what that already-issued invoice shows. `client` is only
  * used as a fallback for invoices created before clientSnapshot existed.
  */
-export function buildInvoicePdfData(invoice: InvoiceRow, items: InvoiceItemRow[], client: ClientRow | undefined, statusLabel: string): BillingDocumentData {
+export function buildInvoicePdfData(
+  invoice: InvoiceRow,
+  items: InvoiceItemRow[],
+  client: ClientRow | undefined,
+  statusLabel: string,
+  qrCodeDataUri?: string,
+): BillingDocumentData {
   const snapshot = invoice.clientSnapshot;
   return {
     kind: "invoice",
+    qrCodeDataUri,
     locale: invoice.locale === "en" ? "en" : "fr",
     number: invoice.invoiceNumber,
     title: invoice.title,

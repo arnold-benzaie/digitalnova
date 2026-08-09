@@ -15,10 +15,11 @@ import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { sendInvoiceEmail } from "@/lib/email/invoice";
 import { createOrGetInvoiceAccessLink } from "@/lib/actions/crm-invoice-access";
 import { buildInvoicePdfData, invoicePdfFileName } from "@/lib/pdf/invoice-data";
+import { buildInvoiceQrDataUri } from "@/lib/pdf/invoice-qr";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
+import { APP_BASE_URL } from "@/lib/brand";
 
-const INVOICE_ACCESS_BASE_URL = "https://app.public-map.com";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NEW_CLIENT_SENTINEL = "__new__";
 
@@ -468,7 +469,8 @@ async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boole
   ]);
 
   const statusLabel = Object.fromEntries(getInvoiceStatusOptions(claimed.locale === "en" ? "en" : "fr").map((o) => [o.value, o.label]))[claimed.status] ?? claimed.status;
-  const pdfData = buildInvoicePdfData(claimed, items, undefined, statusLabel);
+  const qrCodeDataUri = await buildInvoiceQrDataUri(link.token);
+  const pdfData = buildInvoicePdfData(claimed, items, undefined, statusLabel, qrCodeDataUri);
   const pdfBuffer = await renderToBuffer(BillingDocumentPdf({ data: pdfData }));
 
   const result = await sendInvoiceEmail({
@@ -479,7 +481,7 @@ async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boole
     amountCents: claimed.totalCents,
     currency: claimed.currency,
     dueAt: claimed.dueAt,
-    accessUrl: `${INVOICE_ACCESS_BASE_URL}/api/invoices/${link.token}/pdf`,
+    accessUrl: `${APP_BASE_URL}/api/invoices/${link.token}/pdf`,
     attachment: { filename: invoicePdfFileName(claimed), content: Buffer.from(pdfBuffer) },
     idempotencyKey: `crm-invoice-${claimed.id}-attempt-${claimed.deliveryAttempts}`,
   });

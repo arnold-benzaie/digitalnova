@@ -27,6 +27,7 @@ import { developers } from "./developers";
 import { developerConsole } from "./developer-console";
 import { systemHealth } from "./system-health";
 import { siteAnalytics } from "./site-analytics";
+import { invoiceVerification } from "./invoice-verification";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -51,6 +52,7 @@ export const dictionaries = {
     developerConsole: developerConsole.fr,
     systemHealth: systemHealth.fr,
     siteAnalytics: siteAnalytics.fr,
+    invoiceVerification: invoiceVerification.fr,
   },
   en: {
     common: common.en,
@@ -71,5 +73,6 @@ export const dictionaries = {
     developerConsole: developerConsole.en,
     systemHealth: systemHealth.en,
     siteAnalytics: siteAnalytics.en,
+    invoiceVerification: invoiceVerification.en,
   },
 } as const;

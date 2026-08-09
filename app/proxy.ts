@@ -37,6 +37,15 @@ const isPublicRoute = createRouteMatcher([
   "/api/v1(.*)",
   "/developers(.*)",
   "/audit-report(.*)",
+  // CRM invoice client portal — same reasoning as /audit-report above:
+  // token-gated, no Clerk session by design (resolveInvoiceByToken(),
+  // lib/actions/crm-invoice-access.ts). /api/invoices is the emailed PDF
+  // link (lib/email/invoice.ts) and was already missing from this list
+  // before the QR-code feature — a pre-existing gap that made the emailed
+  // link unreachable for an external client with no PUBLIC-MAP session;
+  // /invoice-verification is the new QR-code target page.
+  "/api/invoices(.*)",
+  "/invoice-verification(.*)",
   // Local-only visual presentation route. Its page returns 404 in production,
   // so this entry never makes a production interface publicly reachable.
   "/audit-premium-showcase",

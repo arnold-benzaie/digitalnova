@@ -32,6 +32,7 @@ const PDF_LABELS = {
     tax: (percent: string) => `Taxe (${percent}%)`,
     quoteFooter: (appName: string) => `Ce devis est généré automatiquement depuis le CRM ${appName}.`,
     invoiceFooter: (appName: string) => `Cette facture est générée automatiquement depuis le CRM ${appName}.`,
+    scanToVerify: "Scanner pour vérifier la facture",
   },
   en: {
     quote: "QUOTE",
@@ -46,6 +47,7 @@ const PDF_LABELS = {
     tax: (percent: string) => `Tax (${percent}%)`,
     quoteFooter: (appName: string) => `This quote was automatically generated from the ${appName} CRM.`,
     invoiceFooter: (appName: string) => `This invoice was automatically generated from the ${appName} CRM.`,
+    scanToVerify: "Scan to verify invoice",
   },
 } as const;
 
@@ -85,10 +87,20 @@ const styles = StyleSheet.create({
   grandTotalValue: { fontSize: 11, fontWeight: 700 },
   notes: { marginTop: 24, fontSize: 9, color: PM_GRIS },
   footer: { position: "absolute", bottom: 30, left: 40, right: 40, fontSize: 7, color: PM_GRIS, textAlign: "center" },
+  // Bottom-left, well clear of the right-aligned totals block above and
+  // the centered footer disclaimer below (30pt gap) — never overlaps
+  // either. Left rather than centered/right so it never competes with
+  // the totals block's own right alignment on a page with few line items.
+  qrBlock: { position: "absolute", bottom: 66, left: 40, alignItems: "center" },
+  qrImage: { width: 70, height: 70 },
+  qrCaption: { fontSize: 7, color: PM_GRIS, marginTop: 4, textAlign: "center", width: 90 },
 });
 
 export type BillingDocumentData = {
   kind: "quote" | "invoice";
+  /** Verification QR — invoices only (see render logic below), never set
+   * for quotes. PNG data URI, same shape as BRAND_LOGO_DATA_URI. */
+  qrCodeDataUri?: string;
   /** The document's OWN language — stored on the invoice/quote row, not
    * the viewing staff member's current UI locale. See PDF_LABELS above. */
   locale: Locale;
@@ -184,6 +196,13 @@ export function BillingDocumentPdf({ data }: { data: BillingDocumentData }): Rea
         </View>
 
         {data.notes && <Text style={styles.notes}>{data.notes}</Text>}
+
+        {data.kind === "invoice" && data.qrCodeDataUri && (
+          <View style={styles.qrBlock}>
+            <Image src={data.qrCodeDataUri} style={styles.qrImage} />
+            <Text style={styles.qrCaption}>{t.scanToVerify}</Text>
+          </View>
+        )}
 
         <Text style={styles.footer}>{data.kind === "quote" ? t.quoteFooter(APP_NAME) : t.invoiceFooter(APP_NAME)}</Text>
       </Page>

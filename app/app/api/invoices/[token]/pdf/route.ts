@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { crmClients, crmInvoiceItems } from "@/db/schema";
 import { getInvoiceStatusOptions } from "@/lib/crm-billing";
 import { buildInvoicePdfData, invoicePdfFileName } from "@/lib/pdf/invoice-data";
+import { buildInvoiceQrDataUri } from "@/lib/pdf/invoice-qr";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { resolveInvoiceByToken } from "@/lib/actions/crm-invoice-access";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
@@ -45,7 +46,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   ]);
 
   const statusLabel = Object.fromEntries(getInvoiceStatusOptions(invoice.locale === "en" ? "en" : "fr").map((o) => [o.value, o.label]))[invoice.status] ?? invoice.status;
-  const data = buildInvoicePdfData(invoice, items, client, statusLabel);
+  const qrCodeDataUri = await buildInvoiceQrDataUri(token);
+  const data = buildInvoicePdfData(invoice, items, client, statusLabel, qrCodeDataUri);
   const buffer = await renderToBuffer(BillingDocumentPdf({ data }));
 
   return new Response(new Uint8Array(buffer), {
