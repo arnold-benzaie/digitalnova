@@ -1,4 +1,4 @@
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 import { formatMoney } from "@/lib/crm-billing";
@@ -6,6 +6,13 @@ import { APP_NAME } from "@/lib/brand";
 import { BRAND_LOGO_DATA_URI } from "@/lib/pdf/brand-logo";
 import { formatDate } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
+
+// @react-pdf/renderer applies syllable-based hyphenation by default (e.g.
+// "facture" -> "fac-" / "ture" when wrapping), which reads as a rendering
+// glitch on a short caption. Disabling it makes text wrap on whole words
+// only, everywhere in this document (FR and EN, quote and invoice) — purely
+// visual, no effect on layout security/data.
+Font.registerHyphenationCallback((word) => [word]);
 
 /** PDF-only label set — the document's own language is whatever locale is
  * stored on the invoice/quote row (see BillingDocumentData.locale), never

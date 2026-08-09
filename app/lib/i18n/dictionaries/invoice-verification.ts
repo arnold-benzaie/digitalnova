@@ -13,7 +13,7 @@ export const invoiceVerification = {
     issuer: "Émetteur",
     verified: "Facture authentique",
     invoiceNumber: "Numéro de facture",
-    issuedOn: "Date d'émission",
+    issuedOn: "Émise le",
     totalAmount: "Montant total",
     status: "Statut",
     linkErrorFallback: "Ce lien n'est pas valide.",
