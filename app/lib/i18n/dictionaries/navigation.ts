@@ -46,6 +46,7 @@ export const navigation = {
       googleSearchConsole: "Google Search Console",
       googleAnalytics: "Google Analytics",
       documents: "Documents",
+      integrations: "État des intégrations",
     },
     shell: {
       collapseMenu: "Réduire le menu",
@@ -105,6 +106,7 @@ export const navigation = {
       googleSearchConsole: "Google Search Console",
       googleAnalytics: "Google Analytics",
       documents: "Documents",
+      integrations: "Integration status",
     },
     shell: {
       collapseMenu: "Collapse menu",

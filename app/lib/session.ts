@@ -17,6 +17,12 @@ export type CurrentSession = {
   organizationId: string;
   organizationName: string;
   role: AppRole;
+  // The user's lastLoginAt value as it stood BEFORE this request's own
+  // login touch below — i.e. "when did they last visit before now", not
+  // "now". Null on a genuinely first-ever sign-in. Lets a "since your last
+  // visit" summary (dashboard Morning Brief) use a real timestamp instead
+  // of inventing one.
+  previousLastLoginAt: Date | null;
 };
 
 export type AccessState =
@@ -71,6 +77,10 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
     if (!appUser) return { kind: "pending" };
   }
 
+  // Captured before the touch below overwrites it — see
+  // CurrentSession.previousLastLoginAt.
+  const previousLastLoginAt = appUser.lastLoginAt;
+
   // "À chaque connexion valide" — every request that resolves a real
   // Clerk session touches this, not just first-ever sign-in.
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, appUser.id));
@@ -95,6 +105,7 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
       role: membership.roleName as AppRole,
+      previousLastLoginAt,
     },
   };
 });

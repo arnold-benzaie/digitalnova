@@ -10,12 +10,27 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { formatNumber, formatRelativeTime } from "@/lib/i18n/format";
+import { formatDateTime, formatNumber, formatRelativeTime } from "@/lib/i18n/format";
 import { AdminPageHero, HeroControlChip, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 import { GreetingText } from "@/components/greeting-text";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { Badge } from "@/components/crm/badges";
+import { SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
 import type { CurrentSession } from "@/lib/session";
+import { getGoogleConnectionOverview } from "@/lib/google/oauth";
+import { getClientActivityTimeline } from "@/lib/activity-timeline";
+import { ActivityTimelineCard } from "@/components/activity-timeline-card";
+import {
+  computeDashboardSignals,
+  pickTopPriorities,
+  pickNextBestAction,
+  buildContinueItems,
+  buildMorningBrief,
+  type Criticality,
+  type SignalKind,
+} from "@/lib/dashboard-signals";
 
 const RED = "#d52b1e";
 const GOLD = "#c8922a";
@@ -75,20 +90,6 @@ function buildDemoRecentReviews(locale: string) {
   });
 }
 
-function PriorityActionRow({ href, title, tone }: { href: string; title: string; tone: "info" | "warm" }) {
-  const dotClass = tone === "warm" ? "bg-pm-or" : "bg-pm-g-blue";
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-lg border-t border-pm-gris-2 px-1.5 py-3.5 text-sm transition-colors first:border-t-0 hover:bg-pm-gris-2/15"
-    >
-      <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} aria-hidden="true" />
-      <span className="flex-1 font-medium text-pm-noir">{title}</span>
-      <span className="text-lg text-pm-gris" aria-hidden="true">›</span>
-    </Link>
-  );
-}
-
 // Per-user greeting name — never a hardcoded name, always derived from the
 // real signed-in session. Priority: personal first name > full name >
 // organization name > local part of the email (never the full address) >
@@ -120,12 +121,14 @@ function resolveGreetingName(session: CurrentSession): string | null {
 export default async function DashboardPage() {
   const [org, locale, session] = await Promise.all([getOrCreateDevOrganization(), getLocale(), requireSession()]);
   const t = dictionaries[locale].dashboard.home;
+  const gi = dictionaries[locale].dashboard.googleIntegration;
+  const integrationsPageT = dictionaries[locale].dashboard.integrationsPage;
 
   // These four queries are independent of each other (none reads another's
   // result), so they run concurrently instead of as four sequential
   // round trips — this also directly speeds up the full-page reload a
   // language switch forces (see components/language-switcher.tsx).
-  const [[connection], [onboardingRecord], [latestAudit], [{ count: unreadNotifications }]] = await Promise.all([
+  const [[connection], [onboardingRecord], [latestAudit], [{ count: unreadNotifications }], googleOverview, allActivityEvents] = await Promise.all([
     db.select().from(gbpConnections).where(eq(gbpConnections.organizationId, org.id)).limit(1),
     db.select().from(onboarding).where(eq(onboarding.organizationId, org.id)).limit(1),
     // Independent of the GBP connection — an audit can exist (or not) either way.
@@ -139,6 +142,13 @@ export default async function DashboardPage() {
           eq(notifications.read, false),
         ),
       ),
+    // Reads google_oauth_connections only — no live Google API call, safe
+    // to run on every dashboard render (PHASE 1A performance rule).
+    getGoogleConnectionOverview(org.id),
+    // Fetched once at a higher limit than the timeline card needs (8) so
+    // the Morning Brief's "since your last visit" count can be derived
+    // from the same rows below instead of a second query.
+    getClientActivityTimeline(org.id, locale, 50),
   ]);
   const isConnected = connection?.status === "connected";
 
@@ -205,16 +215,79 @@ export default async function DashboardPage() {
     recentReviews = [...orgReviews].sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).slice(0, 4);
   }
 
-  const priorityActions: { key: string; title: string; href: string; tone: "info" | "warm" }[] = [];
-  if (!isConnected) priorityActions.push({ key: "connect-gbp", title: t.priorityConnectGbp, href: "/dashboard/gbp", tone: "warm" });
-  if (!onboardingRecord?.completedAt) priorityActions.push({ key: "onboarding", title: t.onboardingBannerTitle, href: "/dashboard/onboarding", tone: "warm" });
-  if (isConnected && !latestAudit) priorityActions.push({ key: "audit", title: t.priorityRunAudit, href: "/dashboard/audits", tone: "info" });
-  if (isConnected && pendingReviewsCount > 0) priorityActions.push({ key: "reviews", title: t.priorityPendingReviews(pendingReviewsCount), href: "/dashboard/gbp", tone: "warm" });
-
   // Priority actions above only ever reflect real pending reviews (never
   // fabricated) — this display value is separate, for the KPI tile only,
   // and falls back to a demo count when disconnected like the rest of the row.
   const pendingReviewsDisplay = isConnected ? pendingReviewsCount : DEMO_PENDING_REVIEWS_COUNT;
+
+  // PHASE 1A — Control Center Foundation. Replaces the old, simpler
+  // priorityActions list (4 hardcoded signals, no criticality) with the
+  // shared rule engine (lib/dashboard-signals.ts) — same underlying real
+  // data, plus sync-error/never-synced/views-up signals, criticality
+  // tiers, and a single ranked Next Best Action. Kept as ONE consolidated
+  // "Vos priorités" block rather than two separate panels showing
+  // overlapping information.
+  const dashboardSignalInput = {
+    isGbpConnected: isConnected,
+    onboardingCompleted: Boolean(onboardingRecord?.completedAt),
+    hasAudit: Boolean(latestAudit),
+    pendingReviewsCount,
+    viewsDeltaPct,
+    google: {
+      connected: googleOverview.connected,
+      gbp: googleOverview.gbp,
+      analytics: googleOverview.analytics,
+      searchConsole: googleOverview.searchConsole,
+    },
+  };
+  const signals = computeDashboardSignals(dashboardSignalInput);
+  const topPriorities = pickTopPriorities(signals, 5);
+  const nextBestAction = pickNextBestAction(signals);
+  const continueItems = buildContinueItems(dashboardSignalInput);
+
+  const mostRecentSync = (
+    [
+      googleOverview.gbp.lastSyncedAt ? { product: "gbp" as const, syncedAt: googleOverview.gbp.lastSyncedAt } : null,
+      googleOverview.analytics.lastSyncedAt ? { product: "analytics" as const, syncedAt: googleOverview.analytics.lastSyncedAt } : null,
+      googleOverview.searchConsole.lastSyncedAt ? { product: "search_console" as const, syncedAt: googleOverview.searchConsole.lastSyncedAt } : null,
+    ].filter((entry): entry is { product: "gbp" | "analytics" | "search_console"; syncedAt: Date } => entry !== null)
+  ).sort((a, b) => b.syncedAt.getTime() - a.syncedAt.getTime())[0] ?? null;
+
+  // Real prior lastLoginAt, captured server-side before this request's own
+  // login touch (see CurrentSession.previousLastLoginAt) — null on a
+  // genuine first visit, which buildMorningBrief treats as "no real
+  // window to count", never as zero.
+  const actionsSinceLastVisit = session.previousLastLoginAt
+    ? allActivityEvents.filter((event) => event.timestamp > session.previousLastLoginAt!).length
+    : null;
+
+  const briefLines = buildMorningBrief({
+    prioritiesCount: topPriorities.length,
+    mostRecentSync,
+    viewsDeltaPct,
+    actionsSinceLastVisit,
+  });
+
+  const timelineEvents = allActivityEvents.slice(0, 8);
+
+  const CRITICALITY_TONE: Record<Criticality, "bad" | "warm" | "info" | "good"> = {
+    critical: "bad",
+    high: "warm",
+    medium: "info",
+    opportunity: "good",
+  };
+
+  function signalCopy(kind: SignalKind, signal: { count?: number; pct?: number }) {
+    const entry = t.signals[kind] as { title: string | ((n: number) => string); description: string; action: string };
+    const title = typeof entry.title === "function" ? entry.title(signal.count ?? signal.pct ?? 0) : entry.title;
+    return { title, description: entry.description, action: entry.action };
+  }
+
+  const productLabel: Record<"gbp" | "analytics" | "search_console", string> = {
+    gbp: dictionaries[locale].dashboard.googleIntegration.gbp.pageTitle,
+    analytics: dictionaries[locale].dashboard.googleIntegration.analytics.pageTitle,
+    search_console: dictionaries[locale].dashboard.googleIntegration.searchConsole.pageTitle,
+  };
 
   const metricsSummaryData = [
     { label: t.tiles.profileViews, value: totalViews, color: BLUE },
@@ -240,6 +313,47 @@ export default async function DashboardPage() {
           <HeroControlChip>
             <p className="text-xs font-medium text-pm-noir">{t.demoBadgeText}</p>
           </HeroControlChip>
+        </div>
+      )}
+
+      {/* PHASE 1A — Morning Brief. Every line requires its own real data
+          (see buildMorningBrief) — the whole block renders nothing rather
+          than an empty shell when there's nothing real to say. */}
+      {briefLines.length > 0 && (
+        <div className={`mb-6 ${panelClass}`}>
+          <p className={panelTitleClass}>{t.brief.title}</p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {briefLines.map((line, i) => {
+              const text =
+                line.kind === "priorities_count"
+                  ? t.brief.prioritiesCount(line.count)
+                  : line.kind === "last_sync"
+                    ? t.brief.lastSync(productLabel[line.product], formatRelativeTime(line.syncedAt, locale))
+                    : line.kind === "views_up"
+                      ? t.brief.viewsUp(line.pct)
+                      : t.brief.actionsSinceLastVisit(line.count);
+              return (
+                <li key={i} className="flex items-start gap-2 text-sm text-pm-noir">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-pm-bleu-eu" aria-hidden="true" />
+                  {text}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* PHASE 1A — Next Best Action. Purely rule-based (lib/dashboard-signals.ts's
+          pickNextBestAction) — the single highest-ranked real signal, never an
+          AI suggestion. Renders nothing when there is none. */}
+      {nextBestAction && (
+        <div className="mb-6 rounded-2xl border border-pm-or/25 bg-pm-or/[0.04] p-5 shadow-[0_8px_22px_rgba(13,36,67,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-pm-or-2">{t.nba.title}</p>
+          <p className="mt-1.5 text-base font-semibold text-pm-noir">{signalCopy(nextBestAction.kind, nextBestAction).title}</p>
+          <p className="mt-1 text-sm text-pm-gris">{signalCopy(nextBestAction.kind, nextBestAction).description}</p>
+          <Link href={nextBestAction.href} className={`${heroPrimaryButtonClass} mt-3 inline-flex`}>
+            {t.nba.resolve}
+          </Link>
         </div>
       )}
 
@@ -332,18 +446,50 @@ export default async function DashboardPage() {
         </div>
 
         <div className={panelClass}>
-          <p className={panelTitleClass}>{t.priorityActionsTitle}</p>
-          {priorityActions.length === 0 ? (
-            <p className="mt-4 text-sm text-pm-gris">{t.priorityActionsEmpty}</p>
+          <p className={panelTitleClass}>{t.priorities.title}</p>
+          {topPriorities.length === 0 ? (
+            <EmptyState title={t.priorities.empty} description={t.priorities.emptyHint} />
           ) : (
-            <div className="mt-3">
-              {priorityActions.map((action) => (
-                <PriorityActionRow key={action.key} href={action.href} title={action.title} tone={action.tone} />
-              ))}
+            <div className="mt-3 flex flex-col">
+              {topPriorities.map((signal) => {
+                const copy = signalCopy(signal.kind, signal);
+                return (
+                  <Link
+                    key={signal.kind}
+                    href={signal.href}
+                    className="flex flex-col gap-1 border-t border-pm-gris-2 py-3 first:border-t-0 transition-colors hover:bg-pm-gris-2/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-pm-bleu-eu"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge label={t.criticality[signal.criticality]} className={SEMANTIC_CLASS[CRITICALITY_TONE[signal.criticality]]} />
+                      <span className="text-xs text-pm-gris">{copy.action} ›</span>
+                    </div>
+                    <p className="text-sm font-medium text-pm-noir">{copy.title}</p>
+                    <p className="text-xs text-pm-gris">{copy.description}</p>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
+
+      {continueItems.length > 0 && (
+        <div className={`mt-5 ${panelClass}`}>
+          <p className={panelTitleClass}>{t.continueSection.title}</p>
+          <div className="mt-3 flex flex-col">
+            {continueItems.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                className="flex items-center gap-3 border-t border-pm-gris-2 py-3 text-sm font-medium text-pm-noir first:border-t-0 transition-colors hover:bg-pm-gris-2/15"
+              >
+                <NAV_ICONS.chevronDown width={14} height={14} className="-rotate-90 shrink-0 text-pm-gris" aria-hidden="true" />
+                {item.key === "onboarding" ? t.continueSection.onboarding : item.key === "last_audit" ? t.continueSection.lastAudit : t.continueSection.gbp}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={`mt-5 ${panelClass}`}>
         <div className="flex items-center justify-between">
@@ -373,6 +519,55 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+        <div className={`lg:col-span-2 ${panelClass}`}>
+          <p className={panelTitleClass}>{t.timelineTitle}</p>
+          <div className="mt-3">
+            <ActivityTimelineCard events={timelineEvents} locale={locale} title={t.timelineTitle} emptyTitle={t.timelineEmptyTitle} emptyDescription={t.timelineEmptyHint} />
+          </div>
+        </div>
+
+        <div className={panelClass}>
+          <div className="flex items-center justify-between">
+            <p className={panelTitleClass}>{t.integrationsCardTitle}</p>
+            {googleOverview.gbp.lastSyncedAt || googleOverview.analytics.lastSyncedAt || googleOverview.searchConsole.lastSyncedAt ? (
+              <span className="text-[11px] text-pm-gris">
+                {t.freshnessUpdated(formatRelativeTime(mostRecentSync?.syncedAt ?? new Date(), locale))}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-pm-gris">{integrationsPageT.gbpCard}</span>
+              <Badge
+                label={!googleOverview.gbp.scopeGranted ? gi.connectionStatus.notConnected : googleOverview.gbp.state === "error" ? gi.connectionStatus.error : googleOverview.gbp.state === "synced" ? gi.connectionStatus.syncedAt(formatDateTime(googleOverview.gbp.lastSyncedAt!, locale)) : gi.connectionStatus.readyToSync}
+                className={SEMANTIC_CLASS[!googleOverview.gbp.scopeGranted ? "neutral" : googleOverview.gbp.state === "error" ? "bad" : googleOverview.gbp.state === "synced" ? "good" : "warm"]}
+              />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-pm-gris">{integrationsPageT.analyticsCard}</span>
+              <Badge
+                label={!googleOverview.analytics.scopeGranted ? gi.connectionStatus.notConnected : googleOverview.analytics.state === "error" ? gi.connectionStatus.error : googleOverview.analytics.state === "synced" ? gi.connectionStatus.syncedAt(formatDateTime(googleOverview.analytics.lastSyncedAt!, locale)) : gi.connectionStatus.readyToSync}
+                className={SEMANTIC_CLASS[!googleOverview.analytics.scopeGranted ? "neutral" : googleOverview.analytics.state === "error" ? "bad" : googleOverview.analytics.state === "synced" ? "good" : "warm"]}
+              />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-pm-gris">{integrationsPageT.searchConsoleCard}</span>
+              <Badge
+                label={!googleOverview.searchConsole.scopeGranted ? gi.connectionStatus.notConnected : googleOverview.searchConsole.state === "error" ? gi.connectionStatus.error : googleOverview.searchConsole.state === "synced" ? gi.connectionStatus.syncedAt(formatDateTime(googleOverview.searchConsole.lastSyncedAt!, locale)) : gi.connectionStatus.readyToSync}
+                className={SEMANTIC_CLASS[!googleOverview.searchConsole.scopeGranted ? "neutral" : googleOverview.searchConsole.state === "error" ? "bad" : googleOverview.searchConsole.state === "synced" ? "good" : "warm"]}
+              />
+            </div>
+          </div>
+          <Link
+            href="/dashboard/integrations"
+            className="mt-4 block rounded-lg border border-pm-gris-2 bg-white px-4 py-2 text-center text-sm font-medium text-pm-noir transition hover:bg-pm-gris-2/30"
+          >
+            {t.integrationsCardCta}
+          </Link>
+        </div>
       </div>
 
       <div
