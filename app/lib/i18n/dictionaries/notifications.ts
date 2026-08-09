@@ -11,6 +11,11 @@ export const notificationsPage = {
     empty: "Aucune notification",
     unreadOnly: "Non lues uniquement",
     all: "Toutes",
+    delete: "Supprimer",
+    deleteRead: "Supprimer les notifications lues",
+    deleteReadConfirm: "Supprimer toutes les notifications lues ? Cette action est définitive.",
+    notificationDeleted: "Notification supprimée",
+    readNotificationsDeleted: "Notifications lues supprimées",
   },
   en: {
     title: (orgName: string) => `Notifications — ${orgName}`,
@@ -18,5 +23,10 @@ export const notificationsPage = {
     empty: "No notifications",
     unreadOnly: "Unread only",
     all: "All",
+    delete: "Delete",
+    deleteRead: "Delete read notifications",
+    deleteReadConfirm: "Delete all read notifications? This cannot be undone.",
+    notificationDeleted: "Notification deleted",
+    readNotificationsDeleted: "Read notifications deleted",
   },
 } as const;

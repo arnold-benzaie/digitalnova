@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { markAllNotificationsRead, markNotificationRead } from "@/lib/actions/notifications";
+import { deleteNotification, markAllNotificationsRead, markNotificationRead } from "@/lib/actions/notifications";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import { renderNotification } from "@/lib/i18n/notification-templates";
 import { notificationHref } from "@/lib/notification-href";
+import { notificationToast } from "@/components/notification-toaster";
 
 type NotificationItem = {
   id: string;
@@ -32,6 +33,7 @@ export function NotificationBell({
   locale: Locale;
 }) {
   const t = dictionaries[locale].navigation.bell;
+  const tPage = dictionaries[locale].notificationsPage;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -46,6 +48,16 @@ export function NotificationBell({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  function handleDelete(id: string) {
+    startTransition(async () => {
+      const result = await deleteNotification(id);
+      if (result.deleted) {
+        notificationToast.success(tPage.notificationDeleted);
+        router.refresh();
+      }
+    });
+  }
 
   return (
     <div className="relative" ref={containerRef}>
@@ -106,27 +118,46 @@ export function NotificationBell({
                     </div>
                   </div>
                 );
-                return href ? (
-                  <Link
-                    key={item.id}
-                    href={href}
-                    onClick={() => {
-                      setOpen(false);
-                      // Fire-and-forget alongside the navigation, not
-                      // awaited first — revalidatePath (inside
-                      // markNotificationRead) invalidates /admin and
-                      // /dashboard's cached layout data, so the unread
-                      // badge is correct by the time the destination
-                      // page's shared layout renders.
-                      if (!item.read) startTransition(() => markNotificationRead(item.id));
+                const deleteButton = (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    aria-label={t.deleteAriaLabel}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleDelete(item.id);
                     }}
-                    className="block border-b border-pm-gris-2 px-4 py-3 transition last:border-b-0 hover:bg-pm-gris-2/30"
+                    className="shrink-0 rounded-full p-1 text-pm-gris/70 transition hover:bg-pm-gris-2/40 hover:text-pm-noir disabled:opacity-50"
                   >
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={item.id} className="border-b border-pm-gris-2 px-4 py-3 last:border-b-0">
-                    {content}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                );
+                return (
+                  <div key={item.id} className="flex items-start gap-1 border-b border-pm-gris-2 px-2 py-1 last:border-b-0 hover:bg-pm-gris-2/30">
+                    {href ? (
+                      <Link
+                        href={href}
+                        onClick={() => {
+                          setOpen(false);
+                          // Fire-and-forget alongside the navigation, not
+                          // awaited first — revalidatePath (inside
+                          // markNotificationRead) invalidates /admin and
+                          // /dashboard's cached layout data, so the unread
+                          // badge is correct by the time the destination
+                          // page's shared layout renders.
+                          if (!item.read) startTransition(() => markNotificationRead(item.id));
+                        }}
+                        className="min-w-0 flex-1 rounded-xl px-2 py-2"
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <div className="min-w-0 flex-1 px-2 py-2">{content}</div>
+                    )}
+                    <div className="pt-2">{deleteButton}</div>
                   </div>
                 );
               })

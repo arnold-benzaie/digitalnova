@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
 import { audits, gbpConnections, locationMetrics, locations, notifications, onboarding, reviews } from "@/db/schema";
@@ -21,6 +21,7 @@ import { SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
 import type { CurrentSession } from "@/lib/session";
 import { getGoogleConnectionOverview } from "@/lib/google/oauth";
 import { getClientActivityTimeline } from "@/lib/activity-timeline";
+import { notificationVisibilityWhere } from "@/lib/notification-visibility";
 import { ActivityTimelineCard } from "@/components/activity-timeline-card";
 import {
   computeDashboardSignals,
@@ -136,12 +137,7 @@ export default async function DashboardPage() {
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(
-        and(
-          or(and(eq(notifications.organizationId, org.id), isNull(notifications.userId)), eq(notifications.userId, session.userId)),
-          eq(notifications.read, false),
-        ),
-      ),
+      .where(and(eq(notifications.read, false), notificationVisibilityWhere(org.id, session.userId, session.role))),
     // Reads google_oauth_connections only — no live Google API call, safe
     // to run on every dashboard render (PHASE 1A performance rule).
     getGoogleConnectionOverview(org.id),

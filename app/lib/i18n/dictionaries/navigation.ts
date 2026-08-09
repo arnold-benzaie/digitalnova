@@ -65,6 +65,8 @@ export const navigation = {
       markAllRead: "Tout marquer comme lu",
       empty: "Aucune notification.",
       viewAll: "Voir tout",
+      delete: "Supprimer",
+      deleteAriaLabel: "Supprimer cette notification",
     },
   },
   en: {
@@ -125,6 +127,8 @@ export const navigation = {
       markAllRead: "Mark all as read",
       empty: "No notifications.",
       viewAll: "View all",
+      delete: "Delete",
+      deleteAriaLabel: "Delete this notification",
     },
   },
 } as const;

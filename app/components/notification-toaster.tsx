@@ -41,4 +41,5 @@ export function NotificationToaster() {
 
 export const notificationToast = {
   info: (message: string, description?: string) => sonnerToast(message, { description }),
+  success: (message: string) => sonnerToast.success(message),
 };

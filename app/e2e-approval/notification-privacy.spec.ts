@@ -197,7 +197,7 @@ test("approbation : notification personnelle créée pour l'utilisateur approuv�
   // just by inspecting the query shape): the admin shares this row's
   // organization_id — before the userId column existed, a broadcast query
   // would have shown this to them too — but their own bell/notifications
-  // query (visibleToViewer() in lib/actions/notifications.ts) must never
+  // query (notificationVisibilityWhere() in lib/notification-visibility.ts) must never
   // surface someone else's personal notification.
   await adminPage.goto("/admin/notifications", { waitUntil: "networkidle" });
   const adminVisibleText = await adminPage.locator("main").innerText();
