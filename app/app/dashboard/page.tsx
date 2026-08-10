@@ -23,6 +23,8 @@ import { getGoogleConnectionOverview } from "@/lib/google/oauth";
 import { getClientActivityTimeline } from "@/lib/activity-timeline";
 import { notificationVisibilityWhere } from "@/lib/notification-visibility";
 import { ActivityTimelineCard } from "@/components/activity-timeline-card";
+import { getClientRecentActivity } from "@/lib/product-events";
+import { Timeline } from "@/components/gbp-audit/ui/timeline";
 import {
   computeDashboardSignals,
   pickTopPriorities,
@@ -129,7 +131,7 @@ export default async function DashboardPage() {
   // result), so they run concurrently instead of as four sequential
   // round trips — this also directly speeds up the full-page reload a
   // language switch forces (see components/language-switcher.tsx).
-  const [[connection], [onboardingRecord], [latestAudit], [{ count: unreadNotifications }], googleOverview, allActivityEvents] = await Promise.all([
+  const [[connection], [onboardingRecord], [latestAudit], [{ count: unreadNotifications }], googleOverview, allActivityEvents, recentProductActivity] = await Promise.all([
     db.select().from(gbpConnections).where(eq(gbpConnections.organizationId, org.id)).limit(1),
     db.select().from(onboarding).where(eq(onboarding.organizationId, org.id)).limit(1),
     // Independent of the GBP connection — an audit can exist (or not) either way.
@@ -145,6 +147,10 @@ export default async function DashboardPage() {
     // the Morning Brief's "since your last visit" count can be derived
     // from the same rows below instead of a second query.
     getClientActivityTimeline(org.id, locale, 50),
+    // "Votre activité récente" — client's OWN product_events only (see
+    // lib/product-events.ts), a distinct signal from allActivityEvents
+    // above (system → client) — this one is client → system.
+    getClientRecentActivity(org.id, session.userId, locale, 8),
   ]);
   const isConnected = connection?.status === "connected";
 
@@ -563,6 +569,24 @@ export default async function DashboardPage() {
           >
             {t.integrationsCardCta}
           </Link>
+        </div>
+      </div>
+
+      <div className={`mt-5 ${panelClass}`}>
+        <p className={panelTitleClass}>{t.recentProductActivity.title}</p>
+        <div className="mt-3">
+          {recentProductActivity.length === 0 ? (
+            <EmptyState icon={<NAV_ICONS.history width={20} height={20} />} title={t.recentProductActivity.emptyTitle} description={t.recentProductActivity.emptyDescription} />
+          ) : (
+            <Timeline
+              entries={recentProductActivity.map((item) => ({
+                id: item.id,
+                tone: "neutral",
+                timestamp: formatRelativeTime(item.occurredAt, locale),
+                title: item.text,
+              }))}
+            />
+          )}
         </div>
       </div>
 

@@ -4,9 +4,11 @@ import { db } from "@/db";
 import { auditIssues, audits } from "@/db/schema";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { AuditReportDocument } from "@/lib/pdf/audit-report";
+import { recordProductEvent } from "@/lib/product-events";
+import { requireSession } from "@/lib/session";
 
 export async function GET() {
-  const org = await getOrCreateDevOrganization();
+  const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
 
   const [latestAudit] = await db
     .select()
@@ -18,6 +20,15 @@ export async function GET() {
   if (!latestAudit) {
     return new Response("Aucun audit disponible — lancez d'abord un audit.", { status: 404 });
   }
+
+  await recordProductEvent({
+    organizationId: org.id,
+    userId: session.userId,
+    eventType: "open_report",
+    path: "/api/reports/audit",
+    entityType: "audit",
+    entityId: latestAudit.id,
+  });
 
   const issues = await db.select().from(auditIssues).where(eq(auditIssues.auditId, latestAudit.id));
 

@@ -1387,3 +1387,42 @@ export const siteAnalyticsCache = pgTable("site_analytics_cache", {
   payload: jsonb("payload").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [uniqueIndex("site_analytics_cache_key_idx").on(table.cacheKey)]);
+
+/**
+ * Internal product-activity tracking (2026-08 Phase 1) — a deliberately
+ * narrow, closed set of business-meaningful events (see
+ * lib/product-events.ts's PRODUCT_EVENT_TYPES for the exact list: login,
+ * page_view, open_audit, open_report, download_document). NOT a general
+ * analytics/telemetry system: no mouse movement, no keystrokes, no form
+ * content, no raw IP, no fingerprinting — see that file's sanitizeMetadata().
+ *
+ * organizationId/userId are NOT NULL and are only ever written by
+ * recordProductEvent() (lib/product-events.ts) from a value resolved
+ * server-side via requireSession() — never trusted from client input, same
+ * rule as every other org-scoped write in this app. `path`/`entityType`/
+ * `entityId` are nullable because not every event type carries all three
+ * (e.g. `login` has none of them).
+ */
+export const productEvents = pgTable(
+  "product_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // closed union — see PRODUCT_EVENT_TYPES
+    path: text("path"),
+    entityType: text("entity_type"), // e.g. "audit" | "document"
+    entityId: text("entity_id"),
+    metadata: jsonb("metadata"), // small, sanitized — see sanitizeMetadata()
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("product_events_org_occurred_idx").on(table.organizationId, table.occurredAt),
+    index("product_events_user_occurred_idx").on(table.userId, table.occurredAt),
+    index("product_events_type_occurred_idx").on(table.eventType, table.occurredAt),
+  ],
+);

@@ -176,6 +176,13 @@
       "when": 1786202620731,
       "tag": "0024_lethal_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786389108209,
+      "tag": "0025_opposite_rhino",
+      "breakpoints": true
     }
   ]
 }

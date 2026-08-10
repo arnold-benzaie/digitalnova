@@ -6,6 +6,8 @@ import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime } from "@/lib/i18n/format";
+import { recordProductEvent } from "@/lib/product-events";
+import { requireSession } from "@/lib/session";
 import { AdminPageHero, heroPrimaryButtonClass, panelClass } from "@/components/admin/page-hero";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
@@ -18,7 +20,7 @@ const PRIORITY_CLASS: Record<string, string> = {
 };
 
 export default async function AuditsPage() {
-  const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
+  const [org, locale, session] = await Promise.all([getOrCreateDevOrganization(), getLocale(), requireSession()]);
   const t = dictionaries[locale].dashboard.audits;
   const priorityLabel: Record<string, string> = t.priority;
 
@@ -56,6 +58,16 @@ export default async function AuditsPage() {
     .limit(10);
 
   const latestAudit = previousAudits[0] ?? null;
+  if (latestAudit) {
+    await recordProductEvent({
+      organizationId: org.id,
+      userId: session.userId,
+      eventType: "open_audit",
+      path: "/dashboard/audits",
+      entityType: "audit",
+      entityId: latestAudit.id,
+    });
+  }
   const issues = latestAudit
     ? await db.select().from(auditIssues).where(eq(auditIssues.auditId, latestAudit.id))
     : [];

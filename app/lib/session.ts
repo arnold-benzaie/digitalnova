@@ -5,6 +5,15 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
 import { registerPendingUser } from "@/lib/pending-user-registration";
+import { recordProductEvent } from "@/lib/product-events";
+
+// A "login" product_event fires only when this much time has passed since
+// the user's previous visit (or on a genuine first-ever visit, where
+// previousLastLoginAt is null) — never on every request, which would
+// otherwise happen here since this whole function already runs per
+// request. 4h is a practical proxy for "a new session", not a security
+// boundary — Clerk's own session lifetime is what actually governs auth.
+const LOGIN_EVENT_INACTIVITY_THRESHOLD_MS = 4 * 60 * 60 * 1000;
 
 export type AppRole = "admin" | "staff" | "agent" | "supervisor" | "client";
 
@@ -93,6 +102,16 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
     membership = await claimPendingInvitation(appUser.id, appUser.email);
   }
   if (!membership) return { kind: "pending" };
+
+  const isNewLoginSession =
+    previousLastLoginAt === null || Date.now() - previousLastLoginAt.getTime() > LOGIN_EVENT_INACTIVITY_THRESHOLD_MS;
+  if (isNewLoginSession) {
+    await recordProductEvent({
+      organizationId: membership.organizationId,
+      userId: appUser.id,
+      eventType: "login",
+    });
+  }
 
   return {
     kind: "active",

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
+import { recordProductEvent } from "@/lib/product-events";
 import { getCurrentSession } from "@/lib/session";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!document) {
     return new Response("Document introuvable", { status: 404 });
   }
+
+  await recordProductEvent({
+    organizationId: session.organizationId,
+    userId: session.userId,
+    eventType: "download_document",
+    path: "/dashboard/documents",
+    entityType: "document",
+    entityId: document.id,
+    metadata: { fileName: document.fileName },
+  });
 
   const buffer = Buffer.from(document.content, "base64");
   return new Response(new Uint8Array(buffer), {

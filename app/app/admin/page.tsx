@@ -12,6 +12,7 @@ import { SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope } from "@/lib/google/oauth";
+import { getAdminRecentActivity } from "@/lib/product-events";
 import {
   computeSyncHealthSummary,
   buildClientsAtRiskItems,
@@ -54,7 +55,7 @@ export default async function AdminOverviewPage() {
   const inboxT = dictionaries[locale].dashboard.adminInbox;
   const now = new Date();
 
-  const [orgs, syncConnections, clientLinks, dealRows, lastInteractionRows, invoiceRows, quoteRows, recentAuditRows, recentDocRows] = await Promise.all([
+  const [orgs, syncConnections, clientLinks, dealRows, lastInteractionRows, invoiceRows, quoteRows, recentAuditRows, recentDocRows, recentClientActivity] = await Promise.all([
     db
       .select({ id: organizations.id, name: organizations.name, createdAt: organizations.createdAt, memberCount: sql<number>`count(${memberships.userId})::int` })
       .from(organizations)
@@ -106,6 +107,10 @@ export default async function AdminOverviewPage() {
       .innerJoin(organizations, eq(documents.organizationId, organizations.id))
       .orderBy(desc(documents.createdAt))
       .limit(8),
+    // requireStaffRole() above already gates this whole page — see
+    // getAdminRecentActivity()'s own header comment for why it doesn't
+    // re-check the role itself, same convention as every query above it.
+    getAdminRecentActivity(locale, 15),
   ]);
 
   const orgToClientId = new Map(clientLinks.map((c) => [c.organizationId as string, c.id]));
@@ -315,6 +320,27 @@ export default async function AdminOverviewPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className={`mt-5 ${panelClass}`}>
+        <p className={panelTitleClass}>{inboxT.sections.recentClientActivity}</p>
+        {recentClientActivity.length === 0 ? (
+          <EmptyState icon={<NAV_ICONS.history width={20} height={20} />} title={inboxT.empty.recentClientActivity} />
+        ) : (
+          <div className="mt-3 flex flex-col">
+            {recentClientActivity.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 border-t border-pm-gris-2 py-3 first:border-t-0">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-pm-noir">{item.organizationName}</span>
+                  <span className="text-xs text-pm-gris">
+                    {item.actorName} — {item.text}
+                  </span>
+                </div>
+                <span className="shrink-0 text-xs text-pm-gris">{formatRelativeTime(item.occurredAt, locale)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={`mt-5 ${panelClass}`}>
