@@ -12,7 +12,9 @@ import { GoogleOAuthBanner } from "@/components/google-oauth-banner";
 import { GoogleConnectionStatus } from "@/components/google-connection-status";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
-import { AdminPageHero, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { AdminPageHero, HeroControlChip, heroPrimaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 
 export default async function GbpPage({
   searchParams,
@@ -96,8 +98,16 @@ export default async function GbpPage({
       )}
       <AdminPageHero
         title={t.pageTitle}
-        subtitle={`${t.connectedAs(connection.googleAccountEmail ?? "")}${!hasRealGbp ? t.missingScopeSuffix : ""}.`}
-        actions={<SyncGbpButton locale={locale} />}
+        subtitle={`${t.heroDescription}${!hasRealGbp ? t.missingScopeSuffix : ""}`}
+        actions={
+          <>
+            <HeroControlChip>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-pm-gris">{t.connectedAccountLabel}</p>
+              <p className="text-sm font-medium text-pm-noir">{connection.googleAccountEmail}</p>
+            </HeroControlChip>
+            <SyncGbpButton locale={locale} />
+          </>
+        }
       />
 
       <div className="mt-6">
@@ -105,27 +115,35 @@ export default async function GbpPage({
       </div>
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.locationsTitle}</h2>
-      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {orgLocations.map((location) => (
-          <div key={location.id} className={panelClass}>
-            <p className={panelTitleClass}>{location.name}</p>
-            <p className="mt-1.5 text-sm text-pm-gris">{location.address}</p>
-            {location.phone && <p className="mt-1 text-sm text-pm-gris">{location.phone}</p>}
-            {location.websiteUrl && (
-              <a href={location.websiteUrl} target="_blank" rel="noreferrer" className="mt-1 block text-sm text-pm-noir underline">
-                {location.websiteUrl}
-              </a>
-            )}
-            <p className="mt-2 text-xs uppercase tracking-wide text-pm-gris">
-              {location.category}
-            </p>
-          </div>
-        ))}
-      </div>
+      {orgLocations.length === 0 ? (
+        <div className="mt-3">
+          <EmptyState icon={<NAV_ICONS.building width={22} height={22} />} title={t.emptyLocations} description={t.emptyLocationsHint} />
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {orgLocations.map((location) => (
+            <div key={location.id} className={panelClass}>
+              <p className={panelTitleClass}>{location.name}</p>
+              <p className="mt-1.5 text-sm text-pm-gris">{location.address}</p>
+              {location.phone && <p className="mt-1 text-sm text-pm-gris">{location.phone}</p>}
+              {location.websiteUrl && (
+                <a href={location.websiteUrl} target="_blank" rel="noreferrer" className="mt-1 block text-sm text-pm-noir underline">
+                  {location.websiteUrl}
+                </a>
+              )}
+              <p className="mt-2 text-xs uppercase tracking-wide text-pm-gris">
+                {location.category}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.recentReviewsTitle}</h2>
       {allReviews.length === 0 ? (
-        <p className="mt-3 text-sm text-pm-gris">{t.noReviews}</p>
+        <div className="mt-3">
+          <EmptyState icon={<NAV_ICONS.star width={22} height={22} />} title={t.noReviews} />
+        </div>
       ) : (
         <div className="mt-3 flex flex-col gap-3">
           {allReviews.slice(0, 10).map((review) => (
