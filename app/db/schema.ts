@@ -1426,3 +1426,64 @@ export const productEvents = pgTable(
     index("product_events_type_occurred_idx").on(table.eventType, table.occurredAt),
   ],
 );
+
+/**
+ * Google Ads (2026-08) — deliberately SEPARATE from `googleOauthConnections`
+ * (GBP/Search Console/Analytics's combined-consent table): a different
+ * OAuth intention (see lib/google-ads/oauth.ts's own header comment),
+ * client-self-service only (never staff-initiated, unlike the other three
+ * products), and its own scope (`adwords`) — mixing it into the existing
+ * table would mean every future GBP/Analytics/SearchConsole re-consent
+ * also requests the Ads scope, which is exactly what this separation
+ * avoids.
+ *
+ * `refreshToken*` mirrors the existing encrypted-secret storage shape
+ * already used by `webhookEndpoints`/`webhookEndpointSecrets`
+ * (ciphertext/iv/authTag columns, see lib/integrations/crypto.ts's
+ * encryptIntegrationValue()/decryptIntegrationValue(), AES-256-GCM) —
+ * unlike `googleOauthConnections.refreshToken`, which predates that
+ * mechanism and is stored in plain text. `accessToken`/`accessTokenExpiresAt`
+ * stay plain text on purpose: short-lived (~1h), same treatment as
+ * `googleOauthConnections.accessToken` — only the long-lived refresh token
+ * is treated as the high-sensitivity secret here.
+ *
+ * `customerId`/`loginCustomerId`/`customerDescriptiveName`/
+ * `customerCurrencyCode`/`customerTimeZone` stay NULLABLE: they're only
+ * populated once the client completes the account-selection step (a
+ * later phase) — a freshly OAuth-connected row with no account chosen
+ * yet is a valid, real state, not an error.
+ */
+export const googleAdsConnections = pgTable(
+  "google_ads_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Audit trail only ("who clicked Connect") — never used as an
+    // isolation boundary. Isolation is by organizationId, same as every
+    // other Google integration in this app: any client user in the org
+    // can see the org's own Google Ads connection, matching GBP/Analytics/
+    // SearchConsole's existing organization-scoped model.
+    connectedByUserId: uuid("connected_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    googleAccountEmail: text("google_account_email").notNull(),
+    accessToken: text("access_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenCiphertext: text("refresh_token_ciphertext").notNull(),
+    refreshTokenIv: text("refresh_token_iv").notNull(),
+    refreshTokenAuthTag: text("refresh_token_auth_tag").notNull(),
+    grantedScopes: jsonb("granted_scopes").notNull().default([]),
+    customerId: text("customer_id"), // selected Ads customer ID, no dashes — see lib/google-ads/accounts.ts
+    loginCustomerId: text("login_customer_id"), // manager/MCC context for customerId, if any
+    customerDescriptiveName: text("customer_descriptive_name"),
+    customerCurrencyCode: text("customer_currency_code"),
+    customerTimeZone: text("customer_time_zone"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    lastSyncError: text("last_sync_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("google_ads_connections_organization_id_idx").on(table.organizationId)],
+);

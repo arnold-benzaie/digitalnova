@@ -15,7 +15,7 @@ type NavDict = {
     team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
-    automations: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
+    automations: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; googleAds: string; documents: string; integrations: string;
   };
 };
 
@@ -99,6 +99,7 @@ export function getClientNavSections(t: NavDict): NavSection[] {
         { label: t.items.googleBusinessProfile, href: "/dashboard/gbp", icon: "building" },
         { label: t.items.googleSearchConsole, href: "/dashboard/search-console", icon: "list" },
         { label: t.items.googleAnalytics, href: "/dashboard/analytics", icon: "trendingUp" },
+        { label: t.items.googleAds, href: "/dashboard/google-ads", icon: "megaphone" },
         { label: t.items.integrations, href: "/dashboard/integrations", icon: "gauge" },
         { label: t.items.audits, href: "/dashboard/audits", icon: "fileText" },
         { label: t.items.documents, href: "/dashboard/documents", icon: "folder" },

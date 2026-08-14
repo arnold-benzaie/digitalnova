@@ -49,6 +49,7 @@ export const NAV_ICONS: Record<string, (props: IconProps) => ReactElement> = {
   search: (p) => <Icon {...p}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></Icon>,
   barChart: (p) => <Icon {...p}><path d="M4 20V10M12 20V4M20 20v-7" /></Icon>,
   upload: (p) => <Icon {...p}><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></Icon>,
+  megaphone: (p) => <Icon {...p}><path d="m3 11 18-5v12L3 13v-2z" strokeLinejoin="round" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></Icon>,
 };
 
 export type NavIconName = keyof typeof NAV_ICONS;

@@ -44,7 +44,7 @@ export default async function IntegrationsPage() {
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <div className={panelClass}>
           <p className={panelTitleClass}>{t.gbpCard}</p>
           <Link href="/dashboard/gbp" className={`${panelLinkClass} mt-4 block`}>
@@ -62,6 +62,13 @@ export default async function IntegrationsPage() {
         <div className={panelClass}>
           <p className={panelTitleClass}>{t.searchConsoleCard}</p>
           <Link href="/dashboard/search-console" className={`${panelLinkClass} mt-4 block`}>
+            {t.viewDetails}
+          </Link>
+        </div>
+
+        <div className={panelClass}>
+          <p className={panelTitleClass}>{t.googleAdsCard}</p>
+          <Link href="/dashboard/google-ads" className={`${panelLinkClass} mt-4 block`}>
             {t.viewDetails}
           </Link>
         </div>
