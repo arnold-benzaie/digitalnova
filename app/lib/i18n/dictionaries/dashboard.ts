@@ -329,6 +329,7 @@ export const dashboard = {
         disconnectConfirmButton: "Déconnecter",
         disconnectError: "Échec de la déconnexion — réessayez.",
         connectedSince: (date: string) => `Connecté depuis le ${date}`,
+        googleAdsCurrencyNote: (currency: string) => `Devise du compte Google Ads : ${currency}`,
       },
       dateRanges: {
         LAST_7_DAYS: "7 derniers jours",
@@ -778,6 +779,7 @@ export const dashboard = {
         disconnectConfirmButton: "Disconnect",
         disconnectError: "Disconnection failed — please try again.",
         connectedSince: (date: string) => `Connected since ${date}`,
+        googleAdsCurrencyNote: (currency: string) => `Google Ads account currency: ${currency}`,
       },
       dateRanges: {
         LAST_7_DAYS: "Last 7 days",

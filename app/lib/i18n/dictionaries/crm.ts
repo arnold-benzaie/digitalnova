@@ -617,6 +617,14 @@ export const crm = {
         manage: "Gérer",
         connect: "Connecter",
       },
+      market: {
+        title: "Marché PUBLIC-MAP",
+        description: "Détermine la devise, la région et le contexte affichés au client — sans lien avec la devise native d'un compte Google Ads connecté.",
+        notSet: "Non défini",
+        canada: "Canada",
+        europe: "Europe",
+        noOrganizationYet: "Connectez d'abord ce client à la plateforme (voir Google Business Profile ci-dessous) pour pouvoir lui définir un marché.",
+      },
       searchConsole: {
         title: "Google Search Console",
         connected: (count: number) => `Connecté — ${count} propriété(s)`,
@@ -1282,6 +1290,14 @@ export const crm = {
         notConnected: "Not connected",
         manage: "Manage",
         connect: "Connect",
+      },
+      market: {
+        title: "PUBLIC-MAP market",
+        description: "Determines the currency, region and context shown to the client — unrelated to a connected Google Ads account's own native currency.",
+        notSet: "Not set",
+        canada: "Canada",
+        europe: "Europe",
+        noOrganizationYet: "Connect this client to the platform first (see Google Business Profile below) before you can set a market.",
       },
       searchConsole: {
         title: "Google Search Console",

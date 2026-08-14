@@ -33,6 +33,15 @@ export const organizations = pgTable(
     // The partial unique index guarantees at most one organization can ever
     // hold this flag.
     isInternal: boolean("is_internal").notNull().default(false),
+    // The organization's single commercial market — source of truth for
+    // currency/region/default-locale across PUBLIC-MAP (see
+    // lib/market/context.ts). Nullable: no automatic backfill exists for
+    // organizations created before this column — a real, staff-confirmed
+    // value or explicit "unknown" (null), never an invented default. Set
+    // either by staff (org creation/admin settings) or bootstrapped once
+    // from the client's own signup choice (users.pendingMarket) at
+    // approval time — see lib/actions/users.ts's approveUser().
+    market: text("market"), // "CANADA" | "EUROPE" | null
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("organizations_is_internal_unique").on(table.isInternal).where(sql`${table.isInternal} = true`)],
@@ -58,6 +67,14 @@ export const users = pgTable(
     firstName: text("first_name"),
     lastName: text("last_name"),
     status: text("status").notNull().default("pending"), // "pending" | "active" | "refused" | "suspended" — column added nullable in 0010, backfilled explicitly per-row, THEN locked to NOT NULL/DEFAULT in 0011 (see scripts/backfill-user-approval-status.mjs) so no existing row is ever implicitly "pending"
+    // The market the CLIENT THEMSELVES picked on /sign-up/market, before
+    // any organization exists to attach it to. Consumed exactly once — at
+    // approval, approveUser() copies it onto the target organization's own
+    // `market` ONLY if that organization doesn't already have one set
+    // (never overwrites a real, already-decided organization market).
+    // Null for staff-onboarded clients who never went through self-service
+    // signup, and for every user created before this column existed.
+    pendingMarket: text("pending_market"), // "CANADA" | "EUROPE" | null
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

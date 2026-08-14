@@ -77,6 +77,7 @@ const {
   changeUserRole,
   changeUserOrganization,
 } = await import("@/lib/actions/users");
+const { setOrganizationMarketAction } = await import("@/lib/actions/market");
 
 after(async () => {
   await db.$client.end();
@@ -454,4 +455,143 @@ test("les entrées auditLog s'accumulent (append-only) : deux actions sur le mê
     entries.map((e) => e.action).sort(),
     ["user.role_changed", "user.suspended"],
   );
+});
+
+// ---- 7. market bootstrap at approval (2026-08 market-as-source-of-truth) --
+
+async function createFreshOrg() {
+  const [org] = await db.insert(organizations).values({ name: `Market Test Org ${randomUUID()}` }).returning();
+  return org;
+}
+
+test("approveUser: a pending user's own pendingMarket bootstraps a brand-new organization's market (no market set yet)", async () => {
+  const adminOrg = await requireOrg("PUBLIC-MAP");
+  const adminActor = await createActiveMember({ role: "admin", organizationId: adminOrg.id });
+  actAs(adminActor, "admin", adminOrg.id);
+
+  const freshOrg = await createFreshOrg();
+  assert.equal(freshOrg.market, null, "precondition: a brand-new organization has no market");
+
+  const target = await createUser({ status: "pending" });
+  await db.update(users).set({ pendingMarket: "CANADA" }).where(eq(users.id, target.id));
+
+  const fd = new FormData();
+  fd.set("userId", target.id);
+  fd.set("organizationId", freshOrg.id);
+  fd.set("role", "client");
+  await approveUser(fd);
+
+  const [updatedOrg] = await db.select().from(organizations).where(eq(organizations.id, freshOrg.id)).limit(1);
+  assert.equal(updatedOrg.market, "CANADA", "the client's own signup choice must bootstrap the organization's market");
+});
+
+test("approveUser: never overwrites an organization's already-set market with a second user's pendingMarket", async () => {
+  const adminOrg = await requireOrg("PUBLIC-MAP");
+  const adminActor = await createActiveMember({ role: "admin", organizationId: adminOrg.id });
+  actAs(adminActor, "admin", adminOrg.id);
+
+  const freshOrg = await createFreshOrg();
+  await db.update(organizations).set({ market: "EUROPE" }).where(eq(organizations.id, freshOrg.id));
+
+  const target = await createUser({ status: "pending" });
+  await db.update(users).set({ pendingMarket: "CANADA" }).where(eq(users.id, target.id));
+
+  const fd = new FormData();
+  fd.set("userId", target.id);
+  fd.set("organizationId", freshOrg.id);
+  fd.set("role", "client");
+  await approveUser(fd);
+
+  const [updatedOrg] = await db.select().from(organizations).where(eq(organizations.id, freshOrg.id)).limit(1);
+  assert.equal(updatedOrg.market, "EUROPE", "an organization's real, already-decided market must never be overwritten by a later approval's pendingMarket");
+});
+
+test("approveUser: a pending user with no pendingMarket (staff-onboarded client) leaves the organization's market untouched (null)", async () => {
+  const adminOrg = await requireOrg("PUBLIC-MAP");
+  const adminActor = await createActiveMember({ role: "admin", organizationId: adminOrg.id });
+  actAs(adminActor, "admin", adminOrg.id);
+
+  const freshOrg = await createFreshOrg();
+  const target = await createUser({ status: "pending" });
+  assert.equal(target.pendingMarket, null);
+
+  const fd = new FormData();
+  fd.set("userId", target.id);
+  fd.set("organizationId", freshOrg.id);
+  fd.set("role", "client");
+  await approveUser(fd);
+
+  const [updatedOrg] = await db.select().from(organizations).where(eq(organizations.id, freshOrg.id)).limit(1);
+  assert.equal(updatedOrg.market, null, "no market must ever be invented for an organization when the approved user made no self-service choice");
+});
+
+// ---- 8. market persistence + cross-organization isolation -----------------
+
+test("market persistence: survives being re-read exactly like a fresh session would (new query, no cache) — simulates logout/login", async () => {
+  const org = await createFreshOrg();
+  await db.update(organizations).set({ market: "CANADA" }).where(eq(organizations.id, org.id));
+
+  const [reread] = await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1);
+  assert.equal(reread.market, "CANADA");
+});
+
+test("market isolation: organization A's CANADA market is never visible when reading organization B's EUROPE market", async () => {
+  const orgA = await createFreshOrg();
+  const orgB = await createFreshOrg();
+  await db.update(organizations).set({ market: "CANADA" }).where(eq(organizations.id, orgA.id));
+  await db.update(organizations).set({ market: "EUROPE" }).where(eq(organizations.id, orgB.id));
+
+  const [readA] = await db.select().from(organizations).where(eq(organizations.id, orgA.id)).limit(1);
+  const [readB] = await db.select().from(organizations).where(eq(organizations.id, orgB.id)).limit(1);
+  assert.equal(readA.market, "CANADA");
+  assert.equal(readB.market, "EUROPE");
+});
+
+// ---- 9. setOrganizationMarketAction (staff-only correction tool) ----------
+
+test("setOrganizationMarketAction: a client role is refused — never allowed to set its own market", async () => {
+  const org = await createFreshOrg();
+  const clientUser = await createActiveMember({ role: "client", organizationId: org.id });
+  actAs(clientUser, "client", org.id);
+
+  await assert.rejects(() => setOrganizationMarketAction(org.id, "CANADA"), /Réservé au staff/);
+  const [after_] = await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1);
+  assert.equal(after_.market, null);
+});
+
+test("setOrganizationMarketAction: an invalid market value is rejected — never persisted, even for staff", async () => {
+  const adminOrg = await requireOrg("PUBLIC-MAP");
+  const adminActor = await createActiveMember({ role: "admin", organizationId: adminOrg.id });
+  actAs(adminActor, "admin", adminOrg.id);
+
+  const org = await createFreshOrg();
+  await assert.rejects(() => setOrganizationMarketAction(org.id, "FRANCE"), /Marché invalide/);
+  const [after_] = await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1);
+  assert.equal(after_.market, null);
+});
+
+test("setOrganizationMarketAction: staff can set/correct a market, and it's audit-logged", async () => {
+  const adminOrg = await requireOrg("PUBLIC-MAP");
+  const adminActor = await createActiveMember({ role: "admin", organizationId: adminOrg.id });
+  actAs(adminActor, "admin", adminOrg.id);
+
+  const org = await createFreshOrg();
+  await setOrganizationMarketAction(org.id, "CANADA");
+
+  const [after_] = await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1);
+  assert.equal(after_.market, "CANADA");
+
+  const [audit] = await db
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.targetId, org.id), eq(auditLog.action, "organization.market_set")))
+    .limit(1);
+  assert.ok(audit, "market corrections by staff must be audit-logged");
+  assert.equal(audit.actorUserId, adminActor.id);
+
+  // Staff can also CORRECT an already-set market (unlike the one-time
+  // approval bootstrap, which never overwrites).
+  await setOrganizationMarketAction(org.id, "EUROPE");
+  const [corrected] = await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1);
+  assert.equal(corrected.market, "EUROPE", "the staff-only tool must be able to correct a market, unlike the approval bootstrap");
 });

@@ -5,6 +5,8 @@ import { CancelSubscriptionButton, SubscribeButton } from "@/components/billing-
 import { getBillingProvider } from "@/lib/billing";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { requireStaffRole } from "@/lib/dev-role";
+import { isMarket } from "@/lib/market/context";
+import { resolvePlanPrice } from "@/lib/market/pricing";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
@@ -57,12 +59,20 @@ export default async function BillingPage() {
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.offersTitle}</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {plans.map((plan) => (
+        {plans.map((plan) => {
+          const price = resolvePlanPrice(plan, isMarket(org.market) ? org.market : null);
+          return (
           <div key={plan.id} className={`flex flex-col justify-between ${panelClass}`}>
             <div>
               <p className={panelTitleClass}>{plan.name}</p>
               <p className="mt-1 font-serif text-2xl font-bold text-pm-noir">
-                {plan.priceEuros} € <span className="text-sm font-normal text-pm-gris">{tb.perMonth}</span>
+                {price.pending ? (
+                  <span className="text-lg font-normal text-pm-gris">{tb.priceUnavailable}</span>
+                ) : (
+                  <>
+                    {price.amount} {price.currency === "EUR" ? "€" : "$ CAD"} <span className="text-sm font-normal text-pm-gris">{tb.perMonth}</span>
+                  </>
+                )}
               </p>
               <p className="mt-2 text-sm text-pm-gris">{plan.description}</p>
             </div>
@@ -74,7 +84,8 @@ export default async function BillingPage() {
               />
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-pm-gris">{tb.invoicesTitle}</h2>

@@ -7,6 +7,7 @@ import { ReportScheduleForm } from "@/components/report-schedule-form";
 import { getBillingProvider } from "@/lib/billing";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { getOrCreateDevUser } from "@/lib/dev-user";
+import { isMarket, resolveMarketContext } from "@/lib/market/context";
 import { getReportSchedule } from "@/lib/report-schedule";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
   const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, org.id)).limit(1);
   const plans = getBillingProvider().listPlans();
   const schedule = await getReportSchedule(org.id);
+  const marketContext = resolveMarketContext(isMarket(org.market) ? org.market : null);
 
   return (
     <>
@@ -39,6 +41,12 @@ export default async function SettingsPage() {
           <p className="mt-1 text-xs text-pm-gris">{t.organization.lead}</p>
           <div className="mt-4">
             <OrganizationForm name={org.name} locale={locale} />
+          </div>
+          <div className="mt-4 border-t border-pm-gris-2 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.organization.marketLabel}</p>
+            <p className="mt-1 text-sm text-pm-noir" data-testid="organization-market-value">
+              {marketContext ? t.organization.marketValue(marketContext.marketLabel[locale], marketContext.currency) : t.organization.marketNotSet}
+            </p>
           </div>
         </section>
 

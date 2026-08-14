@@ -4,6 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
+import { isMarket, type Market } from "@/lib/market/context";
 import { registerPendingUser } from "@/lib/pending-user-registration";
 import { recordProductEvent } from "@/lib/product-events";
 
@@ -25,6 +26,11 @@ export type CurrentSession = {
   firstName: string | null;
   organizationId: string;
   organizationName: string;
+  // The organization's own commercial market — see lib/market/context.ts.
+  // Null for an organization staff hasn't configured yet; never guessed.
+  // Read straight from the DB row via the authenticated session below —
+  // never accepted from the browser.
+  organizationMarket: Market | null;
   role: AppRole;
   // The user's lastLoginAt value as it stood BEFORE this request's own
   // login touch below — i.e. "when did they last visit before now", not
@@ -123,6 +129,7 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
       firstName: appUser.firstName,
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
+      organizationMarket: isMarket(membership.organizationMarket) ? membership.organizationMarket : null,
       role: membership.roleName as AppRole,
       previousLastLoginAt,
     },
@@ -190,6 +197,7 @@ export async function requireSession(): Promise<CurrentSession> {
 type ResolvedMembership = {
   organizationId: string;
   organizationName: string;
+  organizationMarket: string | null;
   roleName: string;
 };
 
@@ -198,6 +206,7 @@ async function lookupMembership(userId: string): Promise<ResolvedMembership | un
     .select({
       organizationId: memberships.organizationId,
       organizationName: organizations.name,
+      organizationMarket: organizations.market,
       roleName: roles.name,
     })
     .from(memberships)
@@ -244,6 +253,7 @@ async function claimPendingInvitation(userId: string, email: string): Promise<Re
       .select({
         organizationId: memberships.organizationId,
         organizationName: organizations.name,
+        organizationMarket: organizations.market,
         roleName: roles.name,
       })
       .from(memberships)

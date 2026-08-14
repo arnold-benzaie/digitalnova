@@ -301,3 +301,21 @@ test("getGoogleAdsPerformanceReport: a transient error (e.g. 503) on the selecte
   const after_ = await getGoogleAdsConnection(orgA.id);
   assert.equal(after_.customerId, "6001112222", "a transient/quota/network failure must never drop a still-valid remembered selection");
 });
+
+// ---- 7. PUBLIC-MAP market currency vs. Google Ads native currency (2026-08) --
+
+test("organization market currency and a connected Google Ads account's native currency are read independently — neither ever substitutes the other", async () => {
+  await db.update(organizations).set({ market: "CANADA" }).where(eq(organizations.id, orgA.id));
+
+  fakeApi.listAccessibleCustomersResult = ["7001112222"];
+  fakeApi.searchByCustomer.set("7001112222::customer_client", [
+    { customerClient: { clientCustomer: "customers/7001112222", level: "0", manager: false, status: "ENABLED", descriptiveName: "Compte EUR malgré marché Canada", currencyCode: "EUR", timeZone: "Europe/Paris" } },
+  ]);
+  await selectGoogleAdsAccount(orgA.id, "7001112222");
+
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgA.id)).limit(1);
+  const connection = await getGoogleAdsConnection(orgA.id);
+
+  assert.equal(org.market, "CANADA", "PUBLIC-MAP's own market stays CANADA");
+  assert.equal(connection.customerCurrencyCode, "EUR", "the Google Ads account's real EUR currency must never be replaced by CAD just because the organization's market is Canada");
+});

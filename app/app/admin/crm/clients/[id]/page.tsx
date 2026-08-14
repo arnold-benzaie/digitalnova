@@ -16,6 +16,7 @@ import {
   gbpConnections,
   interactions,
   locations,
+  organizations,
   projects,
   searchConsoleProperties,
   seoAudits,
@@ -24,6 +25,7 @@ import {
   users,
 } from "@/db/schema";
 import { GOOGLE_OAUTH_SCOPES, connectionHasScope, getGoogleConnection } from "@/lib/google/oauth";
+import { isMarket } from "@/lib/market/context";
 import {
   Badge,
   CONTRACT_STATUS_CLASS,
@@ -45,6 +47,7 @@ import { CreateProjectForm } from "@/components/crm/create-project-form";
 import { CreateTaskForm } from "@/components/crm/create-task-form";
 import { CreateTicketForm } from "@/components/crm/create-ticket-form";
 import { EditClientForm } from "@/components/crm/edit-client-form";
+import { OrganizationMarketSelect } from "@/components/crm/organization-market-select";
 import { DeleteCrmDocumentButton, UploadCrmDocumentForm } from "@/components/crm/crm-document-actions";
 import { DeleteDealButton, EditDealForm } from "@/components/crm/deal-actions";
 import { DeleteEventButton, EditEventForm } from "@/components/crm/event-actions";
@@ -99,6 +102,10 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         return { connected: true, locationCount: orgLocations.length };
       })()
     : { connected: false, locationCount: 0 };
+
+  const organizationMarket = client.organizationId
+    ? (await db.select({ market: organizations.market }).from(organizations).where(eq(organizations.id, client.organizationId)).limit(1))[0]?.market ?? null
+    : null;
 
   const googleAccount = client.organizationId ? await getGoogleConnection(client.organizationId) : null;
   const searchConsoleStatus = client.organizationId
@@ -217,6 +224,24 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
           </div>
           <DeleteClientButton id={client.id} locale={locale} />
         </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.market.title}</p>
+          <p className="mt-1 text-sm text-pm-gris">{t.market.description}</p>
+        </div>
+        {client.organizationId ? (
+          <OrganizationMarketSelect
+            organizationId={client.organizationId}
+            market={isMarket(organizationMarket) ? organizationMarket : null}
+            notSetLabel={t.market.notSet}
+            canadaLabel={t.market.canada}
+            europeLabel={t.market.europe}
+          />
+        ) : (
+          <p className="max-w-xs text-right text-xs text-pm-gris">{t.market.noOrganizationYet}</p>
+        )}
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">

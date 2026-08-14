@@ -10,6 +10,7 @@ import { isGoogleAdsOAuthConfigured } from "@/lib/google-ads/oauth";
 import { GOOGLE_ADS_DATE_RANGES, getGoogleAdsPerformanceReport, isGoogleAdsDateRange, type GoogleAdsDateRange } from "@/lib/google-ads/reports";
 import { getGoogleAdsConnection } from "@/lib/google-ads/tokens";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
+import { resolveMarketContext, type Market } from "@/lib/market/context";
 import { formatDate } from "@/lib/i18n/format";
 import { getLocale } from "@/lib/i18n/locale";
 import { requireSession } from "@/lib/session";
@@ -77,6 +78,7 @@ export default async function GoogleAdsPage({
           range={range}
           locale={locale}
           t={t}
+          organizationMarket={session.organizationMarket}
         />
       )}
     </>
@@ -138,6 +140,7 @@ async function PerformanceSection({
   range,
   locale,
   t,
+  organizationMarket,
 }: {
   organizationId: string;
   customerId: string;
@@ -148,6 +151,7 @@ async function PerformanceSection({
   range: GoogleAdsDateRange;
   locale: Locale;
   t: GoogleAdsDict;
+  organizationMarket: Market | null;
 }) {
   let report: Awaited<ReturnType<typeof getGoogleAdsPerformanceReport>> | null = null;
   let errorMessage: string | null = null;
@@ -174,6 +178,11 @@ async function PerformanceSection({
               {t.connection.customerIdLabel} : {customerId} · {currencyCode ?? "—"} · {timeZone ?? "—"}
             </p>
             <p className="mt-0.5 text-xs text-pm-gris">{t.connection.connectedSince(formatDate(connectedSince, locale))}</p>
+            {(() => {
+              const marketCurrency = resolveMarketContext(organizationMarket)?.currency;
+              if (!marketCurrency || !currencyCode || marketCurrency === currencyCode) return null;
+              return <p className="mt-0.5 text-xs text-pm-gris">{t.connection.googleAdsCurrencyNote(currencyCode)}</p>;
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <GoogleAdsActionButton action={clearGoogleAdsAccountSelectionAction} buttonLabel={t.connection.changeAccount} errorLabel={t.connection.changeAccountError} />

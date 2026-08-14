@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { invitations, memberships, organizations, roles, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { requireAdminRole } from "@/lib/dev-role";
+import { isMarket } from "@/lib/market/context";
 import { sendInvitationEmail } from "@/lib/email/invitation";
 import { notify } from "@/lib/notifications";
 import { requireSession } from "@/lib/session";
@@ -314,12 +315,24 @@ export async function approveUser(formData: FormData) {
 
   const roleId = await roleIdByName(roleValue, locale);
 
+  // Bootstrap the organization's market from the client's own signup
+  // choice — ONLY the very first time, ONLY when the org doesn't already
+  // have one. Never overwrites an org's real, already-decided market
+  // (e.g. one a staff-onboarded client never went through self-service
+  // signup for, or one already set by staff) — approving a SECOND user
+  // into an org that already has a market must never re-derive it from
+  // that second user's own (possibly different) pendingMarket.
+  const shouldBootstrapMarket = !targetOrg.market && isMarket(targetUser.pendingMarket);
+
   await db.transaction(async (tx) => {
     await tx
       .insert(memberships)
       .values({ userId, organizationId, roleId })
       .onConflictDoNothing({ target: [memberships.userId, memberships.organizationId] });
     await tx.update(users).set({ status: "active" }).where(eq(users.id, userId));
+    if (shouldBootstrapMarket) {
+      await tx.update(organizations).set({ market: targetUser.pendingMarket }).where(eq(organizations.id, organizationId));
+    }
     await logAudit(
       {
         actorUserId: session.userId,
@@ -327,7 +340,14 @@ export async function approveUser(formData: FormData) {
         action: "user.approved",
         targetType: "user",
         targetId: userId,
-        metadata: { previousStatus: "pending", newStatus: "active", previousRole: null, newRole: roleValue, organizationId },
+        metadata: {
+          previousStatus: "pending",
+          newStatus: "active",
+          previousRole: null,
+          newRole: roleValue,
+          organizationId,
+          ...(shouldBootstrapMarket ? { bootstrappedMarket: targetUser.pendingMarket } : {}),
+        },
       },
       tx,
     );
