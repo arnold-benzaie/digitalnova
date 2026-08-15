@@ -11,6 +11,12 @@ import { google } from "googleapis";
  * This module never touches googleOauthConnections or GOOGLE_OAUTH_SCOPES.
  */
 export const GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
+// Minimal additional scope so exchangeGoogleAdsCode()'s oauth2.userinfo.get()
+// call below can actually resolve the connected account's email — adwords
+// alone doesn't grant access to that endpoint (Google returns 401
+// UNAUTHENTICATED without it, confirmed against a real Preview OAuth run).
+// Deliberately not `profile`/`openid`: only the one field this code reads.
+export const GOOGLE_ADS_USERINFO_EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
 
 export function isGoogleAdsOAuthConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_ADS_DEVELOPER_TOKEN);
@@ -28,16 +34,16 @@ export function createGoogleAdsOAuthClient() {
   return new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, getGoogleAdsRedirectUri());
 }
 
-/** Builds the Google consent-screen URL for the Ads-only scope. `state`
- * round-trips through Google back to our own callback — see
- * app/api/integrations/google-ads/{connect,callback}/route.ts for the CSRF
- * nonce + organizationId/userId it carries. */
+/** Builds the Google consent-screen URL for the Ads + userinfo.email
+ * scopes. `state` round-trips through Google back to our own callback —
+ * see app/api/integrations/google-ads/{connect,callback}/route.ts for the
+ * CSRF nonce + organizationId/userId it carries. */
 export function buildGoogleAdsAuthUrl(state: string): string {
   const client = createGoogleAdsOAuthClient();
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // forces a refresh_token even on a repeat consent
-    scope: [GOOGLE_ADS_SCOPE],
+    scope: [GOOGLE_ADS_SCOPE, GOOGLE_ADS_USERINFO_EMAIL_SCOPE],
     state,
   });
 }

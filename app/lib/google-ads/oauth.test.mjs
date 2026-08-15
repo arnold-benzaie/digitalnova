@@ -21,10 +21,15 @@ function withEnv(vars, fn) {
   }
 }
 
-const { isGoogleAdsOAuthConfigured, createGoogleAdsOAuthClient, buildGoogleAdsAuthUrl, GOOGLE_ADS_SCOPE } = await import("./oauth.ts");
+const { isGoogleAdsOAuthConfigured, createGoogleAdsOAuthClient, buildGoogleAdsAuthUrl, GOOGLE_ADS_SCOPE, GOOGLE_ADS_USERINFO_EMAIL_SCOPE } =
+  await import("./oauth.ts");
 
 test("GOOGLE_ADS_SCOPE is exactly the official adwords scope, nothing broader", () => {
   assert.equal(GOOGLE_ADS_SCOPE, "https://www.googleapis.com/auth/adwords");
+});
+
+test("GOOGLE_ADS_USERINFO_EMAIL_SCOPE is exactly the minimal userinfo.email scope, nothing broader", () => {
+  assert.equal(GOOGLE_ADS_USERINFO_EMAIL_SCOPE, "https://www.googleapis.com/auth/userinfo.email");
 });
 
 test("isGoogleAdsOAuthConfigured: false when any of the 3 required env vars is missing", () => {
@@ -48,11 +53,16 @@ test("createGoogleAdsOAuthClient throws a clear error rather than constructing a
   });
 });
 
-test("buildGoogleAdsAuthUrl: requests ONLY the adwords scope — never GBP/Analytics/Search Console scopes, never openid/userinfo", () => {
+test("buildGoogleAdsAuthUrl: requests exactly adwords + userinfo.email — never GBP/Analytics/Search Console scopes, never profile/openid", () => {
   withEnv({ GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "secret", GOOGLE_ADS_DEVELOPER_TOKEN: "token" }, () => {
     const url = new URL(buildGoogleAdsAuthUrl("some-state"));
     const scope = url.searchParams.get("scope");
-    assert.equal(scope, GOOGLE_ADS_SCOPE);
+    // exchangeGoogleAdsCode() calls oauth2.userinfo.get() to resolve the
+    // connected account's email (googleAdsConnections.googleAccountEmail
+    // is NOT NULL) — adwords alone doesn't grant access to that endpoint
+    // (confirmed: Google returns 401 UNAUTHENTICATED without this scope).
+    assert.equal(scope, `${GOOGLE_ADS_SCOPE} ${GOOGLE_ADS_USERINFO_EMAIL_SCOPE}`);
+    assert.equal(scope.split(" ").length, 2, "exactly these 2 scopes, nothing else requested");
   });
 });
 
