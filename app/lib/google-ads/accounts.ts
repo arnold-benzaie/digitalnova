@@ -2,7 +2,8 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAdsConnections } from "@/db/schema";
-import { listAccessibleCustomers, searchGoogleAds } from "@/lib/google-ads/client";
+import { GoogleAdsApiError, listAccessibleCustomers, searchGoogleAds } from "@/lib/google-ads/client";
+import { sanitizeGoogleAdsError } from "@/lib/google-ads/errors";
 import { getValidGoogleAdsAccessToken } from "@/lib/google-ads/tokens";
 
 export type DiscoveredGoogleAdsAccount = {
@@ -46,6 +47,32 @@ export function isSelectableGoogleAdsAccount(row: {
   return row.status === undefined || row.status === "ENABLED";
 }
 
+/** Never the full customer ID in any log — first 3 + last 2 digits only,
+ * enough to correlate log lines without exposing the account identifier
+ * in full. */
+function maskCustomerId(id: string): string {
+  if (id.length <= 5) return "***";
+  return `${id.slice(0, 3)}***${id.slice(-2)}`;
+}
+
+/** Logs a discovery failure for one account — httpStatus/googleErrorStatus/
+ * googleErrorCode/message/requestId only, never developer token, access
+ * token, or refresh token (none of those are ever part of the sanitized
+ * shape to begin with — see lib/google-ads/errors.ts). Reads the fields
+ * directly off a GoogleAdsApiError instance rather than re-sanitizing it
+ * (sanitizeGoogleAdsError expects a raw fetch-shaped error, not an
+ * already-thrown GoogleAdsApiError, whose details live in flat
+ * properties instead of a nested `.response`). This is the ONLY place
+ * this failure is surfaced — previously it was silently discarded,
+ * which is exactly what hid a real CUSTOMER_NOT_ENABLED account state
+ * behind a generic "no account accessible" UI message. */
+function logGoogleAdsDiscoveryError(topLevelId: string, err: unknown): void {
+  const sanitized = err instanceof GoogleAdsApiError
+    ? { httpStatus: err.httpStatus, googleErrorStatus: err.googleErrorStatus, googleErrorCode: err.googleErrorCode, message: err.message, requestId: err.requestId }
+    : sanitizeGoogleAdsError(err);
+  console.error("[google-ads] discovery failed for account", maskCustomerId(topLevelId), sanitized);
+}
+
 /** Discovers every REAL, currently-accessible Google Ads advertiser
  * account for the given access token. Never trusts a customerId from
  * anywhere but this live discovery — see selectGoogleAdsAccount() below,
@@ -57,11 +84,22 @@ export async function discoverGoogleAdsAccounts(accessToken: string): Promise<Di
   for (const topLevelId of topLevelIds) {
     let rows: Record<string, unknown>[];
     try {
-      rows = await searchGoogleAds({ accessToken, customerId: topLevelId, loginCustomerId: topLevelId, query: CUSTOMER_CLIENT_QUERY });
-    } catch {
-      // A directly-listed customer this query itself fails against (e.g. a
-      // closed/inaccessible test account) is skipped — one bad account
-      // must never hide every good one from the client.
+      // No login-customer-id here by default — confirmed against a real
+      // Preview account that forcing it to the account's own ID (as this
+      // used to do) is itself invalid when the account is a manager
+      // queried about itself (Google rejects it with INVALID_ARGUMENT).
+      // A direct, manager-less account also needs no header. Retrying
+      // with a manager ID is deliberately NOT implemented here — only
+      // add that once Google's response gives an explicit signal that
+      // one is required, rather than guessing.
+      rows = await searchGoogleAds({ accessToken, customerId: topLevelId, query: CUSTOMER_CLIENT_QUERY });
+    } catch (err) {
+      // A directly-listed customer this query itself fails against (e.g.
+      // CUSTOMER_NOT_ENABLED, or any other account-level state issue) is
+      // skipped for selection — one bad account must never hide every
+      // good one from the client — but the reason is now always logged,
+      // never silently discarded.
+      logGoogleAdsDiscoveryError(topLevelId, err);
       continue;
     }
     for (const row of rows) {

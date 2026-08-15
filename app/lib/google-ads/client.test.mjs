@@ -88,6 +88,39 @@ test("searchGoogleAds: a non-2xx response throws GoogleAdsApiError with the sani
   );
 });
 
+test("searchGoogleAds: GoogleAdsApiError also carries googleErrorCode + requestId from the structured error body", async () => {
+  mockFetch(
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 403,
+            status: "PERMISSION_DENIED",
+            message: "The caller does not have permission",
+            details: [
+              {
+                errors: [{ errorCode: { authorizationError: "CUSTOMER_NOT_ENABLED" }, message: "not enabled" }],
+                requestId: "req-xyz",
+              },
+            ],
+          },
+        }),
+        { status: 403 },
+      ),
+  );
+  await assert.rejects(
+    () => searchGoogleAds({ accessToken: "t", customerId: "111", query: "SELECT customer.id FROM customer" }),
+    (err) => {
+      assert.ok(err instanceof GoogleAdsApiError);
+      assert.equal(err.httpStatus, 403);
+      assert.equal(err.googleErrorStatus, "PERMISSION_DENIED");
+      assert.equal(err.googleErrorCode, "CUSTOMER_NOT_ENABLED");
+      assert.equal(err.requestId, "req-xyz");
+      return true;
+    },
+  );
+});
+
 test("searchGoogleAds: an error response the JSON parser chokes on still produces a clean GoogleAdsApiError, never an unhandled crash", async () => {
   mockFetch(async () => new Response("not json", { status: 503 }));
   await assert.rejects(() => searchGoogleAds({ accessToken: "t", customerId: "111", query: "SELECT x" }), GoogleAdsApiError);

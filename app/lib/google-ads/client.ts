@@ -30,11 +30,15 @@ const BASE_URL = process.env.GOOGLE_ADS_API_BASE_URL_OVERRIDE || `https://google
 export class GoogleAdsApiError extends Error {
   httpStatus?: number;
   googleErrorStatus?: string;
-  constructor(sanitized: { message: string; httpStatus?: number; googleErrorStatus?: string }) {
+  googleErrorCode?: string;
+  requestId?: string;
+  constructor(sanitized: { message: string; httpStatus?: number; googleErrorStatus?: string; googleErrorCode?: string; requestId?: string }) {
     super(sanitized.message);
     this.name = "GoogleAdsApiError";
     this.httpStatus = sanitized.httpStatus;
     this.googleErrorStatus = sanitized.googleErrorStatus;
+    this.googleErrorCode = sanitized.googleErrorCode;
+    this.requestId = sanitized.requestId;
   }
 }
 

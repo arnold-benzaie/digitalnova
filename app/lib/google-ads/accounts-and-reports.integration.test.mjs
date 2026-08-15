@@ -28,8 +28,27 @@ process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "test-dev-token";
 /** @type {{ listAccessibleCustomersResult: string[], searchResults: Map<string, any[]> }} */
 const fakeApi = { listAccessibleCustomersResult: [], searchByCustomer: new Map() };
 
+// Mirrors the real GoogleAdsApiError shape (lib/google-ads/client.ts) —
+// accounts.ts's `err instanceof GoogleAdsApiError` check needs a real
+// constructor here, since this whole module is replaced by the mock
+// below; without it, that check throws (`instanceof` on undefined)
+// instead of falling through to the generic sanitizeGoogleAdsError(err)
+// path for the plain Errors this file's fakeApi.throwOn/throwStructuredOn
+// simulate.
+class MockGoogleAdsApiError extends Error {
+  constructor(sanitized) {
+    super(sanitized.message);
+    this.name = "GoogleAdsApiError";
+    this.httpStatus = sanitized.httpStatus;
+    this.googleErrorStatus = sanitized.googleErrorStatus;
+    this.googleErrorCode = sanitized.googleErrorCode;
+    this.requestId = sanitized.requestId;
+  }
+}
+
 mock.module("@/lib/google-ads/client", {
   namedExports: {
+    GoogleAdsApiError: MockGoogleAdsApiError,
     listAccessibleCustomers: async () => fakeApi.listAccessibleCustomersResult,
     searchGoogleAds: async ({ customerId, query }) => {
       const key = `${customerId}::${query.includes("customer_client") ? "customer_client" : query.includes("FROM campaign") ? "campaigns" : "summary"}`;

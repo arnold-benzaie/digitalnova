@@ -11,13 +11,51 @@ import "server-only";
  * message triple so callers/logs/UI don't need to special-case which
  * produced it.
  */
-export type SanitizedGoogleAdsError = { message: string; httpStatus?: number; googleErrorStatus?: string };
+export type SanitizedGoogleAdsError = {
+  message: string;
+  httpStatus?: number;
+  googleErrorStatus?: string;
+  googleErrorCode?: string;
+  requestId?: string;
+};
+
+/** Google Ads error bodies nest the specific machine-readable code under
+ * `error.details[].errors[].errorCode`, itself an object whose single key
+ * names the category (authorizationError, requestError, queryError, ...)
+ * — e.g. `{ authorizationError: "CUSTOMER_NOT_ENABLED" }`. This pulls the
+ * first such value regardless of category, since callers only need the
+ * specific code (e.g. to recognize CUSTOMER_NOT_ENABLED), not which
+ * category it came from. */
+function extractGoogleErrorCode(details: unknown): string | undefined {
+  if (!Array.isArray(details)) return undefined;
+  for (const detail of details) {
+    const errors = (detail as { errors?: unknown })?.errors;
+    if (!Array.isArray(errors)) continue;
+    for (const one of errors) {
+      const errorCode = (one as { errorCode?: unknown })?.errorCode;
+      if (errorCode && typeof errorCode === "object") {
+        const value = Object.values(errorCode as Record<string, unknown>)[0];
+        if (typeof value === "string") return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractRequestId(details: unknown): string | undefined {
+  if (!Array.isArray(details)) return undefined;
+  for (const detail of details) {
+    const requestId = (detail as { requestId?: unknown })?.requestId;
+    if (typeof requestId === "string") return requestId;
+  }
+  return undefined;
+}
 
 export function sanitizeGoogleAdsError(err: unknown): SanitizedGoogleAdsError {
   const e = err as {
     message?: unknown;
     status?: unknown;
-    response?: { status?: unknown; data?: { error?: { status?: unknown; message?: unknown } } };
+    response?: { status?: unknown; data?: { error?: { status?: unknown; message?: unknown; details?: unknown } } };
   };
   // The Google Ads REST API's own error body (fetched directly via
   // lib/google-ads/client.ts in a later phase) follows the same
@@ -26,10 +64,13 @@ export function sanitizeGoogleAdsError(err: unknown): SanitizedGoogleAdsError {
   // library's errors (gaxios) and raw fetch() Response bodies passed in
   // by the caller as `err.response.data`.
   const googleMessage = e?.response?.data?.error?.message;
+  const details = e?.response?.data?.error?.details;
   return {
     message: typeof googleMessage === "string" ? googleMessage : typeof e?.message === "string" ? e.message : "Erreur Google Ads inconnue.",
     httpStatus: typeof e?.response?.status === "number" ? e.response.status : typeof e?.status === "number" ? e.status : undefined,
     googleErrorStatus: typeof e?.response?.data?.error?.status === "string" ? e.response.data.error.status : undefined,
+    googleErrorCode: extractGoogleErrorCode(details),
+    requestId: extractRequestId(details),
   };
 }
 
