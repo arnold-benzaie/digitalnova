@@ -56,7 +56,13 @@ mock.module("@/lib/google-ads/client", {
     searchGoogleAds: async (params) => {
       searchCalls.push(params);
       const { customerId, query } = params;
-      const key = `${customerId}::${query.includes("customer_client") ? "customer_client" : query.includes("FROM campaign") ? "campaigns" : "summary"}`;
+      // dailySeriesQuery selects segments.date (comma right after — it's
+      // never the last SELECT field); previousPeriodQuery only ever
+      // REFERENCES segments.date inside its WHERE...BETWEEN clause, never
+      // selects it — that's how the two FROM customer queries are told
+      // apart here.
+      const kind = query.includes("customer_client") ? "customer_client" : query.includes("FROM campaign") ? "campaigns" : query.includes("segments.date,") ? "daily" : "previous";
+      const key = `${customerId}::${kind}`;
       if (fakeApi.throwOn === key) throw new Error("simulated Google Ads API failure");
       if (fakeApi.throwStructuredOn?.[key]) {
         throw Object.assign(new Error("simulated structured Google Ads API failure"), fakeApi.throwStructuredOn[key]);
@@ -74,8 +80,15 @@ const { users, organizations, roles, memberships, googleAdsConnections } = await
 const { eq } = await import("drizzle-orm");
 const { encryptIntegrationValue } = await import("../integrations/crypto.ts");
 const { discoverGoogleAdsAccounts, selectGoogleAdsAccount, clearGoogleAdsAccountSelection } = await import("./accounts.ts");
-const { getGoogleAdsPerformanceReport } = await import("./reports.ts");
+const { getGoogleAdsAnalyticsReport } = await import("./reports.ts");
 const { getGoogleAdsConnection } = await import("./tokens.ts");
+
+/** Wraps one metrics object as a single-day GAQL row — the shape
+ * dailySeriesQuery()'s fixture data must take (segments.date + metrics),
+ * matching what parseDailyRow() expects. */
+function dailyRow(date, metrics) {
+  return { segments: { date }, metrics };
+}
 
 after(async () => {
   await db.$client.end();
@@ -220,32 +233,43 @@ test("clearGoogleAdsAccountSelection: clears only the calling organization's own
   assert.ok(connA.refreshTokenCiphertext, "clearing the account selection must NOT delete the OAuth grant itself");
 });
 
-// ---- 4. performance report ---------------------------------------------
+// ---- 4. analytics report ------------------------------------------------
 
-test("getGoogleAdsPerformanceReport: throws a clean error when no account is selected yet", async () => {
+test("getGoogleAdsAnalyticsReport: throws a clean error when no account is selected yet", async () => {
   // orgA's selection was cleared above.
-  await assert.rejects(() => getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS"), /Aucun compte Google Ads sélectionné/);
+  await assert.rejects(() => getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS"), /Aucun compte Google Ads sélectionné/);
 });
 
-test("getGoogleAdsPerformanceReport: fetches summary + campaigns in one shot each, records a successful sync, neither call sends pageSize", async () => {
+test("getGoogleAdsAnalyticsReport: fetches daily series + previous period + campaigns in one shot each, aggregates the daily rows into the summary, records a successful sync, none of the 3 calls send pageSize", async () => {
   await selectGoogleAdsAccount(orgA.id, "1112223333");
-  fakeApi.searchByCustomer.set("1112223333::summary", [{ metrics: { impressions: "500", clicks: "10", costMicros: "2000000", ctr: 0.02, averageCpc: "200000", conversions: 1, conversionsValue: 50 } }]);
+  fakeApi.searchByCustomer.set("1112223333::daily", [
+    dailyRow("2026-08-01", { impressions: "300", clicks: "6", costMicros: "1200000", ctr: 0.02, averageCpc: "200000", conversions: 0.5, conversionsValue: 20 }),
+    dailyRow("2026-08-02", { impressions: "200", clicks: "4", costMicros: "800000", ctr: 0.02, averageCpc: "200000", conversions: 0.5, conversionsValue: 30 }),
+  ]);
+  fakeApi.searchByCustomer.set("1112223333::previous", [{ metrics: { impressions: "400", clicks: "8", costMicros: "1500000", ctr: 0.02, averageCpc: "187500", conversions: 0.8, conversionsValue: 40 } }]);
   fakeApi.searchByCustomer.set("1112223333::campaigns", [
     { campaign: { id: "1", name: "Campagne A", status: "ENABLED", advertisingChannelType: "SEARCH" }, campaignBudget: { amountMicros: "10000000" }, metrics: { impressions: "500", clicks: "10", costMicros: "2000000", ctr: 0.02, averageCpc: "200000", conversions: 1 } },
   ]);
 
   searchCalls = [];
-  const report = await getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS");
+  const report = await getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS");
+  // Aggregated from the 2 daily rows above, not a separate aggregate call.
   assert.equal(report.summary.impressions, 500);
+  assert.equal(report.summary.clicks, 10);
+  assert.equal(report.summary.costMicros, "2000000");
+  assert.equal(report.dailySeries.length, 2);
   assert.equal(report.campaigns.length, 1);
   assert.equal(report.campaigns[0].name, "Campagne A");
+  // Real comparison against the previous-period fixture: 500 vs 400 impressions = +25%.
+  assert.equal(report.trends.impressions.direction, "up");
+  assert.equal(report.trends.impressions.percent, 25);
 
   // Confirmed against a real, enabled account: Google Ads API rejects
-  // page_size with PAGE_SIZE_NOT_SUPPORTED on both of these queries.
+  // page_size with PAGE_SIZE_NOT_SUPPORTED on all 3 of these queries.
   const reportCalls = searchCalls.filter((c) => c.customerId === "1112223333");
-  assert.equal(reportCalls.length, 2);
+  assert.equal(reportCalls.length, 3);
   for (const call of reportCalls) {
-    assert.equal(call.pageSize, null, "neither the summary nor the campaigns query may send pageSize");
+    assert.equal(call.pageSize, null, "none of the 3 report queries may send pageSize");
   }
 
   const connection = await getGoogleAdsConnection(orgA.id);
@@ -253,12 +277,21 @@ test("getGoogleAdsPerformanceReport: fetches summary + campaigns in one shot eac
   assert.equal(connection.lastSyncError, null);
 });
 
-test("getGoogleAdsPerformanceReport: a Google Ads API failure records lastSyncError WITHOUT clearing a previous lastSyncedAt", async () => {
-  const before = await getGoogleAdsConnection(orgA.id);
-  assert.ok(before.lastSyncedAt, "precondition: the previous test must have recorded a real success first");
+test("getGoogleAdsAnalyticsReport: an account with zero activity in the previous period gets a null-percent trend, never a crash", async () => {
+  fakeApi.searchByCustomer.set("1112223333::daily", [dailyRow("2026-08-15", { impressions: "10", clicks: "1", costMicros: "10000", ctr: 0.1, averageCpc: "10000", conversions: 0, conversionsValue: 0 })]);
+  fakeApi.searchByCustomer.set("1112223333::previous", []); // Google returns zero rows — genuinely no prior activity.
 
-  fakeApi.throwOn = "1112223333::summary";
-  await assert.rejects(() => getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS"));
+  const report = await getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS");
+  assert.equal(report.trends.impressions.direction, "up");
+  assert.equal(report.trends.impressions.percent, null);
+});
+
+test("getGoogleAdsAnalyticsReport: a Google Ads API failure records lastSyncError WITHOUT clearing a previous lastSyncedAt", async () => {
+  const before = await getGoogleAdsConnection(orgA.id);
+  assert.ok(before.lastSyncedAt, "precondition: an earlier test must have recorded a real success first");
+
+  fakeApi.throwOn = "1112223333::daily";
+  await assert.rejects(() => getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS"));
   fakeApi.throwOn = undefined;
 
   const after_ = await getGoogleAdsConnection(orgA.id);
@@ -290,11 +323,12 @@ test("selectGoogleAdsAccount: switching from a EUR account to a CAD account full
   assert.notEqual(cadConnection.customerCurrencyCode, "EUR", "no leftover currency from the previously selected account");
 });
 
-test("getGoogleAdsPerformanceReport: never carries its own currency field — cost/CPC are unit-less micros, currency is the connection's alone", async () => {
-  fakeApi.searchByCustomer.set("5553334444::summary", [{ metrics: { impressions: "1200", clicks: "80", costMicros: "97400000", ctr: 0.0666, averageCpc: "1217500", conversions: 6, conversionsValue: 640 } }]);
+test("getGoogleAdsAnalyticsReport: never carries its own currency field — cost/CPC are unit-less micros, currency is the connection's alone", async () => {
+  fakeApi.searchByCustomer.set("5553334444::daily", [dailyRow("2026-08-15", { impressions: "1200", clicks: "80", costMicros: "97400000", ctr: 0.0666, averageCpc: "1217500", conversions: 6, conversionsValue: 640 })]);
+  fakeApi.searchByCustomer.set("5553334444::previous", []);
   fakeApi.searchByCustomer.set("5553334444::campaigns", []);
 
-  const report = await getGoogleAdsPerformanceReport(orgB.id, "LAST_30_DAYS");
+  const report = await getGoogleAdsAnalyticsReport(orgB.id, "LAST_30_DAYS");
   assert.equal(report.summary.costMicros, "97400000");
   assert.ok(!("currencyCode" in report.summary), "the report itself must never carry a currency — only the connection row does, so a caller can't accidentally read a stale/mismatched one");
   assert.ok(!("currencyCode" in (report.campaigns[0] ?? {})), "campaigns rows must never carry a currency either");
@@ -305,7 +339,7 @@ test("getGoogleAdsPerformanceReport: never carries its own currency field — co
 
 // ---- 6. a remembered selection that's no longer accessible falls back --
 
-test("getGoogleAdsPerformanceReport: a 403/PERMISSION_DENIED on the selected customer clears the remembered selection, but keeps the OAuth grant", async () => {
+test("getGoogleAdsAnalyticsReport: a 403/PERMISSION_DENIED on the selected customer clears the remembered selection, but keeps the OAuth grant", async () => {
   fakeApi.listAccessibleCustomersResult = ["6001112222"];
   fakeApi.searchByCustomer.set("6001112222::customer_client", [
     { customerClient: { clientCustomer: "customers/6001112222", level: "0", manager: false, status: "ENABLED", descriptiveName: "Compte bientôt révoqué", currencyCode: "EUR", timeZone: "Europe/Paris" } },
@@ -314,8 +348,8 @@ test("getGoogleAdsPerformanceReport: a 403/PERMISSION_DENIED on the selected cus
   const before = await getGoogleAdsConnection(orgA.id);
   assert.equal(before.customerId, "6001112222");
 
-  fakeApi.throwStructuredOn = { "6001112222::summary": { httpStatus: 403, googleErrorStatus: "PERMISSION_DENIED" } };
-  await assert.rejects(() => getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS"));
+  fakeApi.throwStructuredOn = { "6001112222::daily": { httpStatus: 403, googleErrorStatus: "PERMISSION_DENIED" } };
+  await assert.rejects(() => getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS"));
   fakeApi.throwStructuredOn = {};
 
   const after_ = await getGoogleAdsConnection(orgA.id);
@@ -323,12 +357,12 @@ test("getGoogleAdsPerformanceReport: a 403/PERMISSION_DENIED on the selected cus
   assert.ok(after_.refreshTokenCiphertext, "the OAuth grant itself must survive — only the account selection is cleared, never a full disconnect");
 });
 
-test("getGoogleAdsPerformanceReport: a transient error (e.g. 503) on the selected customer must NOT clear the remembered selection", async () => {
+test("getGoogleAdsAnalyticsReport: a transient error (e.g. 503) on the selected customer must NOT clear the remembered selection", async () => {
   fakeApi.listAccessibleCustomersResult = ["6001112222"];
   await selectGoogleAdsAccount(orgA.id, "6001112222");
 
-  fakeApi.throwStructuredOn = { "6001112222::summary": { httpStatus: 503, googleErrorStatus: "INTERNAL" } };
-  await assert.rejects(() => getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS"));
+  fakeApi.throwStructuredOn = { "6001112222::daily": { httpStatus: 503, googleErrorStatus: "INTERNAL" } };
+  await assert.rejects(() => getGoogleAdsAnalyticsReport(orgA.id, "LAST_30_DAYS"));
   fakeApi.throwStructuredOn = {};
 
   const after_ = await getGoogleAdsConnection(orgA.id);

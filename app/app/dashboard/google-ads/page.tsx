@@ -2,12 +2,24 @@ import { redirect } from "next/navigation";
 import { AdminPageHero, heroPrimaryButtonClass, panelClass } from "@/components/admin/page-hero";
 import { GoogleAdsAccountSelectForm } from "@/components/google-ads-account-select-form";
 import { GoogleAdsActionButton } from "@/components/google-ads-action-button";
+import { GoogleAdsCampaignBreakdown } from "@/components/google-ads-campaign-breakdown";
 import { GoogleAdsDisconnectButton } from "@/components/google-ads-disconnect-button";
+import { GoogleAdsTimeSeriesChart, type GoogleAdsChartMetric } from "@/components/google-ads-time-series-chart";
+import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
+import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { clearGoogleAdsAccountSelectionAction } from "@/lib/actions/google-ads";
 import { getGoogleAdsAccountsForOrganization } from "@/lib/google-ads/accounts";
 import { isCustomerInaccessibleError } from "@/lib/google-ads/client";
 import { isGoogleAdsOAuthConfigured } from "@/lib/google-ads/oauth";
-import { GOOGLE_ADS_DATE_RANGES, getGoogleAdsPerformanceReport, isGoogleAdsDateRange, type GoogleAdsDateRange } from "@/lib/google-ads/reports";
+import {
+  campaignBreakdown,
+  GOOGLE_ADS_DATE_RANGES,
+  getGoogleAdsAnalyticsReport,
+  isGoogleAdsDateRange,
+  type GoogleAdsCampaignBreakdownMetric,
+  type GoogleAdsDateRange,
+  type GoogleAdsTrend,
+} from "@/lib/google-ads/reports";
 import { getGoogleAdsConnection } from "@/lib/google-ads/tokens";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { resolveMarketContext, type Market } from "@/lib/market/context";
@@ -130,6 +142,17 @@ async function AccountSelectionSection({
   );
 }
 
+/** Converts a pure {direction, percent} trend into the label KpiCard
+ * renders next to its arrow — the only place percent formatting/i18n text
+ * happens; lib/google-ads/reports.ts stays UI-string-free. */
+function kpiTrendLabel(trend: GoogleAdsTrend, t: GoogleAdsDict): string {
+  if (trend.percent === null) {
+    return trend.direction === "flat" ? t.trends.noPreviousData : t.trends.newActivity;
+  }
+  const sign = trend.percent > 0 ? "+" : "";
+  return `${sign}${trend.percent.toFixed(1)}% ${t.trends.vsPreviousPeriod}`;
+}
+
 async function PerformanceSection({
   organizationId,
   customerId,
@@ -153,20 +176,34 @@ async function PerformanceSection({
   t: GoogleAdsDict;
   organizationMarket: Market | null;
 }) {
-  let report: Awaited<ReturnType<typeof getGoogleAdsPerformanceReport>> | null = null;
+  let report: Awaited<ReturnType<typeof getGoogleAdsAnalyticsReport>> | null = null;
   let errorMessage: string | null = null;
   try {
-    report = await getGoogleAdsPerformanceReport(organizationId, range);
+    report = await getGoogleAdsAnalyticsReport(organizationId, range);
   } catch (err) {
     if (isCustomerInaccessibleError(err)) {
-      // getGoogleAdsPerformanceReport() already cleared the stored
-      // selection for exactly this case — reload fresh so the page
-      // naturally falls back to AccountSelectionSection below, instead
-      // of a dead-end error message for a selection that no longer works.
+      // getGoogleAdsAnalyticsReport() already cleared the stored selection
+      // for exactly this case — reload fresh so the page naturally falls
+      // back to AccountSelectionSection below, instead of a dead-end error
+      // message for a selection that no longer works.
       redirect("/dashboard/google-ads?googleAds=account_unavailable");
     }
     errorMessage = t.reportError;
   }
+
+  const chartMetricLabels: Record<GoogleAdsChartMetric, string> = {
+    impressions: t.summary.impressions,
+    clicks: t.summary.clicks,
+    costMicros: t.summary.cost,
+    conversions: t.summary.conversions,
+    ctr: t.summary.ctr,
+    averageCpcMicros: t.summary.averageCpc,
+  };
+  const breakdownMetricLabels: Record<GoogleAdsCampaignBreakdownMetric, string> = {
+    costMicros: t.summary.cost,
+    conversions: t.summary.conversions,
+    clicks: t.summary.clicks,
+  };
 
   return (
     <>
@@ -220,13 +257,77 @@ async function PerformanceSection({
         report && (
           <>
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <SummaryTile label={t.summary.impressions} value={report.summary.impressions.toLocaleString(locale)} />
-              <SummaryTile label={t.summary.clicks} value={report.summary.clicks.toLocaleString(locale)} />
-              <SummaryTile label={t.summary.cost} value={formatMicros(report.summary.costMicros, currencyCode)} />
-              <SummaryTile label={t.summary.ctr} value={`${(report.summary.ctr * 100).toFixed(2)}%`} />
-              <SummaryTile label={t.summary.averageCpc} value={formatMicros(report.summary.averageCpcMicros, currencyCode)} />
-              <SummaryTile label={t.summary.conversions} value={report.summary.conversions.toLocaleString(locale)} />
-              <SummaryTile label={t.summary.conversionsValue} value={report.summary.conversionsValue.toLocaleString(locale)} />
+              <KpiCard
+                label={t.summary.impressions}
+                value={report.summary.impressions.toLocaleString(locale)}
+                icon={<NAV_ICONS.eye width={14} height={14} />}
+                tone="info"
+                trend={{ direction: report.trends.impressions.direction, label: kpiTrendLabel(report.trends.impressions, t) }}
+              />
+              <KpiCard
+                label={t.summary.clicks}
+                value={report.summary.clicks.toLocaleString(locale)}
+                icon={<NAV_ICONS.trendingUp width={14} height={14} />}
+                tone="info"
+                trend={{ direction: report.trends.clicks.direction, label: kpiTrendLabel(report.trends.clicks, t) }}
+              />
+              <KpiCard
+                label={t.summary.cost}
+                value={formatMicros(report.summary.costMicros, currencyCode)}
+                icon={<NAV_ICONS.creditCard width={14} height={14} />}
+                tone="warm"
+                trend={{ direction: report.trends.costMicros.direction, label: kpiTrendLabel(report.trends.costMicros, t) }}
+              />
+              <KpiCard
+                label={t.summary.ctr}
+                value={`${(report.summary.ctr * 100).toFixed(2)}%`}
+                icon={<NAV_ICONS.gauge width={14} height={14} />}
+                tone="neutral"
+                trend={{ direction: report.trends.ctr.direction, label: kpiTrendLabel(report.trends.ctr, t) }}
+              />
+              <KpiCard
+                label={t.summary.averageCpc}
+                value={formatMicros(report.summary.averageCpcMicros, currencyCode)}
+                icon={<NAV_ICONS.barChart width={14} height={14} />}
+                tone="neutral"
+                trend={{ direction: report.trends.averageCpcMicros.direction, label: kpiTrendLabel(report.trends.averageCpcMicros, t) }}
+              />
+              <KpiCard
+                label={t.summary.conversions}
+                value={report.summary.conversions.toLocaleString(locale)}
+                icon={<NAV_ICONS.checkSquare width={14} height={14} />}
+                tone="good"
+                trend={{ direction: report.trends.conversions.direction, label: kpiTrendLabel(report.trends.conversions, t) }}
+              />
+              <KpiCard
+                label={t.summary.conversionsValue}
+                value={report.summary.conversionsValue.toLocaleString(locale)}
+                icon={<NAV_ICONS.star width={14} height={14} />}
+                tone="good"
+                trend={{ direction: report.trends.conversionsValue.direction, label: kpiTrendLabel(report.trends.conversionsValue, t) }}
+              />
+            </div>
+
+            <div className={`mt-4 ${panelClass}`}>
+              <p className="text-sm font-medium text-pm-noir">{t.chart.title}</p>
+              <div className="mt-3">
+                <GoogleAdsTimeSeriesChart data={report.dailySeries} currencyCode={currencyCode} labels={chartMetricLabels} />
+              </div>
+            </div>
+
+            <div className={`mt-4 ${panelClass}`}>
+              <p className="text-sm font-medium text-pm-noir">{t.breakdown.title}</p>
+              <div className="mt-3">
+                <GoogleAdsCampaignBreakdown
+                  breakdowns={{
+                    costMicros: campaignBreakdown(report.campaigns, "costMicros"),
+                    conversions: campaignBreakdown(report.campaigns, "conversions"),
+                    clicks: campaignBreakdown(report.campaigns, "clicks"),
+                  }}
+                  labels={breakdownMetricLabels}
+                  emptyLabel={t.breakdown.empty}
+                />
+              </div>
             </div>
 
             <div className={`mt-4 overflow-x-auto ${panelClass}`}>
@@ -270,14 +371,5 @@ async function PerformanceSection({
         )
       )}
     </>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={panelClass}>
-      <p className="text-xs text-pm-gris">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-pm-noir">{value}</p>
-    </div>
   );
 }

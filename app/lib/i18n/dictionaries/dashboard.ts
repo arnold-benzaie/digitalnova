@@ -346,6 +346,20 @@ export const dashboard = {
         conversions: "Conversions",
         conversionsValue: "Valeur des conversions",
       },
+      trends: {
+        vsPreviousPeriod: "vs période précédente",
+        noPreviousData: "Aucune donnée sur la période précédente",
+        newActivity: "Nouvelle activité (rien sur la période précédente)",
+      },
+      chart: {
+        title: "Évolution",
+        metricLabel: "Métrique",
+      },
+      breakdown: {
+        title: "Répartition par campagne",
+        metricLabel: "Métrique",
+        empty: "Aucune donnée à répartir pour cette période.",
+      },
       campaigns: {
         title: "Campagnes",
         empty: "Aucune campagne pour cette période.",
@@ -795,6 +809,20 @@ export const dashboard = {
         averageCpc: "Avg. CPC",
         conversions: "Conversions",
         conversionsValue: "Conversion value",
+      },
+      trends: {
+        vsPreviousPeriod: "vs previous period",
+        noPreviousData: "No data for the previous period",
+        newActivity: "New activity (none in the previous period)",
+      },
+      chart: {
+        title: "Trend",
+        metricLabel: "Metric",
+      },
+      breakdown: {
+        title: "Breakdown by campaign",
+        metricLabel: "Metric",
+        empty: "No data to break down for this period.",
       },
       campaigns: {
         title: "Campaigns",
