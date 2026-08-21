@@ -27,6 +27,9 @@ process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "test-dev-token";
 
 /** @type {{ listAccessibleCustomersResult: string[], searchResults: Map<string, any[]> }} */
 const fakeApi = { listAccessibleCustomersResult: [], searchByCustomer: new Map() };
+/** Every searchGoogleAds() call this run received — used to assert the
+ * request shape (e.g. pageSize) actually sent, not just the return value. */
+let searchCalls = [];
 
 // Mirrors the real GoogleAdsApiError shape (lib/google-ads/client.ts) —
 // accounts.ts's `err instanceof GoogleAdsApiError` check needs a real
@@ -50,7 +53,9 @@ mock.module("@/lib/google-ads/client", {
   namedExports: {
     GoogleAdsApiError: MockGoogleAdsApiError,
     listAccessibleCustomers: async () => fakeApi.listAccessibleCustomersResult,
-    searchGoogleAds: async ({ customerId, query }) => {
+    searchGoogleAds: async (params) => {
+      searchCalls.push(params);
+      const { customerId, query } = params;
       const key = `${customerId}::${query.includes("customer_client") ? "customer_client" : query.includes("FROM campaign") ? "campaigns" : "summary"}`;
       if (fakeApi.throwOn === key) throw new Error("simulated Google Ads API failure");
       if (fakeApi.throwStructuredOn?.[key]) {
@@ -222,17 +227,26 @@ test("getGoogleAdsPerformanceReport: throws a clean error when no account is sel
   await assert.rejects(() => getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS"), /Aucun compte Google Ads sélectionné/);
 });
 
-test("getGoogleAdsPerformanceReport: fetches summary + campaigns in one shot each, records a successful sync", async () => {
+test("getGoogleAdsPerformanceReport: fetches summary + campaigns in one shot each, records a successful sync, neither call sends pageSize", async () => {
   await selectGoogleAdsAccount(orgA.id, "1112223333");
   fakeApi.searchByCustomer.set("1112223333::summary", [{ metrics: { impressions: "500", clicks: "10", costMicros: "2000000", ctr: 0.02, averageCpc: "200000", conversions: 1, conversionsValue: 50 } }]);
   fakeApi.searchByCustomer.set("1112223333::campaigns", [
     { campaign: { id: "1", name: "Campagne A", status: "ENABLED", advertisingChannelType: "SEARCH" }, campaignBudget: { amountMicros: "10000000" }, metrics: { impressions: "500", clicks: "10", costMicros: "2000000", ctr: 0.02, averageCpc: "200000", conversions: 1 } },
   ]);
 
+  searchCalls = [];
   const report = await getGoogleAdsPerformanceReport(orgA.id, "LAST_30_DAYS");
   assert.equal(report.summary.impressions, 500);
   assert.equal(report.campaigns.length, 1);
   assert.equal(report.campaigns[0].name, "Campagne A");
+
+  // Confirmed against a real, enabled account: Google Ads API rejects
+  // page_size with PAGE_SIZE_NOT_SUPPORTED on both of these queries.
+  const reportCalls = searchCalls.filter((c) => c.customerId === "1112223333");
+  assert.equal(reportCalls.length, 2);
+  for (const call of reportCalls) {
+    assert.equal(call.pageSize, null, "neither the summary nor the campaigns query may send pageSize");
+  }
 
   const connection = await getGoogleAdsConnection(orgA.id);
   assert.ok(connection.lastSyncedAt);

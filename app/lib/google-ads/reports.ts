@@ -127,9 +127,16 @@ export async function getGoogleAdsPerformanceReport(organizationId: string, rang
   const accessToken = await getValidGoogleAdsAccessToken(organizationId);
 
   try {
+    // pageSize: null — confirmed against a real, enabled account that
+    // Google Ads API rejects page_size with PAGE_SIZE_NOT_SUPPORTED for
+    // both of these queries (FROM customer, FROM campaign), not just
+    // customer_client (see lib/google-ads/accounts.ts's own discovery
+    // query, fixed the same way). Pagination itself still works without
+    // it — searchGoogleAds()'s loop is driven by Google's own
+    // nextPageToken in the response, not by the request's page_size.
     const [summaryRows, campaignRows] = await Promise.all([
-      searchGoogleAds({ accessToken, customerId: connection.customerId, loginCustomerId: connection.loginCustomerId, query: summaryQuery(range) }),
-      searchGoogleAds({ accessToken, customerId: connection.customerId, loginCustomerId: connection.loginCustomerId, query: campaignsQuery(range) }),
+      searchGoogleAds({ accessToken, customerId: connection.customerId, loginCustomerId: connection.loginCustomerId, query: summaryQuery(range), pageSize: null }),
+      searchGoogleAds({ accessToken, customerId: connection.customerId, loginCustomerId: connection.loginCustomerId, query: campaignsQuery(range), pageSize: null }),
     ]);
     await recordGoogleAdsSyncResult(organizationId, null);
     return {
