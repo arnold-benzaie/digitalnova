@@ -108,14 +108,24 @@ export async function listAccessibleCustomers(accessToken: string): Promise<stri
 /** POST customers/{id}/googleAds:search, paginated. `:search` (not
  * `:searchStream`) — simpler response/pagination shape, appropriate for
  * the small result sets V1 needs (a handful of accounts/campaigns), never
- * a per-row streaming concern here. */
+ * a per-row streaming concern here.
+ *
+ * `pageSize` defaults to 1000 (unchanged behavior for every existing
+ * caller — lib/google-ads/reports.ts's campaign/summary queries still
+ * paginate exactly as before). Pass `pageSize: null` to omit the field
+ * from the request body entirely — required for the `customer_client`
+ * resource specifically, which Google Ads API rejects with
+ * PAGE_SIZE_NOT_SUPPORTED if page_size is present at all (confirmed
+ * against a real account); other resources are unaffected either way. */
 export async function searchGoogleAds(params: {
   accessToken: string;
   customerId: string;
   loginCustomerId?: string | null;
   query: string;
+  pageSize?: number | null;
 }): Promise<Record<string, unknown>[]> {
   const results: Record<string, unknown>[] = [];
+  const pageSize = params.pageSize === null ? undefined : (params.pageSize ?? 1000);
   let pageToken: string | undefined;
   do {
     const data = await googleAdsRequest({
@@ -123,7 +133,7 @@ export async function searchGoogleAds(params: {
       loginCustomerId: params.loginCustomerId,
       path: `customers/${params.customerId}/googleAds:search`,
       method: "POST",
-      body: { query: params.query, pageToken, pageSize: 1000 },
+      body: { query: params.query, pageToken, pageSize },
     });
     results.push(...((data.results as Record<string, unknown>[] | undefined) ?? []));
     pageToken = data.nextPageToken as string | undefined;

@@ -27,7 +27,7 @@ class FakeGoogleAdsApiError extends Error {
 }
 
 let accessibleCustomerIds = [];
-/** @type {Record<string, unknown[] | { throws: object }>} */
+/** @type {Record<string, unknown[] | { throws: object } | { getResponse: (params: object) => unknown[] }>} */
 let searchResponsesByCustomerId = {};
 let searchCalls = [];
 
@@ -39,6 +39,13 @@ mock.module("@/lib/google-ads/client", {
       searchCalls.push(params);
       const response = searchResponsesByCustomerId[params.customerId];
       if (response && typeof response === "object" && "throws" in response) throw new FakeGoogleAdsApiError(response.throws);
+      if (response && typeof response === "object" && "getResponse" in response) {
+        try {
+          return response.getResponse(params);
+        } catch (thrown) {
+          throw new FakeGoogleAdsApiError(thrown);
+        }
+      }
       return response ?? [];
     },
   },
@@ -90,6 +97,7 @@ test("discoverGoogleAdsAccounts: a manager/MCC account is discoverable WITHOUT a
   assert.equal(searchCalls.length, 1);
   assert.equal(searchCalls[0].customerId, "9990001111");
   assert.equal(searchCalls[0].loginCustomerId, undefined, "the discovery request itself must never force a login-customer-id");
+  assert.equal(searchCalls[0].pageSize, null, "customer_client must never receive pageSize — Google rejects it with PAGE_SIZE_NOT_SUPPORTED");
 
   // The manager's own row is filtered out (never itself selectable); its
   // child correctly gets the manager's ID as ITS OWN loginCustomerId for
@@ -108,9 +116,30 @@ test("discoverGoogleAdsAccounts: a direct advertiser account (no manager) is dis
   const accounts = await discoverGoogleAdsAccounts("fake-access-token");
 
   assert.equal(searchCalls[0].loginCustomerId, undefined);
+  assert.equal(searchCalls[0].pageSize, null);
   assert.deepEqual(accounts, [
     { customerId: "4445556666", loginCustomerId: null, descriptiveName: "Direct Account", currencyCode: "USD", timeZone: "America/New_York" },
   ]);
+});
+
+test("discoverGoogleAdsAccounts: a valid account is no longer dropped for PAGE_SIZE_NOT_SUPPORTED — realistic mock rejects any request that still sets pageSize", async () => {
+  // Mirrors Google's real behavior for customer_client (confirmed against
+  // a real Preview account): any request that includes pageSize at all
+  // is rejected, regardless of its value.
+  accessibleCustomerIds = ["1112223333"];
+  searchResponsesByCustomerId["1112223333"] = {
+    getResponse: (params) => {
+      if (params.pageSize !== null) {
+        throw { message: "Request contains an invalid argument.", httpStatus: 400, googleErrorStatus: "INVALID_ARGUMENT", googleErrorCode: "PAGE_SIZE_NOT_SUPPORTED" };
+      }
+      return [customerClientRow({ id: "1112223333", level: 0, manager: false, descriptiveName: "Recovered Account", currencyCode: "EUR" })];
+    },
+  };
+
+  const accounts = await discoverGoogleAdsAccounts("fake-access-token");
+
+  assert.equal(accounts.length, 1, "the account must be returned, not silently dropped, now that pageSize is correctly omitted");
+  assert.equal(accounts[0].customerId, "1112223333");
 });
 
 test("discoverGoogleAdsAccounts: CUSTOMER_NOT_ENABLED is logged (not silently discarded) and the account is skipped without throwing", async () => {

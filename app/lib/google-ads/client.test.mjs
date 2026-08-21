@@ -56,6 +56,24 @@ test("searchGoogleAds: sends login-customer-id only when provided", async () => 
   assert.equal(calls[0].init.headers["login-customer-id"], undefined);
 });
 
+test("searchGoogleAds: pageSize defaults to 1000 when not specified — unchanged behavior for existing callers (reports.ts)", async () => {
+  mockFetch(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+  await searchGoogleAds({ accessToken: "t", customerId: "111", query: "SELECT campaign.id FROM campaign" });
+  assert.equal(JSON.parse(calls[0].init.body).pageSize, 1000);
+});
+
+test("searchGoogleAds: pageSize:null omits the field from the request body entirely — required for customer_client, which Google rejects page_size for", async () => {
+  mockFetch(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+  await searchGoogleAds({ accessToken: "t", customerId: "111", query: "SELECT customer_client.client_customer FROM customer_client", pageSize: null });
+  assert.equal("pageSize" in JSON.parse(calls[0].init.body), false, "pageSize key must be entirely absent, not merely undefined/null in the body");
+});
+
+test("searchGoogleAds: an explicit numeric pageSize is respected as-is", async () => {
+  mockFetch(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+  await searchGoogleAds({ accessToken: "t", customerId: "111", query: "SELECT 1", pageSize: 50 });
+  assert.equal(JSON.parse(calls[0].init.body).pageSize, 50);
+});
+
 test("searchGoogleAds: paginates until nextPageToken is absent, concatenating all results", async () => {
   let page = 0;
   mockFetch(async () => {

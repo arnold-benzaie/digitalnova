@@ -92,7 +92,12 @@ export async function discoverGoogleAdsAccounts(accessToken: string): Promise<Di
       // with a manager ID is deliberately NOT implemented here — only
       // add that once Google's response gives an explicit signal that
       // one is required, rather than guessing.
-      rows = await searchGoogleAds({ accessToken, customerId: topLevelId, query: CUSTOMER_CLIENT_QUERY });
+      //
+      // pageSize: null — the customer_client resource rejects page_size
+      // outright (PAGE_SIZE_NOT_SUPPORTED, confirmed against a real
+      // account); this view only ever returns a handful of rows (itself
+      // + one level of children) so no pagination is needed here anyway.
+      rows = await searchGoogleAds({ accessToken, customerId: topLevelId, query: CUSTOMER_CLIENT_QUERY, pageSize: null });
     } catch (err) {
       // A directly-listed customer this query itself fails against (e.g.
       // CUSTOMER_NOT_ENABLED, or any other account-level state issue) is
