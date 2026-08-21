@@ -52,6 +52,10 @@ const isPublicRoute = createRouteMatcher([
   "/audit-visual-preview",
   "/api/audit-report(.*)",
   "/api/gbp-audit/e2e-db-target",
+  // TEMPORARY — Preview-only Google Ads analytics report verification,
+  // own VERCEL_ENV guard + header-secret check (see the route file). To
+  // be removed in the very next commit on this branch once used.
+  "/api/google-ads-analytics-report-check",
   // Static, non-sensitive fallback for the invitation email's secondary
   // "copy link" button (see lib/email/invitation.ts /
   // app/invitation-link/page.tsx) — no token, no email, must be reachable
