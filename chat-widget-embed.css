@@ -301,6 +301,12 @@
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 8px;
 }
+/* [hidden] is an attribute selector with the same specificity as the
+   class selector above — without this rule, the author-level
+   `display: grid` would win over the browser's UA-default
+   `[hidden] { display: none }` and the "Voir plus" grid would render
+   fully visible before the reveal button is ever clicked. */
+.pm-chat-suggestions-grid[hidden] { display: none; }
 .pm-chat-suggestion-card {
   display: flex;
   flex-direction: column;
