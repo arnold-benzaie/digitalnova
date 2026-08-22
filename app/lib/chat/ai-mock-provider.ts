@@ -110,6 +110,21 @@ function matchesAny(message: string, needles: string[]): boolean {
   return needles.some((needle) => message.includes(needle));
 }
 
+// Phase 2 (real LLM): the exact needle lists the two lead-form-opening
+// branches below already use — extracted so the OpenAI provider can
+// reuse this SAME, already-tested keyword check as its own backend
+// confirmation gate before ever trusting the model's claim that
+// show_lead_form should fire. A model hallucinating "the visitor wants
+// a human" is not enough on its own; this function is the independent,
+// deterministic authority (§9 of the request).
+const HUMAN_INTENT_NEEDLES = ["parler à", "conseiller", "talk to", "advisor", "human", "quelqu'un", "someone"];
+const CONTACT_INTENT_NEEDLES = ["contacter", "être contacté", "contact me", "devis", "quote", "rappeler", "rappelez", "call me back"];
+
+export function isExplicitLeadIntent(userMessage: string): boolean {
+  const message = userMessage.trim().toLowerCase();
+  return matchesAny(message, HUMAN_INTENT_NEEDLES) || matchesAny(message, CONTACT_INTENT_NEEDLES);
+}
+
 function ids(...values: string[]): AiSuggestion[] {
   return values.map((id) => ({ id }));
 }
@@ -601,7 +616,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     }
   }
 
-  if (matchesAny(message, ["parler à", "conseiller", "talk to", "advisor", "human", "quelqu'un", "someone"])) {
+  if (matchesAny(message, HUMAN_INTENT_NEEDLES)) {
     return {
       reply:
         locale === "en"
@@ -611,7 +626,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  if (matchesAny(message, ["contacter", "être contacté", "contact me", "devis", "quote", "rappeler", "rappelez", "call me back"])) {
+  if (matchesAny(message, CONTACT_INTENT_NEEDLES)) {
     return {
       reply:
         locale === "en"
