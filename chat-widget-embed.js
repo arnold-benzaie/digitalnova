@@ -32,8 +32,12 @@
   var API_ENDPOINT = "https://app-git-preview-ai-assistant-widget-arnold-benzaies-projects.vercel.app/api/chat";
 
   var STORAGE_KEY = "pm_chat_embed_state_v1";
+  var WELCOME_SHOWN_KEY = "pm_chat_welcome_shown_v1"; // sessionStorage — avoids re-showing on every page in the same session
   var MAX_STORED_MESSAGES = 50;
-  var WELCOME_BUBBLE_AUTO_DISMISS_MS = 14000;
+  var WELCOME_BUBBLE_INITIAL_DELAY_MIN_MS = 600;
+  var WELCOME_BUBBLE_INITIAL_DELAY_MAX_MS = 1000;
+  var WELCOME_BUBBLE_AUTO_DISMISS_MS = 10000;
+  var WELCOME_BUBBLE_FADE_MS = 250;
 
   // ---- Strings (mirrors app/lib/i18n/dictionaries/chat.ts) ---------------
 
@@ -191,18 +195,30 @@
 
   // ---- Widget ---------------------------------------------------------------
 
-  // ---- Cookie-consent banner awareness (Phase 1B §12) --------------------
+  // ---- Cookie-consent banner awareness (Phase 1B §12, tightened §positioning
+  // update) -------------------------------------------------------------
   // analytics.js injects a full-width, bottom-fixed first-visit consent
   // banner (aria-label="Cookie consent") that isn't in the page's static
   // HTML, so its presence/height can't be known upfront — this observes
-  // document.body for it appearing/disappearing and pushes the widget up
-  // by its measured height via the --pm-cookie-offset custom property
-  // (read by chat-widget-embed.css) while it's on screen.
+  // document.body for it appearing/disappearing and resolves the widget's
+  // full `bottom` value into the --pm-chat-bottom custom property (read by
+  // chat-widget-embed.css): a small fixed rest position normally, or the
+  // banner's live height plus a small gap while it's on screen — never
+  // overlapping the banner's own Refuser/Accepter buttons.
+  var DESKTOP_REST_BOTTOM = 18;
+  var DESKTOP_BANNER_GAP = 14;
+  var MOBILE_REST_BOTTOM = 14;
+  var MOBILE_BANNER_GAP = 10;
+  var MOBILE_BREAKPOINT = 768;
+
   function watchCookieBanner(root) {
     function sync() {
+      var isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      var restBottom = isMobile ? MOBILE_REST_BOTTOM : DESKTOP_REST_BOTTOM;
+      var bannerGap = isMobile ? MOBILE_BANNER_GAP : DESKTOP_BANNER_GAP;
       var banner = document.querySelector('[aria-label="Cookie consent"]');
-      var offset = banner ? banner.offsetHeight : 0;
-      root.style.setProperty("--pm-cookie-offset", offset + "px");
+      var bottom = banner ? banner.offsetHeight + bannerGap : restBottom;
+      root.style.setProperty("--pm-chat-bottom", bottom + "px");
     }
     sync();
     var observer = new MutationObserver(sync);
@@ -278,18 +294,39 @@
     });
 
     var bubbleDismissed = !!stored;
-    if (!bubbleDismissed) {
+    if (!bubbleDismissed && !hasSeenWelcomeThisSession()) {
       window.setTimeout(function () {
         if (phase === "closed") showWelcomeBubble();
-      }, 2000 + Math.random() * 2000);
+      }, WELCOME_BUBBLE_INITIAL_DELAY_MIN_MS + Math.random() * (WELCOME_BUBBLE_INITIAL_DELAY_MAX_MS - WELCOME_BUBBLE_INITIAL_DELAY_MIN_MS));
+    }
+
+    function hasSeenWelcomeThisSession() {
+      try {
+        return window.sessionStorage.getItem(WELCOME_SHOWN_KEY) === "1";
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function markWelcomeSeenThisSession() {
+      try {
+        window.sessionStorage.setItem(WELCOME_SHOWN_KEY, "1");
+      } catch (e) {
+        /* storage unavailable — worst case the bubble can reappear on another page this session */
+      }
     }
 
     function showWelcomeBubble() {
+      markWelcomeSeenThisSession();
       var bubble = el("div", { class: "pm-chat-bubble", role: "button", tabindex: "0" });
       var closeBtn = el("button", { type: "button", class: "pm-chat-bubble-close", "aria-label": t.welcomeCloseAriaLabel, text: "✕" });
       var dismiss = function () {
-        bubbleHost.innerHTML = "";
+        if (bubbleHost.firstChild !== bubble) return;
         bubbleDismissed = true;
+        bubble.classList.add("pm-chat-bubble-hiding");
+        window.setTimeout(function () {
+          if (bubbleHost.firstChild === bubble) bubbleHost.innerHTML = "";
+        }, WELCOME_BUBBLE_FADE_MS);
       };
       closeBtn.addEventListener("click", function (e) {
         e.stopPropagation();
@@ -307,9 +344,7 @@
       bubbleHost.appendChild(bubble);
       // Discreet, not persistent — auto-clears itself if the visitor never
       // interacts with it (Phase 1B §2), same as closing it manually.
-      window.setTimeout(function () {
-        if (bubbleHost.firstChild === bubble) dismiss();
-      }, WELCOME_BUBBLE_AUTO_DISMISS_MS);
+      window.setTimeout(dismiss, WELCOME_BUBBLE_AUTO_DISMISS_MS);
     }
 
     function openPanel() {

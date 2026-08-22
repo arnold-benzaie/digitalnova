@@ -3,25 +3,24 @@
    global resets, nothing that could leak into the marketing site's own
    CSS. Colors mirror the static site's own :root tokens (index.html —
    --rouge:#ff004e, --noir:#080808, --blanc:#FAFAF8, --gris:#6B6B6B,
-   --gris2:#E2DDD8, --bleu-eu:#0039e4) plus the hero's gold accent
-   (#C9A24B) for the online-status dot, rather than the Next.js app's
-   own Tailwind tokens — this is a different codebase with a different,
-   red/black-led identity; matching it exactly is what "coherent with
-   the current design" (Phase 1B §13) means here.
+   --gris2:#E2DDD8, --bleu-eu:#0039e4) for the panel body/message bubbles
+   — this is a different codebase with a different, red/black-led
+   identity; matching it exactly is what "coherent with the current
+   design" (Phase 1B §13) meant there. The floating trigger and panel
+   header now use a dedicated sky-blue/electric-blue identity instead
+   (--pm-bleu-clair/--pm-bleu/--pm-bleu-fonce), a deliberate, explicitly
+   requested exception for just those two surfaces — the rest of the
+   panel (messages, suggestions, lead form, send button) keeps the
+   original red accent unchanged, per "garder... existant".
 
-   Vertical position accounts for two possible on-screen elements this
-   file cannot see the state of: the site's own "scroll to top" button
-   (.scroll-top-btn, bottom:30px/right:30px, desktop/tablet only —
-   cleared by sitting at bottom:100px there; already hidden by the
-   site's own CSS on mobile, where the widget uses the normal corner
-   offset instead) and analytics.js's first-visit cookie-consent banner
-   (full-width, bottom:0, shown only until a choice is made). The banner
-   isn't in the page's static HTML — analytics.js injects it at
-   runtime — so it can't be measured here at CSS-authoring time; the
-   embed script measures it live and writes its height into
-   --pm-chat-cookie-offset (default 0px below), which both the trigger
-   and the open panel add to their bottom position while the banner is
-   visible. */
+   Vertical position: the embed script (watchCookieBanner) measures the
+   live-injected cookie-consent banner (analytics.js, first-visit only)
+   and writes the full resolved bottom value into --pm-chat-bottom —
+   18px/14px (desktop/mobile) at rest, or bannerHeight+14px/+10px while
+   the banner is showing. Chosen so the widget clears .scroll-top-btn
+   (bottom:30px/right:30px, 52px tall, desktop/tablet only — its top
+   edge sits at ~82px, comfortably above this widget's 18px) without the
+   large, "floating" margin the very first version used. */
 
 .pm-chat-widget-root, .pm-chat-widget-root * {
   box-sizing: border-box;
@@ -37,13 +36,21 @@
   --pm-gris: #6b6b6b;
   --pm-gris-2: #e2ddd8;
   --pm-or: #c9a24b;
-  --pm-cookie-offset: 0px;
+  --pm-vert: #22c55e;
+  --pm-bleu-clair: #60a5fa;
+  --pm-bleu: #3b82f6;
+  --pm-bleu-fonce: #2563eb;
+  --pm-cyan: #38bdf8;
+  /* Resolved bottom offset — set live by watchCookieBanner() in
+     chat-widget-embed.js (breakpoint- and banner-aware). 18px is the
+     no-banner desktop/tablet default; see the file header comment. */
+  --pm-chat-bottom: 18px;
 }
 
 .pm-chat-trigger-wrap {
   position: fixed;
-  right: 24px;
-  bottom: calc(100px + var(--pm-cookie-offset));
+  right: 20px;
+  bottom: calc(var(--pm-chat-bottom) + env(safe-area-inset-bottom, 0px));
   z-index: 999990;
   display: flex;
   flex-direction: column;
@@ -54,24 +61,29 @@
 
 @media (max-width: 768px) {
   .pm-chat-trigger-wrap {
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px) + var(--pm-cookie-offset));
-    right: 16px;
+    right: 14px;
   }
 }
 
 .pm-chat-bubble {
   position: relative;
   max-width: 260px;
+  margin-right: 4px; /* sits slightly inset from the trigger's own right edge */
   background: var(--pm-blanc);
   color: var(--pm-noir);
   border: 1px solid var(--pm-gris-2);
-  border-radius: 16px 16px 4px 16px;
+  border-radius: 14px 14px 4px 14px;
   padding: 12px 14px;
   font-size: 14px;
   box-shadow: 0 4px 16px rgba(8, 8, 8, 0.1), 0 1px 2px rgba(8, 8, 8, 0.06);
   white-space: pre-line;
   cursor: pointer;
   animation: pm-chat-fade-in 0.25s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.pm-chat-bubble.pm-chat-bubble-hiding {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .pm-chat-bubble-close {
@@ -92,22 +104,30 @@
 
 .pm-chat-trigger-btn {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(150deg, var(--pm-noir-2), var(--pm-noir));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu) 55%, var(--pm-bleu-fonce));
   color: var(--pm-blanc);
-  box-shadow: 0 8px 24px rgba(8, 8, 8, 0.35);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35), 0 0 0 6px rgba(96, 165, 250, 0.14);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: pm-chat-pulse 3s ease-in-out infinite;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.pm-chat-trigger-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(8, 8, 8, 0.4); }
+@media (max-width: 768px) {
+  .pm-chat-trigger-btn { width: 54px; height: 54px; }
+}
+.pm-chat-trigger-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.42), 0 0 0 6px rgba(96, 165, 250, 0.18);
+  animation-play-state: paused;
+}
 .pm-chat-trigger-btn:focus-visible {
-  outline: 2px solid var(--pm-rouge);
+  outline: 2px solid var(--pm-bleu-fonce);
   outline-offset: 2px;
 }
 
@@ -118,21 +138,22 @@
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  background: var(--pm-or);
+  background: var(--pm-vert);
   border: 2px solid var(--pm-blanc);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
 }
 
 .pm-chat-panel {
   position: fixed;
   z-index: 999991;
-  right: 24px;
-  bottom: calc(100px + var(--pm-cookie-offset));
+  right: 20px;
+  bottom: calc(var(--pm-chat-bottom) + env(safe-area-inset-bottom, 0px));
   width: 380px;
   height: 560px;
   background: var(--pm-blanc);
   border: 1px solid var(--pm-gris-2);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(8, 8, 8, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(37, 99, 235, 0.16), 0 4px 16px rgba(8, 8, 8, 0.12);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -154,7 +175,7 @@
 
 .pm-chat-header {
   flex-shrink: 0;
-  background: var(--pm-noir);
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu-fonce));
   color: var(--pm-blanc);
   padding: 14px 16px;
   display: flex;
@@ -163,8 +184,8 @@
   gap: 8px;
 }
 .pm-chat-header-name { font-size: 14px; font-weight: 600; margin: 0; }
-.pm-chat-header-status { font-size: 12px; color: rgba(250, 250, 248, 0.7); margin: 2px 0 0; display: flex; align-items: center; gap: 6px; }
-.pm-chat-header-status-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--pm-or); display: inline-block; }
+.pm-chat-header-status { font-size: 12px; color: rgba(250, 250, 248, 0.85); margin: 2px 0 0; display: flex; align-items: center; gap: 6px; }
+.pm-chat-header-status-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--pm-vert); display: inline-block; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25); }
 .pm-chat-header-actions { display: flex; gap: 4px; }
 .pm-chat-header-btn {
   border: none;
@@ -349,9 +370,15 @@
   0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
   40% { transform: translateY(-4px); opacity: 1; }
 }
+@keyframes pm-chat-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .pm-chat-bubble { animation: none; }
+  .pm-chat-bubble.pm-chat-bubble-hiding { transition: none; }
   .pm-chat-typing-dots span { animation: none; }
+  .pm-chat-trigger-btn { animation: none; }
   .pm-chat-trigger-wrap, .pm-chat-panel { transition: none; }
 }
