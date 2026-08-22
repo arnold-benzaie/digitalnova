@@ -18,12 +18,24 @@ const { createDeepseekProvider } = await import("@/lib/chat/ai-deepseek-provider
 /** @type {{ message: string; language: "fr" | "en"; intent: string; suggestions: string[]; action: { type: "none" | "show_lead_form" } } | { throwEmpty?: boolean; throwNetwork?: boolean }} */
 let nextResponse = { message: "ok", language: "fr", intent: "test", suggestions: [], action: { type: "none" } };
 let lastCreateCall = null;
+let createCallCount = 0;
+// When non-empty, each call to create() shifts one raw content string off
+// this queue instead of using nextResponse — lets tests script a specific
+// sequence (e.g. "first call returns malformed JSON, second call — the
+// provider's own retry — returns valid JSON") without changing the
+// default single-response behavior every other test relies on.
+/** @type {string[]} */
+let rawContentQueue = [];
 
 const fakeClient = {
   chat: {
     completions: {
       create: async (params) => {
         lastCreateCall = params;
+        createCallCount += 1;
+        if (rawContentQueue.length > 0) {
+          return { choices: [{ message: { content: rawContentQueue.shift() } }] };
+        }
         if (nextResponse.throwNetwork) throw new Error("simulated network failure");
         if (nextResponse.throwEmpty) return { choices: [{ message: { content: "" } }] };
         return { choices: [{ message: { content: JSON.stringify(nextResponse) } }] };
@@ -160,4 +172,84 @@ test("shares the same PUBLIC-MAP system prompt as the OpenAI provider (confident
   const system = lastCreateCall.messages[0].content;
   assert.match(system, /confidential/i);
   assert.match(system, /never invent|NEVER INVENT/);
+});
+
+test("disables DeepSeek's default thinking mode on every request (not needed for a concise structured reply, documented gap with json_object mode)", async () => {
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Salut");
+  assert.deepEqual(lastCreateCall.thinking, { type: "disabled" });
+});
+
+// ── Robust parsing pipeline (Preview 502 bug fix) ──────────────────────
+
+test("valid JSON on the first attempt: parses directly, no retry call made", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "Bonjour, comment puis-je vous aider ?", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } };
+  const result = await ask("Salut");
+  assert.equal(result.reply, "Bonjour, comment puis-je vous aider ?");
+  assert.equal(createCallCount, 1, "a well-formed first response must not trigger the retry");
+});
+
+test("JSON wrapped in a ```json markdown fence is stripped and parsed successfully", async () => {
+  createCallCount = 0;
+  rawContentQueue = [
+    "```json\n" + JSON.stringify({ message: "Bonjour !", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } }) + "\n```",
+  ];
+  const result = await ask("Salut");
+  assert.equal(result.reply, "Bonjour !");
+  assert.equal(createCallCount, 1);
+});
+
+test("a bare ``` fence (no 'json' language tag) is also stripped", async () => {
+  createCallCount = 0;
+  rawContentQueue = [
+    "```\n" + JSON.stringify({ message: "Bonjour !", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } }) + "\n```",
+  ];
+  const result = await ask("Salut");
+  assert.equal(result.reply, "Bonjour !");
+  assert.equal(createCallCount, 1);
+});
+
+test("truncated/malformed JSON on the first attempt (e.g. an embedded raw newline breaking the string) triggers exactly one retry, which succeeds", async () => {
+  createCallCount = 0;
+  rawContentQueue = [
+    '{"message": "Bonjour,\nje suis ravi', // unterminated string with a literal newline, mirrors the real bug
+    JSON.stringify({ message: "Bonjour, je suis ravi de vous aider.", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } }),
+  ];
+  const result = await ask("Salut");
+  assert.equal(result.reply, "Bonjour, je suis ravi de vous aider.");
+  assert.equal(createCallCount, 2, "must retry exactly once after an invalid first response");
+});
+
+test("syntactically valid JSON that fails Zod validation on the first attempt also triggers one retry, which succeeds", async () => {
+  createCallCount = 0;
+  rawContentQueue = [
+    JSON.stringify({ message: "x", language: "fr", intent: "x", suggestions: [], action: { type: "some_invented_action" } }),
+    JSON.stringify({ message: "Réponse valide.", language: "fr", intent: "x", suggestions: [], action: { type: "none" } }),
+  ];
+  const result = await ask("Salut");
+  assert.equal(result.reply, "Réponse valide.");
+  assert.equal(createCallCount, 2);
+});
+
+test("two invalid responses in a row (both malformed): a single sanitized error is thrown after exactly one retry, never the raw content", async () => {
+  createCallCount = 0;
+  const secretLookingContent = '{"message": "Bonjour,\nDEEPSEEK_API_KEY=sk-should-never-leak';
+  rawContentQueue = [secretLookingContent, secretLookingContent];
+  await assert.rejects(() => ask("Salut"), (err) => {
+    assert.match(err.message, /ai-deepseek-provider: (invalid_json|schema_validation_failed)/);
+    assert.doesNotMatch(err.message, /DEEPSEEK_API_KEY|sk-should-never-leak|Bonjour/);
+    return true;
+  });
+  assert.equal(createCallCount, 2, "must stop after exactly one retry, never loop");
+});
+
+test("no secret ever appears in a thrown error's message across the whole suite's failure paths", async () => {
+  createCallCount = 0;
+  rawContentQueue = ["not json at all {{{", "still not json {{{"];
+  await assert.rejects(() => ask("Salut"), (err) => {
+    assert.doesNotMatch(err.message, /sk-|api[_-]?key/i);
+    return true;
+  });
 });
