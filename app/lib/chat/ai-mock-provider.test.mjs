@@ -33,15 +33,16 @@ test("EN: 'talk to someone' triggers show_lead_form action", async () => {
   assert.deepEqual(result.action, { type: "show_lead_form" });
 });
 
-test("Unknown/unhandled question never invents information — falls back to the uncertain-info message and offers the lead form", async () => {
+test("Unknown/unhandled question never invents information, lists what PUBLIC-MAP helps with, and never auto-opens the lead form (Phase 1D)", async () => {
   const result = await ask("fr", "Quel est le sens de la vie ?");
-  assert.match(result.reply, /Je préfère ne pas vous donner une information incertaine/);
-  assert.deepEqual(result.action, { type: "show_lead_form" });
+  assert.match(result.reply, /Google Business Profile, Google Ads, SEO/);
+  assert.equal(result.action, undefined);
 });
 
-test("EN unknown fallback uses the English uncertain-info message", async () => {
+test("EN unknown fallback uses the English helpful message, never auto-opens the lead form", async () => {
   const result = await ask("en", "asdkjhasdkjh nonsense query");
-  assert.match(result.reply, /I'd rather not give you uncertain information/);
+  assert.match(result.reply, /Google Business Profile, Google Ads, SEO/);
+  assert.equal(result.action, undefined);
 });
 
 test("Suggestions are id-only — never carry a label (labels live in the i18n dictionary, not the provider)", async () => {
@@ -115,4 +116,95 @@ test("surface:'site' 'Obtenir un devis' and 'Parler à un expert' still trigger 
   const human = await ask("fr", "🎧 Parler à un expert", "site");
   assert.deepEqual(quote.action, { type: "show_lead_form" });
   assert.deepEqual(human.action, { type: "show_lead_form" });
+});
+
+// ---- Phase 1D: free-text conversational fix -------------------------------
+
+test("Rule 1 — bare greetings (FR/EN) get a welcome reply, main suggestions, and NEVER the lead form", async () => {
+  for (const [locale, message, needle] of [
+    ["fr", "Salut", "Bonjour"],
+    ["fr", "Bonjour", "Bonjour"],
+    ["fr", "Bonsoir", "Bonjour"],
+    ["fr", "Coucou", "Bonjour"],
+    ["en", "Hi", "Hi! Welcome"],
+    ["en", "Hello", "Hi! Welcome"],
+    ["en", "Hey", "Hi! Welcome"],
+    ["en", "Good morning", "Hi! Welcome"],
+  ]) {
+    const result = await ask(locale, message, "site");
+    assert.match(result.reply, new RegExp(needle), `${locale}:${message}`);
+    assert.equal(result.action, undefined, `${locale}:${message} must not open the lead form`);
+    assert.deepEqual(ids(result), ["gbp", "google_ads", "seo", "website", "automation", "quote"], `${locale}:${message}`);
+  }
+});
+
+test("Rule 1 — a greeting combined with a real request is NOT swallowed by the greeting branch", async () => {
+  const result = await ask("fr", "Bonjour, je voudrais un devis", "site");
+  assert.deepEqual(result.action, { type: "show_lead_form" });
+});
+
+test("Rule 2 — free-text phrases route to the right intent without matching chip wording exactly", async () => {
+  const cases = [
+    ["fr", "Je veux plus de clients", /générer plus de prospects/],
+    ["fr", "Je voudrais apparaître sur Google Maps", /Google Business/],
+    ["fr", "Je veux créer un site", /créer ou refaire votre site|créer ou améliorer votre site/],
+    ["fr", "Je veux automatiser mon entreprise", /automatiser.*tâches|automatiser en premier/],
+    ["fr", "Mes pubs Google ne marchent pas", /Google Ads/],
+    ["fr", "Je veux améliorer mon SEO", /référencement/],
+    ["en", "I need more customers", /generate more leads/],
+    ["en", "I want to improve my Google Maps presence", /Google Business/],
+    ["en", "I need a website", /build or redesign|create or improve/],
+    ["en", "I want to automate my business", /automate/],
+    ["en", "I need help with Google Ads", /Google Ads/],
+  ];
+  for (const [locale, message, pattern] of cases) {
+    const result = await ask(locale, message, "site");
+    assert.match(result.reply, pattern, `${locale}: "${message}"`);
+  }
+});
+
+test("Rule 2/3 — 'Combien ça coûte ?' gives a pricing explanation WITHOUT opening the lead form", async () => {
+  const fr = await ask("fr", "Combien ça coûte ?", "site");
+  assert.match(fr.reply, /Nos tarifs dépendent/);
+  assert.equal(fr.action, undefined);
+  assert.deepEqual(ids(fr), ["quote", "human"]);
+
+  const en = await ask("en", "How much does it cost?", "site");
+  assert.match(en.reply, /Our pricing depends/);
+  assert.equal(en.action, undefined);
+});
+
+test("Rule 3 — the lead form opens only for explicit devis/rappel/contact/human intent", async () => {
+  const explicit = [
+    ["fr", "Je veux un devis"],
+    ["fr", "Rappelez-moi"],
+    ["fr", "Je veux parler à quelqu'un"],
+    ["fr", "Je veux être contacté"],
+    ["en", "I want to talk to someone"],
+    ["en", "Call me back"],
+  ];
+  for (const [locale, message] of explicit) {
+    const result = await ask(locale, message, "site");
+    assert.deepEqual(result.action, { type: "show_lead_form" }, `${locale}: "${message}"`);
+  }
+
+  const notExplicit = [
+    ["fr", "Salut"],
+    ["fr", "Bonjour"],
+    ["fr", "Je veux créer un site"],
+    ["fr", "Combien ça coûte ?"],
+    ["en", "Hi"],
+    ["en", "I need a website"],
+  ];
+  for (const [locale, message] of notExplicit) {
+    const result = await ask(locale, message, "site");
+    assert.equal(result.action, undefined, `${locale}: "${message}" must NOT open the lead form`);
+  }
+});
+
+test("Rule 4 — the generic fallback lists what PUBLIC-MAP helps with, never claims uncertainty, and offers 'human' only as an ordinary chip", async () => {
+  const result = await ask("fr", "Quel est le sens de la vie ?", "site");
+  assert.match(result.reply, /Dites-moi simplement ce que vous souhaitez améliorer/);
+  assert.equal(result.action, undefined);
+  assert.deepEqual(ids(result), ["gbp", "google_ads", "seo", "website", "automation", "quote", "human"]);
 });

@@ -54,6 +54,30 @@ import type { AiProvider, AiProviderInput, AiProviderOutput, AiSuggestion } from
  * return a topic-specific sub-menu (and, for website/automation/
  * performance, a richer reply) instead of the flat 6-chip set; for every
  * other surface their reply text and suggestions are untouched.
+ *
+ * Phase 1D (free-text conversational fix): a real user reported that
+ * typing "Salut"/"Hi" with no chip click fell through every branch above
+ * into the generic unknown-fallback, which used to reply with an
+ * "I'd rather not guess" message AND auto-open the lead form — wrong for
+ * a bare greeting, and too aggressive for any unrecognized message in
+ * general. Fixes, in order:
+ *   1. A dedicated, anchored greeting match (isGreeting) runs first —
+ *      never opens the lead form, always offers the main suggestions as
+ *      optional shortcuts.
+ *   2. A handful of new needles teach the EXISTING topic branches a few
+ *      more natural phrasings (see the inline comments at each addition)
+ *      — free text now routes correctly without requiring chip-exact
+ *      wording.
+ *   3. A new "how much does it cost" leaf gives a general pricing
+ *      explanation WITHOUT opening the lead form — "quote"/"human"
+ *      appear only as ordinary suggestion chips the visitor can choose.
+ *   4. The generic unknown-fallback itself no longer opens the lead form
+ *      or claims uncertainty — it lists what PUBLIC-MAP helps with and
+ *      offers "Parler à un expert" as one chip among others, never an
+ *      automatic action.
+ * The lead form now opens ONLY for: an explicit "quote" or "human"
+ * branch match (unchanged code, both already gated this way) — never
+ * from a greeting, a general question, or the fallback.
  */
 
 const ERROR_SIMULATION_TRIGGER = "test_simulate_provider_error";
@@ -68,6 +92,17 @@ function ids(...values: string[]): AiSuggestion[] {
 
 function isSite(input: AiProviderInput): boolean {
   return input.surface === "site";
+}
+
+// A greeting is matched only when the ENTIRE message (aside from
+// trailing punctuation) IS the greeting — "Salut" or "Bonjour !" match,
+// but "Bonjour, je voudrais un devis" deliberately does not, so it still
+// falls through to the real "devis" branch below instead of being
+// swallowed by a generic welcome reply.
+const GREETING_PATTERN = /^(salut|bonjour|bonsoir|coucou|hello|hey|hi|good morning|good afternoon|good evening)[\s!.?]*$/;
+
+function isGreeting(message: string): boolean {
+  return GREETING_PATTERN.test(message);
 }
 
 const DEFAULT_SUGGESTIONS: AiSuggestion[] = [{ id: "google_ads" }, { id: "how_it_works" }, { id: "performance" }, { id: "account_help" }, { id: "human" }];
@@ -180,17 +215,37 @@ const SITE_LEAVES: SiteLeaf[] = [
 
   // --- Top-level "Voir plus" topics without their own numbered sous-parcours
   { needles: ["avis clients", "customer reviews"], fr: "PUBLIC-MAP peut vous aider à obtenir plus d'avis clients et à améliorer votre note moyenne sur Google — un levier clé de confiance et de visibilité locale.", en: "PUBLIC-MAP can help you get more customer reviews and improve your average Google rating — a key trust and local-visibility driver.", suggestions: REVIEWS_SUGGESTIONS },
-  { needles: ["générer plus de prospects", "generate more leads"], fr: "PUBLIC-MAP peut vous aider à générer plus de prospects grâce à Google Ads, au SEO, à des landing pages optimisées, des formulaires intelligents et une automatisation complète de vos leads. Par où souhaitez-vous commencer ?", en: "PUBLIC-MAP can help you generate more leads through Google Ads, SEO, optimized landing pages, smart forms, and full lead automation. Where would you like to start?", suggestions: LEAD_GENERATION_SUB_SUGGESTIONS },
+  {
+    needles: ["générer plus de prospects", "generate more leads", "plus de clients", "more customers", "more clients"],
+    fr: "PUBLIC-MAP peut vous aider à générer plus de prospects grâce à Google Ads, au SEO, à des landing pages optimisées, des formulaires intelligents et une automatisation complète de vos leads. Par où souhaitez-vous commencer ?",
+    en: "PUBLIC-MAP can help you generate more leads through Google Ads, SEO, optimized landing pages, smart forms, and full lead automation. Where would you like to start?",
+    suggestions: LEAD_GENERATION_SUB_SUGGESTIONS,
+  },
+
+  // Pricing questions ("Combien ça coûte ?") get a general explanation
+  // and "quote"/"human" as ORDINARY chips — never an automatic
+  // show_lead_form action. Only an explicit quote/human match (the two
+  // branches further down, unchanged) opens the lead form.
+  { needles: ["combien ça coûte", "combien coûte", "prix", "tarif", "how much", "pricing", "cost"], fr: "Nos tarifs dépendent de vos besoins (SEO, Google Ads, site web, automatisation...). Je peux vous mettre en relation avec un conseiller pour un devis personnalisé, ou dites-moi ce qui vous intéresse le plus.", en: "Our pricing depends on your needs (SEO, Google Ads, website, automation...). I can put you in touch with an advisor for a personalized quote, or tell me what interests you most." },
 
   // Kept last — the shortest/most generic needle in this table (see the
   // comment above SITE_LEAVES).
   { needles: ["search"], fr: "Les campagnes Search ciblent les recherches actives de vos clients potentiels sur Google. PUBLIC-MAP peut mettre cela en place pour vous.", en: "Search campaigns target your potential customers' active searches on Google. PUBLIC-MAP can set this up for you." },
 ];
 
+// Phase 1D: the fallback used to claim uncertainty AND auto-open the
+// lead form for every unrecognized message — including a bare "Salut".
+// It now only lists what PUBLIC-MAP helps with; "human" is added to the
+// suggestion set as an ordinary chip ("Parler à un expert") so a real
+// human handoff is always one click away without ever being forced.
 function unknownFallback(locale: "fr" | "en"): string {
   return locale === "en"
-    ? "I'd rather not give you uncertain information. I can forward your request to a PUBLIC-MAP advisor."
-    : "Je préfère ne pas vous donner une information incertaine. Je peux transmettre votre demande à un conseiller PUBLIC-MAP.";
+    ? "I can help with Google Business Profile, Google Ads, SEO, website creation, AI automation or lead generation. Just tell me what you would like to improve."
+    : "Je peux vous aider avec Google Business Profile, Google Ads, SEO, création de site, automatisation IA ou génération de prospects. Dites-moi simplement ce que vous souhaitez améliorer.";
+}
+
+function fallbackSuggestions(input: AiProviderInput): AiSuggestion[] {
+  return isSite(input) ? ids("gbp", "google_ads", "seo", "website", "automation", "quote", "human") : DEFAULT_SUGGESTIONS;
 }
 
 async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> {
@@ -199,6 +254,16 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
 
   if (message === ERROR_SIMULATION_TRIGGER) {
     throw new Error("mock-provider: simulated error (test sentinel)");
+  }
+
+  if (isGreeting(message)) {
+    return {
+      reply:
+        locale === "en"
+          ? "👋 Hi! Welcome to PUBLIC-MAP.\nHow can I help you today?"
+          : "👋 Bonjour ! Ravi de vous accueillir chez PUBLIC-MAP.\nComment puis-je vous aider aujourd'hui ?",
+      suggestions: suggestionsFor(input),
+    };
   }
 
   if (isSite(input)) {
@@ -219,7 +284,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  if (matchesAny(message, ["contacter", "être contacté", "contact me", "devis", "quote", "rappeler", "call me back"])) {
+  if (matchesAny(message, ["contacter", "être contacté", "contact me", "devis", "quote", "rappeler", "rappelez", "call me back"])) {
     return {
       reply:
         locale === "en"
@@ -229,7 +294,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  if (matchesAny(message, ["google business profile", "gbp", "fiche établissement", "fiche google", "business profile"])) {
+  if (matchesAny(message, ["google business profile", "gbp", "fiche établissement", "fiche google", "business profile", "google maps"])) {
     return {
       reply:
         locale === "en"
@@ -239,7 +304,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  if (matchesAny(message, ["google ads", "campagne", "campaign", "publicité", "ads", "adwords"])) {
+  if (matchesAny(message, ["google ads", "campagne", "campaign", "publicité", "ads", "adwords", "pubs google"])) {
     return {
       reply:
         locale === "en"
@@ -259,7 +324,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  if (matchesAny(message, ["site web", "website", "landing page", "créer mon site", "improve my website", "build a website"])) {
+  if (matchesAny(message, ["site web", "website", "landing page", "créer mon site", "improve my website", "build a website", "créer un site"])) {
     return {
       reply: isSite(input)
         ? locale === "en"
@@ -318,7 +383,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
     };
   }
 
-  return { reply: unknownFallback(locale), action: { type: "show_lead_form" }, suggestions: suggestionsFor(input) };
+  return { reply: unknownFallback(locale), suggestions: fallbackSuggestions(input) };
 }
 
 export const mockAiProvider: AiProvider = { generateReply };
