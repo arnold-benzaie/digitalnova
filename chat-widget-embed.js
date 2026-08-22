@@ -6,11 +6,22 @@
  * `<script defer>` so it never blocks page rendering.
  *
  * Talks to the SAME backend already validated in the Next.js app
- * (Phase 1A): POST API_ENDPOINT with { type, ... }, `credentials:
- * "include"` so the httpOnly, SameSite=None visitorId cookie set by the
- * server round-trips correctly cross-origin — this script never reads,
- * writes, or invents a visitor identifier of its own (no second
- * visitorId system, no fingerprinting, see lib/chat/visitor.ts).
+ * (Phase 1A) through a same-origin proxy (api/chat-proxy.js, this same
+ * project) rather than calling the app deployment directly: the app's
+ * Preview deployments sit behind Vercel Deployment Protection, which
+ * intercepts the browser's CORS *preflight* (OPTIONS — never carries
+ * cookies by spec) with a redirect — forbidden for a preflight response
+ * per the Fetch spec, so a direct cross-origin call is blocked before it
+ * ever reaches the app's code, confirmed directly this session. The proxy
+ * makes the browser's call same-origin (no CORS involved at all) and
+ * relays server-to-server using Vercel's own bypass mechanism — see
+ * api/chat-proxy.js for the full explanation.
+ *
+ * `credentials: "include"` still matters here: it's what lets this
+ * same-origin call carry/receive the httpOnly, SameSite=None visitorId
+ * cookie the proxy relays through — this script never reads, writes, or
+ * invents a visitor identifier of its own (no second visitorId system,
+ * no fingerprinting, see lib/chat/visitor.ts).
  *
  * FR/EN text lives in PM_CHAT_STRINGS below, deliberately mirroring
  * app/lib/i18n/dictionaries/chat.ts's FR/EN values exactly (same wording
@@ -26,10 +37,10 @@
 
   // ---- Configuration -----------------------------------------------------
 
-  // Preview endpoint for validation only (§11 of the approved plan) — the
-  // switch to https://app.public-map.com/api/chat is a separate step
+  // Same-origin proxy (api/chat-proxy.js) — see the file header comment
+  // above for why. The switch to a Production endpoint is a separate step
   // requiring explicit authorization, never done automatically here.
-  var API_ENDPOINT = "https://app-git-preview-ai-assistant-widget-arnold-benzaies-projects.vercel.app/api/chat";
+  var API_ENDPOINT = "/api/chat-proxy";
 
   var STORAGE_KEY = "pm_chat_embed_state_v1";
   var WELCOME_SHOWN_KEY = "pm_chat_welcome_shown_v1"; // sessionStorage — avoids re-showing on every page in the same session
