@@ -6,8 +6,15 @@ import { SUGGESTION_CATALOG } from "@/lib/chat/suggestion-catalog";
  * Versioned so a future prompt change is a deliberate, traceable diff
  * (bump SYSTEM_PROMPT_VERSION whenever the wording changes materially)
  * rather than a silent behavior shift. Never sent to the client, never
- * logged with request bodies — only used to build the `instructions`
- * field of the OpenAI Responses API call in ai-openai-provider.ts.
+ * logged with request bodies.
+ *
+ * Shared by every real-LLM provider — used as OpenAI's `instructions`
+ * field (ai-openai-provider.ts) and, with a short JSON-mode addendum
+ * appended, as DeepSeek's `system` message (ai-deepseek-provider.ts).
+ * Kept provider-agnostic on purpose (filename notwithstanding — left
+ * unchanged to avoid a pure-rename diff) so the PUBLIC-MAP identity,
+ * tone, scope, and anti-hallucination/prompt-injection rules stay
+ * identical regardless of which model answers.
  */
 export const SYSTEM_PROMPT_VERSION = "v1";
 

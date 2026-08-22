@@ -1,10 +1,9 @@
 import "server-only";
 import OpenAI from "openai";
-import { z } from "zod";
 import type { AiProvider, AiProviderInput, AiProviderOutput } from "@/lib/chat/ai-provider";
-import { isExplicitLeadIntent } from "@/lib/chat/ai-mock-provider";
 import { buildSystemPrompt } from "@/lib/chat/openai-system-prompt";
-import { SUGGESTION_IDS, isKnownSuggestionId } from "@/lib/chat/suggestion-catalog";
+import { SUGGESTION_IDS } from "@/lib/chat/suggestion-catalog";
+import { structuredReplySchema, toProviderOutput, toConversationRole } from "@/lib/chat/ai-structured-reply";
 
 /**
  * Phase 2 — real conversational provider, Preview-only (see
@@ -18,13 +17,10 @@ import { SUGGESTION_IDS, isKnownSuggestionId } from "@/lib/chat/suggestion-catal
  * `{ message, language, intent, suggestions, action }` — never free-form
  * text the rest of the app would have to parse or trust blindly.
  *
- * §9 of the approved plan: the model's own `action` proposal is never
- * trusted on its own. `isExplicitLeadIntent()` (lib/chat/ai-mock-provider.ts
- * — the SAME, already-tested keyword rules the two lead-form branches
- * there use) is re-run against the CURRENT message as an independent,
- * deterministic backend gate; the lead form only actually opens when
- * BOTH the model and this check agree. A hallucinated "show_lead_form"
- * alone can never trigger it.
+ * The `{ message, language, intent, suggestions, action }` → real
+ * `AiProviderOutput` mapping (including the §9 backend action gate —
+ * see ai-structured-reply.ts) is shared with the DeepSeek provider
+ * (ai-deepseek-provider.ts), not duplicated.
  *
  * Every thrown error here (missing key, network failure, timeout, 429,
  * 5xx, malformed JSON, schema mismatch) propagates unmodified to
@@ -71,7 +67,9 @@ function getDefaultClient(): OpenAI {
 // Plain JSON Schema (not Zod) — this is what's sent to OpenAI's
 // Structured Outputs (`text.format.schema`) in strict mode, which
 // requires every property to be `required` and `additionalProperties:
-// false` (no true optionality inside strict schemas).
+// false` (no true optionality inside strict schemas). structuredReplySchema
+// (ai-structured-reply.ts) is the Zod mirror validated server-side —
+// defense in depth behind this, not a replacement for it.
 const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
@@ -94,21 +92,6 @@ const RESPONSE_JSON_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-// Mirrors RESPONSE_JSON_SCHEMA — validated again server-side rather than
-// trusting the API's strict-mode enforcement alone (defense in depth;
-// also what actually types `parsed` below).
-const openaiOutputSchema = z.object({
-  message: z.string().min(1).max(2000),
-  language: z.enum(["fr", "en"]),
-  intent: z.string().max(200),
-  suggestions: z.array(z.string()),
-  action: z.object({ type: z.enum(["none", "show_lead_form"]) }),
-});
-
-function toResponsesRole(senderType: string): "user" | "assistant" {
-  return senderType === "assistant" ? "assistant" : "user";
-}
-
 /**
  * Factory rather than a bare object so tests can inject a fake client
  * (see ai-openai-provider.test.mjs) — `openaiProvider` below is just
@@ -123,7 +106,7 @@ export function createOpenaiProvider(clientOverride?: ResponsesClient): AiProvid
     // messages — see lib/chat/messages.ts::getRecentMessagesForProvider)
     // — no further truncation needed here (§5/§13).
     const conversationInput = [
-      ...input.history.map((message) => ({ role: toResponsesRole(message.senderType), content: message.content })),
+      ...input.history.map((message) => ({ role: toConversationRole(message.senderType), content: message.content })),
       { role: "user" as const, content: input.userMessage },
     ];
 
@@ -147,16 +130,8 @@ export function createOpenaiProvider(clientOverride?: ResponsesClient): AiProvid
       throw new Error("ai-openai-provider: empty output_text from the Responses API");
     }
 
-    const parsed = openaiOutputSchema.parse(JSON.parse(raw));
-
-    const suggestions = parsed.suggestions
-      .filter(isKnownSuggestionId)
-      .slice(0, 4)
-      .map((id) => ({ id }));
-
-    const action = parsed.action.type === "show_lead_form" && isExplicitLeadIntent(input.userMessage) ? ({ type: "show_lead_form" } as const) : undefined;
-
-    return { reply: parsed.message, suggestions, action };
+    const parsed = structuredReplySchema.parse(JSON.parse(raw));
+    return toProviderOutput(parsed, input.userMessage);
   }
 
   return { generateReply };

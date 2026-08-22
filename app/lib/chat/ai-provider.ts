@@ -64,10 +64,12 @@ export interface AiProvider {
  * never accidentally activate a real, paid LLM anywhere — the safe
  * default stays exactly Phase 1's behavior.
  *
- * "deepseek" is a deliberate, inert placeholder (§18 of the request):
- * the interface is ready for a second provider, but no DeepSeek code,
- * key, or request exists in this phase — selecting it throws a clear
- * error rather than silently doing something unexpected.
+ * "openai" and "deepseek" are both real, fully-implemented providers —
+ * only one is ever active at a time (whichever AI_PROVIDER names), and
+ * switching between them is a config change, not a code change. Both
+ * share the same system prompt, structured-output contract, and §9
+ * backend action gate (see ai-structured-reply.ts) — the model choice
+ * only changes which HTTP API answers, never the app-side guarantees.
  */
 export async function getAiProvider(): Promise<AiProvider> {
   const providerName = process.env.AI_PROVIDER;
@@ -78,7 +80,8 @@ export async function getAiProvider(): Promise<AiProvider> {
   }
 
   if (providerName === "deepseek") {
-    throw new Error("AI_PROVIDER=deepseek is not implemented yet — the provider interface is ready, but no DeepSeek integration exists in this phase.");
+    const { deepseekProvider } = await import("@/lib/chat/ai-deepseek-provider");
+    return deepseekProvider;
   }
 
   const { mockAiProvider } = await import("@/lib/chat/ai-mock-provider");
