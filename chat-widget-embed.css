@@ -20,6 +20,16 @@
    l'existant") lead form, so blue reads as "primary/interactive" and red
    unambiguously as "something went wrong" throughout the panel.
 
+   Phase 1E: reads less like a support-ticket widget and more like a
+   small embedded AI assistant — assistant bubbles get a faint blue tint
+   (--pm-bleu-pale) instead of flat grey, visitor bubbles move from pure
+   black to a dark navy (--pm-bleu-nuit) that still reads as "premium
+   dark", the header drops the wordy "En ligne" status in favor of a
+   small spark icon + a quiet dot, and the "Parler à un expert" CTA is a
+   plain text link rather than a filled button — available, never pushed
+   (§11: never the default answer when the mock doesn't understand
+   something).
+
    Vertical position: the embed script (watchCookieBanner) measures the
    live-injected cookie-consent banner (analytics.js, first-visit only)
    and writes the full resolved bottom value into --pm-chat-bottom —
@@ -48,6 +58,8 @@
   --pm-bleu: #3b82f6;
   --pm-bleu-fonce: #2563eb;
   --pm-cyan: #38bdf8;
+  --pm-bleu-nuit: #101a33;
+  --pm-bleu-pale: #eef4ff;
   /* Resolved bottom offset — set live by watchCookieBanner() in
      chat-widget-embed.js (breakpoint- and banner-aware). 18px is the
      no-banner desktop/tablet default; see the file header comment. */
@@ -197,9 +209,11 @@
   justify-content: space-between;
   gap: 8px;
 }
+.pm-chat-header-name-row { display: flex; align-items: center; gap: 6px; }
+.pm-chat-header-spark { font-size: 13px; line-height: 1; }
 .pm-chat-header-name { font-size: 14px; font-weight: 600; margin: 0; }
-.pm-chat-header-status { font-size: 12px; color: rgba(250, 250, 248, 0.85); margin: 2px 0 0; display: flex; align-items: center; gap: 6px; }
-.pm-chat-header-status-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--pm-vert); display: inline-block; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25); }
+.pm-chat-header-status { font-size: 11px; color: rgba(250, 250, 248, 0.75); margin: 2px 0 0; display: flex; align-items: center; gap: 5px; }
+.pm-chat-header-status-dot { width: 5px; height: 5px; border-radius: 999px; background: var(--pm-vert); display: inline-block; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2); }
 .pm-chat-header-actions { display: flex; gap: 4px; }
 .pm-chat-header-btn {
   border: none;
@@ -220,10 +234,10 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 18px 16px;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
   background: linear-gradient(180deg, #fbfdff, var(--pm-blanc) 140px);
 }
 
@@ -238,18 +252,27 @@
   font-size: 14px;
   white-space: pre-wrap;
 }
-.pm-chat-msg-own .pm-chat-msg-bubble { background: var(--pm-noir); color: var(--pm-blanc); border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(8, 8, 8, 0.14); }
-.pm-chat-msg-other .pm-chat-msg-bubble { background: var(--pm-gris-2); color: var(--pm-noir); border-bottom-left-radius: 4px; }
+.pm-chat-msg-own .pm-chat-msg-bubble { background: var(--pm-bleu-nuit); color: var(--pm-blanc); border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(16, 26, 51, 0.24); }
+.pm-chat-msg-other .pm-chat-msg-bubble { background: var(--pm-bleu-pale); color: var(--pm-noir); border-bottom-left-radius: 4px; }
 
-.pm-chat-typing { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+.pm-chat-typing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  background: var(--pm-bleu-pale);
+}
 .pm-chat-typing-dots { display: flex; gap: 4px; }
 .pm-chat-typing-dots span {
-  width: 6px; height: 6px; border-radius: 999px; background: var(--pm-gris);
+  width: 6px; height: 6px; border-radius: 999px; background: var(--pm-bleu);
   animation: pm-chat-bounce 1s infinite ease-in-out;
 }
 .pm-chat-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .pm-chat-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-.pm-chat-typing-label { font-size: 12px; color: var(--pm-gris); }
+.pm-chat-typing-label { font-size: 12px; color: var(--pm-bleu-fonce); }
 
 .pm-chat-error-box {
   border: 1px solid rgba(255, 0, 78, 0.3);
@@ -345,29 +368,37 @@
 }
 .pm-chat-suggestions-more-btn:hover { text-decoration: underline; }
 .pm-chat-suggestions-more-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+/* Discreet on purpose (§11): available, never the pushed/default answer —
+   a plain text link, not a filled call-to-action button like the cards
+   around it. */
 .pm-chat-expert-btn {
-  width: 100%;
-  border: 1px solid var(--pm-bleu);
-  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu-fonce));
-  color: var(--pm-blanc);
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 12px;
-  padding: 10px 14px;
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--pm-gris);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
-.pm-chat-expert-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22); }
+.pm-chat-expert-btn:hover { color: var(--pm-bleu-fonce); text-decoration-color: var(--pm-bleu-fonce); }
 .pm-chat-expert-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
 
+/* An integrated card within the conversation flow, not a full-panel
+   takeover (§10) — same message-column width as everything else, just
+   a bordered/shadowed container so it reads as its own inline card. */
 .pm-chat-lead-form {
   border: 1px solid var(--pm-gris-2);
   background: var(--pm-blanc);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 14px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 4px 14px rgba(8, 8, 8, 0.06);
 }
 .pm-chat-lead-form-title { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
 .pm-chat-lead-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--pm-gris); }
@@ -415,12 +446,12 @@
   resize: none;
   border: 1px solid var(--pm-gris-2);
   border-radius: 12px;
-  padding: 9px 12px;
+  padding: 12px 13px;
   font-family: inherit;
   font-size: 14px;
   color: var(--pm-noir);
   max-height: 96px;
-  min-height: 38px;
+  min-height: 44px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .pm-chat-input:focus {
@@ -430,8 +461,8 @@
 }
 .pm-chat-send-btn {
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   border: none;
   background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu-fonce));

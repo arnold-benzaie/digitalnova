@@ -50,17 +50,17 @@
   var WELCOME_BUBBLE_AUTO_DISMISS_MS = 10000;
   var WELCOME_BUBBLE_FADE_MS = 250;
 
-  // Phase 1C — the "Suggestions rapides" bootstrap shown alongside the
-  // greeting on a fresh panel open, before any real exchange exists (so
-  // before the backend has ever been asked for suggestions). Ids only —
-  // must exactly mirror lib/chat/ai-mock-provider.ts's SITE_SUGGESTIONS
-  // (main) and the four extra "voir plus" topics; clicking any of them
-  // still calls the SAME postChat()/mock provider as every other
-  // suggestion — no parallel system. "human" is deliberately excluded
-  // from both arrays: it gets its own persistent full-width CTA instead
-  // (see renderInitialSuggestions).
-  var INITIAL_SUGGESTIONS_MAIN = ["gbp", "google_ads", "seo", "website", "automation", "quote"];
-  var INITIAL_SUGGESTIONS_MORE = ["automation_setup", "performance_review", "reviews", "lead_generation"];
+  // Phase 1E — a compact 4-chip bootstrap (was 6 in Phase 1C) shown
+  // alongside the greeting on a fresh panel open, before any real
+  // exchange exists — the widget should read as a conversation starting
+  // point, not a support menu. Ids only — must exactly mirror
+  // lib/chat/ai-mock-provider.ts's SITE_SUGGESTIONS/SITE_LEAVES; clicking
+  // any of them still calls the SAME postChat()/mock provider as every
+  // other suggestion — no parallel system. "human" is deliberately
+  // excluded from both arrays: it gets its own small, discreet CTA
+  // instead (see renderInitialSuggestions) — available, never pushed.
+  var INITIAL_SUGGESTIONS_MAIN = ["visibility", "lead_generation", "automation", "website"];
+  var INITIAL_SUGGESTIONS_MORE = ["gbp", "google_ads", "seo", "quote", "automation_setup", "performance_review", "reviews"];
 
   // ---- Strings (mirrors app/lib/i18n/dictionaries/chat.ts) ---------------
 
@@ -74,15 +74,15 @@
       onlineStatus: "En ligne",
       closeAriaLabel: "Fermer",
       minimizeAriaLabel: "Réduire",
-      greetingAnonymous: "👋 Bonjour ! Bienvenue chez PUBLIC-MAP.\nComment pouvons-nous vous aider aujourd'hui ?",
+      greetingAnonymous: "👋 Bonjour ! Je suis l'assistant PUBLIC-MAP.\nJe peux vous aider à améliorer votre présence en ligne, votre SEO, Google Ads, votre site web ou vos automatisations.\n\nQue souhaitez-vous améliorer aujourd'hui ?",
       typingIndicator: "L'assistant écrit…",
-      inputPlaceholder: "Écrivez votre message…",
+      inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
       errorGeneric: "Une erreur est survenue. Veuillez réessayer.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
       retry: "Réessayer",
       suggestionsTitle: "Suggestions rapides",
-      showMore: "Voir plus",
+      showMore: "Voir toutes les options",
       // Marketing-site suggestion set (Phase 1B §4, enriched Phase 1C) —
       // distinct from the Next.js dashboard widget's chips
       // (lib/i18n/dictionaries/chat.ts): an anonymous public-map.com
@@ -93,17 +93,19 @@
       // sends this exact label text as a real message (see sendMessage),
       // never a second, decorative-only chip.
       suggestions: {
-        // Main 6 + "voir plus" 4 + human's dedicated CTA.
+        // Compact main 4 + "voir toutes les options" 7 + human's discreet CTA.
+        visibility: "📍 Développer ma visibilité",
+        lead_generation: "📈 Obtenir plus de clients",
+        automation: "🤖 Automatiser mon activité",
+        website: "🌐 Créer/améliorer mon site",
         gbp: "📍 Optimiser mon Google Business Profile",
         google_ads: "📣 Lancer ou améliorer mes Google Ads",
         seo: "🔍 Améliorer mon SEO",
-        website: "🌐 Créer ou refaire mon site web",
-        automation: "🤖 Automatiser mon entreprise avec l'IA",
         quote: "🧾 Obtenir un devis",
         automation_setup: "⚙️ Mettre en place des automatisations",
         performance_review: "📊 Analyser mes performances digitales",
         reviews: "⭐ Obtenir plus d'avis clients",
-        lead_generation: "📈 Générer plus de prospects",
+        browse_services: "🗂️ Voir les services",
         human: "🎧 Parler à un expert",
         // Google Business Profile sub-menu.
         gbp_audit: "🔎 Audit du profil",
@@ -139,6 +141,7 @@
         automation_emails: "✉️ Automatiser mes emails",
         automation_whatsapp: "🟢 Automatiser WhatsApp",
         automation_crm: "🗂️ Automatiser mon CRM",
+        automation_integrations: "🔗 n8n / Webhooks",
         automation_examples: "💡 Voir des exemples",
         // Lead-generation sub-menu (new leaves only).
         leadgen_forms: "📋 Formulaires",
@@ -164,26 +167,28 @@
       onlineStatus: "Online",
       closeAriaLabel: "Close",
       minimizeAriaLabel: "Minimize",
-      greetingAnonymous: "👋 Hi! Welcome to PUBLIC-MAP.\nHow can we help you today?",
+      greetingAnonymous: "👋 Hi! I'm the PUBLIC-MAP Assistant.\nI can help you with your online presence, SEO, Google Ads, websites and business automation.\n\nWhat would you like to improve today?",
       typingIndicator: "Assistant is typing…",
-      inputPlaceholder: "Write your message…",
+      inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
       errorGeneric: "Something went wrong. Please try again.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
       retry: "Retry",
       suggestionsTitle: "Quick suggestions",
-      showMore: "Show more",
+      showMore: "See all options",
       suggestions: {
+        visibility: "📍 Grow my visibility",
+        lead_generation: "📈 Get more customers",
+        automation: "🤖 Automate my business",
+        website: "🌐 Build/improve my website",
         gbp: "📍 Optimize my Google Business Profile",
         google_ads: "📣 Launch or improve my Google Ads",
         seo: "🔍 Improve my SEO",
-        website: "🌐 Build or redesign my website",
-        automation: "🤖 Automate my business with AI",
         quote: "🧾 Get a quote",
         automation_setup: "⚙️ Set up business automations",
         performance_review: "📊 Analyze my digital performance",
         reviews: "⭐ Get more customer reviews",
-        lead_generation: "📈 Generate more leads",
+        browse_services: "🗂️ See services",
         human: "🎧 Talk to an expert",
         gbp_audit: "🔎 Profile audit",
         gbp_info: "📝 Business info optimization",
@@ -214,6 +219,7 @@
         automation_emails: "✉️ Automate my emails",
         automation_whatsapp: "🟢 Automate WhatsApp",
         automation_crm: "🗂️ Automate my CRM",
+        automation_integrations: "🔗 n8n / Webhooks",
         automation_examples: "💡 See examples",
         leadgen_forms: "📋 Forms",
         leadgen_qualification: "✅ Automatic qualification",
@@ -494,7 +500,7 @@
 
       var header = el("div", { class: "pm-chat-header" }, [
         el("div", {}, [
-          el("p", { class: "pm-chat-header-name", text: t.assistantName }),
+          el("p", { class: "pm-chat-header-name-row" }, [el("span", { class: "pm-chat-header-spark", "aria-hidden": "true", text: "✨" }), el("span", { class: "pm-chat-header-name", text: t.assistantName })]),
           el("p", { class: "pm-chat-header-status" }, [el("span", { class: "pm-chat-header-status-dot", "aria-hidden": "true" }), document.createTextNode(t.onlineStatus)]),
         ]),
         el("div", { class: "pm-chat-header-actions" }, [
