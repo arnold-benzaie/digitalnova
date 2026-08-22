@@ -40,9 +40,9 @@ export type AiProviderOutput = {
  * Provider abstraction (§7/§13 of the approved plan) — the rest of the
  * application (app/api/chat/route.ts, the widget UI) depends only on
  * this interface, never on `lib/chat/ai-mock-provider.ts` directly.
- * Swapping in a real provider in Phase 2 (lib/chat/ai-openai-provider.ts
- * or similar) means adding one new file + one line in getAiProvider()
- * below; nothing else changes.
+ * Confirmed exactly as designed: the Phase 2 real-LLM provider
+ * (lib/chat/ai-openai-provider.ts) was one new file + one branch in
+ * getAiProvider() below — nothing else in the app changed.
  *
  * Deliberately namespaced under lib/chat/ rather than lib/ai/ — this
  * app already has an unrelated, pre-existing `lib/ai/` module (GBP
@@ -57,12 +57,30 @@ export interface AiProvider {
 }
 
 /**
- * Phase 1A: always the mock provider. No env var currently selects a
- * real provider — that selection mechanism is intentionally not built
- * yet (would imply a real provider already exists to select), added
- * only when Phase 2 is explicitly authorized.
+ * Phase 2: `AI_PROVIDER` selects the active provider — Preview-only in
+ * practice, since Production never has this variable set (see the
+ * Phase 2 report's env-var scope confirmation). Any unset/unrecognized
+ * value falls back to the mock, so a missing or misconfigured var can
+ * never accidentally activate a real, paid LLM anywhere — the safe
+ * default stays exactly Phase 1's behavior.
+ *
+ * "deepseek" is a deliberate, inert placeholder (§18 of the request):
+ * the interface is ready for a second provider, but no DeepSeek code,
+ * key, or request exists in this phase — selecting it throws a clear
+ * error rather than silently doing something unexpected.
  */
 export async function getAiProvider(): Promise<AiProvider> {
+  const providerName = process.env.AI_PROVIDER;
+
+  if (providerName === "openai") {
+    const { openaiProvider } = await import("@/lib/chat/ai-openai-provider");
+    return openaiProvider;
+  }
+
+  if (providerName === "deepseek") {
+    throw new Error("AI_PROVIDER=deepseek is not implemented yet — the provider interface is ready, but no DeepSeek integration exists in this phase.");
+  }
+
   const { mockAiProvider } = await import("@/lib/chat/ai-mock-provider");
   return mockAiProvider;
 }
