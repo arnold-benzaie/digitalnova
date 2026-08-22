@@ -186,11 +186,20 @@
   // ---- API -----------------------------------------------------------------
 
   function postChat(body) {
+    // Optional fields (conversationId before any reply has come back yet,
+    // suggestionId when not from a chip) are tracked locally as `null` —
+    // the backend's Zod schemas use .optional(), which accepts an absent
+    // key but rejects a literal null, so strip null/undefined keys here
+    // rather than at every call site.
+    var cleanBody = {};
+    Object.keys(body).forEach(function (key) {
+      if (body[key] !== null && body[key] !== undefined) cleanBody[key] = body[key];
+    });
     return fetch(API_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(body),
+      body: JSON.stringify(cleanBody),
     }).then(function (res) {
       return res.json().then(function (data) {
         if (!res.ok || data.error) {
