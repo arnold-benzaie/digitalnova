@@ -1426,3 +1426,78 @@ export const productEvents = pgTable(
     index("product_events_type_occurred_idx").on(table.eventType, table.occurredAt),
   ],
 );
+
+/**
+ * PUBLIC-MAP AI Assistant (2026-08, Phase 1A — mock provider, see
+ * lib/ai/**) — chat widget conversations and messages.
+ *
+ * A conversation belongs to exactly one of two actors, never both and
+ * never neither: an authenticated user (organizationId + userId set,
+ * resolved server-side via getCurrentSession() — see lib/chat/context.ts,
+ * never trusted from the browser) OR an anonymous visitor (visitorId set,
+ * a random cookie-based id — see lib/chat/visitor.ts — organizationId/
+ * userId left null). This mirrors googleAdsConnections' own
+ * organizationId isolation model for the authenticated case, extended
+ * with a third, deliberately separate anonymous identity that is NEVER
+ * treated as an isolation boundary for authenticated data — only ever
+ * used to let an anonymous visitor's own browser resume ITS OWN
+ * conversation.
+ *
+ * crmClientId is set only once a lead is actually captured through the
+ * widget's lead form (lib/chat/leads.ts) — it points at the SAME
+ * `crmClients` row the CRM module already uses; there is deliberately no
+ * separate `chat_leads` table.
+ */
+export const CHAT_CONVERSATION_STATUSES = ["AI_HANDLED", "NEEDS_HUMAN", "HUMAN_PENDING", "HUMAN_ACTIVE", "CLOSED"] as const;
+
+export const chatConversations = pgTable(
+  "chat_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Nullable + onDelete "set null" (not "cascade"): a conversation
+    // transcript is a support/business record in its own right — deleting
+    // an organization or user must never silently delete the conversation
+    // history that references it, only detach it.
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    // Random, non-sensitive id minted client-side-visible via a cookie for
+    // an anonymous visitor — never a fingerprint, never used as an
+    // isolation boundary for any authenticated data. Null once the
+    // conversation belongs to an authenticated user.
+    visitorId: text("visitor_id"),
+    locale: text("locale").notNull(), // "fr" | "en"
+    status: text("status").notNull().default("AI_HANDLED"), // see CHAT_CONVERSATION_STATUSES
+    crmClientId: uuid("crm_client_id").references(() => crmClients.id, { onDelete: "set null" }),
+    summary: text("summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("chat_conversations_organization_id_idx").on(table.organizationId),
+    index("chat_conversations_user_id_idx").on(table.userId),
+    index("chat_conversations_visitor_id_idx").on(table.visitorId),
+  ],
+);
+
+export const CHAT_SENDER_TYPES = ["visitor", "client", "assistant", "staff"] as const;
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => chatConversations.id, { onDelete: "cascade" }),
+    senderType: text("sender_type").notNull(), // see CHAT_SENDER_TYPES
+    // Length-capped before insert (see lib/chat/messages.ts's MAX_MESSAGE_LENGTH)
+    // — never enforced only at the DB layer.
+    content: text("content").notNull(),
+    // Small structured extras (e.g. { suggestionId } for a clicked
+    // suggested question) — never a token/secret, see lib/chat/messages.ts's
+    // own sanitization, same discipline as product_events.metadata.
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("chat_messages_conversation_id_idx").on(table.conversationId)],
+);

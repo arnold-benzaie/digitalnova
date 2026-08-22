@@ -5,6 +5,7 @@ import { frFR, enUS } from "@clerk/localizations";
 import { APP_NAME } from "@/lib/brand";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import { getLocale } from "@/lib/i18n/locale";
+import { ChatWidgetServer } from "@/components/chat/chat-widget-server";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -59,6 +60,13 @@ export default async function RootLayout({
       >
         <body className="min-h-full flex flex-col bg-pm-blanc text-pm-noir font-sans">
           {children}
+          {/* Mounted once for the whole app (§23 of the AI Assistant plan)
+              — a Server Component (resolves locale/session safely, never
+              redirects a signed-out visitor) rendering a Client Component
+              that lazy-loads the actual widget with ssr:false, since this
+              Next.js version rejects ssr:false directly inside a Server
+              Component like RootLayout. See chat-widget-mount.tsx. */}
+          <ChatWidgetServer />
         </body>
       </html>
     </ClerkProvider>

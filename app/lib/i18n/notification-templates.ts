@@ -179,6 +179,23 @@ const templates: Record<string, (locale: Locale, meta: Record<string, unknown>) 
       body: locale === "en" ? `Current audit score: ${score}/100. Download the PDF from Audits.` : `Score d'audit actuel : ${score}/100. Téléchargez le PDF depuis Audits.`,
     };
   },
+  // AI Assistant widget (2026-08, Phase 1A) — see lib/chat/escalation.ts.
+  // Always routed to the internal PUBLIC-MAP organization, never a client
+  // org, same as "user.pending_approval" above.
+  "chat.human_requested": (locale, meta) => {
+    const actorName = String(meta.actorName ?? "");
+    const organizationName = meta.organizationName ? String(meta.organizationName) : null;
+    const who = organizationName ? `${actorName} (${organizationName})` : actorName;
+    return locale === "en"
+      ? { title: "Chat: human support requested", body: `${who} asked to speak with an advisor.` }
+      : { title: "Chat : demande d'assistance humaine", body: `${who} souhaite parler à un conseiller.` };
+  },
+  "chat.lead_captured": (locale, meta) => {
+    const fullName = String(meta.fullName ?? "");
+    return locale === "en"
+      ? { title: "Chat: new lead captured", body: `${fullName} left their contact details via the chat widget.` }
+      : { title: "Chat : nouveau lead capturé", body: `${fullName} a laissé ses coordonnées via l'assistant.` };
+  },
 };
 
 /** Reads a stored notification row (whatever locale it was written in)

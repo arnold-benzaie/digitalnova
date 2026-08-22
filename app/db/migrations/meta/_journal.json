@@ -183,6 +183,13 @@
       "when": 1786389108209,
       "tag": "0025_opposite_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787391622068,
+      "tag": "0026_silent_loners",
+      "breakpoints": true
     }
   ]
 }
