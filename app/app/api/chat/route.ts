@@ -33,12 +33,17 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
  */
 const ALLOWED_ORIGINS = new Set([
   "https://app.public-map.com",
-  // Phase 1B target (not yet wired into the static site — see the
-  // approved plan) — allow-listed now so the API itself needs no further
-  // change when that phase is authorized.
+  // Production targets — NOT live yet (this code has never been deployed
+  // to Production); kept listed since Phase 1A so the eventual Production
+  // cutover needs no further change here.
   "https://www.public-map.com",
   "https://public-map.com",
   "http://localhost:3000",
+  // Phase 1B — Preview-only, the static site's own branch-alias origin
+  // for preview/ai-assistant-widget (digitalnova project). Never added
+  // to any Production allowlist — see the Phase 1B report for the exact
+  // separate step required before that.
+  "https://digitalnova-git-preview-ai-assi-a480b1-arnold-benzaies-projects.vercel.app",
 ]);
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -120,7 +125,7 @@ async function handleMessage(context: ChatContext, body: z.infer<typeof sendMess
 
   const history = await getRecentMessagesForProvider(conversation.id);
   const provider = await getAiProvider();
-  const result = await provider.generateReply({ locale: body.locale, userMessage: body.content, history, context });
+  const result = await provider.generateReply({ locale: body.locale, userMessage: body.content, history, context, surface: body.surface });
 
   await appendMessage(conversation.id, "assistant", result.reply);
 

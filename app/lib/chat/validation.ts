@@ -19,6 +19,16 @@ const uuidLikeSchema = z.string().uuid();
 // stricter check.
 const visitorIdSchema = z.string().min(1).max(64).optional();
 
+// Phase 1B: which embed sent this request — "app" (Next.js dashboard
+// widget, Phase 1A) or "site" (public-map.com marketing embed). Not a
+// trust/authorization signal (ChatContext's kind is still resolved
+// server-side from the session, exactly as before) — this only selects
+// which canned suggestion chips/copy the mock provider returns, since an
+// anonymous marketing-site prospect and a signed-in dashboard user need
+// different ones. Defaults to "app" when absent so every existing
+// Phase 1A request/test is byte-identical.
+const surfaceSchema = z.enum(["app", "site"]).optional();
+
 export const sendMessageSchema = z.object({
   type: z.literal("message"),
   conversationId: uuidLikeSchema.optional(),
@@ -26,6 +36,7 @@ export const sendMessageSchema = z.object({
   locale: localeSchema,
   visitorId: visitorIdSchema,
   suggestionId: z.string().max(64).optional(),
+  surface: surfaceSchema,
 });
 
 export const leadSubmitSchema = z.object({

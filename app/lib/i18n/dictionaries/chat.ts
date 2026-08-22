@@ -47,6 +47,7 @@ export const chat = {
         seo: "Améliorer mon référencement SEO",
         website: "Créer ou améliorer mon site web",
         automation: "Automatiser mon entreprise",
+        quote: "Obtenir un devis",
       } as Record<string, string>,
     },
     leadForm: {
@@ -110,6 +111,7 @@ export const chat = {
         seo: "Improve my SEO",
         website: "Create or improve my website",
         automation: "Automate my business",
+        quote: "Get a quote",
       } as Record<string, string>,
     },
     leadForm: {

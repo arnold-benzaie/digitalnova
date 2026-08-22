@@ -23,6 +23,11 @@ export type AiProviderInput = {
    * conversation history. */
   history: ChatMessageRow[];
   context: ChatContext;
+  /** Which embed sent this request (see validation.ts's surfaceSchema) —
+   * "app" (Next.js dashboard widget) by default, or "site" (public-map.com
+   * marketing embed, Phase 1B). Purely a copy/suggestion-set selector,
+   * never an authorization input. */
+  surface?: "app" | "site";
 };
 
 export type AiProviderOutput = {

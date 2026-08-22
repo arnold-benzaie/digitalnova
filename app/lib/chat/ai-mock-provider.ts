@@ -43,6 +43,21 @@ function matchesAny(message: string, needles: string[]): boolean {
 
 const DEFAULT_SUGGESTIONS: AiSuggestion[] = [{ id: "google_ads" }, { id: "how_it_works" }, { id: "performance" }, { id: "account_help" }, { id: "human" }];
 
+/**
+ * Phase 1B: public-map.com visitors are anonymous prospects, not signed-in
+ * dashboard users — "how_it_works"/"performance"/"account_help" all
+ * presuppose an existing PUBLIC-MAP account, which reads oddly to someone
+ * who hasn't signed up yet (see the Phase 1B report's architecture-audit
+ * notes). Swaps in prospect-facing chips instead: discovering/optimizing
+ * services and getting a quote, keeping "google_ads" and "human" since
+ * both already read naturally pre-signup.
+ */
+const SITE_SUGGESTIONS: AiSuggestion[] = [{ id: "gbp" }, { id: "google_ads" }, { id: "seo" }, { id: "website" }, { id: "quote" }, { id: "human" }];
+
+function suggestionsFor(input: AiProviderInput): AiSuggestion[] {
+  return input.surface === "site" ? SITE_SUGGESTIONS : DEFAULT_SUGGESTIONS;
+}
+
 function unknownFallback(locale: "fr" | "en"): string {
   return locale === "en"
     ? "I'd rather not give you uncertain information. I can forward your request to a PUBLIC-MAP advisor."
@@ -83,7 +98,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "Sure. PUBLIC-MAP can help you optimize your Google Business Profile. Would you like to improve your local visibility, your business information, your customer reviews, or your overall performance?"
           : "Bien sûr. PUBLIC-MAP peut vous accompagner dans l'optimisation de votre profil Google Business. Souhaitez-vous améliorer votre visibilité locale, vos informations, vos avis clients ou vos performances générales ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -93,7 +108,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "PUBLIC-MAP can help you set up and monitor Google Ads campaigns. To start, what's your main goal: getting leads, generating calls, selling online, or increasing visibility?"
           : "PUBLIC-MAP peut vous accompagner dans la création et le suivi de campagnes Google Ads. Pour commencer, quel est votre principal objectif : obtenir des prospects, générer des appels, vendre en ligne ou augmenter votre visibilité ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -103,7 +118,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "PUBLIC-MAP can help improve your local and national SEO, and track your Google Search Console performance. Would you like to focus on local search, national search, or technical SEO?"
           : "PUBLIC-MAP peut vous aider à améliorer votre référencement local et national, et suivre vos performances Google Search Console. Souhaitez-vous vous concentrer sur le référencement local, national ou technique ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -113,7 +128,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "PUBLIC-MAP can help you create or improve your website and landing pages. Do you already have a website, or are you starting from scratch?"
           : "PUBLIC-MAP peut vous accompagner pour créer ou améliorer votre site web et vos landing pages. Avez-vous déjà un site, ou partez-vous de zéro ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -123,7 +138,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "PUBLIC-MAP can help automate parts of your business and connect your tools together. What would you like to automate first?"
           : "PUBLIC-MAP peut vous aider à automatiser certaines tâches de votre entreprise et à connecter vos outils. Qu'aimeriez-vous automatiser en premier ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -133,7 +148,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "You can track your performance directly from your PUBLIC-MAP dashboard — Google Business Profile, Search Console, Analytics, and Google Ads all have their own section. Would you like help finding one of them?"
           : "Vous pouvez suivre vos performances directement depuis votre tableau de bord PUBLIC-MAP — Google Business Profile, Search Console, Analytics et Google Ads ont chacun leur propre section. Voulez-vous de l'aide pour retrouver l'une d'elles ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -143,7 +158,7 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "PUBLIC-MAP centralizes your Google Business Profile, Search Console, Analytics, and Google Ads in one dashboard, with audits and recommendations to help you grow. What would you like to know more about?"
           : "PUBLIC-MAP centralise votre Google Business Profile, Search Console, Analytics et Google Ads dans un seul tableau de bord, avec des audits et des recommandations pour vous aider à progresser. Que souhaitez-vous en savoir plus ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
@@ -153,11 +168,11 @@ async function generateReply(input: AiProviderInput): Promise<AiProviderOutput> 
         locale === "en"
           ? "I can help with your account. Is this about connecting a Google integration, your organization settings, or something else?"
           : "Je peux vous aider avec votre compte. S'agit-il de connecter une intégration Google, des paramètres de votre organisation, ou autre chose ?",
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: suggestionsFor(input),
     };
   }
 
-  return { reply: unknownFallback(locale), action: { type: "show_lead_form" }, suggestions: DEFAULT_SUGGESTIONS };
+  return { reply: unknownFallback(locale), action: { type: "show_lead_form" }, suggestions: suggestionsFor(input) };
 }
 
 export const mockAiProvider: AiProvider = { generateReply };
