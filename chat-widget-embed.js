@@ -50,6 +50,18 @@
   var WELCOME_BUBBLE_AUTO_DISMISS_MS = 10000;
   var WELCOME_BUBBLE_FADE_MS = 250;
 
+  // Phase 1C — the "Suggestions rapides" bootstrap shown alongside the
+  // greeting on a fresh panel open, before any real exchange exists (so
+  // before the backend has ever been asked for suggestions). Ids only —
+  // must exactly mirror lib/chat/ai-mock-provider.ts's SITE_SUGGESTIONS
+  // (main) and the four extra "voir plus" topics; clicking any of them
+  // still calls the SAME postChat()/mock provider as every other
+  // suggestion — no parallel system. "human" is deliberately excluded
+  // from both arrays: it gets its own persistent full-width CTA instead
+  // (see renderInitialSuggestions).
+  var INITIAL_SUGGESTIONS_MAIN = ["gbp", "google_ads", "seo", "website", "automation", "quote"];
+  var INITIAL_SUGGESTIONS_MORE = ["automation_setup", "performance_review", "reviews", "lead_generation"];
+
   // ---- Strings (mirrors app/lib/i18n/dictionaries/chat.ts) ---------------
 
   var PM_CHAT_STRINGS = {
@@ -69,20 +81,68 @@
       errorGeneric: "Une erreur est survenue. Veuillez réessayer.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
       retry: "Réessayer",
-      // Marketing-site suggestion set (Phase 1B §4) — distinct from the
-      // Next.js dashboard widget's chips (lib/i18n/dictionaries/chat.ts):
-      // an anonymous public-map.com visitor is a prospect, not a signed-in
-      // user, so labels stay prospect-facing. Ids match exactly what
-      // lib/chat/ai-mock-provider.ts's SITE_SUGGESTIONS returns when the
-      // request carries surface:"site" (see postChat below) — gbp,
-      // google_ads, seo, website, quote, human.
+      suggestionsTitle: "Suggestions rapides",
+      showMore: "Voir plus",
+      // Marketing-site suggestion set (Phase 1B §4, enriched Phase 1C) —
+      // distinct from the Next.js dashboard widget's chips
+      // (lib/i18n/dictionaries/chat.ts): an anonymous public-map.com
+      // visitor is a prospect, not a signed-in user, so labels stay
+      // prospect-facing. Every id here matches exactly one branch/leaf in
+      // lib/chat/ai-mock-provider.ts (see that file's SITE_SUGGESTIONS,
+      // *_SUB_SUGGESTIONS and SITE_LEAVES) — clicking any of these cards
+      // sends this exact label text as a real message (see sendMessage),
+      // never a second, decorative-only chip.
       suggestions: {
-        gbp: "Optimiser mon Google Business Profile",
-        google_ads: "Lancer Google Ads",
-        seo: "Améliorer mon SEO",
-        website: "Créer un site web",
-        quote: "Obtenir un devis",
-        human: "Parler à quelqu'un",
+        // Main 6 + "voir plus" 4 + human's dedicated CTA.
+        gbp: "📍 Optimiser mon Google Business Profile",
+        google_ads: "📣 Lancer ou améliorer mes Google Ads",
+        seo: "🔍 Améliorer mon SEO",
+        website: "🌐 Créer ou refaire mon site web",
+        automation: "🤖 Automatiser mon entreprise avec l'IA",
+        quote: "🧾 Obtenir un devis",
+        automation_setup: "⚙️ Mettre en place des automatisations",
+        performance_review: "📊 Analyser mes performances digitales",
+        reviews: "⭐ Obtenir plus d'avis clients",
+        lead_generation: "📈 Générer plus de prospects",
+        human: "🎧 Parler à un expert",
+        // Google Business Profile sub-menu.
+        gbp_audit: "🔎 Audit du profil",
+        gbp_info: "📝 Optimisation des informations",
+        seo_local: "📍 SEO local",
+        gbp_reviews: "⭐ Gestion des avis",
+        gbp_posts: "🗞️ Publications",
+        gbp_photos: "📷 Photos",
+        gbp_performance: "📈 Suivi des performances",
+        // Google Ads sub-menu.
+        ads_new_campaign: "🚀 Créer une campagne",
+        ads_audit: "🔎 Auditer une campagne existante",
+        ads_search: "🔍 Search",
+        ads_pmax: "⚡ Performance Max",
+        ads_display: "🖼️ Display",
+        ads_conversion_tracking: "🎯 Suivi des conversions",
+        ads_reports: "📄 Rapports",
+        // SEO sub-menu.
+        seo_technical: "⚙️ SEO technique",
+        seo_keywords: "🔑 Recherche de mots-clés",
+        seo_pages: "📄 Optimisation des pages",
+        seo_search_console: "🛠️ Search Console",
+        seo_audit: "🔎 Audit SEO",
+        // Website sub-menu.
+        website_showcase: "🏠 Site vitrine",
+        website_booking: "📅 Réservation",
+        website_ecommerce: "🛒 E-commerce",
+        website_landing: "🎯 Landing page",
+        website_custom: "🧩 Plateforme personnalisée",
+        // Automation sub-menu.
+        automation_leads: "📥 Automatiser mes leads",
+        automation_support: "💬 Automatiser mon support client",
+        automation_emails: "✉️ Automatiser mes emails",
+        automation_whatsapp: "🟢 Automatiser WhatsApp",
+        automation_crm: "🗂️ Automatiser mon CRM",
+        automation_examples: "💡 Voir des exemples",
+        // Lead-generation sub-menu (new leaves only).
+        leadgen_forms: "📋 Formulaires",
+        leadgen_qualification: "✅ Qualification automatique",
       },
       leadFormTitle: "Laissez-nous vos coordonnées",
       leadFullName: "Nom complet",
@@ -111,13 +171,52 @@
       errorGeneric: "Something went wrong. Please try again.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
       retry: "Retry",
+      suggestionsTitle: "Quick suggestions",
+      showMore: "Show more",
       suggestions: {
-        gbp: "Optimize my Google Business Profile",
-        google_ads: "Launch Google Ads",
-        seo: "Improve my SEO",
-        website: "Build a website",
-        quote: "Get a quote",
-        human: "Talk to someone",
+        gbp: "📍 Optimize my Google Business Profile",
+        google_ads: "📣 Launch or improve my Google Ads",
+        seo: "🔍 Improve my SEO",
+        website: "🌐 Build or redesign my website",
+        automation: "🤖 Automate my business with AI",
+        quote: "🧾 Get a quote",
+        automation_setup: "⚙️ Set up business automations",
+        performance_review: "📊 Analyze my digital performance",
+        reviews: "⭐ Get more customer reviews",
+        lead_generation: "📈 Generate more leads",
+        human: "🎧 Talk to an expert",
+        gbp_audit: "🔎 Profile audit",
+        gbp_info: "📝 Business info optimization",
+        seo_local: "📍 Local SEO",
+        gbp_reviews: "⭐ Reviews management",
+        gbp_posts: "🗞️ Posts",
+        gbp_photos: "📷 Photos",
+        gbp_performance: "📈 Performance tracking",
+        ads_new_campaign: "🚀 Create a campaign",
+        ads_audit: "🔎 Audit an existing campaign",
+        ads_search: "🔍 Search",
+        ads_pmax: "⚡ Performance Max",
+        ads_display: "🖼️ Display",
+        ads_conversion_tracking: "🎯 Conversion tracking",
+        ads_reports: "📄 Reports",
+        seo_technical: "⚙️ Technical SEO",
+        seo_keywords: "🔑 Keyword research",
+        seo_pages: "📄 Page optimization",
+        seo_search_console: "🛠️ Search Console",
+        seo_audit: "🔎 SEO audit",
+        website_showcase: "🏠 Showcase website",
+        website_booking: "📅 Booking website",
+        website_ecommerce: "🛒 E-commerce",
+        website_landing: "🎯 Landing page",
+        website_custom: "🧩 Custom platform",
+        automation_leads: "📥 Automate my leads",
+        automation_support: "💬 Automate my customer support",
+        automation_emails: "✉️ Automate my emails",
+        automation_whatsapp: "🟢 Automate WhatsApp",
+        automation_crm: "🗂️ Automate my CRM",
+        automation_examples: "💡 See examples",
+        leadgen_forms: "📋 Forms",
+        leadgen_qualification: "✅ Automatic qualification",
       },
       leadFormTitle: "Leave us your contact details",
       leadFullName: "Full name",
@@ -450,7 +549,67 @@
       displayMessages.forEach(function (message) {
         messagesEl.appendChild(renderMessageBubble(message));
       });
+      // Phase 1C: "Suggestions rapides" appears immediately alongside the
+      // greeting, before any real exchange — once the visitor sends a
+      // first message, messages.length is never 0 again for this
+      // conversation, so this naturally stops rendering (see sendMessage).
+      if (messages.length === 0) {
+        messagesEl.appendChild(renderInitialSuggestions());
+      }
       messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // ---- Suggestion cards (Phase 1C) ---------------------------------------
+    // Every label is "EMOJI title" (see PM_CHAT_STRINGS.suggestions) — split
+    // once here so the card can lay the icon and the short title out
+    // separately instead of wrapping them as one run of text.
+    function buildSuggestionCard(id, label) {
+      var match = /^(\S+)\s+([\s\S]+)$/.exec(label);
+      var iconText = match ? match[1] : "💬";
+      var titleText = match ? match[2] : label;
+      var card = el("button", { type: "button", class: "pm-chat-suggestion-card" }, [
+        el("span", { class: "pm-chat-suggestion-icon", "aria-hidden": "true", text: iconText }),
+        el("span", { class: "pm-chat-suggestion-label", text: titleText }),
+      ]);
+      card.addEventListener("click", function () {
+        sendMessage(label, id);
+      });
+      return card;
+    }
+
+    function buildSuggestionGrid(ids) {
+      var grid = el("div", { class: "pm-chat-suggestions-grid" });
+      ids.forEach(function (id) {
+        var label = t.suggestions[id];
+        if (!label) return;
+        grid.appendChild(buildSuggestionCard(id, label));
+      });
+      return grid;
+    }
+
+    function renderInitialSuggestions() {
+      var section = el("div", { class: "pm-chat-initial-suggestions" });
+      section.appendChild(el("p", { class: "pm-chat-suggestions-title", text: t.suggestionsTitle }));
+      section.appendChild(buildSuggestionGrid(INITIAL_SUGGESTIONS_MAIN));
+
+      var moreGrid = buildSuggestionGrid(INITIAL_SUGGESTIONS_MORE);
+      moreGrid.hidden = true;
+      var moreBtn = el("button", { type: "button", class: "pm-chat-suggestions-more-btn", text: t.showMore });
+      moreBtn.addEventListener("click", function () {
+        moreGrid.hidden = false;
+        moreBtn.remove();
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
+      section.appendChild(moreBtn);
+      section.appendChild(moreGrid);
+
+      var expertBtn = el("button", { type: "button", class: "pm-chat-expert-btn", text: t.suggestions.human });
+      expertBtn.addEventListener("click", function () {
+        sendMessage(t.suggestions.human, "human");
+      });
+      section.appendChild(expertBtn);
+
+      return section;
     }
 
     function renderMessageBubble(message) {
@@ -477,16 +636,7 @@
       var existing = panel.querySelector(".pm-chat-suggestions");
       if (existing) existing.remove();
       if (showLeadForm || suggestions.length === 0) return;
-      var wrap = el("div", { class: "pm-chat-suggestions" });
-      suggestions.forEach(function (id) {
-        var label = t.suggestions[id];
-        if (!label) return;
-        var btn = el("button", { type: "button", class: "pm-chat-suggestion-btn", text: label });
-        btn.addEventListener("click", function () {
-          sendMessage(label, id);
-        });
-        wrap.appendChild(btn);
-      });
+      var wrap = el("div", { class: "pm-chat-suggestions" }, [buildSuggestionGrid(suggestions)]);
       messagesEl.appendChild(wrap);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
