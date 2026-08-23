@@ -73,3 +73,18 @@ test("resolveConversationLanguage: history scan ignores assistant messages and f
   const result = resolveConversationLanguage({ currentMessage: "ok", interfaceLocale: undefined, history });
   assert.equal(result, "en");
 });
+
+// Regression: found via a real Preview live test — "Que me conseillez-vous ?"
+// has no accented character and no verb from the old short phrase list,
+// so it went undetected and incorrectly fell through to the interface
+// locale instead of "fr".
+test("detectClearMessageLanguage: unaccented French questions with common function words are still detected (regression)", () => {
+  assert.equal(detectClearMessageLanguage("Que me conseillez-vous ?"), "fr");
+  assert.equal(detectClearMessageLanguage("Que faites-vous ?"), "fr");
+  assert.equal(detectClearMessageLanguage("Vous pouvez m'aider ?"), "fr");
+});
+
+test("detectClearMessageLanguage: everyday English questions are detected via common function words", () => {
+  assert.equal(detectClearMessageLanguage("What would you recommend?"), "en");
+  assert.equal(detectClearMessageLanguage("Can you help me with this?"), "en");
+});

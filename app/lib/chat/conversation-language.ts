@@ -22,14 +22,30 @@ import type { ChatMessageRow } from "@/lib/chat/messages";
  */
 export type ConversationLanguage = "fr" | "en";
 
-// Deliberately conservative: short, unambiguous, high-signal markers only
-// (accented characters, elided apostrophes, and common function words
-// that essentially never appear in the other language). A message that
-// doesn't clearly hit one side falls through to the next priority rule
-// instead of guessing — this is what stops a single ambiguous word from
-// flipping an established conversation.
-const FRENCH_ONLY_PATTERN = /[àâäéèêëîïôöùûüçœ]|\bbonjour\b|\bbonsoir\b|\bsalut\b|\bcoucou\b|\bmerci\b|\bs'il\s?vous\s?pla[iî]t\b|\bc'est\b|\bje\s+(?:veux|voudrais|suis|cherche|ai|n'ai)\b|\bcombien\s+(?:ça|cela)\s+co[uû]te\b|\bpouvez[- ]vous\b|\bavez[- ]vous\b|\best[- ]ce\s+que\b/i;
-const ENGLISH_ONLY_PATTERN = /\bhello\b|\bhi\b|\bhey\b|\bthanks\b|\bthank\s+you\b|\bplease\b|\bi\s+(?:want|would|have|am|need|run)\b|\bhow\s+much\b|\bwould\s+you\b|\bcan\s+you\b|\bdo\s+you\b|\bis\s+there\b/i;
+// Deliberately conservative: accented characters, elided apostrophes,
+// and common function words that essentially never appear in the other
+// language. Widened after a real Preview test surfaced a gap — "Que me
+// conseillez-vous ?" (no accents, no verb from the old short list) went
+// undetected and fell through to the interface locale instead of "fr".
+// Rather than keep chasing individual phrases, this now checks a broad
+// set of everyday function words (pronouns, articles, conjunctions,
+// common verbs) via whole-word matching — words that essentially never
+// occur in the other language, so a hit on one side with none on the
+// other stays a safe, unambiguous signal. A message that hits BOTH or
+// NEITHER still falls through to the next priority rule instead of
+// guessing.
+const FRENCH_WORDS =
+  /\b(?:je|tu|il|elle|nous|vous|ils|elles|le|la|les|un|une|des|du|au|aux|et|ou|mais|donc|car|ne|pas|plus|très|bien|avec|sans|pour|dans|sur|sous|chez|que|qui|quoi|comment|pourquoi|quand|où|est|êtes|sommes|avez|faites|conseillez|conseillez-vous|voudrais|voulez|aimerais|pouvez|cherche|cherchez|besoin|merci|bonjour|bonsoir|salut|coucou|oui|non|c'est|s'il)\b/i;
+const ENGLISH_WORDS =
+  /\b(?:the|is|are|you|your|what|how|why|when|where|do|does|would|could|should|want|need|have|has|and|or|but|with|without|for|this|that|these|those|please|thanks|thank|hello|hi|hey|yes|no|run|advise|recommend)\b/i;
+const FRENCH_ACCENTS = /[àâäéèêëîïôöùûüçœ]/i;
+
+function hasFrenchSignal(text: string): boolean {
+  return FRENCH_ACCENTS.test(text) || FRENCH_WORDS.test(text);
+}
+function hasEnglishSignal(text: string): boolean {
+  return ENGLISH_WORDS.test(text);
+}
 
 // A deliberate mid-conversation switch request always wins over the
 // generic marker lists above, checked first.
@@ -44,8 +60,8 @@ export function detectClearMessageLanguage(message: string): ConversationLanguag
   if (!trimmed) return null;
   if (SWITCH_TO_ENGLISH.test(trimmed)) return "en";
   if (SWITCH_TO_FRENCH.test(trimmed)) return "fr";
-  const frenchHit = FRENCH_ONLY_PATTERN.test(trimmed);
-  const englishHit = ENGLISH_ONLY_PATTERN.test(trimmed);
+  const frenchHit = hasFrenchSignal(trimmed);
+  const englishHit = hasEnglishSignal(trimmed);
   if (frenchHit && !englishHit) return "fr";
   if (englishHit && !frenchHit) return "en";
   return null;
