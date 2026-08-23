@@ -24,20 +24,31 @@ export type ConversationLanguage = "fr" | "en";
 
 // Deliberately conservative: accented characters, elided apostrophes,
 // and common function words that essentially never appear in the other
-// language. Widened after a real Preview test surfaced a gap — "Que me
-// conseillez-vous ?" (no accents, no verb from the old short list) went
-// undetected and fell through to the interface locale instead of "fr".
-// Rather than keep chasing individual phrases, this now checks a broad
-// set of everyday function words (pronouns, articles, conjunctions,
-// common verbs) via whole-word matching — words that essentially never
-// occur in the other language, so a hit on one side with none on the
-// other stays a safe, unambiguous signal. A message that hits BOTH or
-// NEITHER still falls through to the next priority rule instead of
-// guessing.
+// language. Widened twice after real Preview tests surfaced gaps:
+// 1) "Que me conseillez-vous ?" (no accents, no verb from the initial
+//    short list) went undetected and fell through to the interface
+//    locale instead of "fr".
+// 2) "I'd like to talk to someone" — after an explicit FR->EN switch on
+//    the app surface — also went undetected. There, falling through to
+//    the interface locale is worse than on the site: the app has no
+//    in-chat FR/EN toggle, so the interface locale sent with every
+//    request is the page's fixed locale, not a live signal — an
+//    undetected message silently pulled the conversation back to the
+//    page's original language instead of respecting the switch. Adding
+//    "i"/"i'd"/"i'll"/"i'm"/"i've" (a first-person pronoun that is, on
+//    its own, essentially exclusively English in this context) plus
+//    "talk"/"speak"/"someone" and their French counterparts closes this
+//    specific gap without changing the priority order itself.
+// Rather than keep chasing individual phrases, this checks a broad set
+// of everyday function words (pronouns, articles, conjunctions, common
+// verbs) via whole-word matching — words that essentially never occur in
+// the other language, so a hit on one side with none on the other stays
+// a safe, unambiguous signal. A message that hits BOTH or NEITHER still
+// falls through to the next priority rule instead of guessing.
 const FRENCH_WORDS =
-  /\b(?:je|tu|il|elle|nous|vous|ils|elles|le|la|les|un|une|des|du|au|aux|et|ou|mais|donc|car|ne|pas|plus|très|bien|avec|sans|pour|dans|sur|sous|chez|que|qui|quoi|comment|pourquoi|quand|où|est|êtes|sommes|avez|faites|conseillez|conseillez-vous|voudrais|voulez|aimerais|pouvez|cherche|cherchez|besoin|merci|bonjour|bonsoir|salut|coucou|oui|non|c'est|s'il)\b/i;
+  /\b(?:je|tu|il|elle|nous|vous|ils|elles|le|la|les|un|une|des|du|au|aux|et|ou|mais|donc|car|ne|pas|plus|très|bien|avec|sans|pour|dans|sur|sous|chez|que|qui|quoi|comment|pourquoi|quand|où|est|êtes|sommes|avez|faites|conseillez|conseillez-vous|voudrais|voulez|aimerais|pouvez|cherche|cherchez|besoin|merci|bonjour|bonsoir|salut|coucou|oui|non|c'est|s'il|quelqu'un|parler)\b/i;
 const ENGLISH_WORDS =
-  /\b(?:the|is|are|you|your|what|how|why|when|where|do|does|would|could|should|want|need|have|has|and|or|but|with|without|for|this|that|these|those|please|thanks|thank|hello|hi|hey|yes|no|run|advise|recommend)\b/i;
+  /\b(?:the|is|are|you|your|what|how|why|when|where|do|does|would|could|should|want|need|have|has|and|or|but|with|without|for|this|that|these|those|please|thanks|thank|hello|hi|hey|yes|no|run|advise|recommend|i|i'd|i'll|i'm|i've|talk|speak|someone)\b/i;
 const FRENCH_ACCENTS = /[àâäéèêëîïôöùûüçœ]/i;
 
 function hasFrenchSignal(text: string): boolean {

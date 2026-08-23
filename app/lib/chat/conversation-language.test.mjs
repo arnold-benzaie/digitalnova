@@ -88,3 +88,30 @@ test("detectClearMessageLanguage: everyday English questions are detected via co
   assert.equal(detectClearMessageLanguage("What would you recommend?"), "en");
   assert.equal(detectClearMessageLanguage("Can you help me with this?"), "en");
 });
+
+// Regression: found via a real Preview live test on the app dashboard
+// widget — after an explicit FR->EN switch, "I'd like to talk to
+// someone" matched no word in either list (no "the/is/you/want...", no
+// "je/vous/voudrais..."), so it fell through to the interface locale.
+// On the app surface that locale is the page's fixed, non-reactive
+// value ("fr" in the test), silently pulling an established English
+// conversation back to French — visible as a French lead-form title
+// right after an English switch.
+test("detectClearMessageLanguage: first-person English requests without a common function word are still detected (regression)", () => {
+  assert.equal(detectClearMessageLanguage("I'd like to talk to someone"), "en");
+  assert.equal(detectClearMessageLanguage("I'll take a look"), "en");
+  assert.equal(detectClearMessageLanguage("I'm ready to start"), "en");
+  assert.equal(detectClearMessageLanguage("I've decided to go ahead"), "en");
+});
+
+test("detectClearMessageLanguage: the French counterpart phrase is still detected", () => {
+  assert.equal(detectClearMessageLanguage("Je voudrais parler à quelqu'un"), "fr");
+});
+
+test("resolveConversationLanguage: an established switch to English survives a message the interface locale alone would have reverted (regression)", () => {
+  const history = [userMsg("Bonjour, j'ai un commerce local"), assistantMsg("..."), userMsg("Can we continue in English?"), assistantMsg("Sure!"), userMsg("What would you suggest?"), assistantMsg("...")];
+  // interfaceLocale is still "fr" here — the app surface never changes
+  // it mid-chat, exactly the real-world condition that exposed the bug.
+  const result = resolveConversationLanguage({ currentMessage: "I'd like to talk to someone", interfaceLocale: "fr", history });
+  assert.equal(result, "en");
+});
