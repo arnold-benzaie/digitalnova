@@ -719,7 +719,10 @@
         }
       });
       sendBtn.addEventListener("click", submitDraft);
-      var calendarBtn = el("button", { type: "button", class: "pm-chat-calendar-btn", "aria-label": t.calendarAriaLabel, title: t.calendarAriaLabel }, [calendarIcon()]);
+      // The real 📅 glyph, not a drawn/outline icon (per explicit
+      // request) — same treatment as the emoji picker's own trigger
+      // ("😊" span), for visual consistency in this row.
+      var calendarBtn = el("button", { type: "button", class: "pm-chat-calendar-btn", "aria-label": t.calendarAriaLabel, title: t.calendarAriaLabel }, [el("span", { "aria-hidden": "true", text: "📅" })]);
       // Same lead-form path as the AI action / advisor-CTA triggers
       // (renderLeadForm()) — never a parallel form/system. Can fire
       // before any message has been sent; postChat's own null-stripping
@@ -1188,13 +1191,6 @@
     }
     function sendIcon() {
       return svg('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
-    }
-    // Same geometry as lucide-react's own "calendar" icon (used by the
-    // React widget's equivalent button) — hand-copied here, no icon
-    // library on the static site (same approach as every other icon in
-    // this file).
-    function calendarIcon() {
-      return svg('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>');
     }
     // Delivery-status icons — same shapes as the React widget's lucide
     // Clock/CheckCheck/AlertCircle, hand-copied here for visual parity

@@ -560,6 +560,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 18px; /* same treatment as .pm-chat-emoji-btn's own emoji glyph */
+  line-height: 1;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
 .pm-chat-calendar-btn:hover { border-color: var(--pm-bleu); color: var(--pm-bleu); }

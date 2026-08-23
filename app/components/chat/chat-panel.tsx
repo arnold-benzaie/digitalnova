@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Minus, RotateCcw, Send, X } from "lucide-react";
+import { Minus, RotateCcw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
@@ -196,7 +196,12 @@ export function ChatPanel({
           onClick={onOpenBooking}
           className="shrink-0"
         >
-          <Calendar className="size-4" aria-hidden="true" />
+          {/* The real 📅 glyph, not a drawn/outline icon (per explicit
+           * request) — same treatment as the emoji-picker trigger's own
+           * "😊" span just above, for visual consistency in this row. */}
+          <span aria-hidden="true" className="text-base leading-none">
+            📅
+          </span>
         </Button>
         <Button type="submit" size="icon" aria-label={t.input.sendAriaLabel} disabled={!draft.trim()} className="shrink-0 bg-pm-noir hover:bg-pm-noir/90">
           <Send className="size-4" aria-hidden="true" />
