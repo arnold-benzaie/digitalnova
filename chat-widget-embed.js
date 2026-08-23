@@ -616,13 +616,26 @@
     // it, same two dismissal patterns as the React version) — stays open
     // across multiple emoji picks so several can be inserted without
     // reopening it each time.
-    function buildEmojiPicker() {
+    // `anchorEl` (the input bar, not this picker's own small wrap) is
+    // where the popover actually gets appended and positioned against —
+    // §Phase 1D added a calendar button between the emoji button and
+    // Send, which shifts the emoji wrap's own on-screen position by that
+    // button's width every time a sibling is added/removed next to it.
+    // Anchoring the (fixed-width) popover to the wrap's `right: 0` used
+    // to just barely fit; the shift pushed its left edge past the
+    // panel's own left edge on common viewport widths, silently clipping
+    // it there (confirmed via a real Preview boundingBox comparison
+    // against Production) — clickable-looking in the DOM, invisible and
+    // unclickable in the browser. Anchoring to the input bar's own right
+    // edge instead is stable regardless of how many buttons sit between
+    // the emoji button and Send.
+    function buildEmojiPicker(anchorEl) {
       var wrap = el("div", { class: "pm-chat-emoji-wrap" });
       var btn = el("button", { type: "button", class: "pm-chat-emoji-btn", "aria-label": t.emojiAriaLabel, "aria-haspopup": "true", "aria-expanded": "false" }, [el("span", { "aria-hidden": "true", text: "😊" })]);
       var menu = null;
 
       function onOutside(e) {
-        if (!wrap.contains(e.target)) closeMenu();
+        if (!wrap.contains(e.target) && !(menu && menu.contains(e.target))) closeMenu();
       }
       // The panel itself already has its OWN document-level Escape
       // handler (closePanel(), registered in the bubble phase when the
@@ -662,7 +675,7 @@
           });
           menu.appendChild(item);
         });
-        wrap.appendChild(menu);
+        anchorEl.appendChild(menu);
         btn.setAttribute("aria-expanded", "true");
         document.addEventListener("pointerdown", onOutside);
         document.addEventListener("keydown", onEscape, true);
@@ -718,7 +731,7 @@
         renderLeadForm();
       });
       inputBar.appendChild(inputEl);
-      inputBar.appendChild(buildEmojiPicker());
+      inputBar.appendChild(buildEmojiPicker(inputBar));
       inputBar.appendChild(calendarBtn);
       inputBar.appendChild(sendBtn);
 

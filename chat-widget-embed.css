@@ -483,6 +483,7 @@
 .pm-chat-lead-cancel { background: transparent; border-color: var(--pm-gris-2); color: var(--pm-noir); }
 
 .pm-chat-input-bar {
+  position: relative; /* the emoji popover anchors here, not to its own small button wrap — stays put regardless of how many buttons sit between it and Send */
   flex-shrink: 0;
   border-top: 1px solid var(--pm-gris-2);
   padding: 12px;

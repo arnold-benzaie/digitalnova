@@ -168,7 +168,7 @@ export function ChatPanel({
           event.preventDefault();
           submitDraft();
         }}
-        className="flex shrink-0 items-end gap-2 border-t border-pm-gris-2 p-3"
+        className="relative flex shrink-0 items-end gap-2 border-t border-pm-gris-2 p-3"
       >
         <Textarea
           ref={textareaRef}

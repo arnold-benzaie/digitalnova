@@ -51,7 +51,18 @@ export function ChatEmojiPicker({ ariaLabel, onSelect }: { ariaLabel: string; on
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    // Deliberately NOT `relative` here — the popover below anchors to
+    // the nearest positioned ancestor, which needs to be the whole
+    // composer <form> (see chat-panel.tsx's own `relative` class), not
+    // this small button wrapper. §Phase 1D added a calendar button
+    // between this one and Send, which shifts THIS wrapper's own
+    // on-screen position by that button's width; anchoring the popover
+    // here made its `right-0` edge drift past the panel's own left edge
+    // on common viewport widths and get silently clipped there (found
+    // via a real Preview boundingBox comparison against Production).
+    // Anchoring to the stable-width form instead survives any future
+    // change to how many buttons sit in this row.
+    <div ref={containerRef} className="shrink-0">
       <Button
         type="button"
         size="icon"
