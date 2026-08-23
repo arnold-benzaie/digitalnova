@@ -134,7 +134,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pm-chat-pulse 3s ease-in-out infinite;
+  animation: pm-chat-trigger-attention 9s ease-in-out infinite;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 @media (max-width: 768px) {
@@ -148,6 +148,21 @@
 .pm-chat-trigger-btn:focus-visible {
   outline: 2px solid var(--pm-bleu-fonce);
   outline-offset: 2px;
+}
+/* Discreet outward ripple, own pseudo-element so it never competes with
+   the button's own transform above — pulses once per breath (3s),
+   fading before the next one starts. */
+.pm-chat-trigger-btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 2px solid var(--pm-bleu-clair);
+  pointer-events: none;
+  animation: pm-chat-trigger-ripple 3s ease-out infinite;
+}
+.pm-chat-trigger-btn:hover::before {
+  animation-play-state: paused;
 }
 
 .pm-chat-trigger-dot {
@@ -245,6 +260,24 @@
 .pm-chat-msg-row.pm-chat-msg-own { align-items: flex-end; }
 .pm-chat-msg-row.pm-chat-msg-other { align-items: flex-start; }
 
+/* Assistant messages only — a small generic avatar to the left, own
+   (visitor/client) bubbles are untouched (no avatar, right-aligned). */
+.pm-chat-msg-with-avatar { display: flex; align-items: flex-start; gap: 8px; }
+.pm-chat-msg-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu) 55%, var(--pm-bleu-fonce));
+  color: var(--pm-blanc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-chat-msg-avatar svg { width: 14px; height: 14px; }
+.pm-chat-msg-with-avatar .pm-chat-msg-row { min-width: 0; }
+
 .pm-chat-msg-bubble {
   max-width: 80%;
   border-radius: 16px;
@@ -265,8 +298,8 @@
   .pm-chat-msg-status-sending svg { animation: none; }
 }
 
+.pm-chat-typing-wrap { align-self: flex-start; display: flex; align-items: center; gap: 8px; }
 .pm-chat-typing {
-  align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -557,9 +590,30 @@
   0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
   40% { transform: translateY(-4px); opacity: 1; }
 }
-@keyframes pm-chat-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
+/* Floating trigger, closed state only (openPanel() hides .pm-chat-trigger-wrap
+   entirely via display:none, so this simply stops running once open — no
+   extra JS needed to "pause" it). A slow breathe (scale 1→1.04→1) repeated
+   across a 9s cycle, plus ONE brief, low-amplitude wobble near the end —
+   one combined keyframe timeline rather than two separate transform
+   animations, since CSS can't compose two `transform` animations on the
+   same element (the later one just overrides the earlier one's scale).
+   "Occasional and short", never a continuous shake. */
+@keyframes pm-chat-trigger-attention {
+  0%, 100% { transform: scale(1) translateX(0); }
+  16.5% { transform: scale(1.04) translateX(0); }
+  33% { transform: scale(1) translateX(0); }
+  49.5% { transform: scale(1.04) translateX(0); }
+  66% { transform: scale(1) translateX(0); }
+  80% { transform: scale(1.02) translateX(0); }
+  81% { transform: scale(1.02) translateX(-2px); }
+  82% { transform: scale(1.02) translateX(2px); }
+  83% { transform: scale(1.02) translateX(-2px); }
+  84% { transform: scale(1.02) translateX(1px); }
+  85% { transform: scale(1.02) translateX(0); }
+}
+@keyframes pm-chat-trigger-ripple {
+  0% { transform: scale(0.9); opacity: 0.45; }
+  70%, 100% { transform: scale(1.3); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -567,5 +621,6 @@
   .pm-chat-bubble.pm-chat-bubble-hiding { transition: none; }
   .pm-chat-typing-dots span { animation: none; }
   .pm-chat-trigger-btn { animation: none; }
+  .pm-chat-trigger-btn::before { animation: none; opacity: 0; }
   .pm-chat-trigger-wrap, .pm-chat-panel { transition: none; }
 }

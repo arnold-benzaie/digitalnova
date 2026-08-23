@@ -38,8 +38,9 @@ export function ChatBubbleTrigger({
         type="button"
         onClick={onOpen}
         aria-label={t.trigger.ariaLabel}
-        className="relative flex size-14 items-center justify-center rounded-full bg-pm-noir text-pm-blanc shadow-pm-md transition hover:bg-pm-noir/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-bleu-eu/60 focus-visible:ring-offset-2"
+        className="animate-chat-trigger relative flex size-14 items-center justify-center rounded-full border border-white/25 bg-[linear-gradient(135deg,#60a5fa,#3b82f6_55%,#2563eb)] text-pm-blanc shadow-[0_8px_24px_rgba(37,99,235,0.35),0_0_0_6px_rgba(96,165,250,0.14)] transition-[transform,box-shadow] duration-150 hover:shadow-[0_12px_28px_rgba(37,99,235,0.42),0_0_0_6px_rgba(96,165,250,0.18)] hover:[animation-play-state:paused] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-bleu-eu/60 focus-visible:ring-offset-2"
       >
+        <span className="animate-chat-trigger-ripple pointer-events-none absolute -inset-1.5 rounded-full border-2 border-[#60a5fa]" aria-hidden="true" />
         <MessageCircle className="size-6" aria-hidden="true" />
         <span className="absolute top-0 right-0 block size-3 rounded-full border-2 border-pm-blanc bg-pm-g-green" aria-hidden="true" />
       </button>

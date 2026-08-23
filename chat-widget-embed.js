@@ -785,11 +785,27 @@
       return el("span", { class: "pm-chat-msg-status pm-chat-msg-status-delivered", title: t.deliveryStatusDelivered, "aria-label": t.deliveryStatusDelivered }, [checkCheckIcon()]);
     }
 
+    // Small generic "support agent" avatar (headset + mic) — deliberately
+    // abstract, no identifiable person, no photo, humanizes the assistant
+    // without implying a real human is answering. Assistant messages and
+    // the typing indicator only; own (visitor/client) bubbles never get
+    // one. Same shape as the React widget's ChatAssistantAvatar for
+    // visual parity between the two surfaces.
+    function assistantAvatar() {
+      return el("span", { class: "pm-chat-msg-avatar", "aria-hidden": "true" }, [
+        svg(
+          '<circle cx="12" cy="8.5" r="3.2"/><path d="M5.5 19.5c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"/><path d="M6.2 8.5a5.8 5.8 0 0 1 11.6 0"/><path d="M6.2 8.5v2a1.2 1.2 0 0 0 1.2 1.2h.3"/><circle cx="8.3" cy="11.9" r="0.9" fill="currentColor" stroke="none"/><rect x="5.3" y="7.6" width="1.8" height="2.8" rx="0.6"/><rect x="16.9" y="7.6" width="1.8" height="2.8" rx="0.6"/>',
+        ),
+      ]);
+    }
+
     function renderMessageBubble(message) {
       var isOwn = message.senderType === "visitor" || message.senderType === "client";
       var children = [el("div", { class: "pm-chat-msg-bubble", text: message.content })];
       if (isOwn && message.status) children.push(renderDeliveryStatus(message.status));
-      return el("div", { class: "pm-chat-msg-row " + (isOwn ? "pm-chat-msg-own" : "pm-chat-msg-other") }, children);
+      var row = el("div", { class: "pm-chat-msg-row " + (isOwn ? "pm-chat-msg-own" : "pm-chat-msg-other") }, children);
+      if (isOwn) return row;
+      return el("div", { class: "pm-chat-msg-with-avatar" }, [assistantAvatar(), row]);
     }
 
     function appendLocalMessage(senderType, content, status) {
@@ -800,13 +816,14 @@
     }
 
     function renderTyping() {
-      var row = el("div", { class: "pm-chat-typing", "aria-live": "polite" }, [
+      var bubble = el("div", { class: "pm-chat-typing", "aria-live": "polite" }, [
         el("span", { class: "pm-chat-typing-dots" }, [el("span", {}), el("span", {}), el("span", {})]),
         el("span", { class: "pm-chat-typing-label", text: t.typingIndicator }),
       ]);
-      messagesEl.appendChild(row);
+      var wrap = el("div", { class: "pm-chat-typing-wrap" }, [assistantAvatar(), bubble]);
+      messagesEl.appendChild(wrap);
       messagesEl.scrollTop = messagesEl.scrollHeight;
-      return row;
+      return wrap;
     }
 
     function renderSuggestions() {

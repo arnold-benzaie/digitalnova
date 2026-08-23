@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCheck, Clock } from "lucide-react";
+import { ChatAssistantAvatar } from "@/components/chat/chat-assistant-avatar";
 import { cn } from "@/lib/utils";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
@@ -56,20 +57,36 @@ function DeliveryStatusIcon({ status, locale }: { status: ChatMessageStatus; loc
 
 export function ChatMessageBubble({ message, locale }: { message: ChatUiMessage; locale: Locale }) {
   const isOwn = message.senderType === "visitor" || message.senderType === "client";
-  return (
-    <div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
-      <div
-        className={cn(
-          "max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
-          isOwn ? "bg-pm-bleu-eu text-pm-blanc rounded-br-sm" : "bg-pm-gris-2 text-pm-noir rounded-bl-sm",
-        )}
-      >
-        {message.content}
+  const bubble = (
+    <div className={cn("max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap", isOwn ? "bg-pm-bleu-eu text-pm-blanc rounded-br-sm" : "bg-pm-gris-2 text-pm-noir rounded-bl-sm")}>
+      {message.content}
+    </div>
+  );
+  const timestampRow = (
+    <span className="mt-1 flex items-center gap-1 px-1 text-[10px] text-pm-gris">
+      {formatTime(message.createdAt, locale)}
+      {isOwn && message.status && <DeliveryStatusIcon status={message.status} locale={locale} />}
+    </span>
+  );
+
+  // Own (visitor/client) messages stay exactly as before, no avatar,
+  // right-aligned. The assistant side gets a small generic avatar to its
+  // left — nothing else about the bubble/timestamp changes.
+  if (isOwn) {
+    return (
+      <div className="flex flex-col items-end">
+        {bubble}
+        {timestampRow}
       </div>
-      <span className="mt-1 flex items-center gap-1 px-1 text-[10px] text-pm-gris">
-        {formatTime(message.createdAt, locale)}
-        {isOwn && message.status && <DeliveryStatusIcon status={message.status} locale={locale} />}
-      </span>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2">
+      <ChatAssistantAvatar className="mt-0.5" />
+      <div className="flex min-w-0 flex-col items-start">
+        {bubble}
+        {timestampRow}
+      </div>
     </div>
   );
 }
