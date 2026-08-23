@@ -792,16 +792,13 @@
           drag.moved = true;
           panelEl.classList.add("pm-chat-panel-dragging");
           document.body.style.userSelect = "none";
-          console.log("[PM_CHAT_DRAG_DEBUG] drag active (threshold crossed)"); // TEMP DEBUG — remove before final commit.
         }
         current = pmChatClampPosition(drag.originX + dx, drag.originY + dy, panelWidth, panelHeight);
-        console.log("[PM_CHAT_DRAG_DEBUG] pointermove -> position", current); // TEMP DEBUG — remove before final commit.
         pmChatApplyPosition(panelEl, current.x, current.y, false);
       }
 
       function onPointerUp(e) {
         if (!drag || e.pointerId !== drag.pointerId) return;
-        console.log("[PM_CHAT_DRAG_DEBUG] pointerup, moved =", drag.moved); // TEMP DEBUG — remove before final commit.
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
         window.removeEventListener("pointercancel", onPointerUp);
@@ -822,7 +819,6 @@
           current = pmChatClampPosition(snappedX, current.y, panelWidth, panelHeight);
           pmChatApplyPosition(panelEl, current.x, current.y, true);
           pmChatWriteStoredPosition(current);
-          console.log("[PM_CHAT_DRAG_DEBUG] snap/persist -> position", current); // TEMP DEBUG — remove before final commit.
         }
       }
 
@@ -831,7 +827,6 @@
         // Never hijacks a click on Minimize/Close — only a plain drag on
         // the header's own background starts tracking.
         if (e.target.closest && e.target.closest("button")) return;
-        console.log("[PM_CHAT_DRAG_DEBUG] pointerdown on header"); // TEMP DEBUG — remove before final commit.
         // Root cause of the real-Safari bug reported after the first
         // Preview pass: without this, WebKit starts its own native
         // text-selection/drag gesture on pointerdown over the header's
