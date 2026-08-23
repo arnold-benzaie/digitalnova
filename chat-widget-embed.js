@@ -561,17 +561,21 @@
       function onOutside(e) {
         if (!wrap.contains(e.target)) closeMenu();
       }
-      // Scoped to `wrap` (not `document`) and stops propagation — the
-      // panel itself already has its OWN document-level Escape handler
-      // (closePanel(), registered when the panel opens, well before this
-      // one ever exists). Listening on document here as well would race
-      // it: both would fire on the same keypress, closing the picker AND
-      // the whole panel at once. Listening on `wrap` means the keydown
-      // only reaches here if focus is inside the picker (always true
-      // while it's open — the trigger button or a grid item), and
-      // stopPropagation() keeps it from ever bubbling up to document, so
-      // the picker takes priority and the panel stays open — exactly the
-      // expected "innermost popover closes first" behavior.
+      // The panel itself already has its OWN document-level Escape
+      // handler (closePanel(), registered in the bubble phase when the
+      // panel opens, well before this one ever exists). Scoping this
+      // listener to `wrap` alone isn't enough to win that race: picking
+      // an emoji calls insertEmojiAtCursor(), which refocuses the main
+      // input field so typing can continue — and that input is a
+      // SIBLING of `wrap`, not a descendant, so once focus has moved
+      // there a keydown no longer bubbles through `wrap` at all (found
+      // via a real Preview test: Escape right after picking an emoji
+      // closed the whole panel instead of just the picker). Listening
+      // on `document` in the CAPTURE phase instead always runs before
+      // any bubble-phase listener on the same target, regardless of
+      // which element currently has focus, so stopPropagation() here
+      // reliably keeps the keypress from ever reaching the panel's own
+      // handler.
       function onEscape(e) {
         if (e.key === "Escape") {
           e.stopPropagation();
@@ -584,7 +588,7 @@
         menu = null;
         btn.setAttribute("aria-expanded", "false");
         document.removeEventListener("pointerdown", onOutside);
-        wrap.removeEventListener("keydown", onEscape);
+        document.removeEventListener("keydown", onEscape, true);
       }
       function openMenu() {
         menu = el("div", { class: "pm-chat-emoji-menu", role: "menu", "aria-label": t.emojiAriaLabel });
@@ -598,7 +602,7 @@
         wrap.appendChild(menu);
         btn.setAttribute("aria-expanded", "true");
         document.addEventListener("pointerdown", onOutside);
-        wrap.addEventListener("keydown", onEscape);
+        document.addEventListener("keydown", onEscape, true);
       }
       btn.addEventListener("click", function () {
         if (menu) closeMenu();

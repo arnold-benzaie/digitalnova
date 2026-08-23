@@ -20,38 +20,38 @@ export function ChatEmojiPicker({ ariaLabel, onSelect }: { ariaLabel: string; on
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Outside click/tap closes it (document-level — needs to see clicks
-  // anywhere on the page). Escape is intentionally handled via the
-  // container's own onKeyDown + stopPropagation below, NOT a
-  // document-level listener: a future ancestor (e.g. the panel itself)
-  // could reasonably add its own Escape-closes-panel handler, and two
-  // document-level Escape listeners on the same keypress would both
-  // fire — closing the picker AND the whole panel at once. Scoping to
-  // the container plus stopPropagation guarantees the picker (the
-  // innermost popover) always gets Escape first and the keypress never
-  // reaches further up.
+  // Outside click/tap closes it. Escape is handled via a document-level
+  // listener in the CAPTURE phase, not a plain onKeyDown on this
+  // container: onSelect (below) moves focus back to the chat textarea
+  // so typing can continue after picking an emoji, and that textarea is
+  // a SIBLING of this container, not a descendant — once focus has
+  // moved there, a keydown no longer bubbles through this div at all,
+  // so a container-scoped handler would miss it. A capture-phase
+  // document listener always runs before any bubble-phase ancestor
+  // listener (e.g. a future panel-wide Escape-closes-panel handler)
+  // regardless of where focus currently is, so stopPropagation() here
+  // reliably keeps Escape from closing anything beyond this popover.
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(event: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+      }
+    }
     document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [open]);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative shrink-0"
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && open) {
-          event.stopPropagation();
-          setOpen(false);
-        }
-      }}
-    >
+    <div ref={containerRef} className="relative shrink-0">
       <Button
         type="button"
         size="icon"
