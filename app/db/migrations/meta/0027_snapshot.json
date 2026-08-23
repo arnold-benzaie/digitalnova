@@ -1,6 +1,6 @@
 {
-  "id": "c2467b73-aa0e-460d-9da1-9cc1c2666a10",
-  "prevId": "2b80ecff-7c1e-4af5-82de-6b0ad1a4de77",
+  "id": "46105b75-0880-4775-aeee-39d7e616e94d",
+  "prevId": "c2467b73-aa0e-460d-9da1-9cc1c2666a10",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4238,6 +4238,12 @@
           "notNull": true,
           "default": false
         },
+        "market": {
+          "name": "market",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -5853,6 +5859,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "pending_market": {
+          "name": "pending_market",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "last_login_at": {
           "name": "last_login_at",
