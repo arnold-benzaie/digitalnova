@@ -224,6 +224,14 @@
   justify-content: space-between;
   gap: 8px;
 }
+/* Draggable only above the panel's own mobile breakpoint (see
+   @media (max-width: 768px) .pm-chat-panel above, where the panel goes
+   fullscreen and dragging has no meaning) — see setupDraggablePanel()
+   in chat-widget-embed.js. */
+@media (min-width: 769px) {
+  .pm-chat-header { cursor: grab; }
+  .pm-chat-panel-dragging .pm-chat-header { cursor: grabbing; }
+}
 .pm-chat-header-name-row { display: flex; align-items: center; gap: 6px; }
 .pm-chat-header-spark { font-size: 13px; line-height: 1; }
 .pm-chat-header-name { font-size: 14px; font-weight: 600; margin: 0; }
