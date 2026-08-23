@@ -479,6 +479,56 @@
 .pm-chat-send-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28); }
 .pm-chat-send-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
 
+.pm-chat-emoji-wrap { position: relative; flex-shrink: 0; }
+.pm-chat-emoji-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--pm-gris-2);
+  background: var(--pm-blanc);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pm-chat-emoji-btn:hover { border-color: var(--pm-bleu); }
+.pm-chat-emoji-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+.pm-chat-emoji-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  background: var(--pm-blanc);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(8, 8, 8, 0.12);
+  z-index: 1;
+}
+.pm-chat-emoji-item {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-chat-emoji-item:hover { background: var(--pm-gris-2); }
+.pm-chat-emoji-item:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 1px; }
+@media (max-width: 420px) {
+  .pm-chat-emoji-menu { grid-template-columns: repeat(6, 1fr); right: -8px; }
+}
+
 .pm-chat-visually-hidden {
   position: absolute;
   width: 1px; height: 1px;

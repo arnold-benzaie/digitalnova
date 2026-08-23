@@ -29,6 +29,7 @@ export const chat = {
       placeholder: "Écrivez votre message…",
       sendAriaLabel: "Envoyer",
       sendButton: "Envoyer",
+      emojiAriaLabel: "Insérer un emoji",
     },
     errors: {
       generic: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
@@ -141,6 +142,7 @@ export const chat = {
       placeholder: "Write your message…",
       sendAriaLabel: "Send",
       sendButton: "Send",
+      emojiAriaLabel: "Insert an emoji",
     },
     errors: {
       generic: "I'm having a temporary problem answering. Please try again in a few seconds.",

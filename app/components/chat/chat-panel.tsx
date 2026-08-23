@@ -8,6 +8,7 @@ import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { ChatMessageBubble, type ChatUiMessage } from "@/components/chat/chat-message";
 import { ChatTypingIndicator } from "@/components/chat/chat-typing-indicator";
 import { ChatLeadForm, type ChatLeadFormValues } from "@/components/chat/chat-lead-form";
+import { ChatEmojiPicker } from "@/components/chat/chat-emoji-picker";
 
 export function ChatPanel({
   locale,
@@ -56,6 +57,7 @@ export function ChatPanel({
   const t = dictionaries[locale].chat;
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -66,6 +68,26 @@ export function ChatPanel({
     if (!trimmed) return;
     onSendMessage(trimmed);
     setDraft("");
+  }
+
+  /** Inserts at the cursor (not just appended) and restores focus/cursor
+   * position right after the inserted emoji, so typing can continue
+   * naturally — never triggers any network call, purely local state. The
+   * DOM read (selectionStart/End) happens before setDraft; the DOM write
+   * (focus + setSelectionRange) is deferred one frame so it runs after
+   * React has committed the textarea's new value. */
+  function insertEmojiAtCursor(emoji: string) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? draft.length;
+    const end = textarea?.selectionEnd ?? draft.length;
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    setDraft(next);
+    if (!textarea) return;
+    const cursor = start + emoji.length;
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+    });
   }
 
   return (
@@ -147,6 +169,7 @@ export function ChatPanel({
         className="flex shrink-0 items-end gap-2 border-t border-pm-gris-2 p-3"
       >
         <Textarea
+          ref={textareaRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -161,6 +184,7 @@ export function ChatPanel({
           className="max-h-24 min-h-0 resize-none py-2"
           aria-label={t.input.placeholder}
         />
+        <ChatEmojiPicker ariaLabel={t.input.emojiAriaLabel} onSelect={insertEmojiAtCursor} />
         <Button type="submit" size="icon" aria-label={t.input.sendAriaLabel} disabled={!draft.trim()} className="shrink-0 bg-pm-noir hover:bg-pm-noir/90">
           <Send className="size-4" aria-hidden="true" />
         </Button>

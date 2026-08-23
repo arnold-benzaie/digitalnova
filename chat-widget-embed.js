@@ -78,6 +78,7 @@
       typingIndicator: "PUBLIC-MAP Assistant écrit…",
       inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
+      emojiAriaLabel: "Insérer un emoji",
       errorGeneric: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
       errorRepeatedFailure: "Je n'arrive toujours pas à traiter votre demande. Souhaitez-vous parler à un conseiller PUBLIC-MAP ?",
@@ -174,6 +175,7 @@
       typingIndicator: "PUBLIC-MAP Assistant is typing…",
       inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
+      emojiAriaLabel: "Insert an emoji",
       errorGeneric: "I'm having a temporary problem answering. Please try again in a few seconds.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
       errorRepeatedFailure: "I'm still unable to process your request. Would you like to speak with a PUBLIC-MAP advisor?",
@@ -521,6 +523,77 @@
       if (e.key === "Escape") closePanel();
     }
 
+    // Deliberately small, hand-picked set — a full searchable/categorized
+    // emoji library would be a heavy new dependency for what's meant to
+    // be a discreet input helper. Plain Unicode text, no image assets, no
+    // new package — mirrors components/chat/chat-emoji-picker.tsx's own
+    // set exactly, so both widgets offer the same choices.
+    var EMOJI_SET = [
+      "😊", "🙂", "😀", "😄", "😁", "😉", "😍", "🤔",
+      "👍", "👏", "🙏", "👋", "💪", "🎉", "✅", "❌",
+      "❤️", "🔥", "💡", "⭐", "📈", "📅", "📞", "✉️",
+      "🚀", "💬", "👌", "🏢", "🌟", "😅", "🙌", "🤝",
+    ];
+
+    // Inserts at the cursor (not just appended) and restores focus/cursor
+    // position right after the inserted emoji — purely local DOM state,
+    // never triggers postChat()/a network call.
+    function insertEmojiAtCursor(emoji) {
+      var start = inputEl.selectionStart != null ? inputEl.selectionStart : inputEl.value.length;
+      var end = inputEl.selectionEnd != null ? inputEl.selectionEnd : inputEl.value.length;
+      var value = inputEl.value;
+      inputEl.value = value.slice(0, start) + emoji + value.slice(end);
+      sendBtn.disabled = !inputEl.value.trim();
+      var cursor = start + emoji.length;
+      inputEl.focus();
+      inputEl.setSelectionRange(cursor, cursor);
+    }
+
+    // Small, keyboard-accessible popover (Escape / outside click closes
+    // it, same two dismissal patterns as the React version) — stays open
+    // across multiple emoji picks so several can be inserted without
+    // reopening it each time.
+    function buildEmojiPicker() {
+      var wrap = el("div", { class: "pm-chat-emoji-wrap" });
+      var btn = el("button", { type: "button", class: "pm-chat-emoji-btn", "aria-label": t.emojiAriaLabel, "aria-haspopup": "true", "aria-expanded": "false" }, [el("span", { "aria-hidden": "true", text: "😊" })]);
+      var menu = null;
+
+      function onOutside(e) {
+        if (!wrap.contains(e.target)) closeMenu();
+      }
+      function onEscape(e) {
+        if (e.key === "Escape") closeMenu();
+      }
+      function closeMenu() {
+        if (!menu) return;
+        menu.remove();
+        menu = null;
+        btn.setAttribute("aria-expanded", "false");
+        document.removeEventListener("pointerdown", onOutside);
+        document.removeEventListener("keydown", onEscape);
+      }
+      function openMenu() {
+        menu = el("div", { class: "pm-chat-emoji-menu", role: "menu", "aria-label": t.emojiAriaLabel });
+        EMOJI_SET.forEach(function (emoji) {
+          var item = el("button", { type: "button", role: "menuitem", class: "pm-chat-emoji-item", text: emoji });
+          item.addEventListener("click", function () {
+            insertEmojiAtCursor(emoji);
+          });
+          menu.appendChild(item);
+        });
+        wrap.appendChild(menu);
+        btn.setAttribute("aria-expanded", "true");
+        document.addEventListener("pointerdown", onOutside);
+        document.addEventListener("keydown", onEscape);
+      }
+      btn.addEventListener("click", function () {
+        if (menu) closeMenu();
+        else openMenu();
+      });
+      wrap.appendChild(btn);
+      return wrap;
+    }
+
     function renderPanel() {
       if (panel) panel.remove(); // re-entrant: also called on a live locale change while open
       panel = el("div", { class: "pm-chat-panel", role: "dialog", "aria-label": t.assistantName });
@@ -553,6 +626,7 @@
       });
       sendBtn.addEventListener("click", submitDraft);
       inputBar.appendChild(inputEl);
+      inputBar.appendChild(buildEmojiPicker());
       inputBar.appendChild(sendBtn);
 
       panel.appendChild(header);
