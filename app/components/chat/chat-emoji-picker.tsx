@@ -67,7 +67,20 @@ export function ChatEmojiPicker({ ariaLabel, onSelect }: { ariaLabel: string; on
         </span>
       </Button>
       {open && (
-        <div role="menu" aria-label={ariaLabel} className="absolute right-0 bottom-full mb-2 grid grid-cols-8 gap-1 rounded-xl border border-pm-gris-2 bg-pm-blanc p-2 shadow-pm-md">
+        <div
+          role="menu"
+          aria-label={ariaLabel}
+          // grid-cols-8 (repeat(8, minmax(0, 1fr))) can't self-size here:
+          // this popover is `absolute` with no explicit width, so the
+          // browser sizes it via shrink-to-fit — and minmax(0, 1fr)'s
+          // explicit 0 minimum contributes nothing to that calculation,
+          // collapsing every column to ~0px (buttons still render at
+          // their own size, just stacked on top of each other). Fixed
+          // tracks (2rem, matching the buttons' own size-8) size the
+          // grid correctly instead of relying on flexible 1fr space that
+          // never gets distributed.
+          className="absolute right-0 bottom-full mb-2 grid grid-cols-[repeat(8,2rem)] gap-1 rounded-xl border border-pm-gris-2 bg-pm-blanc p-2 shadow-pm-md"
+        >
           {EMOJI_SET.map((emoji) => (
             <button
               key={emoji}
