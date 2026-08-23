@@ -33,6 +33,15 @@ export const organizations = pgTable(
     // The partial unique index guarantees at most one organization can ever
     // hold this flag.
     isInternal: boolean("is_internal").notNull().default(false),
+    // The organization's single commercial market — source of truth for
+    // currency/region/default-locale across PUBLIC-MAP (see
+    // lib/market/context.ts). Nullable: no automatic backfill exists for
+    // organizations created before this column — a real, staff-confirmed
+    // value or explicit "unknown" (null), never an invented default. Set
+    // either by staff (org creation/admin settings) or bootstrapped once
+    // from the client's own signup choice (users.pendingMarket) at
+    // approval time — see lib/actions/users.ts's approveUser().
+    market: text("market"), // "CANADA" | "EUROPE" | null
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("organizations_is_internal_unique").on(table.isInternal).where(sql`${table.isInternal} = true`)],
@@ -58,6 +67,14 @@ export const users = pgTable(
     firstName: text("first_name"),
     lastName: text("last_name"),
     status: text("status").notNull().default("pending"), // "pending" | "active" | "refused" | "suspended" — column added nullable in 0010, backfilled explicitly per-row, THEN locked to NOT NULL/DEFAULT in 0011 (see scripts/backfill-user-approval-status.mjs) so no existing row is ever implicitly "pending"
+    // The market the CLIENT THEMSELVES picked on /sign-up/market, before
+    // any organization exists to attach it to. Consumed exactly once — at
+    // approval, approveUser() copies it onto the target organization's own
+    // `market` ONLY if that organization doesn't already have one set
+    // (never overwrites a real, already-decided organization market).
+    // Null for staff-onboarded clients who never went through self-service
+    // signup, and for every user created before this column existed.
+    pendingMarket: text("pending_market"), // "CANADA" | "EUROPE" | null
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -1425,4 +1442,140 @@ export const productEvents = pgTable(
     index("product_events_user_occurred_idx").on(table.userId, table.occurredAt),
     index("product_events_type_occurred_idx").on(table.eventType, table.occurredAt),
   ],
+);
+
+/**
+ * Google Ads (2026-08) — deliberately SEPARATE from `googleOauthConnections`
+ * (GBP/Search Console/Analytics's combined-consent table): a different
+ * OAuth intention (see lib/google-ads/oauth.ts's own header comment),
+ * client-self-service only (never staff-initiated, unlike the other three
+ * products), and its own scope (`adwords`) — mixing it into the existing
+ * table would mean every future GBP/Analytics/SearchConsole re-consent
+ * also requests the Ads scope, which is exactly what this separation
+ * avoids.
+ *
+ * `refreshToken*` mirrors the existing encrypted-secret storage shape
+ * already used by `webhookEndpoints`/`webhookEndpointSecrets`
+ * (ciphertext/iv/authTag columns, see lib/integrations/crypto.ts's
+ * encryptIntegrationValue()/decryptIntegrationValue(), AES-256-GCM) —
+ * unlike `googleOauthConnections.refreshToken`, which predates that
+ * mechanism and is stored in plain text. `accessToken`/`accessTokenExpiresAt`
+ * stay plain text on purpose: short-lived (~1h), same treatment as
+ * `googleOauthConnections.accessToken` — only the long-lived refresh token
+ * is treated as the high-sensitivity secret here.
+ *
+ * `customerId`/`loginCustomerId`/`customerDescriptiveName`/
+ * `customerCurrencyCode`/`customerTimeZone` stay NULLABLE: they're only
+ * populated once the client completes the account-selection step (a
+ * later phase) — a freshly OAuth-connected row with no account chosen
+ * yet is a valid, real state, not an error.
+ */
+export const googleAdsConnections = pgTable(
+  "google_ads_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Audit trail only ("who clicked Connect") — never used as an
+    // isolation boundary. Isolation is by organizationId, same as every
+    // other Google integration in this app: any client user in the org
+    // can see the org's own Google Ads connection, matching GBP/Analytics/
+    // SearchConsole's existing organization-scoped model.
+    connectedByUserId: uuid("connected_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    googleAccountEmail: text("google_account_email").notNull(),
+    accessToken: text("access_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenCiphertext: text("refresh_token_ciphertext").notNull(),
+    refreshTokenIv: text("refresh_token_iv").notNull(),
+    refreshTokenAuthTag: text("refresh_token_auth_tag").notNull(),
+    grantedScopes: jsonb("granted_scopes").notNull().default([]),
+    customerId: text("customer_id"), // selected Ads customer ID, no dashes — see lib/google-ads/accounts.ts
+    loginCustomerId: text("login_customer_id"), // manager/MCC context for customerId, if any
+    customerDescriptiveName: text("customer_descriptive_name"),
+    customerCurrencyCode: text("customer_currency_code"),
+    customerTimeZone: text("customer_time_zone"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    lastSyncError: text("last_sync_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("google_ads_connections_organization_id_idx").on(table.organizationId)],
+);
+
+/**
+ * PUBLIC-MAP AI Assistant (2026-08, Phase 1A — mock provider, see
+ * lib/ai/**) — chat widget conversations and messages.
+ *
+ * A conversation belongs to exactly one of two actors, never both and
+ * never neither: an authenticated user (organizationId + userId set,
+ * resolved server-side via getCurrentSession() — see lib/chat/context.ts,
+ * never trusted from the browser) OR an anonymous visitor (visitorId set,
+ * a random cookie-based id — see lib/chat/visitor.ts — organizationId/
+ * userId left null). This mirrors googleAdsConnections' own
+ * organizationId isolation model for the authenticated case, extended
+ * with a third, deliberately separate anonymous identity that is NEVER
+ * treated as an isolation boundary for authenticated data — only ever
+ * used to let an anonymous visitor's own browser resume ITS OWN
+ * conversation.
+ *
+ * crmClientId is set only once a lead is actually captured through the
+ * widget's lead form (lib/chat/leads.ts) — it points at the SAME
+ * `crmClients` row the CRM module already uses; there is deliberately no
+ * separate `chat_leads` table.
+ */
+export const CHAT_CONVERSATION_STATUSES = ["AI_HANDLED", "NEEDS_HUMAN", "HUMAN_PENDING", "HUMAN_ACTIVE", "CLOSED"] as const;
+
+export const chatConversations = pgTable(
+  "chat_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Nullable + onDelete "set null" (not "cascade"): a conversation
+    // transcript is a support/business record in its own right — deleting
+    // an organization or user must never silently delete the conversation
+    // history that references it, only detach it.
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    // Random, non-sensitive id minted client-side-visible via a cookie for
+    // an anonymous visitor — never a fingerprint, never used as an
+    // isolation boundary for any authenticated data. Null once the
+    // conversation belongs to an authenticated user.
+    visitorId: text("visitor_id"),
+    locale: text("locale").notNull(), // "fr" | "en"
+    status: text("status").notNull().default("AI_HANDLED"), // see CHAT_CONVERSATION_STATUSES
+    crmClientId: uuid("crm_client_id").references(() => crmClients.id, { onDelete: "set null" }),
+    summary: text("summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("chat_conversations_organization_id_idx").on(table.organizationId),
+    index("chat_conversations_user_id_idx").on(table.userId),
+    index("chat_conversations_visitor_id_idx").on(table.visitorId),
+  ],
+);
+
+export const CHAT_SENDER_TYPES = ["visitor", "client", "assistant", "staff"] as const;
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => chatConversations.id, { onDelete: "cascade" }),
+    senderType: text("sender_type").notNull(), // see CHAT_SENDER_TYPES
+    // Length-capped before insert (see lib/chat/messages.ts's MAX_MESSAGE_LENGTH)
+    // — never enforced only at the DB layer.
+    content: text("content").notNull(),
+    // Small structured extras (e.g. { suggestionId } for a clicked
+    // suggested question) — never a token/secret, see lib/chat/messages.ts's
+    // own sanitization, same discipline as product_events.metadata.
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("chat_messages_conversation_id_idx").on(table.conversationId)],
 );

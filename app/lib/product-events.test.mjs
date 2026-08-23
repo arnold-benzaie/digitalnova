@@ -28,8 +28,26 @@ const {
 
 // ---- eventType --------------------------------------------------------
 
-test("PRODUCT_EVENT_TYPES is exactly the closed union agreed for Phase 1", () => {
-  assert.deepEqual([...PRODUCT_EVENT_TYPES].sort(), ["download_document", "login", "open_audit", "open_report", "page_view"].sort());
+test("PRODUCT_EVENT_TYPES is exactly the closed union agreed for Phase 1 (+ the AI Assistant widget's Phase 1A additions)", () => {
+  assert.deepEqual(
+    [...PRODUCT_EVENT_TYPES].sort(),
+    [
+      "download_document",
+      "login",
+      "open_audit",
+      "open_report",
+      "page_view",
+      "chat_widget_viewed",
+      "chat_opened",
+      "chat_closed",
+      "chat_message_sent",
+      "suggested_question_clicked",
+      "human_support_requested",
+      "lead_form_opened",
+      "lead_submitted",
+      "chat_error",
+    ].sort(),
+  );
 });
 
 // ---- sanitizePath -------------------------------------------------------

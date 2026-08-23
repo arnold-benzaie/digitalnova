@@ -15,7 +15,27 @@ import type { Locale } from "@/lib/i18n/dictionaries";
  * direct `db.insert(productEvents)`/`db.select().from(productEvents)`.
  */
 
-export const PRODUCT_EVENT_TYPES = ["login", "page_view", "open_audit", "open_report", "download_document"] as const;
+export const PRODUCT_EVENT_TYPES = [
+  "login",
+  "page_view",
+  "open_audit",
+  "open_report",
+  "download_document",
+  // AI Assistant widget (2026-08, Phase 1A) — see components/chat/chat-widget.tsx.
+  // Fired only for authenticated users: recordProductEvent() requires a
+  // real organizationId/userId (both NOT NULL in db/schema.ts), which an
+  // anonymous visitor never has — see lib/chat/context.ts's own comment
+  // and the Phase 1A report's "limitations connues" for that tradeoff.
+  "chat_widget_viewed",
+  "chat_opened",
+  "chat_closed",
+  "chat_message_sent",
+  "suggested_question_clicked",
+  "human_support_requested",
+  "lead_form_opened",
+  "lead_submitted",
+  "chat_error",
+] as const;
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
 
 function isProductEventType(value: string): value is ProductEventType {

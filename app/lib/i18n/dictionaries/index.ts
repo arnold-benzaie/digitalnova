@@ -28,6 +28,7 @@ import { developerConsole } from "./developer-console";
 import { systemHealth } from "./system-health";
 import { siteAnalytics } from "./site-analytics";
 import { invoiceVerification } from "./invoice-verification";
+import { chat } from "./chat";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -53,6 +54,7 @@ export const dictionaries = {
     systemHealth: systemHealth.fr,
     siteAnalytics: siteAnalytics.fr,
     invoiceVerification: invoiceVerification.fr,
+    chat: chat.fr,
   },
   en: {
     common: common.en,
@@ -74,5 +76,6 @@ export const dictionaries = {
     systemHealth: systemHealth.en,
     siteAnalytics: siteAnalytics.en,
     invoiceVerification: invoiceVerification.en,
+    chat: chat.en,
   },
 } as const;

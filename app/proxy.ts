@@ -52,6 +52,13 @@ const isPublicRoute = createRouteMatcher([
   "/audit-visual-preview",
   "/api/audit-report(.*)",
   "/api/gbp-audit/e2e-db-target",
+  // AI Assistant widget backend (2026-08, Phase 1A) — must stay public:
+  // the widget serves anonymous site visitors with no Clerk session by
+  // design (see lib/chat/context.ts). Authenticated callers still get a
+  // real, server-verified session inside the route itself
+  // (resolveChatContext() -> getCurrentSession()) — this entry only
+  // means "reachable without a session," never "no authorization check."
+  "/api/chat",
   // Static, non-sensitive fallback for the invitation email's secondary
   // "copy link" button (see lib/email/invitation.ts /
   // app/invitation-link/page.tsx) — no token, no email, must be reachable

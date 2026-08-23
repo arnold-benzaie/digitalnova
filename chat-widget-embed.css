@@ -1,0 +1,626 @@
+/* PUBLIC-MAP AI Assistant — standalone embed styles (Phase 1B).
+   Every rule is scoped under .pm-chat-* — no bare element selectors, no
+   global resets, nothing that could leak into the marketing site's own
+   CSS. Colors mirror the static site's own :root tokens (index.html —
+   --rouge:#ff004e, --noir:#080808, --blanc:#FAFAF8, --gris:#6B6B6B,
+   --gris2:#E2DDD8, --bleu-eu:#0039e4) for the panel body/message bubbles
+   — this is a different codebase with a different, red/black-led
+   identity; matching it exactly is what "coherent with the current
+   design" (Phase 1B §13) meant there. The floating trigger and panel
+   header now use a dedicated sky-blue/electric-blue identity instead
+   (--pm-bleu-clair/--pm-bleu/--pm-bleu-fonce), a deliberate, explicitly
+   requested exception for just those two surfaces — the rest of the
+   panel (messages, suggestions, lead form, send button) keeps the
+   original red accent unchanged, per "garder... existant".
+
+   Phase 1C: the header/trigger's blue identity now also covers every
+   primary interactive control (suggestion cards, message input, send
+   button, "Voir plus", "Parler à un expert") — red stays reserved for
+   the error/retry state and the (unchanged, explicitly "garder
+   l'existant") lead form, so blue reads as "primary/interactive" and red
+   unambiguously as "something went wrong" throughout the panel.
+
+   Phase 1E: reads less like a support-ticket widget and more like a
+   small embedded AI assistant — assistant bubbles get a faint blue tint
+   (--pm-bleu-pale) instead of flat grey, visitor bubbles move from pure
+   black to a dark navy (--pm-bleu-nuit) that still reads as "premium
+   dark", the header drops the wordy "En ligne" status in favor of a
+   small spark icon + a quiet dot, and the "Parler à un expert" CTA is a
+   plain text link rather than a filled button — available, never pushed
+   (§11: never the default answer when the mock doesn't understand
+   something).
+
+   Vertical position: the embed script (watchCookieBanner) measures the
+   live-injected cookie-consent banner (analytics.js, first-visit only)
+   and writes the full resolved bottom value into --pm-chat-bottom —
+   18px/14px (desktop/mobile) at rest, or bannerHeight+14px/+10px while
+   the banner is showing. Chosen so the widget clears .scroll-top-btn
+   (bottom:30px/right:30px, 52px tall, desktop/tablet only — its top
+   edge sits at ~82px, comfortably above this widget's 18px) without the
+   large, "floating" margin the very first version used. */
+
+.pm-chat-widget-root, .pm-chat-widget-root * {
+  box-sizing: border-box;
+  font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.4;
+}
+
+.pm-chat-widget-root {
+  --pm-rouge: #ff004e;
+  --pm-noir: #080808;
+  --pm-noir-2: #151515;
+  --pm-blanc: #fafaf8;
+  --pm-gris: #6b6b6b;
+  --pm-gris-2: #e2ddd8;
+  --pm-or: #c9a24b;
+  --pm-vert: #22c55e;
+  --pm-bleu-clair: #60a5fa;
+  --pm-bleu: #3b82f6;
+  --pm-bleu-fonce: #2563eb;
+  --pm-cyan: #38bdf8;
+  --pm-bleu-nuit: #101a33;
+  --pm-bleu-pale: #eef4ff;
+  /* Resolved bottom offset — set live by watchCookieBanner() in
+     chat-widget-embed.js (breakpoint- and banner-aware). 18px is the
+     no-banner desktop/tablet default; see the file header comment. */
+  --pm-chat-bottom: 18px;
+}
+
+.pm-chat-trigger-wrap {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--pm-chat-bottom) + env(safe-area-inset-bottom, 0px));
+  z-index: 999990;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  transition: bottom 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .pm-chat-trigger-wrap {
+    right: 14px;
+  }
+}
+
+.pm-chat-bubble {
+  position: relative;
+  max-width: 260px;
+  margin-right: 4px; /* sits slightly inset from the trigger's own right edge */
+  background: var(--pm-blanc);
+  color: var(--pm-noir);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 14px 14px 4px 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(8, 8, 8, 0.1), 0 1px 2px rgba(8, 8, 8, 0.06);
+  white-space: pre-line;
+  cursor: pointer;
+  animation: pm-chat-fade-in 0.25s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.pm-chat-bubble.pm-chat-bubble-hiding {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.pm-chat-bubble-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--pm-gris);
+  cursor: pointer;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1;
+}
+.pm-chat-bubble-close:hover { background: rgba(0, 0, 0, 0.06); }
+
+.pm-chat-trigger-btn {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu) 55%, var(--pm-bleu-fonce));
+  color: var(--pm-blanc);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35), 0 0 0 6px rgba(96, 165, 250, 0.14);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pm-chat-trigger-attention 9s ease-in-out infinite;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@media (max-width: 768px) {
+  .pm-chat-trigger-btn { width: 54px; height: 54px; }
+}
+.pm-chat-trigger-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.42), 0 0 0 6px rgba(96, 165, 250, 0.18);
+  animation-play-state: paused;
+}
+.pm-chat-trigger-btn:focus-visible {
+  outline: 2px solid var(--pm-bleu-fonce);
+  outline-offset: 2px;
+}
+/* Discreet outward ripple, own pseudo-element so it never competes with
+   the button's own transform above — pulses once per breath (3s),
+   fading before the next one starts. */
+.pm-chat-trigger-btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 2px solid var(--pm-bleu-clair);
+  pointer-events: none;
+  animation: pm-chat-trigger-ripple 3s ease-out infinite;
+}
+.pm-chat-trigger-btn:hover::before {
+  animation-play-state: paused;
+}
+
+.pm-chat-trigger-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--pm-vert);
+  border: 2px solid var(--pm-blanc);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
+.pm-chat-panel {
+  position: fixed;
+  z-index: 999991;
+  right: 20px;
+  bottom: calc(var(--pm-chat-bottom) + env(safe-area-inset-bottom, 0px));
+  width: 380px;
+  height: 560px;
+  background: var(--pm-blanc);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(37, 99, 235, 0.16), 0 4px 16px rgba(8, 8, 8, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: bottom 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .pm-chat-panel {
+    right: 0;
+    bottom: 0;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Compact 1-2 column cards on narrow screens — never lets a card's
+     min-width force horizontal scrolling of the panel body. */
+  .pm-chat-suggestions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+    gap: 7px;
+  }
+  .pm-chat-suggestion-card { padding: 9px 10px; }
+}
+
+.pm-chat-header {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu-fonce));
+  color: var(--pm-blanc);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pm-chat-header-name-row { display: flex; align-items: center; gap: 6px; }
+.pm-chat-header-spark { font-size: 13px; line-height: 1; }
+.pm-chat-header-name { font-size: 14px; font-weight: 600; margin: 0; }
+.pm-chat-header-status { font-size: 11px; color: rgba(250, 250, 248, 0.75); margin: 2px 0 0; display: flex; align-items: center; gap: 5px; }
+.pm-chat-header-status-dot { width: 5px; height: 5px; border-radius: 999px; background: var(--pm-vert); display: inline-block; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2); }
+.pm-chat-header-actions { display: flex; gap: 4px; }
+.pm-chat-header-btn {
+  border: none;
+  background: transparent;
+  color: var(--pm-blanc);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-chat-header-btn:hover { background: rgba(250, 250, 248, 0.1); }
+.pm-chat-header-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.pm-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: linear-gradient(180deg, #fbfdff, var(--pm-blanc) 140px);
+}
+
+.pm-chat-msg-row { display: flex; flex-direction: column; }
+.pm-chat-msg-row.pm-chat-msg-own { align-items: flex-end; }
+.pm-chat-msg-row.pm-chat-msg-other { align-items: flex-start; }
+
+/* Assistant messages only — a small generic avatar to the left, own
+   (visitor/client) bubbles are untouched (no avatar, right-aligned). */
+.pm-chat-msg-with-avatar { display: flex; align-items: flex-start; gap: 8px; }
+.pm-chat-msg-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu) 55%, var(--pm-bleu-fonce));
+  color: var(--pm-blanc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-chat-msg-avatar svg { width: 14px; height: 14px; }
+.pm-chat-msg-with-avatar .pm-chat-msg-row { min-width: 0; }
+
+.pm-chat-msg-bubble {
+  max-width: 80%;
+  border-radius: 16px;
+  padding: 9px 13px;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+.pm-chat-msg-own .pm-chat-msg-bubble { background: var(--pm-bleu-nuit); color: var(--pm-blanc); border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(16, 26, 51, 0.24); }
+.pm-chat-msg-other .pm-chat-msg-bubble { background: var(--pm-bleu-pale); color: var(--pm-noir); border-bottom-left-radius: 4px; }
+
+.pm-chat-msg-status { display: inline-flex; margin-top: 3px; padding: 0 2px; }
+.pm-chat-msg-status svg { width: 12px; height: 12px; }
+.pm-chat-msg-status-sending svg { color: var(--pm-gris); animation: pm-chat-status-pulse 1.4s ease-in-out infinite; }
+.pm-chat-msg-status-delivered svg { color: var(--pm-bleu); }
+.pm-chat-msg-status-failed svg { color: var(--pm-rouge); }
+@keyframes pm-chat-status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .pm-chat-msg-status-sending svg { animation: none; }
+}
+
+.pm-chat-typing-wrap { align-self: flex-start; display: flex; align-items: center; gap: 8px; }
+.pm-chat-typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  background: var(--pm-bleu-pale);
+}
+.pm-chat-typing-dots { display: flex; gap: 4px; }
+.pm-chat-typing-dots span {
+  width: 6px; height: 6px; border-radius: 999px; background: var(--pm-bleu);
+  animation: pm-chat-bounce 1s infinite ease-in-out;
+}
+.pm-chat-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.pm-chat-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+.pm-chat-typing-label { font-size: 12px; color: var(--pm-bleu-fonce); }
+
+.pm-chat-error-box {
+  border: 1px solid rgba(255, 0, 78, 0.3);
+  background: rgba(255, 0, 78, 0.06);
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.pm-chat-error-text { font-size: 12px; color: var(--pm-rouge); margin: 0; }
+.pm-chat-error-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pm-chat-retry-btn {
+  border: 1px solid var(--pm-gris-2);
+  background: var(--pm-blanc);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pm-chat-retry-btn:hover { border-color: var(--pm-rouge); color: var(--pm-rouge); }
+.pm-chat-retry-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Phase 1C — suggestion cards. Replaces the old pill-button style
+   everywhere suggestions render: the bootstrap "Suggestions rapides"
+   section (.pm-chat-initial-suggestions) and every backend-returned
+   suggestion set (.pm-chat-suggestions) share the same
+   .pm-chat-suggestions-grid/.pm-chat-suggestion-card markup, so a
+   sub-menu the assistant returns mid-conversation looks exactly like the
+   opening one. Accent moves to the blue identity here (hover/focus),
+   keeping red reserved for the error/retry state — see the file header
+   note above on that split. */
+.pm-chat-initial-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+.pm-chat-suggestions-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pm-gris);
+}
+.pm-chat-suggestions { display: flex; flex-direction: column; }
+.pm-chat-suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+/* [hidden] is an attribute selector with the same specificity as the
+   class selector above — without this rule, the author-level
+   `display: grid` would win over the browser's UA-default
+   `[hidden] { display: none }` and the "Voir plus" grid would render
+   fully visible before the reveal button is ever clicked. */
+.pm-chat-suggestions-grid[hidden] { display: none; }
+.pm-chat-suggestion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid var(--pm-gris-2);
+  background: linear-gradient(180deg, #ffffff, #f3f7ff);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.pm-chat-suggestion-icon { font-size: 17px; line-height: 1; }
+.pm-chat-suggestion-label { font-size: 12.5px; font-weight: 500; color: var(--pm-noir); line-height: 1.3; }
+.pm-chat-suggestion-card:hover {
+  border-color: var(--pm-bleu);
+  background: linear-gradient(180deg, #ffffff, #eaf1ff);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.14);
+}
+.pm-chat-suggestion-card:focus-visible {
+  outline: 2px solid var(--pm-bleu-fonce);
+  outline-offset: 2px;
+}
+.pm-chat-suggestions-more-btn {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--pm-bleu-fonce);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 2px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.pm-chat-suggestions-more-btn:hover { text-decoration: underline; }
+.pm-chat-suggestions-more-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+/* Discreet on purpose (§11): available, never the pushed/default answer —
+   a plain text link, not a filled call-to-action button like the cards
+   around it. */
+.pm-chat-expert-btn {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--pm-gris);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.pm-chat-expert-btn:hover { color: var(--pm-bleu-fonce); text-decoration-color: var(--pm-bleu-fonce); }
+.pm-chat-expert-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+
+/* An integrated card within the conversation flow, not a full-panel
+   takeover (§10) — same message-column width as everything else, just
+   a bordered/shadowed container so it reads as its own inline card. */
+.pm-chat-lead-form {
+  border: 1px solid var(--pm-gris-2);
+  background: var(--pm-blanc);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(8, 8, 8, 0.06);
+}
+.pm-chat-lead-form-title { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.pm-chat-lead-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--pm-gris); }
+.pm-chat-lead-field input, .pm-chat-lead-field textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--pm-noir);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.pm-chat-lead-field input:focus, .pm-chat-lead-field textarea:focus {
+  outline: 2px solid var(--pm-rouge);
+  outline-offset: 1px;
+  border-color: var(--pm-rouge);
+}
+.pm-chat-lead-consent { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--pm-gris); }
+.pm-chat-lead-consent input { margin-top: 2px; }
+.pm-chat-lead-error { font-size: 12px; color: var(--pm-rouge); margin: 0; }
+.pm-chat-lead-actions { display: flex; gap: 8px; margin-top: 2px; }
+.pm-chat-lead-submit, .pm-chat-lead-cancel {
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.pm-chat-lead-submit { background: var(--pm-rouge); color: var(--pm-blanc); }
+.pm-chat-lead-submit:disabled { opacity: 0.6; cursor: default; }
+.pm-chat-lead-submit:hover:not(:disabled) { background: #e3003f; }
+.pm-chat-lead-cancel { background: transparent; border-color: var(--pm-gris-2); color: var(--pm-noir); }
+
+.pm-chat-input-bar {
+  flex-shrink: 0;
+  border-top: 1px solid var(--pm-gris-2);
+  padding: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--pm-blanc);
+}
+.pm-chat-input {
+  flex: 1;
+  resize: none;
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 12px;
+  padding: 12px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--pm-noir);
+  max-height: 96px;
+  min-height: 44px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pm-chat-input:focus {
+  outline: none;
+  border-color: var(--pm-bleu);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.22);
+}
+.pm-chat-send-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--pm-bleu-clair), var(--pm-bleu-fonce));
+  color: var(--pm-blanc);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.pm-chat-send-btn:disabled { opacity: 0.45; cursor: default; }
+.pm-chat-send-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28); }
+.pm-chat-send-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+
+.pm-chat-emoji-wrap { position: relative; flex-shrink: 0; }
+.pm-chat-emoji-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--pm-gris-2);
+  background: var(--pm-blanc);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pm-chat-emoji-btn:hover { border-color: var(--pm-bleu); }
+.pm-chat-emoji-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+.pm-chat-emoji-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  background: var(--pm-blanc);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(8, 8, 8, 0.12);
+  z-index: 1;
+}
+.pm-chat-emoji-item {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-chat-emoji-item:hover { background: var(--pm-gris-2); }
+.pm-chat-emoji-item:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 1px; }
+@media (max-width: 420px) {
+  .pm-chat-emoji-menu { grid-template-columns: repeat(6, 1fr); right: -8px; }
+}
+
+.pm-chat-visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes pm-chat-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pm-chat-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+/* Floating trigger, closed state only (openPanel() hides .pm-chat-trigger-wrap
+   entirely via display:none, so this simply stops running once open — no
+   extra JS needed to "pause" it). A slow breathe (scale 1→1.04→1) repeated
+   across a 9s cycle, plus ONE brief, low-amplitude wobble near the end —
+   one combined keyframe timeline rather than two separate transform
+   animations, since CSS can't compose two `transform` animations on the
+   same element (the later one just overrides the earlier one's scale).
+   "Occasional and short", never a continuous shake. */
+@keyframes pm-chat-trigger-attention {
+  0%, 100% { transform: scale(1) translateX(0); }
+  16.5% { transform: scale(1.04) translateX(0); }
+  33% { transform: scale(1) translateX(0); }
+  49.5% { transform: scale(1.04) translateX(0); }
+  66% { transform: scale(1) translateX(0); }
+  80% { transform: scale(1.02) translateX(0); }
+  81% { transform: scale(1.02) translateX(-2px); }
+  82% { transform: scale(1.02) translateX(2px); }
+  83% { transform: scale(1.02) translateX(-2px); }
+  84% { transform: scale(1.02) translateX(1px); }
+  85% { transform: scale(1.02) translateX(0); }
+}
+@keyframes pm-chat-trigger-ripple {
+  0% { transform: scale(0.9); opacity: 0.45; }
+  70%, 100% { transform: scale(1.3); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-chat-bubble { animation: none; }
+  .pm-chat-bubble.pm-chat-bubble-hiding { transition: none; }
+  .pm-chat-typing-dots span { animation: none; }
+  .pm-chat-trigger-btn { animation: none; }
+  .pm-chat-trigger-btn::before { animation: none; opacity: 0; }
+  .pm-chat-trigger-wrap, .pm-chat-panel { transition: none; }
+}
