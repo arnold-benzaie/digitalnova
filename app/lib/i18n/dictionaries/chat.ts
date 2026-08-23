@@ -31,6 +31,14 @@ export const chat = {
       sendButton: "Envoyer",
       emojiAriaLabel: "Insérer un emoji",
     },
+    // "delivered" = PUBLIC-MAP a traité le message avec succès — jamais
+    // "lu" par un humain, d'où le libellé explicite plutôt qu'une simple
+    // coche ambiguë (voir ChatMessageBubble's aria-label/title usage).
+    deliveryStatus: {
+      sending: "Envoi en cours…",
+      delivered: "Message traité par PUBLIC-MAP",
+      failed: "Échec de l'envoi",
+    },
     errors: {
       generic: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       rateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
@@ -143,6 +151,11 @@ export const chat = {
       sendAriaLabel: "Send",
       sendButton: "Send",
       emojiAriaLabel: "Insert an emoji",
+    },
+    deliveryStatus: {
+      sending: "Sending…",
+      delivered: "Processed by PUBLIC-MAP",
+      failed: "Delivery failed",
     },
     errors: {
       generic: "I'm having a temporary problem answering. Please try again in a few seconds.",

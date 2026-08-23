@@ -12,14 +12,23 @@ import { trackClientEvent } from "@/lib/actions/product-events";
 const STORAGE_KEY = "pm_chat_state_v1";
 const MAX_STORED_MESSAGES = 50;
 
-type StoredState = { conversationId: string | null; messages: { id: string; senderType: ChatUiMessage["senderType"]; content: string; createdAt: string }[] };
+type StoredState = { conversationId: string | null; messages: { id: string; senderType: ChatUiMessage["senderType"]; content: string; createdAt: string; status?: ChatUiMessage["status"] }[] };
 
 function loadStoredState(): StoredState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as StoredState;
+    const parsed = JSON.parse(raw) as StoredState;
+    // A "sending" status can only ever be genuinely true while its
+    // original fetch is still in flight — that request is gone the
+    // moment the page reloads (there is no way to resume it, and no
+    // active lastFailedMessageIdRef to retry it against), so restoring
+    // it as-is would show a clock that can never resolve. Sanitize to
+    // "no status" (neutral, no icon) rather than guess an outcome we
+    // don't actually know — "delivered"/"failed" are left untouched
+    // since those ARE real observed outcomes from earlier this session.
+    return { ...parsed, messages: parsed.messages.map((message) => (message.status === "sending" ? { ...message, status: undefined } : message)) };
   } catch {
     return null;
   }
@@ -89,6 +98,11 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
   const [leadFormSubmitting, setLeadFormSubmitting] = useState(false);
   const [leadFormError, setLeadFormError] = useState<string | null>(null);
   const lastFailedContentRef = useRef<string | null>(null);
+  // Tracks which message bubble the current send/retry cycle should
+  // update the status of — set alongside lastFailedContentRef so Retry
+  // (which never creates a new bubble) knows exactly which existing one
+  // to flip back to "sending" and then "delivered"/"failed".
+  const lastFailedMessageIdRef = useRef<string | null>(null);
   const hasViewedRef = useRef(false);
 
   useEffect(() => {
@@ -136,26 +150,40 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     setBubbleDismissed(true);
   }
 
-  function appendLocalMessage(senderType: ChatUiMessage["senderType"], content: string): string {
+  function appendLocalMessage(senderType: ChatUiMessage["senderType"], content: string, status?: ChatUiMessage["status"]): string {
     const id = `local-${crypto.randomUUID()}`;
-    setMessages((prev) => [...prev, { id, senderType, content, createdAt: new Date() }]);
+    setMessages((prev) => [...prev, { id, senderType, content, createdAt: new Date(), status }]);
     return id;
+  }
+
+  function updateMessageStatus(id: string, status: ChatUiMessage["status"]) {
+    setMessages((prev) => prev.map((message) => (message.id === id ? { ...message, status } : message)));
   }
 
   /** Shared by both a normal send and a Retry — `appendUserBubble: false`
    * on retry is what stops a second, identical user bubble from
    * appearing (§2/§3): the original bubble from the failed attempt is
    * already in `messages` and is never removed on error, so nothing
-   * needs to be re-added, only re-sent. */
+   * needs to be re-added, only re-sent (its status just flips back to
+   * "sending" in place via lastFailedMessageIdRef). */
   async function performSend(content: string, suggestionId: string | undefined, appendUserBubble: boolean) {
     setErrorMessage(null);
+    let messageId: string;
     if (appendUserBubble) {
-      appendLocalMessage(isAuthenticated ? "client" : "visitor", content);
+      messageId = appendLocalMessage(isAuthenticated ? "client" : "visitor", content, "sending");
       trackIfAuthenticated(isAuthenticated, "chat_message_sent");
+    } else {
+      // Retry: lastFailedMessageIdRef always points at the bubble from
+      // the attempt being retried (set below, mirrored with
+      // lastFailedContentRef) — never null here since handleRetry
+      // already guards on lastFailedContentRef being set.
+      messageId = lastFailedMessageIdRef.current as string;
+      updateMessageStatus(messageId, "sending");
     }
     setSuggestions([]);
     setIsTyping(true);
     lastFailedContentRef.current = content;
+    lastFailedMessageIdRef.current = messageId;
 
     try {
       // Always the real interface locale (rule 2's input), never
@@ -166,6 +194,12 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
       if (result.language === "fr" || result.language === "en") {
         setConversationLocale(result.language);
       }
+      // A 200 response here is only reachable after the backend has both
+      // persisted the user's message AND successfully generated a reply
+      // (app/api/chat/route.ts's handleMessage does both in one atomic
+      // request — see ChatMessageStatus's doc comment) — "delivered"
+      // stands for that combined outcome, not a separate earlier step.
+      updateMessageStatus(messageId, "delivered");
       setMessages((prev) => [...prev, { id: `assistant-${crypto.randomUUID()}`, senderType: "assistant", content: result.reply, createdAt: new Date() }]);
       setSuggestions(result.suggestions.map((suggestion) => suggestion.id));
       if (result.action?.type === "show_lead_form") {
@@ -173,8 +207,10 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
         trackIfAuthenticated(isAuthenticated, "lead_form_opened");
       }
       lastFailedContentRef.current = null;
+      lastFailedMessageIdRef.current = null;
       setConsecutiveFailures(0);
     } catch (err) {
+      updateMessageStatus(messageId, "failed");
       setErrorMessage(err instanceof ChatApiError && err.kind === "rate_limited" ? t.errors.rateLimited : t.errors.generic);
       trackIfAuthenticated(isAuthenticated, "chat_error", { kind: err instanceof ChatApiError ? err.kind : "unknown" });
       setConsecutiveFailures((n) => n + 1);

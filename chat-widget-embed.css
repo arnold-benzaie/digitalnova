@@ -255,6 +255,16 @@
 .pm-chat-msg-own .pm-chat-msg-bubble { background: var(--pm-bleu-nuit); color: var(--pm-blanc); border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(16, 26, 51, 0.24); }
 .pm-chat-msg-other .pm-chat-msg-bubble { background: var(--pm-bleu-pale); color: var(--pm-noir); border-bottom-left-radius: 4px; }
 
+.pm-chat-msg-status { display: inline-flex; margin-top: 3px; padding: 0 2px; }
+.pm-chat-msg-status svg { width: 12px; height: 12px; }
+.pm-chat-msg-status-sending svg { color: var(--pm-gris); animation: pm-chat-status-pulse 1.4s ease-in-out infinite; }
+.pm-chat-msg-status-delivered svg { color: var(--pm-bleu); }
+.pm-chat-msg-status-failed svg { color: var(--pm-rouge); }
+@keyframes pm-chat-status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .pm-chat-msg-status-sending svg { animation: none; }
+}
+
 .pm-chat-typing {
   align-self: flex-start;
   display: flex;

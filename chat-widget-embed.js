@@ -79,6 +79,11 @@
       inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
       emojiAriaLabel: "Insérer un emoji",
+      // "delivered" = PUBLIC-MAP a traité le message avec succès — jamais
+      // "lu" par un humain, d'où le libellé explicite.
+      deliveryStatusSending: "Envoi en cours…",
+      deliveryStatusDelivered: "Message traité par PUBLIC-MAP",
+      deliveryStatusFailed: "Échec de l'envoi",
       errorGeneric: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
       errorRepeatedFailure: "Je n'arrive toujours pas à traiter votre demande. Souhaitez-vous parler à un conseiller PUBLIC-MAP ?",
@@ -176,6 +181,9 @@
       inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
       emojiAriaLabel: "Insert an emoji",
+      deliveryStatusSending: "Sending…",
+      deliveryStatusDelivered: "Processed by PUBLIC-MAP",
+      deliveryStatusFailed: "Delivery failed",
       errorGeneric: "I'm having a temporary problem answering. Please try again in a few seconds.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
       errorRepeatedFailure: "I'm still unable to process your request. Would you like to speak with a PUBLIC-MAP advisor?",
@@ -281,7 +289,21 @@
   function loadStoredState() {
     try {
       var raw = window.localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      // A "sending" status can only be true while its original fetch is
+      // still in flight — that request is gone the moment the page
+      // reloads, with no way to resume or retry it (no activeMessage
+      // reference survives a reload), so restoring it as-is would show a
+      // clock that can never resolve. Sanitize to no status (neutral, no
+      // icon) rather than guess an outcome we don't know; "delivered"/
+      // "failed" are left as-is since those are real observed outcomes.
+      if (parsed && parsed.messages) {
+        parsed.messages.forEach(function (message) {
+          if (message.status === "sending") message.status = undefined;
+        });
+      }
+      return parsed;
     } catch (e) {
       return null;
     }
@@ -401,6 +423,12 @@
     var suggestions = [];
     var showLeadForm = false;
     var lastFailedContent = null;
+    // The exact message object (a shared reference held in `messages`)
+    // whose .status the current send/retry cycle should update — set
+    // alongside lastFailedContent so Retry (which never pushes a new
+    // bubble) mutates the same bubble in place instead of losing track
+    // of which one is outstanding.
+    var activeMessage = null;
     // In-flight guard for the Retry button — blocks a double-click firing
     // two concurrent attempts (§3).
     var isRetrying = false;
@@ -737,14 +765,38 @@
       return section;
     }
 
-    function renderMessageBubble(message) {
-      var isOwn = message.senderType === "visitor" || message.senderType === "client";
-      return el("div", { class: "pm-chat-msg-row " + (isOwn ? "pm-chat-msg-own" : "pm-chat-msg-other") }, [el("div", { class: "pm-chat-msg-bubble", text: message.content })]);
+    // Delivery status (own messages only) — see performSend/retryMessage
+    // for exactly when each is set. Only two states are backend-
+    // guaranteed by the current /api/chat contract: "sending" (request
+    // in flight — there's no separate "server received it" moment to
+    // observe before the response, since it's one atomic round-trip) and
+    // "delivered" (a 200 came back, which — because the user's message
+    // is persisted before the AI provider is even called — means it was
+    // BOTH persisted AND successfully processed; a failure can't tell
+    // those two apart either). "failed" covers any non-2xx or network
+    // error. Never a fourth, unearned state.
+    function renderDeliveryStatus(status) {
+      if (status === "sending") {
+        return el("span", { class: "pm-chat-msg-status pm-chat-msg-status-sending", title: t.deliveryStatusSending, "aria-label": t.deliveryStatusSending }, [clockIcon()]);
+      }
+      if (status === "failed") {
+        return el("span", { class: "pm-chat-msg-status pm-chat-msg-status-failed", title: t.deliveryStatusFailed, "aria-label": t.deliveryStatusFailed }, [alertIcon()]);
+      }
+      return el("span", { class: "pm-chat-msg-status pm-chat-msg-status-delivered", title: t.deliveryStatusDelivered, "aria-label": t.deliveryStatusDelivered }, [checkCheckIcon()]);
     }
 
-    function appendLocalMessage(senderType, content) {
-      messages.push({ senderType: senderType, content: content, createdAt: new Date().toISOString() });
+    function renderMessageBubble(message) {
+      var isOwn = message.senderType === "visitor" || message.senderType === "client";
+      var children = [el("div", { class: "pm-chat-msg-bubble", text: message.content })];
+      if (isOwn && message.status) children.push(renderDeliveryStatus(message.status));
+      return el("div", { class: "pm-chat-msg-row " + (isOwn ? "pm-chat-msg-own" : "pm-chat-msg-other") }, children);
+    }
+
+    function appendLocalMessage(senderType, content, status) {
+      var message = { senderType: senderType, content: content, createdAt: new Date().toISOString(), status: status };
+      messages.push(message);
       renderMessages();
+      return message;
     }
 
     function renderTyping() {
@@ -822,11 +874,20 @@
     // `messages` and is never removed on error, so only the network call
     // needs to be redone.
     function performSend(content, suggestionId, appendUserBubble) {
-      if (appendUserBubble) appendLocalMessage("visitor", content);
+      if (appendUserBubble) {
+        activeMessage = appendLocalMessage("visitor", content, "sending");
+      } else {
+        // Retry: activeMessage still points at the bubble from the
+        // attempt being retried — flip it back to "sending" in place
+        // rather than creating a new one.
+        activeMessage.status = "sending";
+        renderMessages();
+      }
       suggestions = [];
       renderSuggestions();
       lastFailedContent = content;
       var typingRow = renderTyping();
+      var sentMessage = activeMessage;
 
       // Always the real interface locale (rule 2's input) — never
       // conversationLocale, which would conflate "what the backend last
@@ -837,6 +898,15 @@
           isRetrying = false;
           conversationId = result.conversationId;
           applyConversationLocale(result.language);
+          // A 200 response here is only reachable after the backend has
+          // both persisted the user's message AND generated a reply
+          // (app/api/chat/route.ts's handleMessage does both in one
+          // atomic request) — "delivered" stands for that combined
+          // outcome, not a separately-observed earlier step. Mutating
+          // sentMessage.status directly (no explicit re-render needed
+          // here) is picked up by the appendLocalMessage("assistant", …)
+          // call right below, which already triggers one.
+          sentMessage.status = "delivered";
           appendLocalMessage("assistant", result.reply);
           suggestions = (result.suggestions || []).map(function (s) {
             return s.id;
@@ -854,6 +924,8 @@
           typingRow.remove();
           isRetrying = false;
           consecutiveFailures += 1;
+          sentMessage.status = "failed";
+          renderMessages();
           renderError(err && err.kind);
         });
     }
@@ -983,6 +1055,19 @@
     }
     function sendIcon() {
       return svg('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
+    }
+    // Delivery-status icons — same shapes as the React widget's lucide
+    // Clock/CheckCheck/AlertCircle, hand-copied here for visual parity
+    // (no icon library on the static site, same approach as the icons
+    // above).
+    function clockIcon() {
+      return svg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>');
+    }
+    function checkCheckIcon() {
+      return svg('<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>');
+    }
+    function alertIcon() {
+      return svg('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>');
     }
   }
 
