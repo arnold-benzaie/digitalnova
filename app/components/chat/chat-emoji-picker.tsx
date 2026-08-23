@@ -20,28 +20,38 @@ export function ChatEmojiPicker({ ariaLabel, onSelect }: { ariaLabel: string; on
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Closes on an outside click/tap or Escape — the two standard
-  // dismissal patterns for a lightweight popover, keyboard-accessible
-  // without a full focus-trap (the picker is a flat grid of buttons, not
-  // a modal — closing returns focus naturally since nothing steals it).
+  // Outside click/tap closes it (document-level — needs to see clicks
+  // anywhere on the page). Escape is intentionally handled via the
+  // container's own onKeyDown + stopPropagation below, NOT a
+  // document-level listener: a future ancestor (e.g. the panel itself)
+  // could reasonably add its own Escape-closes-panel handler, and two
+  // document-level Escape listeners on the same keypress would both
+  // fire — closing the picker AND the whole panel at once. Scoping to
+  // the container plus stopPropagation guarantees the picker (the
+  // innermost popover) always gets Escape first and the keypress never
+  // reaches further up.
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(event: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
     }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
     document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div
+      ref={containerRef}
+      className="relative shrink-0"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
       <Button
         type="button"
         size="icon"

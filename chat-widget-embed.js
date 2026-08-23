@@ -561,8 +561,22 @@
       function onOutside(e) {
         if (!wrap.contains(e.target)) closeMenu();
       }
+      // Scoped to `wrap` (not `document`) and stops propagation — the
+      // panel itself already has its OWN document-level Escape handler
+      // (closePanel(), registered when the panel opens, well before this
+      // one ever exists). Listening on document here as well would race
+      // it: both would fire on the same keypress, closing the picker AND
+      // the whole panel at once. Listening on `wrap` means the keydown
+      // only reaches here if focus is inside the picker (always true
+      // while it's open — the trigger button or a grid item), and
+      // stopPropagation() keeps it from ever bubbling up to document, so
+      // the picker takes priority and the panel stays open — exactly the
+      // expected "innermost popover closes first" behavior.
       function onEscape(e) {
-        if (e.key === "Escape") closeMenu();
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          closeMenu();
+        }
       }
       function closeMenu() {
         if (!menu) return;
@@ -570,7 +584,7 @@
         menu = null;
         btn.setAttribute("aria-expanded", "false");
         document.removeEventListener("pointerdown", onOutside);
-        document.removeEventListener("keydown", onEscape);
+        wrap.removeEventListener("keydown", onEscape);
       }
       function openMenu() {
         menu = el("div", { class: "pm-chat-emoji-menu", role: "menu", "aria-label": t.emojiAriaLabel });
@@ -584,7 +598,7 @@
         wrap.appendChild(menu);
         btn.setAttribute("aria-expanded", "true");
         document.addEventListener("pointerdown", onOutside);
-        document.addEventListener("keydown", onEscape);
+        wrap.addEventListener("keydown", onEscape);
       }
       btn.addEventListener("click", function () {
         if (menu) closeMenu();
