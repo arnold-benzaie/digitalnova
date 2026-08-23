@@ -63,6 +63,10 @@ export function submitChatLead(input: {
   country?: string;
   message: string;
   consent: true;
+  /** Which embed sent this — labels the internal lead-notification email
+   * (§7). Optional: the backend defaults to "app" when absent, matching
+   * sendMessageSchema's own convention. */
+  surface?: "app" | "site";
 }): Promise<ChatApiResponse> {
   return postChat({ type: "lead_submit", ...input });
 }

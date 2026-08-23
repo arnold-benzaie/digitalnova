@@ -285,6 +285,7 @@
   gap: 8px;
 }
 .pm-chat-error-text { font-size: 12px; color: var(--pm-rouge); margin: 0; }
+.pm-chat-error-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pm-chat-retry-btn {
   border: 1px solid var(--pm-gris-2);
   background: var(--pm-blanc);
@@ -294,6 +295,7 @@
   cursor: pointer;
 }
 .pm-chat-retry-btn:hover { border-color: var(--pm-rouge); color: var(--pm-rouge); }
+.pm-chat-retry-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* Phase 1C — suggestion cards. Replaces the old pill-button style
    everywhere suggestions render: the bootstrap "Suggestions rapides"

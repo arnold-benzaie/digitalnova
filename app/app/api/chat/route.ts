@@ -6,11 +6,12 @@ import { resolveChatContext } from "@/lib/chat/context";
 import { attachLeadToConversation, getOrCreateConversation, getOwnedConversation, setConversationStatus } from "@/lib/chat/conversations";
 import { escalateToHuman } from "@/lib/chat/escalation";
 import { captureLead } from "@/lib/chat/leads";
-import { appendMessage, getRecentMessagesForProvider } from "@/lib/chat/messages";
+import { appendMessage, appendUserMessage, getRecentMessagesForProvider } from "@/lib/chat/messages";
+import { notifyHumanEscalation } from "@/lib/chat/notify-human-escalation";
+import { categorizeChatError, recordChatFailureAndMaybeAlert } from "@/lib/chat/technical-alert";
 import { chatRequestSchema, escalateSchema, leadSubmitSchema, sendMessageSchema } from "@/lib/chat/validation";
 import { generateVisitorId, isValidVisitorId, VISITOR_ID_COOKIE, visitorIdCookieOptions } from "@/lib/chat/visitor";
 import { clientIpFromHeaders } from "@/lib/gbp-audit/client-ip";
-import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
@@ -115,13 +116,29 @@ export async function POST(request: NextRequest) {
     // Never the raw error message in the response — see lib/ai/mock-provider.ts's
     // simulated-error path, which this branch is also what catches.
     console.error(`[chat] Échec de traitement (type: ${body.type})`, err instanceof Error ? err.message : "unknown error");
+    if (body.type === "message") {
+      // Awaited (not fire-and-forget): a serverless function isn't
+      // guaranteed to keep running background work after its response is
+      // sent, so this must complete before the 502 goes out. Never throws
+      // itself (own try/catch inside — see technical-alert.ts), so this
+      // only adds the cost of one INSERT + one SELECT (and, rarely, one
+      // email send) to an already-failing request. Only a "message"
+      // failure counts toward the technical-alert threshold; lead_submit/
+      // escalate failures are deterministic-code failures, not AI-
+      // provider ones.
+      await recordChatFailureAndMaybeAlert(categorizeChatError(err), "/api/chat");
+    }
     return NextResponse.json({ error: "provider_unavailable" }, { status: 502, headers });
   }
 }
 
 async function handleMessage(context: ChatContext, body: z.infer<typeof sendMessageSchema>) {
   const conversation = await getOrCreateConversation(context, body.conversationId);
-  await appendMessage(conversation.id, context.kind === "authenticated" ? "client" : "visitor", body.content, body.suggestionId ? { suggestionId: body.suggestionId } : null);
+  // appendUserMessage (not appendMessage): absorbs an exact-content Retry
+  // (or an accidental network-level double-submit) on the same
+  // conversationId within a short window instead of persisting a second
+  // identical row — see lib/chat/messages.ts.
+  await appendUserMessage(conversation.id, context.kind === "authenticated" ? "client" : "visitor", body.content, body.suggestionId ? { suggestionId: body.suggestionId } : null);
 
   const history = await getRecentMessagesForProvider(conversation.id);
   const provider = await getAiProvider();
@@ -148,6 +165,14 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
     return { error: "conversation_not_found" };
   }
 
+  // Captured BEFORE attaching — the anti-spam guard (§8): a conversation
+  // already linked to a CRM client means a notification already went out
+  // for it once; a resubmit (double-click, retry, or the same prospect
+  // filling the form again) must never send a second one. captureLead's
+  // own email-based dedup still runs regardless (it just updates the
+  // same crmClients row rather than creating a new one).
+  const alreadyLinked = conversation.crmClientId !== null;
+
   const { crmClientId } = await captureLead(context, {
     fullName: body.fullName,
     email: body.email,
@@ -161,13 +186,22 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
   // Every lead submitted through the widget means the AI could not fully
   // resolve the request on its own — mark the conversation as needing a
   // human follow-up too (no separate notification for this state change;
-  // the "chat.lead_captured" notification just below already tells staff
-  // a real person is waiting).
+  // the notification below already tells staff a real person is waiting).
   await setConversationStatus(conversation.id, "NEEDS_HUMAN");
 
-  const internalOrgId = await getInternalOrganizationId();
-  if (internalOrgId) {
-    await notify({ organizationId: internalOrgId, type: "chat.lead_captured", metadata: { fullName: body.fullName, conversationId: conversation.id } });
+  if (!alreadyLinked) {
+    await notifyHumanEscalation({
+      trigger: "lead_captured",
+      conversationId: conversation.id,
+      surface: body.surface,
+      locale: body.locale,
+      fullName: body.fullName,
+      email: body.email,
+      phone: body.phone,
+      organizationName: body.company,
+      summary: body.message,
+      crmClientId,
+    });
   }
 
   const confirmationReply = dictionaries[body.locale].chat.leadForm.confirmation;
@@ -182,7 +216,7 @@ async function handleEscalate(context: ChatContext, body: z.infer<typeof escalat
     return { error: "conversation_not_found" };
   }
 
-  await escalateToHuman(context, conversation.id, "Demande d'assistance humaine depuis le widget de chat.");
+  await escalateToHuman(context, conversation, undefined, "Demande d'assistance humaine depuis le widget de chat.");
 
   const confirmationReply = dictionaries[body.locale].chat.escalation.confirmation;
   await appendMessage(conversation.id, "assistant", confirmationReply);

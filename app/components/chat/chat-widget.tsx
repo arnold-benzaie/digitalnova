@@ -77,7 +77,14 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
   const [messages, setMessages] = useState<ChatUiMessage[]>(() => initialStored?.messages.map((message) => ({ ...message, createdAt: new Date(message.createdAt) })) ?? []);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Consecutive failures for the CURRENT outstanding message only — reset
+  // on any success, never persisted (§4: a per-conversation-attempt
+  // signal, not a stored/backend concept). At 2, the panel offers the
+  // advisor CTA alongside the normal Retry, never opening the lead form
+  // on its own (§4: "ne pas ouvrir automatiquement le formulaire").
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadFormSubmitting, setLeadFormSubmitting] = useState(false);
   const [leadFormError, setLeadFormError] = useState<string | null>(null);
@@ -135,13 +142,20 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     return id;
   }
 
-  async function handleSend(content: string, suggestionId?: string) {
+  /** Shared by both a normal send and a Retry — `appendUserBubble: false`
+   * on retry is what stops a second, identical user bubble from
+   * appearing (§2/§3): the original bubble from the failed attempt is
+   * already in `messages` and is never removed on error, so nothing
+   * needs to be re-added, only re-sent. */
+  async function performSend(content: string, suggestionId: string | undefined, appendUserBubble: boolean) {
     setErrorMessage(null);
-    appendLocalMessage(isAuthenticated ? "client" : "visitor", content);
+    if (appendUserBubble) {
+      appendLocalMessage(isAuthenticated ? "client" : "visitor", content);
+      trackIfAuthenticated(isAuthenticated, "chat_message_sent");
+    }
     setSuggestions([]);
     setIsTyping(true);
     lastFailedContentRef.current = content;
-    trackIfAuthenticated(isAuthenticated, "chat_message_sent");
 
     try {
       // Always the real interface locale (rule 2's input), never
@@ -159,12 +173,19 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
         trackIfAuthenticated(isAuthenticated, "lead_form_opened");
       }
       lastFailedContentRef.current = null;
+      setConsecutiveFailures(0);
     } catch (err) {
       setErrorMessage(err instanceof ChatApiError && err.kind === "rate_limited" ? t.errors.rateLimited : t.errors.generic);
       trackIfAuthenticated(isAuthenticated, "chat_error", { kind: err instanceof ChatApiError ? err.kind : "unknown" });
+      setConsecutiveFailures((n) => n + 1);
     } finally {
       setIsTyping(false);
+      setIsRetrying(false);
     }
+  }
+
+  function handleSend(content: string, suggestionId?: string) {
+    void performSend(content, suggestionId, true);
   }
 
   function handleSuggestionClick(id: string) {
@@ -174,13 +195,25 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     if (id === "human") {
       trackIfAuthenticated(isAuthenticated, "human_support_requested");
     }
-    void handleSend(label, id);
+    handleSend(label, id);
   }
 
   function handleRetry() {
-    if (lastFailedContentRef.current) {
-      void handleSend(lastFailedContentRef.current);
-    }
+    // isRetrying/isTyping both gate this — a raw double-click can't fire
+    // a second in-flight attempt (§3).
+    if (!lastFailedContentRef.current || isRetrying || isTyping) return;
+    setIsRetrying(true);
+    void performSend(lastFailedContentRef.current, undefined, false);
+  }
+
+  /** The advisor CTA offered after repeated failures (§4) reuses the
+   * exact same lead-form path the AI itself can trigger — never a
+   * separate mechanism, and never opened except on this explicit click. */
+  function handleTalkToAdvisorAfterFailures() {
+    setErrorMessage(null);
+    setConsecutiveFailures(0);
+    setShowLeadForm(true);
+    trackIfAuthenticated(isAuthenticated, "lead_form_opened", { reason: "repeated_failure" });
   }
 
   async function handleSubmitLead(values: ChatLeadFormValues) {
@@ -192,7 +225,7 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
       // `locale`): this only picks which language the deterministic
       // confirmation text is drafted in, so it should match whatever
       // language the conversation has actually been in.
-      const result = await submitChatLead({ conversationId, locale: conversationLocale, consent: true, ...values });
+      const result = await submitChatLead({ conversationId, locale: conversationLocale, consent: true, surface: "app", ...values });
       setMessages((prev) => [...prev, { id: `assistant-${crypto.randomUUID()}`, senderType: "assistant", content: result.reply, createdAt: new Date() }]);
       setShowLeadForm(false);
       trackIfAuthenticated(isAuthenticated, "lead_submitted");
@@ -217,14 +250,17 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
           isTyping={isTyping}
           isOnline
           errorMessage={errorMessage}
+          isRetrying={isRetrying}
+          showAdvisorCta={consecutiveFailures >= 2}
           showLeadForm={showLeadForm}
           leadFormSubmitting={leadFormSubmitting}
           leadFormError={leadFormError}
-          onSendMessage={(content) => void handleSend(content)}
+          onSendMessage={(content) => handleSend(content)}
           onSuggestionClick={handleSuggestionClick}
           onSubmitLead={(values) => void handleSubmitLead(values)}
           onCancelLead={() => setShowLeadForm(false)}
           onRetry={handleRetry}
+          onTalkToAdvisor={handleTalkToAdvisorAfterFailures}
           onClose={closePanel}
           onMinimize={minimizePanel}
         />

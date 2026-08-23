@@ -31,9 +31,12 @@ export const chat = {
       sendButton: "Envoyer",
     },
     errors: {
-      generic: "Une erreur est survenue. Veuillez réessayer.",
+      generic: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       rateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
       retry: "Réessayer",
+      retrying: "En cours…",
+      repeatedFailure: "Je n'arrive toujours pas à traiter votre demande. Souhaitez-vous parler à un conseiller PUBLIC-MAP ?",
+      talkToAdvisor: "Parler à un conseiller",
     },
     suggestions: {
       title: "Suggestions",
@@ -140,9 +143,12 @@ export const chat = {
       sendButton: "Send",
     },
     errors: {
-      generic: "Something went wrong. Please try again.",
+      generic: "I'm having a temporary problem answering. Please try again in a few seconds.",
       rateLimited: "Too many messages sent. Please wait a moment before trying again.",
       retry: "Retry",
+      retrying: "Retrying…",
+      repeatedFailure: "I'm still unable to process your request. Would you like to speak with a PUBLIC-MAP advisor?",
+      talkToAdvisor: "Talk to an advisor",
     },
     suggestions: {
       title: "Suggestions",

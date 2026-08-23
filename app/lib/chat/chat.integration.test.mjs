@@ -37,14 +37,15 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { users, organizations, roles, memberships, crmClients, chatConversations, chatMessages, notifications } = await import("@/db/schema");
+const { users, organizations, roles, memberships, crmClients, chatConversations, chatMessages, notifications, systemHealthChecks } = await import("@/db/schema");
 const { eq, and } = await import("drizzle-orm");
 const { resolveChatContext } = await import("@/lib/chat/context");
 const { getOrCreateConversation, getOwnedConversation, attachLeadToConversation } = await import("@/lib/chat/conversations");
-const { appendMessage, getConversationMessages, sanitizeMessageContent, sanitizeMessageMetadata, MAX_MESSAGE_LENGTH } = await import("@/lib/chat/messages");
+const { appendMessage, appendUserMessage, getConversationMessages, sanitizeMessageContent, sanitizeMessageMetadata, MAX_MESSAGE_LENGTH } = await import("@/lib/chat/messages");
 const { captureLead } = await import("@/lib/chat/leads");
 const { escalateToHuman } = await import("@/lib/chat/escalation");
 const { generateVisitorId, isValidVisitorId } = await import("@/lib/chat/visitor");
+const { recordChatFailureAndMaybeAlert, categorizeChatError } = await import("@/lib/chat/technical-alert");
 
 after(async () => {
   await db.$client.end();
@@ -267,15 +268,138 @@ test("escalateToHuman sets status=NEEDS_HUMAN and raises an internal notificatio
   actAs(clientA, orgA.id);
   const conversation = await getOrCreateConversation(await resolveChatContext("fr", "unused"));
 
-  await escalateToHuman({ kind: "authenticated", userId: clientA.id, organizationId: orgA.id, organizationName: "Org A", firstName: "Alice", locale: "fr", market: null, activeIntegrations: { gbp: false, analytics: false, searchConsole: false } }, conversation.id, "Besoin d'aide.");
+  await escalateToHuman(
+    { kind: "authenticated", userId: clientA.id, organizationId: orgA.id, organizationName: "Org A", firstName: "Alice", locale: "fr", market: null, activeIntegrations: { gbp: false, analytics: false, searchConsole: false } },
+    conversation,
+    "app",
+    "Besoin d'aide.",
+  );
 
   const [row] = await db.select().from(chatConversations).where(eq(chatConversations.id, conversation.id)).limit(1);
   assert.equal(row.status, "NEEDS_HUMAN");
 
-  const [note] = await db
+  const notes = await db
     .select()
     .from(notifications)
     .where(and(eq(notifications.organizationId, internalOrg.id), eq(notifications.type, "chat.human_requested")))
     .orderBy(notifications.createdAt);
-  assert.ok(note, "an internal notification must be raised for staff to see");
+  const forThisConversation = notes.filter((n) => n.metadata && n.metadata.conversationId === conversation.id);
+  assert.equal(forThisConversation.length, 1, "an internal notification must be raised for staff to see");
+});
+
+test("escalateToHuman is a no-op notification-wise when the conversation is already NEEDS_HUMAN (§8 anti-spam dedup)", async () => {
+  actAs(clientA, orgA.id);
+  const context = { kind: "authenticated", userId: clientA.id, organizationId: orgA.id, organizationName: "Org A", firstName: "Alice", locale: "fr", market: null, activeIntegrations: { gbp: false, analytics: false, searchConsole: false } };
+  const conversation = await getOrCreateConversation(await resolveChatContext("fr", "unused"));
+
+  await escalateToHuman(context, conversation, "app", "Première demande.");
+  const [afterFirst] = await db.select().from(chatConversations).where(eq(chatConversations.id, conversation.id)).limit(1);
+
+  // Second call passes the now-NEEDS_HUMAN row, exactly as route.ts would
+  // (it re-fetches via getOwnedConversation before every write).
+  await escalateToHuman(context, afterFirst, "app", "Deuxième demande, quelques secondes plus tard.");
+
+  const notes = await db
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.organizationId, internalOrg.id), eq(notifications.type, "chat.human_requested")))
+    .orderBy(notifications.createdAt);
+  const forThisConversation = notes.filter((n) => n.metadata && n.metadata.conversationId === conversation.id);
+  assert.equal(forThisConversation.length, 1, "a second escalation on an already-NEEDS_HUMAN conversation must not raise a second notification");
+});
+
+// ---- anti-duplication: appendUserMessage (§13, Retry dedup) --------------
+
+test("appendUserMessage: an identical retry within the dedup window reuses the same row instead of creating a second one", async () => {
+  actAs(clientA, orgA.id);
+  const conversation = await getOrCreateConversation(await resolveChatContext("fr", "unused"));
+
+  const first = await appendUserMessage(conversation.id, "client", "Bonjour, j'ai un problème.");
+  const retried = await appendUserMessage(conversation.id, "client", "Bonjour, j'ai un problème.");
+
+  assert.equal(retried.id, first.id, "a retry of the exact same content must reuse the original row");
+  const rows = await getConversationMessages(conversation.id);
+  assert.equal(rows.filter((r) => r.content === "Bonjour, j'ai un problème.").length, 1, "no duplicate row should be persisted");
+});
+
+test("appendUserMessage: different content on the same conversation is never deduped", async () => {
+  actAs(clientA, orgA.id);
+  const conversation = await getOrCreateConversation(await resolveChatContext("fr", "unused"));
+
+  await appendUserMessage(conversation.id, "client", "Premier message.");
+  await appendUserMessage(conversation.id, "client", "Un message différent.");
+
+  const rows = await getConversationMessages(conversation.id);
+  assert.equal(rows.length, 2);
+});
+
+test("appendUserMessage: a same-content row from a DIFFERENT senderType (e.g. the assistant echoing the visitor's words) never triggers the dedup — only an exact senderType+content match on the single most recent row does", async () => {
+  actAs(clientA, orgA.id);
+  const conversation = await getOrCreateConversation(await resolveChatContext("fr", "unused"));
+
+  const clientRow = await appendUserMessage(conversation.id, "client", "Même texte");
+  await appendMessage(conversation.id, "assistant", "Même texte");
+  const secondClientRow = await appendUserMessage(conversation.id, "client", "Même texte");
+
+  const rows = await getConversationMessages(conversation.id);
+  assert.equal(rows.length, 3, "all three inserts must persist — the assistant row's matching content never dedupes the client's own later turn");
+  assert.notEqual(secondClientRow.id, clientRow.id, "the second client row is genuinely new, not a reuse of the first");
+});
+
+// ---- lead notification dedup (§8 anti-spam) --------------------------------
+
+test("handleLeadSubmit-equivalent: a resubmitted lead on an already-linked conversation is only ever notified once", async () => {
+  // Exercises the exact guard app/api/chat/route.ts's handleLeadSubmit
+  // uses (conversation.crmClientId !== null before attach) directly
+  // against the real DB, without spinning up the HTTP route.
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const conversation = await getOrCreateConversation(context);
+  const email = `${randomUUID()}@dedup.test`;
+
+  async function submitOnce(message) {
+    const alreadyLinked = (await db.select().from(chatConversations).where(eq(chatConversations.id, conversation.id)).limit(1))[0].crmClientId !== null;
+    const { crmClientId } = await captureLead(context, { fullName: "Dedup Test", email, message });
+    await attachLeadToConversation(conversation.id, crmClientId);
+    return alreadyLinked;
+  }
+
+  const firstAlreadyLinked = await submitOnce("Premier envoi.");
+  const secondAlreadyLinked = await submitOnce("Renvoi quelques secondes plus tard.");
+
+  assert.equal(firstAlreadyLinked, false, "the first submission must be treated as new (notification should fire)");
+  assert.equal(secondAlreadyLinked, true, "the second submission on the same conversation must be recognized as already-linked (notification must be skipped)");
+});
+
+// ---- technical alert (§10) --------------------------------------------------
+// SYSTEM_ALERT_EMAIL/RESEND_API_KEY are never set in this test environment,
+// so sendChatAlertEmail() always degrades to {sent:false} with zero real
+// network calls — meaning alertSentAt never actually gets stamped here.
+// This mirrors the codebase's own existing precedent: there is no test
+// file at all for lib/system-alerts.ts's analogous DB-alert cooldown,
+// for the same reason (fully exercising the cooldown-after-a-real-send
+// path needs live provider credentials). What IS verified here is the
+// part that doesn't depend on a real send: recording never throws, and
+// failures actually accumulate as chat_ai rows for the threshold check.
+
+test("recordChatFailureAndMaybeAlert never throws, with or without email configured", async () => {
+  delete process.env.SYSTEM_ALERT_EMAIL;
+  await assert.doesNotReject(() => recordChatFailureAndMaybeAlert("provider_unavailable", "/api/chat"));
+  process.env.SYSTEM_ALERT_EMAIL = "ops@example.test";
+  await assert.doesNotReject(() => recordChatFailureAndMaybeAlert("provider_unavailable", "/api/chat"));
+  delete process.env.SYSTEM_ALERT_EMAIL;
+});
+
+test("recordChatFailureAndMaybeAlert records one chat_ai row per call, using categorizeChatError's own category", async () => {
+  const before = await db.select().from(systemHealthChecks).where(eq(systemHealthChecks.service, "chat_ai"));
+  const category = categorizeChatError(new Error("ai-deepseek-provider: invalid_json"));
+
+  await recordChatFailureAndMaybeAlert(category, "/api/chat");
+  await recordChatFailureAndMaybeAlert(category, "/api/chat");
+  await recordChatFailureAndMaybeAlert(category, "/api/chat");
+
+  const after = await db.select().from(systemHealthChecks).where(eq(systemHealthChecks.service, "chat_ai"));
+  assert.equal(after.length, before.length + 3, "each failure must record exactly one row");
+  const lastThree = after.slice(-3);
+  assert.ok(lastThree.every((row) => row.errorCategory === "invalid_json" && row.status === "unhealthy"));
 });

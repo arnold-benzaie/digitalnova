@@ -16,6 +16,8 @@ export function ChatPanel({
   isTyping,
   isOnline,
   errorMessage,
+  isRetrying,
+  showAdvisorCta,
   showLeadForm,
   leadFormSubmitting,
   leadFormError,
@@ -24,6 +26,7 @@ export function ChatPanel({
   onSubmitLead,
   onCancelLead,
   onRetry,
+  onTalkToAdvisor,
   onClose,
   onMinimize,
 }: {
@@ -33,6 +36,11 @@ export function ChatPanel({
   isTyping: boolean;
   isOnline: boolean;
   errorMessage: string | null;
+  isRetrying: boolean;
+  /** §4: 2+ consecutive failures — offers the advisor CTA alongside
+   * Retry, replacing the plain error text. Never opens the lead form by
+   * itself; only onTalkToAdvisor does. */
+  showAdvisorCta: boolean;
   showLeadForm: boolean;
   leadFormSubmitting: boolean;
   leadFormError: string | null;
@@ -41,6 +49,7 @@ export function ChatPanel({
   onSubmitLead: (values: ChatLeadFormValues) => void;
   onCancelLead: () => void;
   onRetry: () => void;
+  onTalkToAdvisor: () => void;
   onClose: () => void;
   onMinimize: () => void;
 }) {
@@ -93,11 +102,18 @@ export function ChatPanel({
 
         {errorMessage && (
           <div className="flex flex-col items-start gap-2 rounded-xl border border-pm-rouge/30 bg-pm-rouge/5 px-3 py-2">
-            <p className="text-xs text-pm-rouge">{errorMessage}</p>
-            <Button type="button" size="xs" variant="outline" onClick={onRetry} className="gap-1">
-              <RotateCcw className="size-3" aria-hidden="true" />
-              {t.errors.retry}
-            </Button>
+            <p className="text-xs text-pm-rouge">{showAdvisorCta ? t.errors.repeatedFailure : errorMessage}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="xs" variant="outline" onClick={onRetry} disabled={isRetrying} className="gap-1">
+                <RotateCcw className={`size-3 ${isRetrying ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden="true" />
+                {isRetrying ? t.errors.retrying : t.errors.retry}
+              </Button>
+              {showAdvisorCta && (
+                <Button type="button" size="xs" variant="outline" onClick={onTalkToAdvisor}>
+                  {t.errors.talkToAdvisor}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

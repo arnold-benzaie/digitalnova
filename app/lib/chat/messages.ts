@@ -32,6 +32,34 @@ export async function appendMessage(
   return row;
 }
 
+const DUPLICATE_WINDOW_MS = 10_000;
+
+/**
+ * Anti-duplication guard for a visitor/client's own turn — used by
+ * app/api/chat/route.ts's message handler so a Retry (which resends the
+ * exact same content on the exact same conversationId, per the widget's
+ * own contract) never persists a second identical row, and an accidental
+ * network-level double-submit is absorbed the same way. Only ever
+ * compares against the single most recent row in the conversation, and
+ * only within a short window — a user who genuinely repeats the exact
+ * same message minutes apart still gets a new row, exactly as before.
+ * Never used for the assistant's own reply, which is always genuinely
+ * new content.
+ */
+export async function appendUserMessage(
+  conversationId: string,
+  senderType: ChatSenderType,
+  content: string,
+  metadata?: Record<string, unknown> | null,
+): Promise<ChatMessageRow> {
+  const sanitized = sanitizeMessageContent(content);
+  const [lastRow] = await db.select().from(chatMessages).where(eq(chatMessages.conversationId, conversationId)).orderBy(desc(chatMessages.createdAt)).limit(1);
+  if (lastRow && lastRow.senderType === senderType && lastRow.content === sanitized && Date.now() - lastRow.createdAt.getTime() < DUPLICATE_WINDOW_MS) {
+    return lastRow;
+  }
+  return appendMessage(conversationId, senderType, content, metadata);
+}
+
 /** Full history, oldest first — for rendering the widget's transcript on
  * resume-after-refresh (§14/§23). */
 export async function getConversationMessages(conversationId: string): Promise<ChatMessageRow[]> {

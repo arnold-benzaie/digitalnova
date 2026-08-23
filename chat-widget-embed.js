@@ -78,9 +78,12 @@
       typingIndicator: "PUBLIC-MAP Assistant écrit…",
       inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
-      errorGeneric: "Une erreur est survenue. Veuillez réessayer.",
+      errorGeneric: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
+      errorRepeatedFailure: "Je n'arrive toujours pas à traiter votre demande. Souhaitez-vous parler à un conseiller PUBLIC-MAP ?",
       retry: "Réessayer",
+      retrying: "En cours…",
+      talkToAdvisor: "Parler à un conseiller",
       suggestionsTitle: "Suggestions rapides",
       showMore: "Voir toutes les options",
       // Marketing-site suggestion set (Phase 1B §4, enriched Phase 1C) —
@@ -171,9 +174,12 @@
       typingIndicator: "PUBLIC-MAP Assistant is typing…",
       inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
-      errorGeneric: "Something went wrong. Please try again.",
+      errorGeneric: "I'm having a temporary problem answering. Please try again in a few seconds.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
+      errorRepeatedFailure: "I'm still unable to process your request. Would you like to speak with a PUBLIC-MAP advisor?",
       retry: "Retry",
+      retrying: "Retrying…",
+      talkToAdvisor: "Talk to an advisor",
       suggestionsTitle: "Quick suggestions",
       showMore: "See all options",
       suggestions: {
@@ -393,6 +399,13 @@
     var suggestions = [];
     var showLeadForm = false;
     var lastFailedContent = null;
+    // In-flight guard for the Retry button — blocks a double-click firing
+    // two concurrent attempts (§3).
+    var isRetrying = false;
+    // Consecutive failures for the current outstanding message only —
+    // reset on any success, never persisted. At 2, renderError() offers
+    // the advisor CTA alongside Retry instead of the plain error (§4).
+    var consecutiveFailures = 0;
 
     var root = el("div", { class: "pm-chat-widget-root" });
     document.body.appendChild(root);
@@ -664,15 +677,33 @@
     function renderError(kind) {
       var existing = panel.querySelector(".pm-chat-error-box");
       if (existing) existing.remove();
-      var msg = kind === "rate_limited" ? t.errorRateLimited : t.errorGeneric;
+      var showAdvisorCta = consecutiveFailures >= 2;
+      var msg = showAdvisorCta ? t.errorRepeatedFailure : kind === "rate_limited" ? t.errorRateLimited : t.errorGeneric;
       var box = el("div", { class: "pm-chat-error-box" });
       box.appendChild(el("p", { class: "pm-chat-error-text", text: msg }));
+      var actions = el("div", { class: "pm-chat-error-actions" });
       var retryBtn = el("button", { type: "button", class: "pm-chat-retry-btn", text: t.retry });
       retryBtn.addEventListener("click", function () {
-        box.remove();
-        if (lastFailedContent) sendMessage(lastFailedContent);
+        if (isRetrying) return;
+        // Immediate feedback before the network call resolves —
+        // retryMessage() itself is the source of truth for isRetrying,
+        // this just avoids a visible gap between click and "En cours…".
+        retryBtn.disabled = true;
+        retryBtn.textContent = t.retrying;
+        retryMessage();
       });
-      box.appendChild(retryBtn);
+      actions.appendChild(retryBtn);
+      if (showAdvisorCta) {
+        var advisorBtn = el("button", { type: "button", class: "pm-chat-retry-btn", text: t.talkToAdvisor });
+        advisorBtn.addEventListener("click", function () {
+          box.remove();
+          consecutiveFailures = 0;
+          showLeadForm = true;
+          renderLeadForm();
+        });
+        actions.appendChild(advisorBtn);
+      }
+      box.appendChild(actions);
       messagesEl.appendChild(box);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -693,8 +724,13 @@
       }
     }
 
-    function sendMessage(content, suggestionId) {
-      appendLocalMessage("visitor", content);
+    // Shared by both a brand-new message and a Retry — `appendUserBubble`
+    // false is what stops Retry from showing a second, identical user
+    // bubble: the original bubble from the failed attempt is already in
+    // `messages` and is never removed on error, so only the network call
+    // needs to be redone.
+    function performSend(content, suggestionId, appendUserBubble) {
+      if (appendUserBubble) appendLocalMessage("visitor", content);
       suggestions = [];
       renderSuggestions();
       lastFailedContent = content;
@@ -706,6 +742,7 @@
       postChat({ type: "message", content: content, locale: interfaceLocale, conversationId: conversationId, suggestionId: suggestionId, surface: "site" })
         .then(function (result) {
           typingRow.remove();
+          isRetrying = false;
           conversationId = result.conversationId;
           applyConversationLocale(result.language);
           appendLocalMessage("assistant", result.reply);
@@ -718,12 +755,25 @@
             renderLeadForm();
           }
           lastFailedContent = null;
+          consecutiveFailures = 0;
           saveStoredState(conversationId, messages);
         })
         .catch(function (err) {
           typingRow.remove();
+          isRetrying = false;
+          consecutiveFailures += 1;
           renderError(err && err.kind);
         });
+    }
+
+    function sendMessage(content, suggestionId) {
+      performSend(content, suggestionId, true);
+    }
+
+    function retryMessage() {
+      if (!lastFailedContent || isRetrying) return;
+      isRetrying = true;
+      performSend(lastFailedContent, undefined, false);
     }
 
     function renderLeadForm() {
@@ -789,6 +839,9 @@
           // toggle — this is only what picks the confirmation text's
           // language server-side.
           locale: conversationLocale,
+          // Labels the internal lead-notification email (§7: "surface :
+          // site ou app") — this widget is always the marketing site.
+          surface: "site",
           fullName: fullName,
           email: email,
           phone: phoneInput.input.value.trim() || undefined,

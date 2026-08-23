@@ -51,6 +51,10 @@ export const leadSubmitSchema = z.object({
   country: z.string().trim().max(100).optional(),
   message: z.string().trim().min(1).max(2000),
   consent: z.literal(true),
+  // Same optional, defaults-to-"app" field as sendMessageSchema — only
+  // used to label the internal lead-notification email (§7: "surface :
+  // site ou app"), never a trust/authorization signal.
+  surface: surfaceSchema,
 });
 
 export const escalateSchema = z.object({
