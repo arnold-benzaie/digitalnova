@@ -490,7 +490,6 @@
     var messagesEl = null;
     var inputEl = null;
     var sendBtn = null;
-    var dragCleanup = null;
 
     root.appendChild(triggerWrap);
     watchCookieBanner(root);
@@ -576,10 +575,6 @@
 
     function closePanel() {
       phase = "closed";
-      if (dragCleanup) {
-        dragCleanup();
-        dragCleanup = null;
-      }
       if (panel) panel.remove();
       panel = null;
       triggerWrap.style.display = "";
@@ -693,179 +688,6 @@
       return wrap;
     }
 
-    // ---- Free positioning (header drag) --------------------------------
-    //
-    // Mirrors the React app's useDraggableChatPanel hook as closely as two
-    // independent codebases reasonably allow (same threshold, clamping,
-    // snap distance, storage key shape) — nothing is actually shared at
-    // the code level (this static site and the Next.js app have never had
-    // a shared build), but the two widgets should feel identical.
-    //
-    // Desktop only: below the panel's own mobile breakpoint (max-width:
-    // 768px, see .pm-chat-panel's own media query) the panel is CSS
-    // `inset:0` fullscreen — dragging a fullscreen surface has no
-    // meaning and would fight the mobile layout (keyboard, scroll, safe
-    // areas), so PM_CHAT_DRAG_DESKTOP_MIN mirrors that exact breakpoint.
-    var PM_CHAT_DRAG_THRESHOLD = 5;
-    var PM_CHAT_DRAG_MARGIN = 16;
-    var PM_CHAT_DRAG_SNAP_ZONE = 140;
-    var PM_CHAT_DRAG_STORAGE_KEY = "pm_chat_widget_position";
-    var PM_CHAT_DRAG_DESKTOP_MIN = 769;
-
-    function pmChatPrefersReducedMotion() {
-      return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    }
-
-    function pmChatClampPosition(x, y, panelWidth, panelHeight) {
-      var maxX = Math.max(PM_CHAT_DRAG_MARGIN, window.innerWidth - panelWidth - PM_CHAT_DRAG_MARGIN);
-      var maxY = Math.max(PM_CHAT_DRAG_MARGIN, window.innerHeight - panelHeight - PM_CHAT_DRAG_MARGIN);
-      return {
-        x: Math.min(Math.max(x, PM_CHAT_DRAG_MARGIN), maxX),
-        y: Math.min(Math.max(y, PM_CHAT_DRAG_MARGIN), maxY),
-      };
-    }
-
-    function pmChatReadStoredPosition() {
-      try {
-        var raw = window.localStorage.getItem(PM_CHAT_DRAG_STORAGE_KEY);
-        if (!raw) return null;
-        var parsed = JSON.parse(raw);
-        if (typeof parsed.x !== "number" || typeof parsed.y !== "number") return null;
-        return parsed;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    function pmChatWriteStoredPosition(position) {
-      try {
-        window.localStorage.setItem(PM_CHAT_DRAG_STORAGE_KEY, JSON.stringify(position));
-      } catch (e) {
-        // Storage full/unavailable — the panel still drags fine within
-        // this tab session, it just won't resume its position after a
-        // reload. Never blocks the interaction itself.
-      }
-    }
-
-    function pmChatApplyPosition(panelEl, x, y, animate) {
-      panelEl.style.transition = animate && !pmChatPrefersReducedMotion() ? "left 0.2s ease-out, top 0.2s ease-out" : "none";
-      panelEl.style.left = x + "px";
-      panelEl.style.top = y + "px";
-      panelEl.style.right = "auto";
-      panelEl.style.bottom = "auto";
-    }
-
-    // Returns a cleanup function — called from closePanel() since a fresh
-    // panel (and header) is created on every open (see renderPanel()'s own
-    // "re-entrant" note above).
-    function setupDraggablePanel(panelEl, headerEl) {
-      var panelWidth = panelEl.offsetWidth || 380;
-      var panelHeight = panelEl.offsetHeight || 560;
-      var current = null; // {x, y} once the panel has an explicit position
-
-      function isDesktop() {
-        return window.innerWidth >= PM_CHAT_DRAG_DESKTOP_MIN;
-      }
-
-      function restoreOnMount() {
-        if (!isDesktop()) return;
-        var stored = pmChatReadStoredPosition();
-        if (!stored) return;
-        current = pmChatClampPosition(stored.x, stored.y, panelWidth, panelHeight);
-        pmChatApplyPosition(panelEl, current.x, current.y, false);
-      }
-
-      function onResize() {
-        if (!isDesktop() || !current) return;
-        current = pmChatClampPosition(current.x, current.y, panelWidth, panelHeight);
-        pmChatApplyPosition(panelEl, current.x, current.y, false);
-      }
-
-      var drag = null; // {pointerId, startX, startY, originX, originY, moved}
-
-      function onPointerMove(e) {
-        if (!drag || e.pointerId !== drag.pointerId) return;
-        var dx = e.clientX - drag.startX;
-        var dy = e.clientY - drag.startY;
-        if (!drag.moved && Math.hypot(dx, dy) < PM_CHAT_DRAG_THRESHOLD) return;
-        if (!drag.moved) {
-          drag.moved = true;
-          panelEl.classList.add("pm-chat-panel-dragging");
-          document.body.style.userSelect = "none";
-        }
-        current = pmChatClampPosition(drag.originX + dx, drag.originY + dy, panelWidth, panelHeight);
-        pmChatApplyPosition(panelEl, current.x, current.y, false);
-      }
-
-      function onPointerUp(e) {
-        if (!drag || e.pointerId !== drag.pointerId) return;
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-        window.removeEventListener("pointercancel", onPointerUp);
-        document.body.style.userSelect = "";
-        panelEl.classList.remove("pm-chat-panel-dragging");
-        var moved = drag.moved;
-        drag = null;
-
-        if (moved && current) {
-          // Discreet snap to the nearer side, small margin, only when
-          // released close enough to actually feel intentional.
-          var viewportWidth = window.innerWidth;
-          var distanceLeft = current.x;
-          var distanceRight = viewportWidth - (current.x + panelWidth);
-          var snappedX = current.x;
-          if (distanceLeft <= PM_CHAT_DRAG_SNAP_ZONE && distanceLeft <= distanceRight) snappedX = PM_CHAT_DRAG_MARGIN;
-          else if (distanceRight <= PM_CHAT_DRAG_SNAP_ZONE && distanceRight < distanceLeft) snappedX = viewportWidth - panelWidth - PM_CHAT_DRAG_MARGIN;
-          current = pmChatClampPosition(snappedX, current.y, panelWidth, panelHeight);
-          pmChatApplyPosition(panelEl, current.x, current.y, true);
-          pmChatWriteStoredPosition(current);
-        }
-      }
-
-      function onHeaderPointerDown(e) {
-        if (!isDesktop()) return;
-        // Never hijacks a click on Minimize/Close — only a plain drag on
-        // the header's own background starts tracking.
-        if (e.target.closest && e.target.closest("button")) return;
-        // Root cause of the real-Safari bug reported after the first
-        // Preview pass: without this, WebKit starts its own native
-        // text-selection/drag gesture on pointerdown over the header's
-        // text (confirmed via direct event instrumentation — a
-        // `selectstart` fires immediately, before any pointermove) and
-        // can swallow the whole gesture before it ever reaches this
-        // code, even though the exact same interaction worked fine
-        // under Chromium. preventDefault() stops that native handling
-        // before it starts; setPointerCapture keeps this element as the
-        // authoritative target for the rest of the gesture even if the
-        // pointer momentarily leaves the header's bounds during a fast
-        // drag — the window-level listeners below still receive the
-        // (now-captured) events via normal bubbling.
-        e.preventDefault();
-        if (headerEl.setPointerCapture) headerEl.setPointerCapture(e.pointerId);
-        var rect = panelEl.getBoundingClientRect();
-        var originX = current ? current.x : rect.left;
-        var originY = current ? current.y : rect.top;
-        drag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, originX: originX, originY: originY, moved: false };
-        window.addEventListener("pointermove", onPointerMove);
-        window.addEventListener("pointerup", onPointerUp);
-        window.addEventListener("pointercancel", onPointerUp);
-      }
-
-      headerEl.addEventListener("pointerdown", onHeaderPointerDown);
-      headerEl.style.touchAction = "none";
-      restoreOnMount();
-      window.addEventListener("resize", onResize);
-
-      return function cleanup() {
-        headerEl.removeEventListener("pointerdown", onHeaderPointerDown);
-        window.removeEventListener("resize", onResize);
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-        window.removeEventListener("pointercancel", onPointerUp);
-        document.body.style.userSelect = "";
-      };
-    }
-
     function renderPanel() {
       if (panel) panel.remove(); // re-entrant: also called on a live locale change while open
       panel = el("div", { class: "pm-chat-panel", role: "dialog", "aria-label": t.assistantName });
@@ -920,7 +742,6 @@
       panel.appendChild(messagesEl);
       panel.appendChild(inputBar);
       root.appendChild(panel);
-      dragCleanup = setupDraggablePanel(panel, header);
       inputEl.focus();
     }
 

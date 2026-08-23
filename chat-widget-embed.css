@@ -224,26 +224,6 @@
   justify-content: space-between;
   gap: 8px;
 }
-/* Draggable only above the panel's own mobile breakpoint (see
-   @media (max-width: 768px) .pm-chat-panel above, where the panel goes
-   fullscreen and dragging has no meaning) — see setupDraggablePanel()
-   in chat-widget-embed.js. */
-@media (min-width: 769px) {
-  /* user-select/-webkit-user-drag: none — belt-and-suspenders alongside
-     preventDefault() in setupDraggablePanel()'s onHeaderPointerDown. A
-     title bar has no reason to be text-selectable or natively draggable
-     in the first place; setting this persistently (not toggled in/out
-     of a drag) closes the gap for any WebKit path that fires
-     selection/drag before that handler runs — see that function's own
-     comment for the real-Safari bug this fixes. */
-  .pm-chat-header {
-    cursor: grab;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-user-drag: none;
-  }
-  .pm-chat-panel-dragging .pm-chat-header { cursor: grabbing; }
-}
 .pm-chat-header-name-row { display: flex; align-items: center; gap: 6px; }
 .pm-chat-header-spark { font-size: 13px; line-height: 1; }
 .pm-chat-header-name { font-size: 14px; font-weight: 600; margin: 0; }
