@@ -252,8 +252,20 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     trackIfAuthenticated(isAuthenticated, "lead_form_opened", { reason: "repeated_failure" });
   }
 
+  /** The new calendar/booking button (§Phase 1D) — same lead-form
+   * component and same submission path as every other trigger (AI
+   * action, advisor CTA), never a parallel form/system. Unlike those,
+   * this can fire before a single message has been sent, so there may be
+   * no conversationId yet — handleSubmitLead below no longer requires
+   * one; the backend creates it on demand (see app/api/chat/route.ts's
+   * handleLeadSubmit, now using getOrCreateConversation). */
+  function handleOpenBooking() {
+    setErrorMessage(null);
+    setShowLeadForm(true);
+    trackIfAuthenticated(isAuthenticated, "lead_form_opened", { reason: "calendar_button" });
+  }
+
   async function handleSubmitLead(values: ChatLeadFormValues) {
-    if (!conversationId) return;
     setLeadFormSubmitting(true);
     setLeadFormError(null);
     try {
@@ -261,7 +273,13 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
       // `locale`): this only picks which language the deterministic
       // confirmation text is drafted in, so it should match whatever
       // language the conversation has actually been in.
-      const result = await submitChatLead({ conversationId, locale: conversationLocale, consent: true, surface: "app", ...values });
+      // conversationId may still be null here (calendar button clicked
+      // before any message) — sent as `undefined` exactly like a fresh
+      // "message" send already does (see performSend/sendChatMessage),
+      // and the response's own conversationId is then stored the same
+      // way performSend does for a normal reply.
+      const result = await submitChatLead({ conversationId: conversationId ?? undefined, locale: conversationLocale, consent: true, surface: "app", ...values });
+      setConversationId(result.conversationId);
       setMessages((prev) => [...prev, { id: `assistant-${crypto.randomUUID()}`, senderType: "assistant", content: result.reply, createdAt: new Date() }]);
       setShowLeadForm(false);
       trackIfAuthenticated(isAuthenticated, "lead_submitted");
@@ -297,6 +315,7 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
           onCancelLead={() => setShowLeadForm(false)}
           onRetry={handleRetry}
           onTalkToAdvisor={handleTalkToAdvisorAfterFailures}
+          onOpenBooking={handleOpenBooking}
           onClose={closePanel}
           onMinimize={minimizePanel}
         />

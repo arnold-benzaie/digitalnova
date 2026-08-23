@@ -54,13 +54,19 @@ export function sendChatMessage(input: { content: string; locale: Locale; conver
 }
 
 export function submitChatLead(input: {
-  conversationId: string;
+  /** Optional (was required): the calendar/booking button (§Phase 1D)
+   * can open the form before any message has been sent — omitted/null
+   * means "let the backend create one", exactly like sendChatMessage. */
+  conversationId?: string | null;
   locale: Locale;
   fullName: string;
   email: string;
   phone?: string;
   company?: string;
   country?: string;
+  requestType: string;
+  preferredDate?: string;
+  preferredTimeSlot?: string;
   message: string;
   consent: true;
   /** Which embed sent this — labels the internal lead-notification email
@@ -68,7 +74,7 @@ export function submitChatLead(input: {
    * sendMessageSchema's own convention. */
   surface?: "app" | "site";
 }): Promise<ChatApiResponse> {
-  return postChat({ type: "lead_submit", ...input });
+  return postChat({ type: "lead_submit", ...input, conversationId: input.conversationId ?? undefined });
 }
 
 export function escalateChatConversation(input: { conversationId: string; locale: Locale }): Promise<ChatApiResponse> {

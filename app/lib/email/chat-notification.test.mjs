@@ -32,3 +32,35 @@ test("multiple comma-separated recipients are all attempted (each still degrades
   assert.equal(result.sent, false);
   delete process.env.CHAT_NOTIFICATION_EMAIL;
 });
+
+// §Phase 1D — booking/lead form additions never throw and never require
+// RESEND_API_KEY to be reachable, same degrade-cleanly contract as every
+// other field on this function.
+test("requestType/preferredDate/preferredTimeSlot are accepted without ever throwing, recipient configured or not", async () => {
+  delete process.env.CHAT_NOTIFICATION_EMAIL;
+  await assert.doesNotReject(() =>
+    sendChatNotificationEmail({
+      kind: "lead_captured",
+      conversationId: "conv-5",
+      surface: "site",
+      locale: "fr",
+      fullName: "Booking Test",
+      requestType: "Réserver un rendez-vous",
+      preferredDate: "2026-09-01",
+      preferredTimeSlot: "après-midi",
+    }),
+  );
+  process.env.CHAT_NOTIFICATION_EMAIL = "staff@example.test";
+  const result = await sendChatNotificationEmail({
+    kind: "lead_captured",
+    conversationId: "conv-6",
+    surface: "site",
+    locale: "fr",
+    fullName: "Booking Test",
+    requestType: "Réserver un rendez-vous",
+    preferredDate: "2026-09-01",
+    preferredTimeSlot: "après-midi",
+  });
+  assert.equal(result.sent, false); // still no real RESEND_API_KEY in this test env
+  delete process.env.CHAT_NOTIFICATION_EMAIL;
+});

@@ -60,6 +60,11 @@
   // excluded from both arrays: it gets its own small, discreet CTA
   // instead (see renderInitialSuggestions) — available, never pushed.
   var INITIAL_SUGGESTIONS_MAIN = ["visibility", "lead_generation", "automation", "website"];
+
+  // Mirrors app/lib/chat/request-type-catalog.ts's REQUEST_TYPE_KEYS — the
+  // server validates against this exact same closed set (a client-sent
+  // key, never free text — see that file's own header comment).
+  var REQUEST_TYPE_KEYS = ["meeting", "quote", "advisor", "audit", "website", "other"];
   var INITIAL_SUGGESTIONS_MORE = ["gbp", "google_ads", "seo", "quote", "automation_setup", "performance_review", "reviews"];
 
   // ---- Strings (mirrors app/lib/i18n/dictionaries/chat.ts) ---------------
@@ -79,6 +84,7 @@
       inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
       emojiAriaLabel: "Insérer un emoji",
+      calendarAriaLabel: "Réserver / être contacté",
       // "delivered" = PUBLIC-MAP a traité le message avec succès — jamais
       // "lu" par un humain, d'où le libellé explicite.
       deliveryStatusSending: "Envoi en cours…",
@@ -160,6 +166,20 @@
       leadFullName: "Nom complet",
       leadEmail: "E-mail",
       leadPhone: "Téléphone / WhatsApp",
+      leadCompany: "Entreprise",
+      leadCountry: "Pays",
+      leadRequestType: "Type de demande",
+      leadRequestTypeOptions: {
+        meeting: "Réserver un rendez-vous",
+        quote: "Demander un devis",
+        advisor: "Parler à un conseiller",
+        audit: "Audit / visibilité Google",
+        website: "Site web / SEO / Google Ads",
+        other: "Autre",
+      },
+      leadPreferredDate: "Date souhaitée (facultatif)",
+      leadPreferredTime: "Créneau / heure souhaitée (facultatif)",
+      leadPreferredNote: "Préférence indicative — pas une réservation confirmée tant qu'un conseiller ne vous a pas recontacté.",
       leadMessage: "Message / besoin",
       leadConsent: "J'accepte que PUBLIC-MAP me contacte concernant ma demande.",
       leadSubmit: "Envoyer",
@@ -181,6 +201,7 @@
       inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
       emojiAriaLabel: "Insert an emoji",
+      calendarAriaLabel: "Book / get contacted",
       deliveryStatusSending: "Sending…",
       deliveryStatusDelivered: "Processed by PUBLIC-MAP",
       deliveryStatusFailed: "Delivery failed",
@@ -244,6 +265,20 @@
       leadFullName: "Full name",
       leadEmail: "Email",
       leadPhone: "Phone / WhatsApp",
+      leadCompany: "Company",
+      leadCountry: "Country",
+      leadRequestType: "Request type",
+      leadRequestTypeOptions: {
+        meeting: "Book a meeting",
+        quote: "Request a quote",
+        advisor: "Talk to an advisor",
+        audit: "Google visibility / audit",
+        website: "Website / SEO / Google Ads",
+        other: "Other",
+      },
+      leadPreferredDate: "Preferred date (optional)",
+      leadPreferredTime: "Preferred time slot (optional)",
+      leadPreferredNote: "Indicative preference — not a confirmed booking until an advisor has followed up with you.",
       leadMessage: "Message / need",
       leadConsent: "I agree that PUBLIC-MAP may contact me regarding my request.",
       leadSubmit: "Send",
@@ -671,8 +706,20 @@
         }
       });
       sendBtn.addEventListener("click", submitDraft);
+      var calendarBtn = el("button", { type: "button", class: "pm-chat-calendar-btn", "aria-label": t.calendarAriaLabel, title: t.calendarAriaLabel }, [calendarIcon()]);
+      // Same lead-form path as the AI action / advisor-CTA triggers
+      // (renderLeadForm()) — never a parallel form/system. Can fire
+      // before any message has been sent; postChat's own null-stripping
+      // already handles a still-null conversationId (see its header
+      // comment), and the success handler now captures the one the
+      // backend creates on demand.
+      calendarBtn.addEventListener("click", function () {
+        showLeadForm = true;
+        renderLeadForm();
+      });
       inputBar.appendChild(inputEl);
       inputBar.appendChild(buildEmojiPicker());
+      inputBar.appendChild(calendarBtn);
       inputBar.appendChild(sendBtn);
 
       panel.appendChild(header);
@@ -968,11 +1015,32 @@
       var nameInput = leadField(t.leadFullName, "text", true);
       var emailInput = leadField(t.leadEmail, "email", true);
       var phoneInput = leadField(t.leadPhone, "tel", false);
+      var companyInput = leadField(t.leadCompany, "text", false);
+      var countryInput = leadField(t.leadCountry, "text", false);
+      var requestTypeInput = leadSelectField(t.leadRequestType, REQUEST_TYPE_KEYS, t.leadRequestTypeOptions);
+      var preferredDateInput = leadField(t.leadPreferredDate, "date", false);
+      var preferredTimeInput = leadField(t.leadPreferredTime, "text", false);
       var messageInput = leadField(t.leadMessage, "textarea", true);
 
       form.appendChild(nameInput.wrap);
       form.appendChild(emailInput.wrap);
       form.appendChild(phoneInput.wrap);
+      form.appendChild(companyInput.wrap);
+      form.appendChild(countryInput.wrap);
+      form.appendChild(requestTypeInput.wrap);
+
+      var preferredRow = el("div", { class: "pm-chat-lead-row" }, [preferredDateInput.wrap, preferredTimeInput.wrap]);
+      form.appendChild(preferredRow);
+
+      var preferredNote = el("p", { class: "pm-chat-lead-note", text: t.leadPreferredNote, style: "display:none" });
+      form.appendChild(preferredNote);
+      function updatePreferredNote() {
+        var hasPreference = Boolean(preferredDateInput.input.value.trim() || preferredTimeInput.input.value.trim());
+        preferredNote.style.display = hasPreference ? "" : "none";
+      }
+      preferredDateInput.input.addEventListener("input", updatePreferredNote);
+      preferredTimeInput.input.addEventListener("input", updatePreferredNote);
+
       form.appendChild(messageInput.wrap);
 
       var consentWrap = el("label", { class: "pm-chat-lead-consent" });
@@ -1000,8 +1068,9 @@
         e.preventDefault();
         var fullName = nameInput.input.value.trim();
         var email = emailInput.input.value.trim();
+        var requestType = requestTypeInput.input.value;
         var messageText = messageInput.input.value.trim();
-        if (!fullName || !email || !messageText) {
+        if (!fullName || !email || !requestType || !messageText) {
           errorEl.textContent = t.leadRequiredError;
           errorEl.style.display = "";
           return;
@@ -1015,6 +1084,11 @@
         submitBtn.disabled = true;
         postChat({
           type: "lead_submit",
+          // Omitted (via postChat's own null-stripping — see its header
+          // comment) when the calendar button opened this form before any
+          // message was ever sent: the backend creates a conversation on
+          // demand (getOrCreateConversation), exactly like a first
+          // "message" send already does.
           conversationId: conversationId,
           // The established conversation language, not the raw interface
           // toggle — this is only what picks the confirmation text's
@@ -1026,10 +1100,21 @@
           fullName: fullName,
           email: email,
           phone: phoneInput.input.value.trim() || undefined,
+          company: companyInput.input.value.trim() || undefined,
+          country: countryInput.input.value.trim() || undefined,
+          requestType: requestType,
+          preferredDate: preferredDateInput.input.value.trim() || undefined,
+          preferredTimeSlot: preferredTimeInput.input.value.trim() || undefined,
           message: messageText,
           consent: true,
         })
           .then(function (result) {
+            // §Phase 1D: the calendar button can open this form before a
+            // conversationId ever existed — must be captured here exactly
+            // like sendMessage()'s own success handler already does,
+            // otherwise a follow-up message would create a SECOND,
+            // disconnected conversation.
+            conversationId = result.conversationId;
             appendLocalMessage("assistant", result.reply);
             showLeadForm = false;
             form.remove();
@@ -1054,6 +1139,24 @@
       return { wrap: wrap, input: input };
     }
 
+    // "Type de demande" — a closed set (REQUEST_TYPE_KEYS), always
+    // required, never a free-text field (the server validates the same
+    // enum — see request-type-catalog.ts).
+    function leadSelectField(label, keys, optionLabels) {
+      var wrap = el("label", { class: "pm-chat-lead-field" }, [document.createTextNode(label)]);
+      var select = el("select", {});
+      select.setAttribute("required", "true");
+      var placeholder = el("option", { value: "", text: "—" });
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      select.appendChild(placeholder);
+      keys.forEach(function (key) {
+        select.appendChild(el("option", { value: key, text: optionLabels[key] }));
+      });
+      wrap.appendChild(select);
+      return { wrap: wrap, input: select };
+    }
+
     // ---- Icons (inline SVG, no external assets) -----------------------------
 
     function svg(pathHtml) {
@@ -1072,6 +1175,13 @@
     }
     function sendIcon() {
       return svg('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
+    }
+    // Same geometry as lucide-react's own "calendar" icon (used by the
+    // React widget's equivalent button) — hand-copied here, no icon
+    // library on the static site (same approach as every other icon in
+    // this file).
+    function calendarIcon() {
+      return svg('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>');
     }
     // Delivery-status icons — same shapes as the React widget's lucide
     // Clock/CheckCheck/AlertCircle, hand-copied here for visual parity

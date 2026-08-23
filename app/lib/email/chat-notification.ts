@@ -50,6 +50,9 @@ const COPY = {
     dateLabel: "Date :",
     conversationLabel: "Conversation :",
     viewClient: "Voir la fiche client",
+    requestTypeLabel: "Type de demande :",
+    preferredDateLabel: "Date souhaitée (préférence, non confirmée) :",
+    preferredTimeLabel: "Créneau souhaité (préférence, non confirmée) :",
   },
   en: {
     leadSubject: "[PUBLIC-MAP] New lead — AI assistant",
@@ -66,6 +69,9 @@ const COPY = {
     dateLabel: "Date:",
     conversationLabel: "Conversation:",
     viewClient: "View client record",
+    requestTypeLabel: "Request type:",
+    preferredDateLabel: "Preferred date (preference, not confirmed):",
+    preferredTimeLabel: "Preferred time slot (preference, not confirmed):",
   },
 } as const;
 
@@ -84,6 +90,14 @@ export type ChatNotificationEmailInput = {
   /** Set only when a real, safe route exists (the lead was linked to a
    * CRM client) — never a fabricated link. */
   crmClientId?: string | null;
+  /** §Phase 1D — booking/lead form additions. requestType is a
+   * REQUEST_TYPE_LABELS_FR value (already localized server-side, see
+   * lib/chat/leads.ts's buildNotesEntry), never a raw client string.
+   * preferredDate/preferredTimeSlot are declared PREFERENCES, labeled as
+   * such in the row itself — never implied as a confirmed booking. */
+  requestType?: string;
+  preferredDate?: string;
+  preferredTimeSlot?: string;
 };
 
 export async function sendChatNotificationEmail(input: ChatNotificationEmailInput) {
@@ -107,6 +121,9 @@ export async function sendChatNotificationEmail(input: ChatNotificationEmailInpu
     input.organizationName ? row(t.orgLabel, input.organizationName) : "",
     row(t.surfaceLabel, input.surface ?? "app"),
     row(t.languageLabel, input.locale),
+    input.requestType ? row(t.requestTypeLabel, input.requestType) : "",
+    input.preferredDate ? row(t.preferredDateLabel, input.preferredDate) : "",
+    input.preferredTimeSlot ? row(t.preferredTimeLabel, input.preferredTimeSlot) : "",
     input.summary ? row(t.summaryLabel, input.summary) : "",
     row(t.dateLabel, timestamp),
     row(t.conversationLabel, input.conversationId),

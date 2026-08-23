@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Minus, RotateCcw, Send, X } from "lucide-react";
+import { Calendar, Minus, RotateCcw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
@@ -28,6 +28,7 @@ export function ChatPanel({
   onCancelLead,
   onRetry,
   onTalkToAdvisor,
+  onOpenBooking,
   onClose,
   onMinimize,
 }: {
@@ -51,6 +52,7 @@ export function ChatPanel({
   onCancelLead: () => void;
   onRetry: () => void;
   onTalkToAdvisor: () => void;
+  onOpenBooking: () => void;
   onClose: () => void;
   onMinimize: () => void;
 }) {
@@ -185,6 +187,17 @@ export function ChatPanel({
           aria-label={t.input.placeholder}
         />
         <ChatEmojiPicker ariaLabel={t.input.emojiAriaLabel} onSelect={insertEmojiAtCursor} />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          aria-label={t.input.calendarAriaLabel}
+          title={t.input.calendarAriaLabel}
+          onClick={onOpenBooking}
+          className="shrink-0"
+        >
+          <Calendar className="size-4" aria-hidden="true" />
+        </Button>
         <Button type="submit" size="icon" aria-label={t.input.sendAriaLabel} disabled={!draft.trim()} className="shrink-0 bg-pm-noir hover:bg-pm-noir/90">
           <Send className="size-4" aria-hidden="true" />
         </Button>
