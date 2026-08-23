@@ -253,3 +253,59 @@ test("no secret ever appears in a thrown error's message across the whole suite'
     return true;
   });
 });
+
+// ── Language consistency (Phase 2.1) ────────────────────────────────────
+
+test("AiProviderOutput.language is the app-computed language, not necessarily the model's own self-reported field", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "Bonjour !", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } };
+  const result = await ask("Bonjour", { locale: "fr" });
+  assert.equal(result.language, "fr");
+});
+
+test("a clear English message overrides an unrelated French interface locale for the resolved language", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "Hello!", language: "en", intent: "greeting", suggestions: [], action: { type: "none" } };
+  const result = await ask("Hi there", { locale: "fr" });
+  assert.equal(result.language, "en");
+  assert.match(lastCreateCall.messages[0].content, /write your entire reply.*in English only for this turn/is);
+});
+
+test("an ambiguous message with no clear signal falls back to the interface locale, not a guess", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "...", language: "en", intent: "x", suggestions: [], action: { type: "none" } };
+  const result = await ask("SEO", { locale: "en" });
+  assert.equal(result.language, "en");
+  assert.match(lastCreateCall.messages[0].content, /write your entire reply.*in English only for this turn/is);
+});
+
+test("the language directive is mandatory wording, present regardless of provider surface", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { locale: "fr" });
+  assert.match(lastCreateCall.messages[0].content, /LANGUAGE \(MANDATORY\)/);
+});
+
+// ── Surface-based role (Phase 2.1, Objective 3) ─────────────────────────
+
+test("surface:'site' gets a commercial/advisory-prospect role framing", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { surface: "site" });
+  assert.match(lastCreateCall.messages[0].content, /marketing website/i);
+  assert.match(lastCreateCall.messages[0].content, /commercial\/advisory guide/i);
+});
+
+test("surface:'app' keeps the existing dashboard-oriented role framing (no marketing-site language)", async () => {
+  createCallCount = 0;
+  rawContentQueue = [];
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { surface: "app" });
+  assert.doesNotMatch(lastCreateCall.messages[0].content, /commercial\/advisory guide/i);
+  assert.match(lastCreateCall.messages[0].content, /dashboard\/app surface|dashboard — act as their ongoing/i);
+});

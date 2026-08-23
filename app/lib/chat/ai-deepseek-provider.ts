@@ -1,7 +1,8 @@
 import "server-only";
 import OpenAI from "openai";
 import type { AiProvider, AiProviderInput, AiProviderOutput } from "@/lib/chat/ai-provider";
-import { buildSystemPrompt } from "@/lib/chat/openai-system-prompt";
+import { resolveConversationLanguage } from "@/lib/chat/conversation-language";
+import { buildLanguageDirective, buildSystemPrompt } from "@/lib/chat/openai-system-prompt";
 import { structuredReplySchema, toProviderOutput, toConversationRole } from "@/lib/chat/ai-structured-reply";
 import type { StructuredReply } from "@/lib/chat/ai-structured-reply";
 
@@ -171,11 +172,13 @@ export function createDeepseekProvider(clientOverride?: ChatCompletionsClient): 
     const client = clientOverride ?? getDefaultClient();
     const model = process.env.AI_MODEL?.trim() || DEFAULT_MODEL;
 
+    const resolvedLanguage = resolveConversationLanguage({ currentMessage: input.userMessage, interfaceLocale: input.locale, history: input.history });
+
     // input.history is already a bounded, oldest-first window (max 12
     // messages — see lib/chat/messages.ts::getRecentMessagesForProvider)
     // — no further truncation needed here (§5/§13).
     const messages: DeepseekMessage[] = [
-      { role: "system", content: buildSystemPrompt(input.context) + JSON_MODE_INSTRUCTIONS },
+      { role: "system", content: buildSystemPrompt(input.context, input.surface) + buildLanguageDirective(resolvedLanguage) + JSON_MODE_INSTRUCTIONS },
       ...input.history.map((message) => ({ role: toConversationRole(message.senderType), content: message.content })),
       { role: "user", content: input.userMessage },
     ];
@@ -183,7 +186,7 @@ export function createDeepseekProvider(clientOverride?: ChatCompletionsClient): 
     const firstRaw = await requestCompletion(client, model, messages);
     const firstAttempt = parseStructuredReply(firstRaw);
     if (firstAttempt.ok) {
-      return toProviderOutput(firstAttempt.value, input.userMessage);
+      return toProviderOutput(firstAttempt.value, input.userMessage, resolvedLanguage);
     }
 
     // At most one controlled retry, strictly demanding schema-conformant
@@ -196,7 +199,7 @@ export function createDeepseekProvider(clientOverride?: ChatCompletionsClient): 
     const secondRaw = await requestCompletion(client, model, retryMessages);
     const secondAttempt = parseStructuredReply(secondRaw);
     if (secondAttempt.ok) {
-      return toProviderOutput(secondAttempt.value, input.userMessage);
+      return toProviderOutput(secondAttempt.value, input.userMessage, resolvedLanguage);
     }
 
     // Sanitized log: error type, model, response length only — never

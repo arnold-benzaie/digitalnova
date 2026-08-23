@@ -168,3 +168,47 @@ test("system prompt lists only known suggestion ids (no id outside the shared ca
     assert.ok(lastCreateCall.instructions.includes(id), `system prompt should mention "${id}"`);
   }
 });
+
+// ── Language consistency (Phase 2.1) ────────────────────────────────────
+
+test("AiProviderOutput.language is the app-computed language, not necessarily the model's own self-reported field", async () => {
+  nextResponse = { message: "Bonjour !", language: "fr", intent: "greeting", suggestions: [], action: { type: "none" } };
+  const result = await ask("Bonjour", { locale: "fr" });
+  assert.equal(result.language, "fr");
+});
+
+test("a clear English message overrides an unrelated French interface locale for the resolved language", async () => {
+  nextResponse = { message: "Hello!", language: "en", intent: "greeting", suggestions: [], action: { type: "none" } };
+  const result = await ask("Hi there", { locale: "fr" });
+  assert.equal(result.language, "en");
+  assert.match(lastCreateCall.instructions, /write your entire reply.*in English only for this turn/is);
+});
+
+test("an ambiguous message with no clear signal falls back to the interface locale, not a guess", async () => {
+  nextResponse = { message: "...", language: "en", intent: "x", suggestions: [], action: { type: "none" } };
+  const result = await ask("SEO", { locale: "en" });
+  assert.equal(result.language, "en");
+  assert.match(lastCreateCall.instructions, /write your entire reply.*in English only for this turn/is);
+});
+
+test("the language directive is mandatory wording, present regardless of provider surface", async () => {
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { locale: "fr" });
+  assert.match(lastCreateCall.instructions, /LANGUAGE \(MANDATORY\)/);
+});
+
+// ── Surface-based role (Phase 2.1, Objective 3) ─────────────────────────
+
+test("surface:'site' gets a commercial/advisory-prospect role framing", async () => {
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { surface: "site" });
+  assert.match(lastCreateCall.instructions, /marketing website/i);
+  assert.match(lastCreateCall.instructions, /commercial\/advisory guide/i);
+});
+
+test("surface:'app' keeps the existing dashboard-oriented role framing (no marketing-site language)", async () => {
+  nextResponse = { message: "ok", language: "fr", intent: "x", suggestions: [], action: { type: "none" } };
+  await ask("Bonjour", { surface: "app" });
+  assert.doesNotMatch(lastCreateCall.instructions, /commercial\/advisory guide/i);
+  assert.match(lastCreateCall.instructions, /dashboard\/app surface|dashboard — act as their ongoing/i);
+});

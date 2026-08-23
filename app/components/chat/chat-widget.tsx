@@ -43,7 +43,24 @@ function trackIfAuthenticated(isAuthenticated: boolean, eventType: string, metad
 }
 
 export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Locale; firstName: string | null; isAuthenticated: boolean }) {
-  const t = dictionaries[locale].chat;
+  // The conversation's actual established language — distinct from
+  // `locale` (the app's own interface-locale prop, always sent to the
+  // backend as the "interface locale" signal — see
+  // lib/chat/conversation-language.ts's priority rule). Every UI-visible
+  // piece of copy (suggestion chips, lead form, buttons, errors, retry,
+  // placeholder) follows THIS value, not the static `locale` prop, once
+  // a real conversation is underway — otherwise a French exchange could
+  // show English chips just because the interface locale never changed.
+  // Resyncs to `locale` immediately when it changes (a genuine interface
+  // toggle), and otherwise follows each response's own resolved
+  // `language` — never re-derived from `locale` alone once a message has
+  // actually been exchanged.
+  const [conversationLocale, setConversationLocale] = useState<Locale>(locale);
+  useEffect(() => {
+    setConversationLocale(locale);
+  }, [locale]);
+
+  const t = dictionaries[conversationLocale].chat;
 
   // Resume after refresh (§14/§23) — restored from localStorage via a
   // lazy useState initializer (runs once, synchronously, before first
@@ -127,8 +144,14 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     trackIfAuthenticated(isAuthenticated, "chat_message_sent");
 
     try {
+      // Always the real interface locale (rule 2's input), never
+      // `conversationLocale` — see the comment above conversationLocale's
+      // declaration.
       const result = await sendChatMessage({ content, locale, conversationId, suggestionId });
       setConversationId(result.conversationId);
+      if (result.language === "fr" || result.language === "en") {
+        setConversationLocale(result.language);
+      }
       setMessages((prev) => [...prev, { id: `assistant-${crypto.randomUUID()}`, senderType: "assistant", content: result.reply, createdAt: new Date() }]);
       setSuggestions(result.suggestions.map((suggestion) => suggestion.id));
       if (result.action?.type === "show_lead_form") {
@@ -165,7 +188,11 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
     setLeadFormSubmitting(true);
     setLeadFormError(null);
     try {
-      const result = await submitChatLead({ conversationId, locale, consent: true, ...values });
+      // Here `conversationLocale` IS what we want (not the raw interface
+      // `locale`): this only picks which language the deterministic
+      // confirmation text is drafted in, so it should match whatever
+      // language the conversation has actually been in.
+      const result = await submitChatLead({ conversationId, locale: conversationLocale, consent: true, ...values });
       setMessages((prev) => [...prev, { id: `assistant-${crypto.randomUUID()}`, senderType: "assistant", content: result.reply, createdAt: new Date() }]);
       setShowLeadForm(false);
       trackIfAuthenticated(isAuthenticated, "lead_submitted");
@@ -181,10 +208,10 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
 
   return (
     <>
-      {phase === "closed" && <ChatBubbleTrigger locale={locale} showWelcomeBubble={showWelcomeBubble} onOpen={openPanel} onDismissBubble={dismissBubble} />}
+      {phase === "closed" && <ChatBubbleTrigger locale={conversationLocale} showWelcomeBubble={showWelcomeBubble} onOpen={openPanel} onDismissBubble={dismissBubble} />}
       {phase === "open" && (
         <ChatPanel
-          locale={locale}
+          locale={conversationLocale}
           messages={displayMessages}
           suggestions={suggestions}
           isTyping={isTyping}

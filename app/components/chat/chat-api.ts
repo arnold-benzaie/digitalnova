@@ -8,6 +8,10 @@ export type ChatApiResponse = {
   reply: string;
   suggestions: ChatApiSuggestion[];
   action: ChatApiAction;
+  /** The actual language `reply` (and this turn's suggestions) are in —
+   * present on "message" responses from a real LLM provider; absent on
+   * lead_submit/escalate responses, which don't need it. */
+  language?: Locale;
 };
 
 export type ChatApiErrorKind = "invalid_request" | "rate_limited" | "provider_unavailable" | "network" | "unknown";

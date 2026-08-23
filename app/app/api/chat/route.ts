@@ -134,6 +134,11 @@ async function handleMessage(context: ChatContext, body: z.infer<typeof sendMess
     reply: result.reply,
     suggestions: result.suggestions ?? [],
     action: result.action ?? null,
+    // Real providers compute this deterministically (see
+    // lib/chat/conversation-language.ts); the mock provider doesn't set
+    // it, so this falls back to the interface locale the client already
+    // sent — exactly the mock's own existing behavior, unaffected.
+    language: result.language ?? body.locale,
   };
 }
 

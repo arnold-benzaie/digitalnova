@@ -1,7 +1,8 @@
 import "server-only";
 import OpenAI from "openai";
 import type { AiProvider, AiProviderInput, AiProviderOutput } from "@/lib/chat/ai-provider";
-import { buildSystemPrompt } from "@/lib/chat/openai-system-prompt";
+import { resolveConversationLanguage } from "@/lib/chat/conversation-language";
+import { buildLanguageDirective, buildSystemPrompt } from "@/lib/chat/openai-system-prompt";
 import { SUGGESTION_IDS } from "@/lib/chat/suggestion-catalog";
 import { structuredReplySchema, toProviderOutput, toConversationRole } from "@/lib/chat/ai-structured-reply";
 
@@ -110,9 +111,11 @@ export function createOpenaiProvider(clientOverride?: ResponsesClient): AiProvid
       { role: "user" as const, content: input.userMessage },
     ];
 
+    const resolvedLanguage = resolveConversationLanguage({ currentMessage: input.userMessage, interfaceLocale: input.locale, history: input.history });
+
     const response = await client.responses.create({
       model,
-      instructions: buildSystemPrompt(input.context),
+      instructions: buildSystemPrompt(input.context, input.surface) + buildLanguageDirective(resolvedLanguage),
       input: conversationInput,
       max_output_tokens: MAX_OUTPUT_TOKENS,
       text: {
@@ -131,7 +134,7 @@ export function createOpenaiProvider(clientOverride?: ResponsesClient): AiProvid
     }
 
     const parsed = structuredReplySchema.parse(JSON.parse(raw));
-    return toProviderOutput(parsed, input.userMessage);
+    return toProviderOutput(parsed, input.userMessage, resolvedLanguage);
   }
 
   return { generateReply };

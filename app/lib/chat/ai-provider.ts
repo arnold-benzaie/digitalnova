@@ -34,6 +34,13 @@ export type AiProviderOutput = {
   reply: string;
   suggestions?: AiSuggestion[];
   action?: AiAction;
+  /** The language `reply` (and suggestion/lead-form copy for this turn)
+   * is actually in — see lib/chat/conversation-language.ts. Optional
+   * because the mock provider doesn't set it (it always mirrors
+   * `input.locale` deterministically already); real providers always
+   * set it. app/api/chat/route.ts falls back to `body.locale` when
+   * absent so mock-backed responses are unaffected. */
+  language?: "fr" | "en";
 };
 
 /**

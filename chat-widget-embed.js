@@ -373,8 +373,19 @@
   }
 
   function createWidget() {
-    var locale = resolveLocale();
-    var t = PM_CHAT_STRINGS[locale];
+    // interfaceLocale: the page's own FR/EN toggle state (see
+    // resolveLocale()) — always sent to the backend as-is, the true
+    // "interface locale" signal (lib/chat/conversation-language.ts's
+    // priority rule 2). conversationLocale: what UI copy (t) actually
+    // renders in — starts equal to interfaceLocale, then follows either a
+    // real toggle change (see watchLanguageChanges below) or the resolved
+    // `language` the backend returns after each message, so suggestion
+    // chips/lead form/placeholder never lag behind the conversation's own
+    // established language the way they used to when a single `locale`
+    // var served both purposes.
+    var interfaceLocale = resolveLocale();
+    var conversationLocale = interfaceLocale;
+    var t = PM_CHAT_STRINGS[conversationLocale];
     var stored = loadStoredState();
     var conversationId = stored ? stored.conversationId : null;
     var messages = stored && stored.messages ? stored.messages : [];
@@ -405,9 +416,12 @@
     root.appendChild(triggerWrap);
     watchCookieBanner(root);
     watchLanguageChanges(function (newLocale) {
-      if (newLocale === locale) return;
-      locale = newLocale;
-      t = PM_CHAT_STRINGS[locale];
+      if (newLocale === interfaceLocale) return;
+      interfaceLocale = newLocale;
+      // A real, deliberate toggle wins immediately — matches priority
+      // rule 2 outranking rule 3 (previously-established language).
+      conversationLocale = newLocale;
+      t = PM_CHAT_STRINGS[conversationLocale];
       triggerBtn.setAttribute("aria-label", t.triggerAriaLabel);
       if (panel) {
         renderPanel(); // conversation state (messages/conversationId) is untouched
@@ -663,6 +677,22 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
+    // Applies a backend-resolved conversation language without a full
+    // renderPanel() (which would rebuild the whole message list and
+    // refocus the input on every single turn — too disruptive). Any
+    // suggestion/lead-form render that happens right after this call
+    // already reads the updated `t` naturally.
+    function applyConversationLocale(newLocale) {
+      if (newLocale !== "fr" && newLocale !== "en") return;
+      if (newLocale === conversationLocale) return;
+      conversationLocale = newLocale;
+      t = PM_CHAT_STRINGS[conversationLocale];
+      if (inputEl) {
+        inputEl.setAttribute("placeholder", t.inputPlaceholder);
+        inputEl.setAttribute("aria-label", t.inputPlaceholder);
+      }
+    }
+
     function sendMessage(content, suggestionId) {
       appendLocalMessage("visitor", content);
       suggestions = [];
@@ -670,10 +700,14 @@
       lastFailedContent = content;
       var typingRow = renderTyping();
 
-      postChat({ type: "message", content: content, locale: locale, conversationId: conversationId, suggestionId: suggestionId, surface: "site" })
+      // Always the real interface locale (rule 2's input) — never
+      // conversationLocale, which would conflate "what the backend last
+      // resolved" with "what the page's own toggle currently says".
+      postChat({ type: "message", content: content, locale: interfaceLocale, conversationId: conversationId, suggestionId: suggestionId, surface: "site" })
         .then(function (result) {
           typingRow.remove();
           conversationId = result.conversationId;
+          applyConversationLocale(result.language);
           appendLocalMessage("assistant", result.reply);
           suggestions = (result.suggestions || []).map(function (s) {
             return s.id;
@@ -751,7 +785,10 @@
         postChat({
           type: "lead_submit",
           conversationId: conversationId,
-          locale: locale,
+          // The established conversation language, not the raw interface
+          // toggle — this is only what picks the confirmation text's
+          // language server-side.
+          locale: conversationLocale,
           fullName: fullName,
           email: email,
           phone: phoneInput.input.value.trim() || undefined,

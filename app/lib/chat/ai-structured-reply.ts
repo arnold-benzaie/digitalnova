@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { AiProviderOutput } from "@/lib/chat/ai-provider";
+import type { ConversationLanguage } from "@/lib/chat/conversation-language";
 import { isExplicitLeadIntent } from "@/lib/chat/ai-mock-provider";
 import { isKnownSuggestionId } from "@/lib/chat/suggestion-catalog";
 
@@ -39,8 +40,16 @@ export type StructuredReply = z.infer<typeof structuredReplySchema>;
  * own human/quote branches use). A model — of either provider —
  * hallucinating `show_lead_form` on an ordinary message can never open
  * the form on its claim alone.
+ *
+ * `resolvedLanguage` is the app-computed language (see
+ * conversation-language.ts), NOT `parsed.language` — the model's own
+ * self-reported language is validated by the schema but is never treated
+ * as authoritative here, since trusting it is exactly what let a real
+ * DeepSeek conversation drift language mid-conversation. Every UI-visible
+ * consumer (suggestion chip labels, lead form, buttons) must use this
+ * field, never re-derive language from the reply text.
  */
-export function toProviderOutput(parsed: StructuredReply, userMessage: string): AiProviderOutput {
+export function toProviderOutput(parsed: StructuredReply, userMessage: string, resolvedLanguage: ConversationLanguage): AiProviderOutput {
   const suggestions = parsed.suggestions
     .filter(isKnownSuggestionId)
     .slice(0, 4)
@@ -48,7 +57,7 @@ export function toProviderOutput(parsed: StructuredReply, userMessage: string): 
 
   const action = parsed.action.type === "show_lead_form" && isExplicitLeadIntent(userMessage) ? ({ type: "show_lead_form" } as const) : undefined;
 
-  return { reply: parsed.message, suggestions, action };
+  return { reply: parsed.message, suggestions, action, language: resolvedLanguage };
 }
 
 export function toConversationRole(senderType: string): "user" | "assistant" {
