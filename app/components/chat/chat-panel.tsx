@@ -111,9 +111,20 @@ export function ChatPanel({
        * replacing the previous flat black. Scoped to the header only —
        * the rest of the panel is untouched. */}
       <header
-        className="flex shrink-0 items-center justify-between gap-2 border-b border-pm-gris-2 bg-[linear-gradient(135deg,#101a33,#1c2f52_55%,#1d3f78)] px-4 py-3 text-pm-blanc sm:rounded-t-2xl"
+        // sm:[-webkit-user-drag:none] — csstype/React's CSSProperties
+        // doesn't recognize -webkit-user-drag, so it's set here as a
+        // Tailwind arbitrary property (scoped with the same `sm:` prefix
+        // the rest of this panel already uses for "desktop only") rather
+        // than in the inline style below. Belt-and-suspenders alongside
+        // preventDefault() in onHeaderPointerDown: a title bar has no
+        // reason to be natively draggable/selectable in the first place,
+        // and setting this persistently (not toggled in/out of a drag)
+        // closes the gap for any WebKit path that fires selection/drag
+        // before that handler runs — see that handler's own comment for
+        // the real-Safari bug this fixes.
+        className="flex shrink-0 items-center justify-between gap-2 border-b border-pm-gris-2 bg-[linear-gradient(135deg,#101a33,#1c2f52_55%,#1d3f78)] px-4 py-3 text-pm-blanc sm:rounded-t-2xl sm:[-webkit-user-drag:none]"
         onPointerDown={onHeaderPointerDown}
-        style={isDesktop ? { touchAction: "none", cursor: isDragging ? "grabbing" : "grab" } : undefined}
+        style={isDesktop ? { touchAction: "none", cursor: isDragging ? "grabbing" : "grab", userSelect: "none", WebkitUserSelect: "none" } : undefined}
       >
         <div>
           <p className="text-sm font-semibold">{t.panel.assistantName}</p>

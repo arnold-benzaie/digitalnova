@@ -125,8 +125,13 @@ export function useDraggableChatPanel(panelSize: { width: number; height: number
         drag.moved = true;
         setIsDragging(true);
         document.body.style.userSelect = "none";
+        // TEMP DEBUG — remove before final commit.
+        console.log("[PM_CHAT_DRAG_DEBUG] drag active (threshold crossed)");
       }
-      setPosition(clampToViewport(drag.originX + dx, drag.originY + dy));
+      const next = clampToViewport(drag.originX + dx, drag.originY + dy);
+      // TEMP DEBUG — remove before final commit.
+      console.log("[PM_CHAT_DRAG_DEBUG] pointermove -> position", next);
+      setPosition(next);
     },
     [clampToViewport],
   );
@@ -135,6 +140,8 @@ export function useDraggableChatPanel(panelSize: { width: number; height: number
     (event: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
+      // TEMP DEBUG — remove before final commit.
+      console.log("[PM_CHAT_DRAG_DEBUG] pointerup, moved =", drag.moved);
       stopTrackingPointer();
       dragRef.current = null;
 
@@ -157,6 +164,8 @@ export function useDraggableChatPanel(panelSize: { width: number; height: number
           else if (distanceRight <= SNAP_ZONE_PX && distanceRight < distanceLeft) snappedX = viewportWidth - panelSize.width - EDGE_MARGIN_PX;
           const finalPosition = clampToViewport(snappedX, current.y);
           writeStoredPosition(finalPosition);
+          // TEMP DEBUG — remove before final commit.
+          console.log("[PM_CHAT_DRAG_DEBUG] snap/persist -> position", finalPosition);
           return finalPosition;
         });
       }
@@ -176,7 +185,24 @@ export function useDraggableChatPanel(panelSize: { width: number; height: number
       // control) — only a plain drag on the header's own background
       // starts tracking.
       if ((event.target as HTMLElement).closest("button")) return;
-      const panelEl = (event.currentTarget as HTMLElement).closest('[role="dialog"]') as HTMLElement | null;
+      // TEMP DEBUG — remove before final commit.
+      console.log("[PM_CHAT_DRAG_DEBUG] pointerdown on header");
+      // Root cause of the real-Safari bug reported after the first
+      // Preview pass: without this, WebKit starts its own native
+      // text-selection/drag gesture on pointerdown over the header's
+      // text (confirmed via direct event instrumentation — a `selectstart`
+      // fires immediately, before any pointermove) and can swallow the
+      // whole gesture before it ever reaches this code, even though the
+      // exact same interaction worked fine under Chromium. preventDefault()
+      // here stops that native handling before it starts; setPointerCapture
+      // keeps this element as the authoritative target for the rest of
+      // the gesture even if the pointer momentarily leaves the header's
+      // bounds during a fast drag — window-level listeners below still
+      // receive the (now-captured) events via normal bubbling.
+      event.preventDefault();
+      const headerEl = event.currentTarget as HTMLElement;
+      headerEl.setPointerCapture(event.pointerId);
+      const panelEl = headerEl.closest('[role="dialog"]') as HTMLElement | null;
       panelElRef.current = panelEl;
       const rect = panelEl?.getBoundingClientRect();
       const originX = position?.x ?? rect?.left ?? 0;

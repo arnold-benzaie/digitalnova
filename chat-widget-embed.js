@@ -792,13 +792,16 @@
           drag.moved = true;
           panelEl.classList.add("pm-chat-panel-dragging");
           document.body.style.userSelect = "none";
+          console.log("[PM_CHAT_DRAG_DEBUG] drag active (threshold crossed)"); // TEMP DEBUG — remove before final commit.
         }
         current = pmChatClampPosition(drag.originX + dx, drag.originY + dy, panelWidth, panelHeight);
+        console.log("[PM_CHAT_DRAG_DEBUG] pointermove -> position", current); // TEMP DEBUG — remove before final commit.
         pmChatApplyPosition(panelEl, current.x, current.y, false);
       }
 
       function onPointerUp(e) {
         if (!drag || e.pointerId !== drag.pointerId) return;
+        console.log("[PM_CHAT_DRAG_DEBUG] pointerup, moved =", drag.moved); // TEMP DEBUG — remove before final commit.
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
         window.removeEventListener("pointercancel", onPointerUp);
@@ -819,6 +822,7 @@
           current = pmChatClampPosition(snappedX, current.y, panelWidth, panelHeight);
           pmChatApplyPosition(panelEl, current.x, current.y, true);
           pmChatWriteStoredPosition(current);
+          console.log("[PM_CHAT_DRAG_DEBUG] snap/persist -> position", current); // TEMP DEBUG — remove before final commit.
         }
       }
 
@@ -827,6 +831,22 @@
         // Never hijacks a click on Minimize/Close — only a plain drag on
         // the header's own background starts tracking.
         if (e.target.closest && e.target.closest("button")) return;
+        console.log("[PM_CHAT_DRAG_DEBUG] pointerdown on header"); // TEMP DEBUG — remove before final commit.
+        // Root cause of the real-Safari bug reported after the first
+        // Preview pass: without this, WebKit starts its own native
+        // text-selection/drag gesture on pointerdown over the header's
+        // text (confirmed via direct event instrumentation — a
+        // `selectstart` fires immediately, before any pointermove) and
+        // can swallow the whole gesture before it ever reaches this
+        // code, even though the exact same interaction worked fine
+        // under Chromium. preventDefault() stops that native handling
+        // before it starts; setPointerCapture keeps this element as the
+        // authoritative target for the rest of the gesture even if the
+        // pointer momentarily leaves the header's bounds during a fast
+        // drag — the window-level listeners below still receive the
+        // (now-captured) events via normal bubbling.
+        e.preventDefault();
+        if (headerEl.setPointerCapture) headerEl.setPointerCapture(e.pointerId);
         var rect = panelEl.getBoundingClientRect();
         var originX = current ? current.x : rect.left;
         var originY = current ? current.y : rect.top;
