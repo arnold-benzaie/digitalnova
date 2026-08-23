@@ -232,6 +232,39 @@ test("captureLead creates a crmClients row with stage=lead, source='chat widget'
   assert.equal(row.organizationId, null);
 });
 
+// §Phase 1D — booking/lead form's requestType/preferredDate/preferredTimeSlot:
+// no schema change (see request-type-catalog.ts's header comment), just
+// structured, clearly-labeled lines appended to the same free-text
+// `notes` field captureLead already writes to.
+test("captureLead records requestType/preferredDate/preferredTimeSlot as labeled, non-confirmed preferences inside notes — no new columns", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const email = `${randomUUID()}@lead.test`;
+  const { crmClientId } = await captureLead(context, {
+    fullName: "Booking Test",
+    email,
+    message: "Je souhaite réserver un créneau.",
+    requestType: "meeting",
+    preferredDate: "2026-09-01",
+    preferredTimeSlot: "après-midi",
+  });
+
+  const [row] = await db.select().from(crmClients).where(eq(crmClients.id, crmClientId)).limit(1);
+  assert.match(row.notes, /Type de demande : Réserver un rendez-vous/);
+  assert.match(row.notes, /Date souhaitée \(préférence, non confirmée\) : 2026-09-01/);
+  assert.match(row.notes, /Créneau souhaité \(préférence, non confirmée\) : après-midi/);
+});
+
+test("captureLead without requestType/preferredDate/preferredTimeSlot behaves exactly as before (existing advisor-CTA flow, unchanged)", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const email = `${randomUUID()}@lead.test`;
+  const { crmClientId } = await captureLead(context, { fullName: "No Booking Fields", email, message: "Je veux parler à un conseiller." });
+
+  const [row] = await db.select().from(crmClients).where(eq(crmClients.id, crmClientId)).limit(1);
+  assert.equal(row.notes, "[Chat widget] Je veux parler à un conseiller.");
+});
+
 test("captureLead reuses an existing crmClients row for the same email instead of creating a duplicate", async () => {
   actAsAnonymous();
   const email = `${randomUUID()}@lead.test`;

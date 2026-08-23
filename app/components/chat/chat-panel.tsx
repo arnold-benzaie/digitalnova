@@ -28,6 +28,7 @@ export function ChatPanel({
   onCancelLead,
   onRetry,
   onTalkToAdvisor,
+  onOpenBooking,
   onClose,
   onMinimize,
 }: {
@@ -51,6 +52,7 @@ export function ChatPanel({
   onCancelLead: () => void;
   onRetry: () => void;
   onTalkToAdvisor: () => void;
+  onOpenBooking: () => void;
   onClose: () => void;
   onMinimize: () => void;
 }) {
@@ -166,7 +168,7 @@ export function ChatPanel({
           event.preventDefault();
           submitDraft();
         }}
-        className="flex shrink-0 items-end gap-2 border-t border-pm-gris-2 p-3"
+        className="relative flex shrink-0 items-end gap-2 border-t border-pm-gris-2 p-3"
       >
         <Textarea
           ref={textareaRef}
@@ -185,6 +187,22 @@ export function ChatPanel({
           aria-label={t.input.placeholder}
         />
         <ChatEmojiPicker ariaLabel={t.input.emojiAriaLabel} onSelect={insertEmojiAtCursor} />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          aria-label={t.input.calendarAriaLabel}
+          title={t.input.calendarAriaLabel}
+          onClick={onOpenBooking}
+          className="shrink-0"
+        >
+          {/* The real 📅 glyph, not a drawn/outline icon (per explicit
+           * request) — same treatment as the emoji-picker trigger's own
+           * "😊" span just above, for visual consistency in this row. */}
+          <span aria-hidden="true" className="text-base leading-none">
+            📅
+          </span>
+        </Button>
         <Button type="submit" size="icon" aria-label={t.input.sendAriaLabel} disabled={!draft.trim()} className="shrink-0 bg-pm-noir hover:bg-pm-noir/90">
           <Send className="size-4" aria-hidden="true" />
         </Button>

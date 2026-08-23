@@ -447,7 +447,7 @@
 }
 .pm-chat-lead-form-title { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
 .pm-chat-lead-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--pm-gris); }
-.pm-chat-lead-field input, .pm-chat-lead-field textarea {
+.pm-chat-lead-field input, .pm-chat-lead-field textarea, .pm-chat-lead-field select {
   font-family: inherit;
   font-size: 14px;
   color: var(--pm-noir);
@@ -456,11 +456,16 @@
   padding: 8px 10px;
   background: #fff;
 }
-.pm-chat-lead-field input:focus, .pm-chat-lead-field textarea:focus {
+.pm-chat-lead-field input:focus, .pm-chat-lead-field textarea:focus, .pm-chat-lead-field select:focus {
   outline: 2px solid var(--pm-rouge);
   outline-offset: 1px;
   border-color: var(--pm-rouge);
 }
+/* Preferred date + time slot side by side — still one column on narrow
+   panels (mobile fullscreen), each field keeps its own label above it. */
+.pm-chat-lead-row { display: flex; gap: 8px; }
+.pm-chat-lead-row .pm-chat-lead-field { flex: 1; min-width: 0; }
+.pm-chat-lead-note { font-size: 11px; font-style: italic; color: var(--pm-gris); margin: -4px 0 0; }
 .pm-chat-lead-consent { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--pm-gris); }
 .pm-chat-lead-consent input { margin-top: 2px; }
 .pm-chat-lead-error { font-size: 12px; color: var(--pm-rouge); margin: 0; }
@@ -478,6 +483,7 @@
 .pm-chat-lead-cancel { background: transparent; border-color: var(--pm-gris-2); color: var(--pm-noir); }
 
 .pm-chat-input-bar {
+  position: relative; /* the emoji popover anchors here, not to its own small button wrap — stays put regardless of how many buttons sit between it and Send */
   flex-shrink: 0;
   border-top: 1px solid var(--pm-gris-2);
   padding: 12px;
@@ -539,6 +545,27 @@
 }
 .pm-chat-emoji-btn:hover { border-color: var(--pm-bleu); }
 .pm-chat-emoji-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
+
+/* Same footprint as the emoji button — discreet, not a second primary
+   action next to Send. */
+.pm-chat-calendar-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--pm-gris-2);
+  background: var(--pm-blanc);
+  color: var(--pm-noir);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px; /* same treatment as .pm-chat-emoji-btn's own emoji glyph */
+  line-height: 1;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.pm-chat-calendar-btn:hover { border-color: var(--pm-bleu); color: var(--pm-bleu); }
+.pm-chat-calendar-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 2px; }
 .pm-chat-emoji-menu {
   position: absolute;
   bottom: calc(100% + 8px);

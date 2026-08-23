@@ -8,6 +8,7 @@ import { escalateToHuman } from "@/lib/chat/escalation";
 import { captureLead } from "@/lib/chat/leads";
 import { appendMessage, appendUserMessage, getRecentMessagesForProvider } from "@/lib/chat/messages";
 import { notifyHumanEscalation } from "@/lib/chat/notify-human-escalation";
+import { REQUEST_TYPE_LABELS_FR } from "@/lib/chat/request-type-catalog";
 import { categorizeChatError, recordChatFailureAndMaybeAlert } from "@/lib/chat/technical-alert";
 import { chatRequestSchema, escalateSchema, leadSubmitSchema, sendMessageSchema } from "@/lib/chat/validation";
 import { generateVisitorId, isValidVisitorId, VISITOR_ID_COOKIE, visitorIdCookieOptions } from "@/lib/chat/visitor";
@@ -160,10 +161,14 @@ async function handleMessage(context: ChatContext, body: z.infer<typeof sendMess
 }
 
 async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadSubmitSchema>) {
-  const conversation = await getOwnedConversation(context, body.conversationId);
-  if (!conversation) {
-    return { error: "conversation_not_found" };
-  }
+  // getOrCreateConversation (not getOwnedConversation): the calendar-
+  // button entry point (§Phase 1D) can open this same form before any
+  // message has been sent, so there may be no conversation yet — the
+  // exact same helper handleMessage already uses, with the exact same
+  // ownership/anti-enumeration guarantees (see conversations.ts's own
+  // doc comment on ownsConversation()). A missing/mismatched/forged id
+  // silently gets a brand-new conversation, never an error.
+  const conversation = await getOrCreateConversation(context, body.conversationId);
 
   // Captured BEFORE attaching — the anti-spam guard (§8): a conversation
   // already linked to a CRM client means a notification already went out
@@ -180,6 +185,9 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
     company: body.company ?? null,
     country: body.country ?? null,
     message: body.message,
+    requestType: body.requestType,
+    preferredDate: body.preferredDate ?? null,
+    preferredTimeSlot: body.preferredTimeSlot ?? null,
   });
 
   await attachLeadToConversation(conversation.id, crmClientId);
@@ -201,6 +209,12 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
       organizationName: body.company,
       summary: body.message,
       crmClientId,
+      // Already mapped to its FR label here — the email is staff-facing
+      // and always French (see chat-notification.ts), never the raw
+      // client-supplied key.
+      requestType: REQUEST_TYPE_LABELS_FR[body.requestType],
+      preferredDate: body.preferredDate,
+      preferredTimeSlot: body.preferredTimeSlot,
     });
   }
 

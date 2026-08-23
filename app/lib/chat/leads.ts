@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients } from "@/db/schema";
 import type { ChatContext } from "@/lib/chat/context";
+import { REQUEST_TYPE_LABELS_FR, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
 
 export type ChatLeadInput = {
   fullName: string;
@@ -11,7 +12,24 @@ export type ChatLeadInput = {
   company?: string | null;
   country?: string | null;
   message: string;
+  // §Phase 1D — all optional at THIS function's boundary (unlike the API
+  // route's own leadSubmitSchema, which requires requestType): keeps
+  // every existing direct caller (unit tests, any future internal use)
+  // working unchanged. Only ever appended to `notes` as a clearly
+  // labeled, human-readable PREFERENCE — never turned into a real
+  // reservation/booking record, since no calendar system is connected.
+  requestType?: RequestTypeKey | null;
+  preferredDate?: string | null;
+  preferredTimeSlot?: string | null;
 };
+
+function buildNotesEntry(input: ChatLeadInput): string {
+  const lines = [`[Chat widget] ${input.message}`];
+  if (input.requestType) lines.push(`Type de demande : ${REQUEST_TYPE_LABELS_FR[input.requestType]}`);
+  if (input.preferredDate) lines.push(`Date souhaitée (préférence, non confirmée) : ${input.preferredDate}`);
+  if (input.preferredTimeSlot) lines.push(`Créneau souhaité (préférence, non confirmée) : ${input.preferredTimeSlot}`);
+  return lines.join("\n").slice(0, 2000);
+}
 
 /**
  * Reuses `crmClients` exactly as the CRM module already does — no
@@ -39,7 +57,7 @@ export async function captureLead(context: ChatContext, input: ChatLeadInput): P
     .limit(1);
 
   if (existing) {
-    const appendedNote = `[Chat widget] ${input.message}`.slice(0, 2000);
+    const appendedNote = buildNotesEntry(input);
     const mergedNotes = existing.notes ? `${existing.notes}\n\n${appendedNote}` : appendedNote;
     await db
       .update(crmClients)
@@ -64,7 +82,7 @@ export async function captureLead(context: ChatContext, input: ChatLeadInput): P
       preferredLocale: context.locale,
       stage: "lead",
       source: "chat widget",
-      notes: `[Chat widget] ${input.message}`.slice(0, 2000),
+      notes: buildNotesEntry(input),
       organizationId: context.kind === "authenticated" ? context.organizationId : null,
     })
     .returning({ id: crmClients.id });

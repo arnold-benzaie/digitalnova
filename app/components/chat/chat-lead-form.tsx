@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
+import { REQUEST_TYPE_KEYS, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
 
 export type ChatLeadFormValues = {
   fullName: string;
@@ -12,6 +13,9 @@ export type ChatLeadFormValues = {
   phone?: string;
   company?: string;
   country?: string;
+  requestType: RequestTypeKey;
+  preferredDate?: string;
+  preferredTimeSlot?: string;
   message: string;
 };
 
@@ -34,13 +38,16 @@ export function ChatLeadForm({
   const [phone, setPhone] = useState("");
   const [company, setCompany] = useState("");
   const [country, setCountry] = useState("");
+  const [requestType, setRequestType] = useState<RequestTypeKey | "">("");
+  const [preferredDate, setPreferredDate] = useState("");
+  const [preferredTimeSlot, setPreferredTimeSlot] = useState("");
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!fullName.trim() || !email.trim() || !message.trim()) {
+    if (!fullName.trim() || !email.trim() || !requestType || !message.trim()) {
       setValidationError(t.requiredError);
       return;
     }
@@ -49,7 +56,17 @@ export function ChatLeadForm({
       return;
     }
     setValidationError(null);
-    onSubmit({ fullName: fullName.trim(), email: email.trim(), phone: phone.trim() || undefined, company: company.trim() || undefined, country: country.trim() || undefined, message: message.trim() });
+    onSubmit({
+      fullName: fullName.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      company: company.trim() || undefined,
+      country: country.trim() || undefined,
+      requestType,
+      preferredDate: preferredDate.trim() || undefined,
+      preferredTimeSlot: preferredTimeSlot.trim() || undefined,
+      message: message.trim(),
+    });
   }
 
   return (
@@ -80,6 +97,38 @@ export function ChatLeadForm({
         {t.country}
         <Input value={country} onChange={(event) => setCountry(event.target.value)} maxLength={100} disabled={submitting} />
       </label>
+
+      <label className="flex flex-col gap-1 text-xs text-pm-gris">
+        {t.requestType}
+        <select
+          value={requestType}
+          onChange={(event) => setRequestType(event.target.value as RequestTypeKey)}
+          required
+          disabled={submitting}
+          className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm text-pm-noir shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="" disabled>
+            —
+          </option>
+          {REQUEST_TYPE_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {t.requestTypeOptions[key]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex gap-2">
+        <label className="flex flex-1 flex-col gap-1 text-xs text-pm-gris">
+          {t.preferredDate}
+          <Input type="date" value={preferredDate} onChange={(event) => setPreferredDate(event.target.value)} disabled={submitting} />
+        </label>
+        <label className="flex flex-1 flex-col gap-1 text-xs text-pm-gris">
+          {t.preferredTime}
+          <Input value={preferredTimeSlot} onChange={(event) => setPreferredTimeSlot(event.target.value)} maxLength={100} disabled={submitting} />
+        </label>
+      </div>
+      {(preferredDate || preferredTimeSlot) && <p className="text-[11px] text-pm-gris italic">{t.preferredNote}</p>}
 
       <label className="flex flex-col gap-1 text-xs text-pm-gris">
         {t.message}

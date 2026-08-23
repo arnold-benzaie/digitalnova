@@ -48,6 +48,11 @@ export type HumanEscalationEvent = {
   phone?: string;
   summary?: string;
   crmClientId?: string | null;
+  // §Phase 1D — passthrough only, straight to the email row builder;
+  // never used for any routing/trust decision here.
+  requestType?: string;
+  preferredDate?: string;
+  preferredTimeSlot?: string;
 };
 
 export async function notifyHumanEscalation(event: HumanEscalationEvent): Promise<void> {
@@ -87,6 +92,9 @@ export async function notifyHumanEscalation(event: HumanEscalationEvent): Promis
       organizationName: event.organizationName,
       summary: event.summary,
       crmClientId: event.crmClientId,
+      requestType: event.requestType,
+      preferredDate: event.preferredDate,
+      preferredTimeSlot: event.preferredTimeSlot,
     });
   } catch {
     // A broken email channel must never surface as a failed lead/escalation.

@@ -34,21 +34,39 @@ test("a malformed/missing payload (not even an object) is rejected, not thrown",
 });
 
 test("lead_submit requires consent to be literally true — a falsy/missing value is rejected", () => {
-  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", message: "hi" };
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi" };
   assert.equal(chatRequestSchema.safeParse({ ...base, consent: false }).success, false);
   assert.equal(chatRequestSchema.safeParse(base).success, false);
   assert.equal(chatRequestSchema.safeParse({ ...base, consent: true }).success, true);
 });
 
 test("lead_submit requires a valid email", () => {
-  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", message: "hi", consent: true };
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", requestType: "other", message: "hi", consent: true };
   assert.equal(chatRequestSchema.safeParse({ ...base, email: "not-an-email" }).success, false);
   assert.equal(chatRequestSchema.safeParse({ ...base, email: "a@b.com" }).success, true);
 });
 
-test("lead_submit requires a real conversationId (uuid) — an anonymous/forged string is rejected before it ever reaches the database layer", () => {
-  const base = { type: "lead_submit", locale: "fr", fullName: "A", email: "a@b.com", message: "hi", consent: true };
+test("lead_submit requires a real conversationId (uuid) when one IS provided — an anonymous/forged string is rejected before it ever reaches the database layer", () => {
+  const base = { type: "lead_submit", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
   assert.equal(chatRequestSchema.safeParse({ ...base, conversationId: "not-a-uuid" }).success, false);
+});
+
+test("lead_submit's conversationId is optional — the calendar-button entry point can open the form before any message/conversation exists", () => {
+  const base = { type: "lead_submit", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse(base).success, true);
+});
+
+test("lead_submit requires requestType to be one of the closed set — an unknown/free-text value is rejected", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse({ ...base, requestType: "call_me_now" }).success, false);
+  assert.equal(chatRequestSchema.safeParse(base).success, false);
+  assert.equal(chatRequestSchema.safeParse({ ...base, requestType: "meeting" }).success, true);
+});
+
+test("lead_submit accepts optional preferredDate/preferredTimeSlot as a declared preference, never a booking", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "meeting", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse({ ...base, preferredDate: "2026-09-01", preferredTimeSlot: "après-midi" }).success, true);
+  assert.equal(chatRequestSchema.safeParse(base).success, true);
 });
 
 test("escalate requires only conversationId + locale", () => {
