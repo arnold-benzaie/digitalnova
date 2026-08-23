@@ -14,12 +14,29 @@
  * This function runs on the STATIC SITE's own project (same origin as the
  * page), so the browser's fetch("/api/chat-proxy") is same-origin — no
  * CORS, no preflight, Deployment Protection never enters the picture on
- * that leg. Server-to-server, it then forwards to the real, protected
- * app deployment using Vercel's own documented "Protection Bypass for
- * Automation" header (x-vercel-protection-bypass) — a secret that lives
- * ONLY in this project's server-side Preview environment variable
- * (CHAT_PROXY_BYPASS_SECRET), never in any file, never sent to the
- * browser, never logged.
+ * that leg. Server-to-server, it then forwards to the real app deployment.
+ *
+ * Upstream target (CHAT_UPSTREAM_URL, server-only — never NEXT_PUBLIC_*,
+ * never sent to the browser): the app's own ORIGIN only (e.g.
+ * "https://app-git-preview-ai-assistant-widget-....vercel.app" in Preview,
+ * the real Production app domain in Production) — this handler appends
+ * "/api/chat" itself. Deliberately environment-scoped via Vercel's own
+ * per-environment variable values, never a literal URL in source: a
+ * hardcoded Preview alias here previously meant Production traffic would
+ * have silently kept hitting the Preview deployment (wrong database
+ * schema, wrong DeepSeek key, and a Preview alias not guaranteed to stay
+ * available once this branch merges) — found in the pre-merge audit,
+ * never actually shipped. No fallback to any built-in URL if the variable
+ * is missing: refusing loudly (a clean 500, logged server-side by
+ * variable NAME only, never printing a value) is the only safe behavior —
+ * guessing would silently reintroduce the exact bug this fixes.
+ *
+ * x-vercel-protection-bypass (CHAT_PROXY_BYPASS_SECRET) stays exactly as
+ * before: added to the upstream request ONLY when the variable is
+ * actually set. Preview sets it today because Preview deployments sit
+ * behind Vercel's SSO wall; Production doesn't need it (Production
+ * deployments aren't behind that wall) and must never be configured to
+ * require it — this line simply never fires there.
  *
  * Deliberately a dumb, transparent relay — no validation, no rate-limit,
  * no business logic duplicated here. Every protection (Zod validation,
@@ -29,12 +46,24 @@
  */
 export const config = { runtime: "edge" };
 
-const UPSTREAM_URL = "https://app-git-preview-ai-assistant-widget-arnold-benzaies-projects.vercel.app/api/chat";
-
 export default async function handler(request) {
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
       status: 405,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const upstreamOrigin = process.env.CHAT_UPSTREAM_URL;
+  if (!upstreamOrigin) {
+    // Never a silent fallback to a hardcoded origin (that's exactly the
+    // bug this variable replaces) — log the variable NAME only, never a
+    // value (there isn't one here, but the same discipline applies below
+    // where a value does exist), and tell the browser nothing beyond a
+    // generic error.
+    console.error("[chat-proxy] CHAT_UPSTREAM_URL is not configured — refusing to guess an upstream origin.");
+    return new Response(JSON.stringify({ error: "proxy_misconfigured" }), {
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -51,9 +80,11 @@ export default async function handler(request) {
   if (forwardedFor) upstreamHeaders["x-forwarded-for"] = forwardedFor;
   if (bypassSecret) upstreamHeaders["x-vercel-protection-bypass"] = bypassSecret;
 
+  const upstreamUrl = `${upstreamOrigin.replace(/\/+$/, "")}/api/chat`;
+
   let upstreamResponse;
   try {
-    upstreamResponse = await fetch(UPSTREAM_URL, {
+    upstreamResponse = await fetch(upstreamUrl, {
       method: "POST",
       headers: upstreamHeaders,
       body,
