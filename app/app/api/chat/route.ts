@@ -189,6 +189,12 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
     preferredDate: body.preferredDate ?? null,
     preferredTimeSlot: body.preferredTimeSlot ?? null,
   });
+  // §chat-email-diag (temporary) — never logs the message body/email
+  // itself, only confirms the write happened and shows whether the
+  // anti-spam guard below is about to skip the notification (a repeat
+  // submission on the same already-linked conversation legitimately
+  // sends no second email — worth distinguishing from a real failure).
+  console.log(`[chat-email-diag] handleLeadSubmit: captureLead succeeded — crmClientId=${crmClientId} alreadyLinked=${alreadyLinked}`);
 
   await attachLeadToConversation(conversation.id, crmClientId);
   // Every lead submitted through the widget means the AI could not fully

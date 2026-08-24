@@ -80,8 +80,17 @@ export async function notifyHumanEscalation(event: HumanEscalationEvent): Promis
     console.warn("[chat] Aucune organisation interne configurée — notification d'escalade non créée.");
   }
 
+  // §chat-email-diag (temporary) — sendChatNotificationEmail() never
+  // throws on a Resend-level rejection (it returns {sent:false, reason}
+  // by design, same as sendEmail() itself), so this call's result was
+  // previously awaited and then discarded entirely: a real rejection
+  // (bad recipient, unverified domain, etc.) produced literally zero
+  // trace anywhere, while this function's own try/catch below only ever
+  // catches a genuinely thrown/unexpected error, which is a different,
+  // much rarer case. Logging the actual result here is diagnostic-only.
+  console.log(`[chat-email-diag] notifyHumanEscalation: calling sendChatNotificationEmail — kind=${event.trigger} conversationId=${event.conversationId}`);
   try {
-    await sendChatNotificationEmail({
+    const emailResult = await sendChatNotificationEmail({
       kind: event.trigger,
       conversationId: event.conversationId,
       surface: event.surface,
@@ -96,6 +105,11 @@ export async function notifyHumanEscalation(event: HumanEscalationEvent): Promis
       preferredDate: event.preferredDate,
       preferredTimeSlot: event.preferredTimeSlot,
     });
+    if (emailResult.sent) {
+      console.log("[chat-email-diag] notifyHumanEscalation: sendChatNotificationEmail reported sent=true");
+    } else {
+      console.error(`[chat-email-diag] notifyHumanEscalation: sendChatNotificationEmail reported sent=false — reason=${emailResult.reason}`);
+    }
   } catch {
     // A broken email channel must never surface as a failed lead/escalation.
     console.error("[chat] Échec de l'envoi de l'e-mail de notification (non bloquant).");
