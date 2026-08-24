@@ -321,19 +321,17 @@
   // lib/chat/validation.ts), so a bypassed client-side check here is
   // still caught, just with a less specific error.
 
-  // This site has no session/organization "market" signal (always an
-  // anonymous public-map.com visitor) — browser locale is the only
-  // available hint, same fallback tier as the React version's own
-  // localeToCountry(). Never invents beyond that, never blocks the
-  // visitor from picking any other country afterward.
-  function localeToCountry() {
-    try {
-      var region = new Intl.Locale(navigator.language).maximize().region;
-      return region || undefined;
-    } catch (e) {
-      return undefined;
-    }
-  }
+  // §Phase 1F (revised) — this site has no session/organization "market"
+  // signal (always an anonymous public-map.com visitor), so the default
+  // country is always this fixed fallback: "FR". Deliberately NOT derived
+  // from the visitor's browser locale/region anymore — that previously
+  // surfaced whatever region the browser happened to report (e.g. "GB"
+  // for an en-GB browser locale), which is not a real signal of the
+  // visitor's own country and produced a default the user explicitly
+  // rejected (UK +44). Matches the React app's own fixed CANADA/FR
+  // mapping (chat-lead-form.tsx's marketToCountry) — this surface simply
+  // never has a market to check, so it's always the "FR" branch.
+  var DEFAULT_PHONE_COUNTRY = "FR";
 
   // Rebuilt at most once per locale (FR/EN names differ) and cached —
   // 245 countries × Intl.DisplayNames is cheap, but the lead form can be
@@ -1253,13 +1251,7 @@
       }
 
       var list = buildCountryList(conversationLocale);
-      var selectedCountry = localeToCountry();
-      // A browser region libphonenumber doesn't recognize as a real
-      // calling-code country is dropped rather than kept as a silent,
-      // unusable "selection" — never invents a fallback that isn't real.
-      if (selectedCountry && !list.some(function (c) { return c.iso === selectedCountry; })) {
-        selectedCountry = undefined;
-      }
+      var selectedCountry = DEFAULT_PHONE_COUNTRY;
 
       var fieldWrap = el("div", { class: "pm-chat-phone-field" });
       var countryBtn = el("button", {

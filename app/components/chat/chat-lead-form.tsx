@@ -9,27 +9,16 @@ import { ChatPhoneInput } from "@/components/chat/chat-phone-input";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { REQUEST_TYPE_KEYS, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
 
-// §Phase 1F — a country-level "market" only ever maps to a default
-// country when it names exactly ONE country (Canada). "EUROPE" spans
-// dozens of countries and is deliberately never turned into a guessed
-// one — never invent the user's country, per the explicit requirement.
-function marketToCountry(market: "CANADA" | "EUROPE" | null): Country | undefined {
-  return market === "CANADA" ? "CA" : undefined;
-}
-
-// Browser-locale fallback (e.g. "fr-CA" -> "CA", "en-US" -> "US") — a
-// per-visitor signal, used only when there's no more reliable
-// market-based hint. Never throws: `Intl` region parsing on a locale
-// with no region subtag (e.g. plain "fr") just yields undefined here,
-// same as no hint at all.
-function localeToCountry(): Country | undefined {
-  if (typeof navigator === "undefined") return undefined;
-  try {
-    const region = new Intl.Locale(navigator.language).maximize().region;
-    return region as Country | undefined;
-  } catch {
-    return undefined;
-  }
+// §Phase 1F (revised) — a fixed, explicit mapping only: CANADA -> CA,
+// everything else (EUROPE, absent, not yet resolved) -> FR. Deliberately
+// NOT derived from the visitor's browser locale/region anymore — that
+// previously surfaced whatever region the browser happened to report
+// (e.g. "GB" for an en-GB browser locale), which is not a real signal of
+// the visitor's own country and produced a default the user explicitly
+// rejected (UK +44). FR is a neutral, always-valid fallback, never a
+// guess — the selector remains fully changeable regardless.
+function marketToCountry(market: "CANADA" | "EUROPE" | null): Country {
+  return market === "CANADA" ? "CA" : "FR";
 }
 
 export type ChatLeadFormValues = {
@@ -63,7 +52,7 @@ export function ChatLeadForm({
   // Computed once at mount — "intelligent default, never inventing, never
   // blocking": the phone selector always stays fully changeable
   // afterward regardless of where this initial guess came from.
-  const [defaultCountry] = useState<Country | undefined>(() => marketToCountry(market) ?? localeToCountry());
+  const [defaultCountry] = useState<Country>(() => marketToCountry(market));
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
