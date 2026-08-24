@@ -160,11 +160,17 @@ export function ChatPhoneInput({
   return (
     <PhoneInputWithCountrySelect
       international
-      // Never editable separately from the country selection — picking a
-      // country always sets the correct dial code once; typing in the
-      // number field never duplicates or re-types it (§6: "ne jamais
-      // ajouter deux fois l'indicatif").
-      countryCallingCodeEditable={false}
+      // NOT `countryCallingCodeEditable={false}`: that mode forces every
+      // input to start with the CURRENTLY selected country's own prefix
+      // and discards anything that doesn't — which broke pasting/typing a
+      // full number for a DIFFERENT country entirely (the input just
+      // collapsed back to the old prefix instead of switching). The
+      // library's default (`true`) is what actually implements "detect
+      // the country from a full +-prefixed number" — and `international`
+      // mode already prevents a double-typed dial code on its own, since
+      // a value starting with "+" is parsed as the complete E.164 attempt,
+      // never appended to an existing prefix (§6: "jamais deux fois
+      // l'indicatif").
       value={value || undefined}
       onChange={(next) => onChange(next ?? "")}
       defaultCountry={defaultCountry}
