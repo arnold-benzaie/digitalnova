@@ -1,11 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import { isValidPhoneNumber, type Country } from "react-phone-number-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ChatPhoneInput } from "@/components/chat/chat-phone-input";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { REQUEST_TYPE_KEYS, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
+
+// §Phase 1F — a country-level "market" only ever maps to a default
+// country when it names exactly ONE country (Canada). "EUROPE" spans
+// dozens of countries and is deliberately never turned into a guessed
+// one — never invent the user's country, per the explicit requirement.
+function marketToCountry(market: "CANADA" | "EUROPE" | null): Country | undefined {
+  return market === "CANADA" ? "CA" : undefined;
+}
+
+// Browser-locale fallback (e.g. "fr-CA" -> "CA", "en-US" -> "US") — a
+// per-visitor signal, used only when there's no more reliable
+// market-based hint. Never throws: `Intl` region parsing on a locale
+// with no region subtag (e.g. plain "fr") just yields undefined here,
+// same as no hint at all.
+function localeToCountry(): Country | undefined {
+  if (typeof navigator === "undefined") return undefined;
+  try {
+    const region = new Intl.Locale(navigator.language).maximize().region;
+    return region as Country | undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type ChatLeadFormValues = {
   fullName: string;
@@ -21,18 +46,24 @@ export type ChatLeadFormValues = {
 
 export function ChatLeadForm({
   locale,
+  market,
   submitting,
   errorMessage,
   onSubmit,
   onCancel,
 }: {
   locale: Locale;
+  market: "CANADA" | "EUROPE" | null;
   submitting: boolean;
   errorMessage: string | null;
   onSubmit: (values: ChatLeadFormValues) => void;
   onCancel: () => void;
 }) {
   const t = dictionaries[locale].chat.leadForm;
+  // Computed once at mount — "intelligent default, never inventing, never
+  // blocking": the phone selector always stays fully changeable
+  // afterward regardless of where this initial guess came from.
+  const [defaultCountry] = useState<Country | undefined>(() => marketToCountry(market) ?? localeToCountry());
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -49,6 +80,15 @@ export function ChatLeadForm({
     event.preventDefault();
     if (!fullName.trim() || !email.trim() || !requestType || !message.trim()) {
       setValidationError(t.requiredError);
+      return;
+    }
+    // Empty stays valid and accepted (§1 — never required); only a
+    // NON-empty, syntactically invalid number blocks submission. `phone`
+    // is already E.164 (the ChatPhoneInput below only ever produces that
+    // format or ""), so this re-validates with the same library the
+    // server will use, never a hand-rolled check.
+    if (phone.trim() && !isValidPhoneNumber(phone.trim())) {
+      setValidationError(t.phoneInvalidError);
       return;
     }
     if (!consent) {
@@ -85,7 +125,17 @@ export function ChatLeadForm({
 
       <label className="flex flex-col gap-1 text-xs text-pm-gris">
         {t.phone}
-        <Input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={50} disabled={submitting} />
+        <ChatPhoneInput
+          value={phone}
+          onChange={setPhone}
+          defaultCountry={defaultCountry}
+          locale={locale}
+          ariaLabel={t.phone}
+          countrySelectAriaLabel={t.phoneCountryAriaLabel}
+          countrySearchPlaceholder={t.phoneCountrySearchPlaceholder}
+          placeholder=""
+          disabled={submitting}
+        />
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-pm-gris">

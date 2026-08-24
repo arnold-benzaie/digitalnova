@@ -31,7 +31,7 @@ const ChatWidget = dynamic(() => import("@/components/chat/chat-widget").then((m
   ssr: false,
 });
 
-export function ChatWidgetMount(props: { locale: Locale; firstName: string | null; isAuthenticated: boolean }) {
+export function ChatWidgetMount(props: { locale: Locale; firstName: string | null; isAuthenticated: boolean; market: "CANADA" | "EUROPE" | null }) {
   return (
     <Suspense fallback={null}>
       <ChatWidget {...props} />

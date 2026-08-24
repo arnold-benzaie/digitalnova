@@ -1,6 +1,37 @@
 import { z } from "zod";
+import { isValidPhoneNumber } from "libphonenumber-js/core";
+// Explicit metadata import + the "core" build (rather than the
+// top-level `libphonenumber-js` package, which bundles its own copy of
+// this same file behind an internal `require(".../metadata.min.json")`)
+// — the top-level import triggers a tsx/Node ESM-CJS interop bug in this
+// project's test runner (`tsx --test`) where that nested require resolves
+// to `{ default: <metadata> }` instead of the raw metadata object,
+// crashing every parse. Importing the metadata ourselves sidesteps it
+// entirely. No `with { type: "json" }` assertion: this subpath's own
+// "import" condition (package.json's `exports` map) already points to
+// metadata.min.json.js, a plain `export default {...}` — not the raw
+// .json file — asserting `type: "json"` here made webpack try to
+// JSON-parse that .js file's source text and fail on its comments.
+import metadata from "libphonenumber-js/metadata.min.json";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chat/message-sanitization";
 import { REQUEST_TYPE_KEYS } from "@/lib/chat/request-type-catalog";
+
+// §Phase 1F — both widgets send E.164 ("+<countrycode><number>", e.g.
+// "+230xxxxxxxx") once libphonenumber-js has confirmed the number is
+// valid client-side; an empty field is sent as "" (optional, never
+// required — see chat-lead-form.tsx / chat-widget-embed.js). Re-validates
+// with the SAME library server-side (defense in depth: never trust a
+// client-side-only check) rather than a hand-rolled regex — a client
+// could still submit past its own JS validation, and a naive regex
+// would either be too loose (accepting garbage) or too strict
+// (rejecting real numbers in less-common formats).
+const phoneSchema = z
+  .string()
+  .trim()
+  .max(50)
+  .optional()
+  .transform((value) => (value ? value : undefined))
+  .refine((value) => value === undefined || isValidPhoneNumber(value, metadata), { message: "invalid_phone" });
 
 /**
  * Zod is used ONLY for this new chat feature (§2 of the approved plan —
@@ -52,7 +83,7 @@ export const leadSubmitSchema = z.object({
   visitorId: visitorIdSchema,
   fullName: z.string().trim().min(1).max(150),
   email: z.string().trim().email().max(200),
-  phone: z.string().trim().max(50).optional(),
+  phone: phoneSchema,
   company: z.string().trim().max(150).optional(),
   country: z.string().trim().max(100).optional(),
   // §Phase 1D — booking/lead form's "Type de demande": a closed set,

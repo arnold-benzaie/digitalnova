@@ -51,7 +51,7 @@ function trackIfAuthenticated(isAuthenticated: boolean, eventType: string, metad
   void trackClientEvent({ eventType, metadata });
 }
 
-export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Locale; firstName: string | null; isAuthenticated: boolean }) {
+export function ChatWidget({ locale, firstName, isAuthenticated, market }: { locale: Locale; firstName: string | null; isAuthenticated: boolean; market: "CANADA" | "EUROPE" | null }) {
   // The conversation's actual established language — distinct from
   // `locale` (the app's own interface-locale prop, always sent to the
   // backend as the "interface locale" signal — see
@@ -299,6 +299,7 @@ export function ChatWidget({ locale, firstName, isAuthenticated }: { locale: Loc
       {phase === "open" && (
         <ChatPanel
           locale={conversationLocale}
+          market={market}
           messages={displayMessages}
           suggestions={suggestions}
           isTyping={isTyping}

@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { googleOauthConnections } from "@/db/schema";
+import { googleOauthConnections, organizations } from "@/db/schema";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { getCurrentSession } from "@/lib/session";
 
@@ -15,12 +15,13 @@ export type ChatContext =
       organizationName: string;
       firstName: string | null;
       locale: Locale;
-      // Structurally present for a future merge with the market-as-
-      // source-of-truth work (preview/market-google-ads) — always null
-      // here: `organizations.market` does not exist on this branch (it
-      // was added on a separate branch not yet merged to master). See
-      // "limitations connues" in the Phase 1A report.
-      market: null;
+      // §Phase 1F (phone country default) — `organizations.market` now
+      // exists (merged since the comment this replaced was written).
+      // Read directly here rather than threading it through
+      // getCurrentSession(), which every OTHER session consumer in the
+      // app also uses — a targeted, chat-only lookup keeps this change
+      // scoped to the one feature that actually needs it.
+      market: "CANADA" | "EUROPE" | null;
       activeIntegrations: ChatActiveIntegrations;
     }
   | {
@@ -49,7 +50,7 @@ export async function resolveChatContext(locale: Locale, visitorId: string): Pro
     return { kind: "anonymous", visitorId, locale };
   }
 
-  const activeIntegrations = await getActiveIntegrations(session.organizationId);
+  const [activeIntegrations, market] = await Promise.all([getActiveIntegrations(session.organizationId), getOrganizationMarket(session.organizationId)]);
 
   return {
     kind: "authenticated",
@@ -58,9 +59,17 @@ export async function resolveChatContext(locale: Locale, visitorId: string): Pro
     organizationName: session.organizationName,
     firstName: session.firstName,
     locale,
-    market: null,
+    market,
     activeIntegrations,
   };
+}
+
+/** Exported so chat-widget-server.tsx (initial SSR props, before any
+ * conversation has started) can reuse the exact same lookup instead of
+ * a second, independently-written query. */
+export async function getOrganizationMarket(organizationId: string): Promise<"CANADA" | "EUROPE" | null> {
+  const [row] = await db.select({ market: organizations.market }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  return row?.market === "CANADA" || row?.market === "EUROPE" ? row.market : null;
 }
 
 /** "Active" means "synced at least once" (a real, meaningful signal),

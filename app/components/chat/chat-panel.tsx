@@ -12,6 +12,7 @@ import { ChatEmojiPicker } from "@/components/chat/chat-emoji-picker";
 
 export function ChatPanel({
   locale,
+  market,
   messages,
   suggestions,
   isTyping,
@@ -33,6 +34,7 @@ export function ChatPanel({
   onMinimize,
 }: {
   locale: Locale;
+  market: "CANADA" | "EUROPE" | null;
   messages: ChatUiMessage[];
   suggestions: string[];
   isTyping: boolean;
@@ -146,7 +148,7 @@ export function ChatPanel({
           </div>
         )}
 
-        {showLeadForm && <ChatLeadForm locale={locale} submitting={leadFormSubmitting} errorMessage={leadFormError} onSubmit={onSubmitLead} onCancel={onCancelLead} />}
+        {showLeadForm && <ChatLeadForm locale={locale} market={market} submitting={leadFormSubmitting} errorMessage={leadFormError} onSubmit={onSubmitLead} onCancel={onCancelLead} />}
 
         {!showLeadForm && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
