@@ -1,11 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { isValidPhoneNumber, type Country } from "react-phone-number-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ChatPhoneInput } from "@/components/chat/chat-phone-input";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { REQUEST_TYPE_KEYS, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
+
+// §Phase 1F (revised) — a fixed, explicit mapping only: CANADA -> CA,
+// everything else (EUROPE, absent, not yet resolved) -> FR. Deliberately
+// NOT derived from the visitor's browser locale/region anymore — that
+// previously surfaced whatever region the browser happened to report
+// (e.g. "GB" for an en-GB browser locale), which is not a real signal of
+// the visitor's own country and produced a default the user explicitly
+// rejected (UK +44). FR is a neutral, always-valid fallback, never a
+// guess — the selector remains fully changeable regardless.
+function marketToCountry(market: "CANADA" | "EUROPE" | null): Country {
+  return market === "CANADA" ? "CA" : "FR";
+}
 
 export type ChatLeadFormValues = {
   fullName: string;
@@ -21,18 +35,24 @@ export type ChatLeadFormValues = {
 
 export function ChatLeadForm({
   locale,
+  market,
   submitting,
   errorMessage,
   onSubmit,
   onCancel,
 }: {
   locale: Locale;
+  market: "CANADA" | "EUROPE" | null;
   submitting: boolean;
   errorMessage: string | null;
   onSubmit: (values: ChatLeadFormValues) => void;
   onCancel: () => void;
 }) {
   const t = dictionaries[locale].chat.leadForm;
+  // Computed once at mount — "intelligent default, never inventing, never
+  // blocking": the phone selector always stays fully changeable
+  // afterward regardless of where this initial guess came from.
+  const [defaultCountry] = useState<Country>(() => marketToCountry(market));
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -49,6 +69,15 @@ export function ChatLeadForm({
     event.preventDefault();
     if (!fullName.trim() || !email.trim() || !requestType || !message.trim()) {
       setValidationError(t.requiredError);
+      return;
+    }
+    // Empty stays valid and accepted (§1 — never required); only a
+    // NON-empty, syntactically invalid number blocks submission. `phone`
+    // is already E.164 (the ChatPhoneInput below only ever produces that
+    // format or ""), so this re-validates with the same library the
+    // server will use, never a hand-rolled check.
+    if (phone.trim() && !isValidPhoneNumber(phone.trim())) {
+      setValidationError(t.phoneInvalidError);
       return;
     }
     if (!consent) {
@@ -85,7 +114,17 @@ export function ChatLeadForm({
 
       <label className="flex flex-col gap-1 text-xs text-pm-gris">
         {t.phone}
-        <Input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={50} disabled={submitting} />
+        <ChatPhoneInput
+          value={phone}
+          onChange={setPhone}
+          defaultCountry={defaultCountry}
+          locale={locale}
+          ariaLabel={t.phone}
+          countrySelectAriaLabel={t.phoneCountryAriaLabel}
+          countrySearchPlaceholder={t.phoneCountrySearchPlaceholder}
+          placeholder=""
+          disabled={submitting}
+        />
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-pm-gris">

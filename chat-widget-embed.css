@@ -466,6 +466,97 @@
 .pm-chat-lead-row { display: flex; gap: 8px; }
 .pm-chat-lead-row .pm-chat-lead-field { flex: 1; min-width: 0; }
 .pm-chat-lead-note { font-size: 11px; font-style: italic; color: var(--pm-gris); margin: -4px 0 0; }
+
+/* §Phase 1F — phone/country selector: same red-accent focus treatment as
+   every other .pm-chat-lead-field input/select above, kept unchanged. */
+.pm-chat-phone-field {
+  position: relative; /* anchors .pm-chat-phone-popover — must NOT be overflow:hidden, or the popover (a child, for outside-click containment) would be clipped */
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 8px;
+  background: #fff;
+}
+.pm-chat-phone-field:focus-within {
+  outline: 2px solid var(--pm-rouge);
+  outline-offset: 1px;
+  border-color: var(--pm-rouge);
+}
+.pm-chat-phone-country-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-right: 1px solid var(--pm-gris-2);
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  padding: 8px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--pm-noir);
+}
+.pm-chat-phone-country-btn:hover { background: var(--pm-gris-2); }
+.pm-chat-phone-country-btn:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: -2px; }
+.pm-chat-phone-flag { width: 18px; height: 13px; object-fit: cover; border-radius: 2px; flex-shrink: 0; display: block; }
+.pm-chat-phone-code { color: var(--pm-gris); white-space: nowrap; }
+.pm-chat-phone-number {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 8px 10px !important;
+}
+.pm-chat-phone-number:focus { outline: none !important; }
+
+.pm-chat-phone-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 2;
+  width: 240px;
+  max-width: calc(100vw - 48px);
+  background: var(--pm-blanc);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(8, 8, 8, 0.12);
+}
+.pm-chat-phone-search {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--pm-noir);
+  border: 1px solid var(--pm-gris-2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+.pm-chat-phone-search:focus { outline: 2px solid var(--pm-bleu-fonce); outline-offset: 1px; }
+.pm-chat-phone-list { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow-y: auto; }
+.pm-chat-phone-empty { padding: 6px 8px; font-size: 12px; color: var(--pm-gris); }
+.pm-chat-phone-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--pm-noir);
+  text-align: left;
+}
+.pm-chat-phone-option:hover, .pm-chat-phone-option[aria-selected="true"] { background: var(--pm-gris-2); }
+.pm-chat-phone-option:focus-visible { outline: 2px solid var(--pm-bleu-fonce); outline-offset: -2px; }
+.pm-chat-phone-option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-chat-phone-option-code { flex-shrink: 0; color: var(--pm-gris); }
 .pm-chat-lead-consent { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--pm-gris); }
 .pm-chat-lead-consent input { margin-top: 2px; }
 .pm-chat-lead-error { font-size: 12px; color: var(--pm-rouge); margin: 0; }

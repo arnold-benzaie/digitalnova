@@ -265,6 +265,31 @@ test("captureLead without requestType/preferredDate/preferredTimeSlot behaves ex
   assert.equal(row.notes, "[Chat widget] Je veux parler à un conseiller.");
 });
 
+// §Phase 1F — phone: stored as-is (E.164) in crmClients.phone (existing
+// column, no migration); the derived country/dial-code is appended to
+// `notes`, same append-only pattern as requestType/preferredDate above.
+test("captureLead stores an E.164 phone in crmClients.phone and appends its derived country to notes", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const email = `${randomUUID()}@lead.test`;
+  const { crmClientId } = await captureLead(context, { fullName: "Phone Test", email, message: "Rappelez-moi.", phone: "+230 5712 3456".replace(/\s/g, "") });
+
+  const [row] = await db.select().from(crmClients).where(eq(crmClients.id, crmClientId)).limit(1);
+  assert.equal(row.phone, "+23057123456");
+  assert.match(row.notes, /Téléphone — pays : Maurice \(\+230\)/);
+});
+
+test("captureLead without a phone leaves crmClients.phone null and adds no phone line to notes", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const email = `${randomUUID()}@lead.test`;
+  const { crmClientId } = await captureLead(context, { fullName: "No Phone", email, message: "Sans téléphone." });
+
+  const [row] = await db.select().from(crmClients).where(eq(crmClients.id, crmClientId)).limit(1);
+  assert.equal(row.phone, null);
+  assert.equal(row.notes, "[Chat widget] Sans téléphone.");
+});
+
 test("captureLead reuses an existing crmClients row for the same email instead of creating a duplicate", async () => {
   actAsAnonymous();
   const email = `${randomUUID()}@lead.test`;

@@ -12,6 +12,7 @@ import { ChatEmojiPicker } from "@/components/chat/chat-emoji-picker";
 
 export function ChatPanel({
   locale,
+  market,
   messages,
   suggestions,
   isTyping,
@@ -33,6 +34,7 @@ export function ChatPanel({
   onMinimize,
 }: {
   locale: Locale;
+  market: "CANADA" | "EUROPE" | null;
   messages: ChatUiMessage[];
   suggestions: string[];
   isTyping: boolean;
@@ -100,7 +102,12 @@ export function ChatPanel({
       className="fixed inset-0 z-50 flex flex-col bg-pm-blanc sm:inset-auto sm:right-6 sm:bottom-6 sm:h-[560px] sm:w-[380px] sm:rounded-2xl sm:border sm:border-pm-gris-2 sm:shadow-pm-md"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-pm-gris-2 bg-pm-noir px-4 py-3 text-pm-blanc sm:rounded-t-2xl">
+      {/* Deep navy evolving toward PUBLIC-MAP blue — same reference values
+       * (#101a33 → #2563eb) already validated on the public site's own
+       * chat header (chat-widget-embed.css's --pm-bleu-nuit/--pm-bleu-fonce),
+       * replacing the previous flat black. Scoped to the header only —
+       * the rest of the panel is untouched. */}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-pm-gris-2 bg-[linear-gradient(135deg,#101a33,#1c2f52_55%,#1d3f78)] px-4 py-3 text-pm-blanc sm:rounded-t-2xl">
         <div>
           <p className="text-sm font-semibold">{t.panel.assistantName}</p>
           <p className="flex items-center gap-1.5 text-xs text-pm-blanc/70">
@@ -141,7 +148,7 @@ export function ChatPanel({
           </div>
         )}
 
-        {showLeadForm && <ChatLeadForm locale={locale} submitting={leadFormSubmitting} errorMessage={leadFormError} onSubmit={onSubmitLead} onCancel={onCancelLead} />}
+        {showLeadForm && <ChatLeadForm locale={locale} market={market} submitting={leadFormSubmitting} errorMessage={leadFormError} onSubmit={onSubmitLead} onCancel={onCancelLead} />}
 
         {!showLeadForm && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">

@@ -985,7 +985,7 @@ footer{background:#050505;}
 <link rel="stylesheet" href="credential-premium-badges.css?v=2026070202"/>
 <link rel="stylesheet" href="hero-usecases.css?v=2026071313"/>
 <link rel="stylesheet" href="projects-gallery.css?v=2026071601"/>
-<link rel="stylesheet" href="/chat-widget-embed.css?v=2026082201"/>
+<link rel="stylesheet" href="/chat-widget-embed.css?v=2026082401"/>
 </head>
 <body>
 
@@ -3420,7 +3420,18 @@ function switchPanel(zone){
   document.getElementById('nb-ca')?.classList.toggle('active',activeZone==='ca');
   document.getElementById('nb-eu')?.classList.toggle('active',activeZone==='eu');
   renderRegionFaq(activeZone);
+  // §Phase 1G — exposes the active market zone to OTHER scripts on this
+  // page (chat-widget-embed.js, loaded separately, has no access to this
+  // block's own module-local `activeZone`). `window.digitalnovaActiveZone`
+  // is read once when the phone field is first built and again live via
+  // this event, same "expose on window + dispatch a document event"
+  // pattern already used for the FR/EN switch
+  // (`digitalnova:language-updated`, see renderRegionFaq's own listener
+  // just below).
+  window.digitalnovaActiveZone=activeZone;
+  document.dispatchEvent(new CustomEvent('digitalnova:zone-updated',{detail:{zone:activeZone}}));
 }
+window.digitalnovaActiveZone=activeZone;
 function renderRegionFaq(zone){
   const faq=regionFaq[zone]||regionFaq.ca;
   const title=document.getElementById('region-faq-title');
@@ -3845,7 +3856,8 @@ document.getElementById('newsletter-form')?.addEventListener('submit',subscribeN
 <script src="theme-extra-anims.js?v=2026060601"></script>
 <script src="cart.js?v=2026071102"></script>
 <script src="dynamic-pricing.js?v=2026071101"></script>
-<script src="/chat-widget-embed.js?v=2026082201" defer></script>
+<script src="/libphonenumber-min.js?v=2026082401" defer></script>
+<script src="/chat-widget-embed.js?v=2026082401" defer></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script>
 (function(){

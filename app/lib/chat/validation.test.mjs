@@ -73,3 +73,29 @@ test("escalate requires only conversationId + locale", () => {
   const result = chatRequestSchema.safeParse({ type: "escalate", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "en" });
   assert.equal(result.success, true);
 });
+
+// §Phase 1F — phone is optional (never required, unlike email/fullName):
+// an omitted or empty phone must never block submission.
+test("lead_submit accepts a missing phone", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse(base).success, true);
+});
+
+test("lead_submit accepts an empty-string phone the same as a missing one", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "" }).success, true);
+});
+
+test("lead_submit accepts a valid E.164 phone number", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "+33612345678" }).success, true);
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "+23057123456" }).success, true);
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "+237612345678" }).success, true);
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "+14165551234" }).success, true);
+});
+
+test("lead_submit rejects a phone that is present but not a valid number, since only an EMPTY phone is exempt from validation", () => {
+  const base = { type: "lead_submit", conversationId: "123e4567-e89b-42d3-a456-426614174000", locale: "fr", fullName: "A", email: "a@b.com", requestType: "other", message: "hi", consent: true };
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "123" }).success, false);
+  assert.equal(chatRequestSchema.safeParse({ ...base, phone: "not a phone number" }).success, false);
+});

@@ -1,9 +1,36 @@
 import "server-only";
 import { eq, sql } from "drizzle-orm";
+import { parsePhoneNumberFromString } from "libphonenumber-js/core";
+// Same "core" build + explicit metadata as validation.ts — see that
+// file's comment: the top-level `libphonenumber-js` package triggers a
+// tsx/Node ESM-CJS interop bug under this project's test runner, and no
+// `with { type: "json" }` assertion (this subpath's own "import"
+// condition already resolves to a plain .js module, not raw JSON).
+import metadata from "libphonenumber-js/metadata.min.json";
 import { db } from "@/db";
 import { crmClients } from "@/db/schema";
 import type { ChatContext } from "@/lib/chat/context";
 import { REQUEST_TYPE_LABELS_FR, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
+
+// §Phase 1F — crmClients.phone already stores the E.164 number itself
+// (no new column needed); this only derives a human-readable "country +
+// dial code" line for `notes`, the same place requestType/preferredDate
+// already live (see buildNotesEntry below) — no migration either way.
+// Intl.DisplayNames (built into Node, zero extra dependency) turns the
+// ISO country libphonenumber-js already parsed out of the number into a
+// localized name — always French here, matching REQUEST_TYPE_LABELS_FR's
+// own precedent (staff read the CRM in French regardless of the
+// visitor's own conversation language).
+function describePhoneCountry(phone: string): string | null {
+  const parsed = parsePhoneNumberFromString(phone, metadata);
+  if (!parsed?.country) return null;
+  try {
+    const countryName = new Intl.DisplayNames(["fr"], { type: "region" }).of(parsed.country) ?? parsed.country;
+    return `${countryName} (+${parsed.countryCallingCode})`;
+  } catch {
+    return `+${parsed.countryCallingCode}`;
+  }
+}
 
 export type ChatLeadInput = {
   fullName: string;
@@ -28,6 +55,8 @@ function buildNotesEntry(input: ChatLeadInput): string {
   if (input.requestType) lines.push(`Type de demande : ${REQUEST_TYPE_LABELS_FR[input.requestType]}`);
   if (input.preferredDate) lines.push(`Date souhaitée (préférence, non confirmée) : ${input.preferredDate}`);
   if (input.preferredTimeSlot) lines.push(`Créneau souhaité (préférence, non confirmée) : ${input.preferredTimeSlot}`);
+  const phoneCountry = input.phone ? describePhoneCountry(input.phone) : null;
+  if (phoneCountry) lines.push(`Téléphone — pays : ${phoneCountry}`);
   return lines.join("\n").slice(0, 2000);
 }
 

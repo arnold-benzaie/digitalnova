@@ -1,5 +1,6 @@
 import { getLocale } from "@/lib/i18n/locale";
 import { getCurrentSession } from "@/lib/session";
+import { getOrganizationMarket } from "@/lib/chat/context";
 import { ChatWidgetMount } from "@/components/chat/chat-widget-mount";
 
 /**
@@ -17,5 +18,10 @@ import { ChatWidgetMount } from "@/components/chat/chat-widget-mount";
 export async function ChatWidgetServer() {
   const locale = await getLocale();
   const session = await getCurrentSession();
-  return <ChatWidgetMount locale={locale} firstName={session?.firstName ?? null} isAuthenticated={session !== null} />;
+  // §Phase 1F — only ever a WEAK, non-blocking hint for the phone
+  // field's default country (see chat-lead-form.tsx): "CANADA" maps to
+  // a real single country (CA), "EUROPE" spans dozens of countries and
+  // is deliberately never turned into a guessed one.
+  const market = session ? await getOrganizationMarket(session.organizationId) : null;
+  return <ChatWidgetMount locale={locale} firstName={session?.firstName ?? null} isAuthenticated={session !== null} market={market} />;
 }
