@@ -3420,7 +3420,18 @@ function switchPanel(zone){
   document.getElementById('nb-ca')?.classList.toggle('active',activeZone==='ca');
   document.getElementById('nb-eu')?.classList.toggle('active',activeZone==='eu');
   renderRegionFaq(activeZone);
+  // §Phase 1G — exposes the active market zone to OTHER scripts on this
+  // page (chat-widget-embed.js, loaded separately, has no access to this
+  // block's own module-local `activeZone`). `window.digitalnovaActiveZone`
+  // is read once when the phone field is first built and again live via
+  // this event, same "expose on window + dispatch a document event"
+  // pattern already used for the FR/EN switch
+  // (`digitalnova:language-updated`, see renderRegionFaq's own listener
+  // just below).
+  window.digitalnovaActiveZone=activeZone;
+  document.dispatchEvent(new CustomEvent('digitalnova:zone-updated',{detail:{zone:activeZone}}));
 }
+window.digitalnovaActiveZone=activeZone;
 function renderRegionFaq(zone){
   const faq=regionFaq[zone]||regionFaq.ca;
   const title=document.getElementById('region-faq-title');

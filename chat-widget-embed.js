@@ -321,17 +321,33 @@
   // lib/chat/validation.ts), so a bypassed client-side check here is
   // still caught, just with a less specific error.
 
-  // §Phase 1F (revised) — this site has no session/organization "market"
-  // signal (always an anonymous public-map.com visitor), so the default
-  // country is always this fixed fallback: "FR". Deliberately NOT derived
-  // from the visitor's browser locale/region anymore — that previously
+  // §Phase 1F (revised) — used only as the "no market signal at all"
+  // fallback (pages without the navbar zone toggle, e.g. contact/
+  // reservation — see resolveCountryFromZone below). Deliberately NOT
+  // derived from the visitor's browser locale/region — that previously
   // surfaced whatever region the browser happened to report (e.g. "GB"
   // for an en-GB browser locale), which is not a real signal of the
   // visitor's own country and produced a default the user explicitly
   // rejected (UK +44). Matches the React app's own fixed CANADA/FR
-  // mapping (chat-lead-form.tsx's marketToCountry) — this surface simply
-  // never has a market to check, so it's always the "FR" branch.
+  // mapping (chat-lead-form.tsx's marketToCountry).
   var DEFAULT_PHONE_COUNTRY = "FR";
+
+  // §Phase 1G — the homepage's own navbar "Canada / Europe" zone toggle
+  // (index.html's setZone()/switchPanel()) is this site's real market
+  // signal, equivalent to the app's `organizations.market`. That toggle
+  // lives in index.html's own inline script, a separate <script> block
+  // this file has no direct access to — it exposes the current zone on
+  // `window.digitalnovaActiveZone` and fires a `digitalnova:zone-updated`
+  // document event on every change (same "expose on window + dispatch an
+  // event" pattern already used there for the FR/EN switch). Pages
+  // without that toggle (contact/reservation) simply never set this
+  // global, so `zone` is `undefined` there and DEFAULT_PHONE_COUNTRY
+  // ("marché absent") applies — never a browser-locale guess either way.
+  function resolveCountryFromZone(zone) {
+    if (zone === "ca") return "CA";
+    if (zone === "eu") return "FR";
+    return DEFAULT_PHONE_COUNTRY;
+  }
 
   // Rebuilt at most once per locale (FR/EN names differ) and cached —
   // 245 countries × Intl.DisplayNames is cheap, but the lead form can be
@@ -1251,7 +1267,7 @@
       }
 
       var list = buildCountryList(conversationLocale);
-      var selectedCountry = DEFAULT_PHONE_COUNTRY;
+      var selectedCountry = resolveCountryFromZone(window.digitalnovaActiveZone);
 
       var fieldWrap = el("div", { class: "pm-chat-phone-field" });
       var countryBtn = el("button", {
@@ -1391,6 +1407,33 @@
       numberInput.addEventListener("paste", function () {
         setTimeout(tryAutoDetect, 0); // after the pasted text has actually landed
       });
+
+      // §Phase 1G — live sync with the navbar's Canada/Europe zone toggle
+      // while this exact field is mounted (the lead form can already be
+      // open when the visitor switches zones). Only acts while the number
+      // field is still completely empty — the moment the visitor has
+      // typed anything (local digits or a "+" number), their input is
+      // never touched or reinterpreted by a later zone change, since the
+      // digits themselves don't change and silently swapping which
+      // country they're read against would corrupt an in-progress number
+      // without any visible sign that happened. Self-unsubscribes once
+      // this field's node has actually been removed from the document
+      // (renderLeadForm() rebuilds a fresh field, and therefore a fresh
+      // listener, on every open — this is what stops the old one from
+      // accumulating across repeated open/close/reopen cycles).
+      function onZoneUpdated(e) {
+        if (!document.body.contains(numberInput)) {
+          document.removeEventListener("digitalnova:zone-updated", onZoneUpdated);
+          return;
+        }
+        if (numberInput.value.trim() !== "") return;
+        var zone = e && e.detail ? e.detail.zone : window.digitalnovaActiveZone;
+        var nextCountry = resolveCountryFromZone(zone);
+        if (nextCountry === selectedCountry) return;
+        selectedCountry = nextCountry;
+        renderCountryBtn();
+      }
+      document.addEventListener("digitalnova:zone-updated", onZoneUpdated);
 
       fieldWrap.appendChild(countryBtn);
       fieldWrap.appendChild(numberInput);
