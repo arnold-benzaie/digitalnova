@@ -6,7 +6,7 @@ import { resolveChatContext } from "@/lib/chat/context";
 import { attachLeadToConversation, getOrCreateConversation, getOwnedConversation, setConversationStatus } from "@/lib/chat/conversations";
 import { escalateToHuman } from "@/lib/chat/escalation";
 import { captureLead } from "@/lib/chat/leads";
-import { appendMessage, appendUserMessage, getRecentMessagesForProvider } from "@/lib/chat/messages";
+import { appendMessage, appendUserMessage, getLeadSubmitCooldownRemainingMs, getRecentMessagesForProvider } from "@/lib/chat/messages";
 import { notifyHumanEscalation } from "@/lib/chat/notify-human-escalation";
 import { REQUEST_TYPE_LABELS_FR } from "@/lib/chat/request-type-catalog";
 import { categorizeChatError, recordChatFailureAndMaybeAlert } from "@/lib/chat/technical-alert";
@@ -170,13 +170,33 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
   // silently gets a brand-new conversation, never an error.
   const conversation = await getOrCreateConversation(context, body.conversationId);
 
-  // Captured BEFORE attaching — the anti-spam guard (§8): a conversation
-  // already linked to a CRM client means a notification already went out
-  // for it once; a resubmit (double-click, retry, or the same prospect
-  // filling the form again) must never send a second one. captureLead's
-  // own email-based dedup still runs regardless (it just updates the
-  // same crmClients row rather than creating a new one).
-  const alreadyLinked = conversation.crmClientId !== null;
+  // §Phase 1H — replaces the old permanent "conversation.crmClientId !==
+  // null" guard, which blocked a notification forever after the first
+  // one even for a genuinely new request days later (§ new requirement:
+  // the same client must be able to send several real requests). A
+  // 90-second cooldown per conversation instead: only a submission that
+  // arrives while a previously-notified one is still "fresh" is treated
+  // as an accidental repeat. captureLead's own email-based dedup is
+  // unrelated and still runs on every accepted submission regardless —
+  // it only decides whether to reuse or create a crmClients row, never
+  // whether to notify.
+  const cooldownRemainingMs = await getLeadSubmitCooldownRemainingMs(conversation.id);
+  if (cooldownRemainingMs > 0) {
+    const remainingSeconds = Math.ceil(cooldownRemainingMs / 1000);
+    // conversationId only — never the submitted name/email/phone/message.
+    console.log(`[chat] handleLeadSubmit: cooldown active — conversationId=${conversation.id} remainingSeconds=${remainingSeconds}`);
+    const cooldownReply = dictionaries[body.locale].chat.leadForm.cooldownMessage(remainingSeconds);
+    return { conversationId: conversation.id, reply: cooldownReply, suggestions: [], action: null };
+  }
+
+  const confirmationReply = dictionaries[body.locale].chat.leadForm.confirmation;
+  // Tagged and written before captureLead/notifyHumanEscalation so a
+  // near-simultaneous second request's own cooldown check (above) sees
+  // this row as early as possible — narrows, though does not perfectly
+  // eliminate, the race window for a genuine double-submit. The submit
+  // button is also disabled client-side for the duration of the request
+  // on both surfaces, which already covers the common case.
+  await appendMessage(conversation.id, "assistant", confirmationReply, { kind: "lead_submit" });
 
   const { crmClientId } = await captureLead(context, {
     fullName: body.fullName,
@@ -189,13 +209,6 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
     preferredDate: body.preferredDate ?? null,
     preferredTimeSlot: body.preferredTimeSlot ?? null,
   });
-  // Never logs the message body/email itself — only confirms the write
-  // happened and shows whether the anti-spam guard below is about to
-  // skip the notification (a repeat submission on the same already-linked
-  // conversation legitimately sends no second email — worth
-  // distinguishing from a real failure when a report of "no email
-  // arrived" comes in).
-  if (alreadyLinked) console.log(`[chat] handleLeadSubmit: lead already linked to this conversation — notification skipped by design (crmClientId=${crmClientId})`);
 
   await attachLeadToConversation(conversation.id, crmClientId);
   // Every lead submitted through the widget means the AI could not fully
@@ -204,29 +217,28 @@ async function handleLeadSubmit(context: ChatContext, body: z.infer<typeof leadS
   // the notification below already tells staff a real person is waiting).
   await setConversationStatus(conversation.id, "NEEDS_HUMAN");
 
-  if (!alreadyLinked) {
-    await notifyHumanEscalation({
-      trigger: "lead_captured",
-      conversationId: conversation.id,
-      surface: body.surface,
-      locale: body.locale,
-      fullName: body.fullName,
-      email: body.email,
-      phone: body.phone,
-      organizationName: body.company,
-      summary: body.message,
-      crmClientId,
-      // Already mapped to its FR label here — the email is staff-facing
-      // and always French (see chat-notification.ts), never the raw
-      // client-supplied key.
-      requestType: REQUEST_TYPE_LABELS_FR[body.requestType],
-      preferredDate: body.preferredDate,
-      preferredTimeSlot: body.preferredTimeSlot,
-    });
-  }
-
-  const confirmationReply = dictionaries[body.locale].chat.leadForm.confirmation;
-  await appendMessage(conversation.id, "assistant", confirmationReply);
+  // Unconditional now (was gated on the old permanent "already linked"
+  // guard) — a conversation already linked to a CRM client no longer
+  // blocks this; the cooldown check above is what prevents a rapid
+  // duplicate.
+  await notifyHumanEscalation({
+    trigger: "lead_captured",
+    conversationId: conversation.id,
+    surface: body.surface,
+    locale: body.locale,
+    fullName: body.fullName,
+    email: body.email,
+    phone: body.phone,
+    organizationName: body.company,
+    summary: body.message,
+    crmClientId,
+    // Already mapped to its FR label here — the email is staff-facing
+    // and always French (see chat-notification.ts), never the raw
+    // client-supplied key.
+    requestType: REQUEST_TYPE_LABELS_FR[body.requestType],
+    preferredDate: body.preferredDate,
+    preferredTimeSlot: body.preferredTimeSlot,
+  });
 
   return { conversationId: conversation.id, reply: confirmationReply, suggestions: [], action: null };
 }

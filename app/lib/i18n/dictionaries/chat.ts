@@ -136,7 +136,16 @@ export const chat = {
       cancel: "Annuler",
       requiredError: "Merci de compléter les champs obligatoires.",
       consentRequiredError: "Merci d'accepter d'être contacté(e) pour continuer.",
-      confirmation: "Merci. Votre demande a bien été transmise à PUBLIC-MAP. Un conseiller pourra reprendre contact avec vous à partir des informations fournies.",
+      // §Phase 1H — a genuinely NEW notified request, distinct from the
+      // cooldown message below (never shown for a submission the cooldown
+      // guard actually blocked — see handleLeadSubmit).
+      confirmation: "Merci. Votre nouvelle demande a bien été transmise à PUBLIC-MAP.",
+      // Interpolated server-side with the exact remaining seconds at the
+      // moment of the attempt (see getLeadSubmitCooldownRemainingMs) —
+      // deliberately not a live client-side countdown, per the explicit
+      // "simple et fiable" requirement.
+      cooldownMessage: (remainingSeconds: number) =>
+        `Votre demande précédente a bien été transmise. Pour éviter les envois en double, vous pourrez envoyer une nouvelle demande dans environ ${remainingSeconds} secondes.`,
     },
     escalation: {
       confirmation: "Votre demande a bien été transmise. Un membre de l'équipe PUBLIC-MAP vous répondra dès que possible.",
@@ -264,7 +273,9 @@ export const chat = {
       cancel: "Cancel",
       requiredError: "Please fill in the required fields.",
       consentRequiredError: "Please agree to be contacted to continue.",
-      confirmation: "Thank you. Your request has been sent to PUBLIC-MAP. An advisor can follow up using the details you provided.",
+      confirmation: "Thank you. Your new request has been sent to PUBLIC-MAP.",
+      cooldownMessage: (remainingSeconds: number) =>
+        `Your previous request was successfully sent. To avoid duplicate submissions, you can send another request in about ${remainingSeconds} seconds.`,
     },
     escalation: {
       confirmation: "Your request has been forwarded. A PUBLIC-MAP team member will reply as soon as possible.",

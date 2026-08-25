@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { chatMessages, CHAT_SENDER_TYPES } from "@/db/schema";
 import { MAX_MESSAGE_LENGTH, sanitizeMessageContent, sanitizeMessageMetadata } from "@/lib/chat/message-sanitization";
@@ -64,6 +64,30 @@ export async function appendUserMessage(
  * resume-after-refresh (§14/§23). */
 export async function getConversationMessages(conversationId: string): Promise<ChatMessageRow[]> {
   return db.select().from(chatMessages).where(eq(chatMessages.conversationId, conversationId)).orderBy(asc(chatMessages.createdAt));
+}
+
+// §Phase 1H — replaces the old permanent "conversation.crmClientId !== null"
+// anti-spam guard (which blocked a lead notification forever after the
+// first one, even for a genuinely new request days later). A lead_submit
+// that actually triggers a notification tags its own confirmation message
+// with metadata.kind="lead_submit" (see app/api/chat/route.ts's
+// handleLeadSubmit) — reusing the `chatMessages.metadata` column that
+// already exists for this kind of small structured extra (see
+// appendMessage's own doc comment) rather than adding a new column/table.
+// Only the single most recent tagged message matters, same "look at the
+// last relevant row, not the whole history" shape as appendUserMessage's
+// own dedup above.
+export const LEAD_SUBMIT_COOLDOWN_MS = 90_000;
+
+export async function getLeadSubmitCooldownRemainingMs(conversationId: string): Promise<number> {
+  const [lastNotified] = await db
+    .select({ createdAt: chatMessages.createdAt })
+    .from(chatMessages)
+    .where(and(eq(chatMessages.conversationId, conversationId), sql`${chatMessages.metadata} @> '{"kind":"lead_submit"}'::jsonb`))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(1);
+  if (!lastNotified) return 0;
+  return Math.max(0, LEAD_SUBMIT_COOLDOWN_MS - (Date.now() - lastNotified.createdAt.getTime()));
 }
 
 /**
