@@ -115,3 +115,34 @@ via `INSERT INTO <table> (...) VALUES (...)` en respectant l'ordre des
 colonnes d'origine. Cette sauvegarde vit hors du dépôt (répertoire scratchpad
 de session) — la déplacer vers un stockage durable si elle doit être
 conservée au-delà de cette session.
+
+## 0029_heavy_the_fallen — fondation catalogue (services, service_market_offers, service_relations, service_legacy_identifiers)
+
+**Non destructif à annuler.** Les 4 tables créées par cette migration sont
+vides à l'application (P0.1B.1 = fondation uniquement, aucune donnée
+commerciale insérée, aucun SERVICE_ID réel créé — voir P0.1B.2, séparée et
+non encore autorisée). Aucune table existante n'est modifiée par
+`0029_heavy_the_fallen.sql` (uniquement des `CREATE TABLE`/`ALTER TABLE ...
+ADD CONSTRAINT`/`CREATE INDEX`, zéro `ALTER` sur une table préexistante).
+
+Ordre de suppression respectant les clés étrangères (enfants avant parents) :
+
+```sql
+DROP TABLE IF EXISTS "service_legacy_identifiers";
+DROP TABLE IF EXISTS "service_relations";
+DROP TABLE IF EXISTS "service_market_offers";
+DROP TABLE IF EXISTS "services";
+```
+
+Puis retirer la ligne correspondante de `drizzle.__drizzle_migrations` pour
+que Drizzle considère à nouveau cette migration comme non appliquée — même
+procédure que pour les migrations précédentes de ce fichier.
+
+Si des données commerciales ont été insérées entre-temps (P0.1B.2 ou
+ultérieur), ce rollback devient destructif pour ces données uniquement —
+revoir ce document et prendre une sauvegarde avant exécution dans ce cas.
+
+Rollback vérifié réellement (pas seulement documenté) contre la base de test
+locale disposable (`public-map-approval-test-db`, port 5434, jamais Preview/
+Production) : les 4 `DROP TABLE` s'exécutent proprement, zéro impact sur les
+tables existantes (`organizations`/`users` etc. confirmés intacts).

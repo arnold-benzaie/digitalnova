@@ -4,12 +4,14 @@ import {
   uuid,
   text,
   integer,
+  numeric,
   boolean,
   timestamp,
   jsonb,
   primaryKey,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -1578,4 +1580,134 @@ export const chatMessages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("chat_messages_conversation_id_idx").on(table.conversationId)],
+);
+
+/**
+ * P0.1B.1 — Catalogue schema foundation (Product Director / P0.1A-P0.1B
+ * design chantier). Foundation only: these 4 tables are created empty —
+ * no SERVICE_ID rows, no consumer, no site/app wiring yet (see P0.1B.2+).
+ *
+ * Nested packs (a PACK containing another PACK) are deliberately NOT
+ * supported or guarded against here — the current 26-offer catalogue has
+ * no such case (see P0.1A inventory). If this need appears later, design
+ * the cycle protection at that time rather than building it speculatively
+ * now.
+ */
+export const services = pgTable(
+  "services",
+  {
+    serviceId: text("service_id").primaryKey(),
+    type: text("type").notNull(), // INDIVIDUAL_SERVICE | PACK | DUO | ADDON
+    status: text("status").notNull().default("ACTIVE"), // ACTIVE | LEGACY | DRAFT
+    category: text("category"),
+    displayNameFr: text("display_name_fr").notNull(),
+    displayNameEn: text("display_name_en").notNull(),
+    descriptionFr: text("description_fr").notNull(),
+    descriptionEn: text("description_en").notNull(),
+    // Meaningful only for type=PACK|DUO — NOT_APPLICABLE for INDIVIDUAL_SERVICE/ADDON.
+    priceDerivation: text("price_derivation").notNull().default("NOT_APPLICABLE"), // INDEPENDENT | SUM_OF_CHILDREN | NOT_APPLICABLE
+    displayOrder: integer("display_order"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("services_status_idx").on(table.status),
+    index("services_category_idx").on(table.category),
+    check("services_type_check", sql`${table.type} IN ('INDIVIDUAL_SERVICE','PACK','DUO','ADDON')`),
+    check("services_status_check", sql`${table.status} IN ('ACTIVE','LEGACY','DRAFT')`),
+    check(
+      "services_price_derivation_check",
+      sql`${table.priceDerivation} IN ('INDEPENDENT','SUM_OF_CHILDREN','NOT_APPLICABLE')`,
+    ),
+  ],
+);
+
+export const serviceMarketOffers = pgTable(
+  "service_market_offers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    serviceId: text("service_id")
+      .notNull()
+      .references(() => services.serviceId, { onDelete: "restrict" }),
+    market: text("market").notNull(), // CANADA | EUROPE
+    currency: text("currency").notNull(), // CAD | EUR — see market_currency_pair check below
+    price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+    paymentFrequency: text("payment_frequency").notNull(), // ONE_TIME | ANNUAL | MONTHLY
+    // Free-form period copy as currently shown on the public site (e.g.
+    // "paiement unique · calendrier selon devis") — kept verbatim at
+    // import time, not restructured further here.
+    billingType: text("billing_type"),
+    taxDisplay: text("tax_display").notNull().default("UNSPECIFIED"), // HT | TTC | UNSPECIFIED — never inferred, never computed
+    ctaType: text("cta_type").notNull(), // REQUEST_QUOTE | DIRECT_CHECKOUT | CONTACT | NOT_AVAILABLE
+    checkoutStatus: text("checkout_status").notNull().default("MOCK"), // LIVE | READY_BUT_DISABLED | PARTIAL | MOCK | UNKNOWN
+  },
+  (table) => [
+    index("service_market_offers_service_id_idx").on(table.serviceId),
+    index("service_market_offers_market_idx").on(table.market),
+    uniqueIndex("service_market_offers_service_market_idx").on(table.serviceId, table.market),
+    check(
+      "service_market_offers_market_currency_check",
+      sql`(${table.market} = 'CANADA' AND ${table.currency} = 'CAD') OR (${table.market} = 'EUROPE' AND ${table.currency} = 'EUR')`,
+    ),
+    check(
+      "service_market_offers_payment_frequency_check",
+      sql`${table.paymentFrequency} IN ('ONE_TIME','ANNUAL','MONTHLY')`,
+    ),
+    check("service_market_offers_tax_display_check", sql`${table.taxDisplay} IN ('HT','TTC','UNSPECIFIED')`),
+    check(
+      "service_market_offers_cta_type_check",
+      sql`${table.ctaType} IN ('REQUEST_QUOTE','DIRECT_CHECKOUT','CONTACT','NOT_AVAILABLE')`,
+    ),
+    check(
+      "service_market_offers_checkout_status_check",
+      sql`${table.checkoutStatus} IN ('LIVE','READY_BUT_DISABLED','PARTIAL','MOCK','UNKNOWN')`,
+    ),
+    check("service_market_offers_price_check", sql`${table.price} >= 0`),
+  ],
+);
+
+export const serviceRelations = pgTable(
+  "service_relations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    parentServiceId: text("parent_service_id")
+      .notNull()
+      .references(() => services.serviceId, { onDelete: "restrict" }),
+    childServiceId: text("child_service_id")
+      .notNull()
+      .references(() => services.serviceId, { onDelete: "restrict" }),
+    relationType: text("relation_type").notNull(), // PACK_INCLUDES | DUO_INCLUDES | ADDON_OF
+    displayOrder: integer("display_order"),
+  },
+  (table) => [
+    index("service_relations_parent_service_id_idx").on(table.parentServiceId),
+    index("service_relations_child_service_id_idx").on(table.childServiceId),
+    uniqueIndex("service_relations_parent_child_type_idx").on(
+      table.parentServiceId,
+      table.childServiceId,
+      table.relationType,
+    ),
+    check(
+      "service_relations_relation_type_check",
+      sql`${table.relationType} IN ('PACK_INCLUDES','DUO_INCLUDES','ADDON_OF')`,
+    ),
+    check("service_relations_no_self_reference_check", sql`${table.parentServiceId} <> ${table.childServiceId}`),
+  ],
+);
+
+// Historical data-offer-id / exact-name identifiers that used to designate
+// a service on the public site, kept so no old link/cart/quote reference
+// breaks. legacy_identifier is globally unique (not just per-service) —
+// two different services must never be able to claim the same old id.
+export const serviceLegacyIdentifiers = pgTable(
+  "service_legacy_identifiers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    serviceId: text("service_id")
+      .notNull()
+      .references(() => services.serviceId, { onDelete: "cascade" }),
+    legacyIdentifier: text("legacy_identifier").notNull(),
+    source: text("source"),
+  },
+  (table) => [uniqueIndex("service_legacy_identifiers_legacy_identifier_idx").on(table.legacyIdentifier)],
 );
