@@ -37,14 +37,15 @@ export async function sendEmail(input: {
 }): Promise<SendEmailResult> {
   const client = resendClient();
   if (!client) {
-    // §chat-email-diag (temporary) — this whole function previously
-    // returned every outcome silently (by design, so a broken email
-    // channel never blocks the caller) with zero logging anywhere,
-    // which made a real Resend-level rejection indistinguishable from a
-    // genuine success in the logs. Logging here is diagnostic-only:
-    // never the API key, never the html body, never the full recipient
-    // list beyond the single address already being processed.
-    console.error("[chat-email-diag] sendEmail: RESEND_API_KEY is not configured — send not attempted.");
+    // This whole function previously returned every outcome silently (by
+    // design, so a broken email channel never blocks the caller) with no
+    // logging anywhere, making a real Resend-level rejection
+    // indistinguishable from a genuine success in the logs — found while
+    // diagnosing a report of chat-notification emails never arriving.
+    // Logging only the failure path keeps this low-volume and never
+    // includes the API key, the html body, or anything beyond the single
+    // recipient address already being processed.
+    console.error("[email] sendEmail: RESEND_API_KEY is not configured — send not attempted.");
     return { sent: false, reason: "RESEND_API_KEY is not configured." };
   }
 
@@ -52,7 +53,6 @@ export async function sendEmail(input: {
   // (mail.public-map.com) — sending "from" an unverified domain is
   // rejected by Resend regardless of API key validity.
   const from = process.env.RESEND_FROM_EMAIL || "PUBLIC-MAP <invitations@mail.public-map.com>";
-  console.log(`[chat-email-diag] sendEmail: calling Resend — from=${from} to=${input.to}`);
   const { data, error } = await client.emails.send(
     {
       from,
@@ -64,16 +64,15 @@ export async function sendEmail(input: {
     input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
   );
   if (error) {
-    console.error(`[chat-email-diag] sendEmail: Resend rejected the send — name=${error.name} message=${error.message}`);
+    console.error(`[email] sendEmail: Resend rejected the send — from=${from} to=${input.to} name=${error.name} message=${error.message}`);
     return { sent: false, reason: error.message };
   }
   // A response with neither `error` nor a real `data.id` is not a
   // confirmed send — never infer success from the mere absence of an
   // error field.
   if (!data?.id) {
-    console.error("[chat-email-diag] sendEmail: Resend returned no email id (ambiguous non-error response).");
+    console.error(`[email] sendEmail: Resend returned no email id (ambiguous non-error response) — from=${from} to=${input.to}`);
     return { sent: false, reason: "Resend returned no email id." };
   }
-  console.log(`[chat-email-diag] sendEmail: Resend accepted the send — messageId=${data.id}`);
   return { sent: true, id: data.id };
 }
