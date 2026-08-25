@@ -38,10 +38,19 @@ mock.module("@/lib/session", {
 
 const { db } = await import("@/db");
 const { users, organizations, roles, memberships, crmClients, chatConversations, chatMessages, notifications, systemHealthChecks } = await import("@/db/schema");
-const { eq, and } = await import("drizzle-orm");
+const { eq, and, sql } = await import("drizzle-orm");
 const { resolveChatContext } = await import("@/lib/chat/context");
 const { getOrCreateConversation, getOwnedConversation, attachLeadToConversation } = await import("@/lib/chat/conversations");
-const { appendMessage, appendUserMessage, getConversationMessages, sanitizeMessageContent, sanitizeMessageMetadata, MAX_MESSAGE_LENGTH } = await import("@/lib/chat/messages");
+const {
+  appendMessage,
+  appendUserMessage,
+  getConversationMessages,
+  sanitizeMessageContent,
+  sanitizeMessageMetadata,
+  MAX_MESSAGE_LENGTH,
+  getLeadSubmitCooldownRemainingMs,
+  LEAD_SUBMIT_COOLDOWN_MS,
+} = await import("@/lib/chat/messages");
 const { captureLead } = await import("@/lib/chat/leads");
 const { escalateToHuman } = await import("@/lib/chat/escalation");
 const { generateVisitorId, isValidVisitorId } = await import("@/lib/chat/visitor");
@@ -404,29 +413,85 @@ test("appendUserMessage: a same-content row from a DIFFERENT senderType (e.g. th
   assert.notEqual(secondClientRow.id, clientRow.id, "the second client row is genuinely new, not a reuse of the first");
 });
 
-// ---- lead notification dedup (§8 anti-spam) --------------------------------
+// ---- lead notification cooldown (§Phase 1H) --------------------------------
+// Replaces the old permanent "conversation.crmClientId !== null" guard,
+// which blocked a notification forever after the first one — even for a
+// genuinely new request days later. Mirrors app/api/chat/route.ts's real
+// handleLeadSubmit sequence directly against the DB, without spinning up
+// the HTTP route: check cooldown -> if clear, tag+append the confirmation
+// message BEFORE captureLead/attach (narrows the double-submit race
+// window) -> captureLead (its own email-based dedup is unrelated and
+// always runs) -> attach -> "would notify" if cooldown was clear.
 
-test("handleLeadSubmit-equivalent: a resubmitted lead on an already-linked conversation is only ever notified once", async () => {
-  // Exercises the exact guard app/api/chat/route.ts's handleLeadSubmit
-  // uses (conversation.crmClientId !== null before attach) directly
-  // against the real DB, without spinning up the HTTP route.
+async function submitLead(context, conversation, { message, fullName = "Cooldown Test", email }) {
+  const cooldownRemainingMs = await getLeadSubmitCooldownRemainingMs(conversation.id);
+  if (cooldownRemainingMs > 0) {
+    return { cooldownRemainingMs, notified: false, crmClientId: null };
+  }
+  await appendMessage(conversation.id, "assistant", "Merci. Votre nouvelle demande a bien été transmise à PUBLIC-MAP.", { kind: "lead_submit" });
+  const { crmClientId } = await captureLead(context, { fullName, email, message });
+  await attachLeadToConversation(conversation.id, crmClientId);
+  return { cooldownRemainingMs: 0, notified: true, crmClientId };
+}
+
+test("lead_submit cooldown: a second submission in the same conversation within 90s is blocked (no notification), the first is not", async () => {
   actAsAnonymous();
   const context = await resolveChatContext("fr", generateVisitorId());
   const conversation = await getOrCreateConversation(context);
-  const email = `${randomUUID()}@dedup.test`;
+  const email = `${randomUUID()}@cooldown.test`;
 
-  async function submitOnce(message) {
-    const alreadyLinked = (await db.select().from(chatConversations).where(eq(chatConversations.id, conversation.id)).limit(1))[0].crmClientId !== null;
-    const { crmClientId } = await captureLead(context, { fullName: "Dedup Test", email, message });
-    await attachLeadToConversation(conversation.id, crmClientId);
-    return alreadyLinked;
-  }
+  const first = await submitLead(context, conversation, { message: "Premier envoi.", email });
+  const second = await submitLead(context, conversation, { message: "Renvoi quelques secondes plus tard.", email });
 
-  const firstAlreadyLinked = await submitOnce("Premier envoi.");
-  const secondAlreadyLinked = await submitOnce("Renvoi quelques secondes plus tard.");
+  assert.equal(first.notified, true, "the first submission must be treated as new (notification would fire)");
+  assert.equal(second.notified, false, "an immediate resubmit on the same conversation must be blocked by the cooldown");
+  assert.ok(second.cooldownRemainingMs > 0 && second.cooldownRemainingMs <= LEAD_SUBMIT_COOLDOWN_MS, "remaining cooldown must be a sane positive value at or under the full window");
+});
 
-  assert.equal(firstAlreadyLinked, false, "the first submission must be treated as new (notification should fire)");
-  assert.equal(secondAlreadyLinked, true, "the second submission on the same conversation must be recognized as already-linked (notification must be skipped)");
+test("lead_submit cooldown: once the tagged message is older than 90s, a new submission on the SAME conversation is accepted, reuses the same crmClient, and both notes are traceable separately", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const conversation = await getOrCreateConversation(context);
+  const email = `${randomUUID()}@cooldown.test`;
+
+  const first = await submitLead(context, conversation, { message: "Rendez-vous le 26 août à 10h30.", email });
+  assert.equal(first.notified, true);
+
+  // Simulate "91 seconds have passed" by backdating the tagged message's
+  // createdAt directly — waiting 90 real seconds in an automated suite
+  // isn't practical. Same technique already implied by this file's own
+  // time-window tests elsewhere (appendUserMessage's DUPLICATE_WINDOW_MS).
+  const backdated = new Date(Date.now() - (LEAD_SUBMIT_COOLDOWN_MS + 1000));
+  await db.update(chatMessages).set({ createdAt: backdated }).where(and(eq(chatMessages.conversationId, conversation.id), sql`${chatMessages.metadata} @> '{"kind":"lead_submit"}'::jsonb`));
+
+  const second = await submitLead(context, conversation, { message: "Changement de rendez-vous au 27 août à 14h.", email });
+  assert.equal(second.notified, true, "past the 90s cooldown, the same conversation must be able to submit a new notified request");
+  assert.equal(second.crmClientId, first.crmClientId, "the same crmClient must be reused (email-based dedup), never duplicated");
+
+  const [clientRow] = await db.select().from(crmClients).where(eq(crmClients.id, first.crmClientId)).limit(1);
+  assert.match(clientRow.notes, /Rendez-vous le 26 août à 10h30/, "the first request stays in notes");
+  assert.match(clientRow.notes, /Changement de rendez-vous au 27 août à 14h/, "the second, later-accepted request is appended as a separately traceable entry");
+});
+
+test("lead_submit cooldown: a different, brand-new conversation is never affected by another conversation's cooldown", async () => {
+  actAsAnonymous();
+  const contextA = await resolveChatContext("fr", generateVisitorId());
+  const conversationA = await getOrCreateConversation(contextA);
+  await submitLead(contextA, conversationA, { message: "Demande A.", email: `${randomUUID()}@cooldown.test` });
+
+  actAsAnonymous();
+  const contextB = await resolveChatContext("fr", generateVisitorId());
+  const conversationB = await getOrCreateConversation(contextB);
+  const resultB = await submitLead(contextB, conversationB, { message: "Demande B, autre client.", email: `${randomUUID()}@cooldown.test` });
+
+  assert.equal(resultB.notified, true, "a fresh, unrelated conversation must never be blocked by a cooldown that belongs to a different conversation");
+});
+
+test("lead_submit cooldown: getLeadSubmitCooldownRemainingMs returns 0 for a conversation that has never had a notified submission", async () => {
+  actAsAnonymous();
+  const context = await resolveChatContext("fr", generateVisitorId());
+  const conversation = await getOrCreateConversation(context);
+  assert.equal(await getLeadSubmitCooldownRemainingMs(conversation.id), 0);
 });
 
 // ---- technical alert (§10) --------------------------------------------------
