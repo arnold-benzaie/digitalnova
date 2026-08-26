@@ -2,7 +2,35 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
-if (!process.env.DATABASE_URL) {
+/**
+ * PREVIEW_SCHEMA_DATABASE_URL was originally built for the preview-schema
+ * pre-merge validation tooling (scripts/preview-schema-*.mjs) — a separate
+ * Postgres *schema* sandbox, not a runtime connection. This is its second,
+ * deliberately narrow use: letting one specific Vercel Preview branch
+ * (via a branch-scoped env var, never Production, never the shared
+ * Preview default) opt into that same schema for a real deployment,
+ * without touching the DATABASE_URL every other Preview branch and
+ * Production already depend on.
+ *
+ * Deliberately checks VERCEL_ENV === "preview" (Vercel's own injected
+ * value, same convention as lib/system-alerts.ts/lib/chat/technical-alert.ts)
+ * rather than just "is PREVIEW_SCHEMA_DATABASE_URL set" — this is what
+ * keeps Production immune even in the hypothetical case that var were
+ * ever accidentally set there too. Every other case (Production,
+ * Preview without the var, local dev, tests that set DATABASE_URL
+ * directly) resolves to the exact same DATABASE_URL behavior as before.
+ */
+export function resolveDatabaseUrl(): string | undefined {
+  const isVercelPreview = process.env.VERCEL_ENV === "preview";
+  if (isVercelPreview && process.env.PREVIEW_SCHEMA_DATABASE_URL) {
+    return process.env.PREVIEW_SCHEMA_DATABASE_URL;
+  }
+  return process.env.DATABASE_URL;
+}
+
+const connectionString = resolveDatabaseUrl();
+
+if (!connectionString) {
   throw new Error(
     "DATABASE_URL is not set. Copy .env.example to .env.local and point it at your Postgres instance (Neon or Supabase both work — see README).",
   );
@@ -33,8 +61,7 @@ if (!process.env.DATABASE_URL) {
 // report for the recommended longer-term fix).
 const globalForDb = globalThis as unknown as { pgPool?: Pool };
 
-const pool =
-  globalForDb.pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 3, idleTimeoutMillis: 3000 });
+const pool = globalForDb.pgPool ?? new Pool({ connectionString, max: 3, idleTimeoutMillis: 3000 });
 
 globalForDb.pgPool = pool;
 
