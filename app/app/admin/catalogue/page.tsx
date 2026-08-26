@@ -2,8 +2,8 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero, panelClass, panelTitleClass, tableWrapperClass } from "@/components/admin/page-hero";
-import { getPackChildren, getDuoChildren, listMarketOffers, listServices } from "@/lib/catalogue/queries";
-import type { CatalogueMarketOffer, CatalogueRelation, CatalogueService } from "@/lib/catalogue/types";
+import { buildCatalogueViewModel } from "@/lib/catalogue/view-model";
+import type { CatalogueMarketOffer } from "@/lib/catalogue/types";
 
 /**
  * P0.1B.4 — first internal consumer of the P0.1B.3 catalogue accessor.
@@ -25,38 +25,6 @@ import type { CatalogueMarketOffer, CatalogueRelation, CatalogueService } from "
  * per-page would be a second error-handling mechanism where one already
  * exists.
  */
-export type CatalogueAdminViewModel = {
-  services: CatalogueService[];
-  canadaByService: Map<string, CatalogueMarketOffer>;
-  europeByService: Map<string, CatalogueMarketOffer>;
-  childrenByParent: Map<string, CatalogueRelation[]>;
-};
-
-/**
- * Data assembly only — no auth guard, no JSX. Separated out so it can be
- * exercised directly against a real (local, disposable) database in
- * tests without needing a JSX rendering harness this repo doesn't have
- * for server components. Uses only lib/catalogue/queries.ts — no ad hoc
- * SQL, no legacy-catalogue reads.
- */
-export async function buildCatalogueViewModel(): Promise<CatalogueAdminViewModel> {
-  const [services, canadaOffers, europeOffers] = await Promise.all([listServices(), listMarketOffers("CANADA"), listMarketOffers("EUROPE")]);
-
-  const packIds = services.filter((s) => s.type === "PACK").map((s) => s.serviceId);
-  const duoIds = services.filter((s) => s.type === "DUO").map((s) => s.serviceId);
-  const [packChildrenEntries, duoChildrenEntries] = await Promise.all([
-    Promise.all(packIds.map(async (id) => [id, await getPackChildren(id)] as const)),
-    Promise.all(duoIds.map(async (id) => [id, await getDuoChildren(id)] as const)),
-  ]);
-
-  return {
-    services,
-    canadaByService: new Map(canadaOffers.map((o) => [o.serviceId, o])),
-    europeByService: new Map(europeOffers.map((o) => [o.serviceId, o])),
-    childrenByParent: new Map<string, CatalogueRelation[]>([...packChildrenEntries, ...duoChildrenEntries]),
-  };
-}
-
 export default async function CatalogueAdminPage() {
   await requireStaffRole();
   const locale = await getLocale();

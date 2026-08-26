@@ -60,8 +60,8 @@ async function assertRedirectsTo(fn, expectedUrl) {
 const { db } = await import("@/db");
 const { services, serviceMarketOffers, serviceRelations, serviceLegacyIdentifiers } = await import("@/db/schema");
 const { SERVICES, MARKET_OFFERS, RELATIONS } = await import("@/db/catalogue/canonical-dataset.mjs");
-const CatalogueAdminPageModule = await import("@/app/admin/catalogue/page.tsx");
-const { default: CatalogueAdminPage, buildCatalogueViewModel } = CatalogueAdminPageModule;
+const { default: CatalogueAdminPage } = await import("@/app/admin/catalogue/page.tsx");
+const { buildCatalogueViewModel } = await import("@/lib/catalogue/view-model");
 
 async function seedCanonicalDataset() {
   for (const s of SERVICES) {
