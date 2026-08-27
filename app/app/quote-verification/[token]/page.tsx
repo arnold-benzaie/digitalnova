@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicQuoteDocument } from "@/app/quote-verification/[token]/quote-document";
+import { QuoteResponseActions } from "@/app/quote-verification/[token]/quote-response-actions";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { getLocale } from "@/lib/i18n/locale";
 import { loadPublicQuoteByToken } from "@/lib/quote-verification-data";
@@ -41,6 +42,7 @@ export default async function QuoteVerificationPage({ params }: { params: Promis
           <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-pm-gris">{t.kicker}</p>
         </div>
         <PublicQuoteDocument quote={resolved.quote} locale={locale} />
+        <QuoteResponseActions token={token} status={resolved.quote.status} locale={locale} />
       </div>
     </main>
   );
