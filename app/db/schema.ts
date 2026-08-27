@@ -691,6 +691,43 @@ export const crmQuoteItems = pgTable(
 );
 
 /**
+ * Secure token-based access to a single quote's public page for its
+ * (external, unauthenticated) client — Chantier 1 Phase 1, mirrors
+ * crmInvoiceAccessLinks below exactly (same shape, same reasoning): a
+ * random, unguessable token is the sole credential, rate-limited and
+ * attempt-capped at resolution time (see lib/actions/crm-quote-access.ts).
+ * Deliberately a SEPARATE table rather than a polymorphic extension of
+ * crmInvoiceAccessLinks — a quote is not an invoice, and forcing the two
+ * into one table would complicate the already-shipped, in-use invoice
+ * sharing path for no benefit.
+ *
+ * Phase 1 builds this table's read/write plumbing only — no public page,
+ * no email, no accept/decline action exist yet (later phases of Chantier
+ * 1). expiresAt is populated from the quote's own validUntil at creation
+ * time when set (an explicit, deliberate choice — never a silently
+ * unused field): see createOrGetQuoteAccessLink.
+ */
+export const crmQuoteAccessLinks = pgTable(
+  "crm_quote_access_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    quoteId: uuid("quote_id")
+      .notNull()
+      .references(() => crmQuotes.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(20),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("crm_quote_access_links_quote_id_idx").on(table.quoteId),
+    uniqueIndex("crm_quote_access_links_token_idx").on(table.token),
+  ],
+);
+
+/**
  * Agency-side invoices for a CRM client, optionally created from an
  * accepted quote. `fastspringReference` is prep for a future real
  * FastSpring integration (see lib/billing/crm-invoice-webhook.ts) — not
