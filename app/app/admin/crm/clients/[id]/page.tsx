@@ -36,7 +36,7 @@ import {
   getTicketStatusOptions,
   TICKET_PRIORITY_CLASS,
 } from "@/components/crm/badges";
-import { ArchiveClientButton, ClientStageSelect, DeleteClientButton } from "@/components/crm/client-actions";
+import { ArchiveClientButton, ClientMarketSelect, ClientStageSelect, DeleteClientButton } from "@/components/crm/client-actions";
 import { CreateContractForm } from "@/components/crm/create-contract-form";
 import { EditContractForm, SendContractButton, SimulateSignatureButton } from "@/components/crm/contract-actions";
 import { CreateDealForm } from "@/components/crm/create-deal-form";
@@ -227,6 +227,10 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <ClientStageSelect id={client.id} stage={client.stage} locale={locale} />
+          <label className="flex items-center gap-2 text-xs text-pm-gris">
+            {t.marketLabel}
+            <ClientMarketSelect id={client.id} market={clientMarket} locale={locale} />
+          </label>
           <div className="flex items-center gap-3">
             <EditClientForm client={client} locale={locale} />
             <ArchiveClientButton id={client.id} archived={Boolean(client.archivedAt)} locale={locale} />

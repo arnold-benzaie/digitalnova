@@ -24,6 +24,21 @@ export const CLIENT_STAGE_CLASS: Record<string, string> = {
   churned: BAD,
 };
 
+// P0.2A-4 — "" is the InlineStatusSelect sentinel for "Non défini" (no
+// market set), mapped to a real `null` server-side by updateClientMarket
+// (lib/actions/crm-clients.ts) — never inferred from any other client
+// data.
+export const CLIENT_MARKET_OPTIONS = [
+  { value: "", label: "Non défini" },
+  { value: "CANADA", label: "Canada" },
+  { value: "EUROPE", label: "Europe" },
+];
+export const CLIENT_MARKET_OPTIONS_EN = [
+  { value: "", label: "Not set" },
+  { value: "CANADA", label: "Canada" },
+  { value: "EUROPE", label: "Europe" },
+];
+
 export const DEAL_STAGE_OPTIONS = [
   { value: "new", label: "Nouveau" },
   { value: "contacted", label: "Contacté" },
@@ -140,6 +155,9 @@ export const CONTRACT_STATUS_CLASS: Record<string, string> = {
 
 export function getClientStageOptions(locale: Locale) {
   return locale === "en" ? CLIENT_STAGE_OPTIONS_EN : CLIENT_STAGE_OPTIONS;
+}
+export function getClientMarketOptions(locale: Locale) {
+  return locale === "en" ? CLIENT_MARKET_OPTIONS_EN : CLIENT_MARKET_OPTIONS;
 }
 export function getDealStageOptions(locale: Locale) {
   return locale === "en" ? DEAL_STAGE_OPTIONS_EN : DEAL_STAGE_OPTIONS;

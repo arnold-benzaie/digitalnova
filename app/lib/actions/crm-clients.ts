@@ -8,6 +8,7 @@ import {
   crmClients,
   deals,
   interactions,
+  organizations,
   projects,
   tasks,
   tickets,
@@ -15,13 +16,21 @@ import {
 import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
+import { getOrCreateOrganizationForClient } from "@/lib/actions/crm-gbp";
 
 const MESSAGES = {
-  fr: { nameRequired: "Le nom du client est requis.", invalidStage: "Étape invalide.", clientNotFound: "Client introuvable." },
-  en: { nameRequired: "Client name is required.", invalidStage: "Invalid stage.", clientNotFound: "Client not found." },
+  fr: { nameRequired: "Le nom du client est requis.", invalidStage: "Étape invalide.", clientNotFound: "Client introuvable.", invalidMarket: "Marché invalide." },
+  en: { nameRequired: "Client name is required.", invalidStage: "Invalid stage.", clientNotFound: "Client not found.", invalidMarket: "Invalid market." },
 } as const;
 
 const STAGES = ["lead", "prospect", "client", "churned"] as const;
+// P0.2A-4 — the only two real markets (organizations.market is a plain
+// nullable text column with no DB-level CHECK — "CANADA"/"EUROPE"/null is
+// an application-level convention only, so this is the sole place that
+// enforces it for CRM client edits). "" is the InlineStatusSelect sentinel
+// for an explicit "Non défini" choice, mapped to null below — never an
+// invented third state, and never a silent fallback for anything else.
+const CLIENT_MARKET_VALUES = ["CANADA", "EUROPE"] as const;
 
 export async function createClient(formData: FormData) {
   const locale = await getLocale();
@@ -77,6 +86,71 @@ export async function updateClientStage(id: string, stage: string) {
     targetId: id,
     clientId: id,
     metadata: { stage },
+  });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/clients");
+  revalidatePath(`/admin/crm/clients/${id}`);
+}
+
+/**
+ * Sets (or explicitly clears) a client's commercial market — the single
+ * input lib/crm-service-linking.ts's resolveClientMarket/resolveClientMarkets
+ * (P0.2A-3) read to decide whether a catalogue price can be suggested.
+ * Never guessed from address/currency/phone/language/country/GBP/price or
+ * any other indirect signal (P0.2A-4 rule) — only ever this explicit,
+ * staff-chosen value.
+ *
+ * `market` is a plain string because it travels through InlineStatusSelect
+ * (a native <select>, which can never submit a true `null`): "" is the
+ * sentinel for an explicit "Non défini" choice, mapped to a real `null`
+ * below. Anything else that isn't exactly "CANADA"/"EUROPE"/"" is REJECTED
+ * outright — never silently coerced to null, so a malformed or unexpected
+ * value can never be mistaken for a deliberate "clear the market" action.
+ *
+ * Reuses getOrCreateOrganizationForClient (lib/actions/crm-gbp.ts) as-is
+ * for the "client has no organization yet" case — the exact same
+ * find-or-create-and-link pattern already established for Google Business
+ * Profile, not duplicated here. Only called when setting a real market
+ * (CANADA/EUROPE): clearing to null on a client with no organization is a
+ * correct no-op, never a reason to create one just to hold a null value.
+ * Not wrapped in its own new transaction (getOrCreateOrganizationForClient
+ * isn't transaction-aware, and extending it to become so — or
+ * reimplementing its body here — would be exactly the refactor/duplication
+ * this phase was told to avoid); if the market UPDATE below were to fail
+ * right after an organization was freshly created and linked, the client
+ * is left with a real, valid organization and no market yet — safely
+ * retryable (the next call takes the "organization already exists" path),
+ * never a corrupted or contradictory state.
+ */
+export async function updateClientMarket(id: string, market: string) {
+  const locale = await getLocale();
+  if (market !== "" && !CLIENT_MARKET_VALUES.includes(market as (typeof CLIENT_MARKET_VALUES)[number])) {
+    throw new Error(MESSAGES[locale].invalidMarket);
+  }
+  const resolvedMarket = market === "" ? null : (market as (typeof CLIENT_MARKET_VALUES)[number]);
+
+  const [client] = await db.select({ organizationId: crmClients.organizationId }).from(crmClients).where(eq(crmClients.id, id)).limit(1);
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
+
+  let organizationId = client.organizationId;
+  if (resolvedMarket !== null && !organizationId) {
+    const org = await getOrCreateOrganizationForClient(id);
+    organizationId = org.id;
+  }
+
+  // Only ever touches the market column — no other organization field is
+  // read or written here.
+  if (organizationId) {
+    await db.update(organizations).set({ market: resolvedMarket }).where(eq(organizations.id, organizationId));
+  }
+
+  await logCrmAudit({
+    action: "crm.client_market_updated",
+    targetType: "crm_client",
+    targetId: id,
+    clientId: id,
+    metadata: { market: resolvedMarket },
   });
 
   revalidatePath("/admin/crm");

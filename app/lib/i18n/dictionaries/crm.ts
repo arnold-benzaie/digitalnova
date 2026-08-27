@@ -611,6 +611,7 @@ export const crm = {
       archivedBadge: "Archivé",
       sourceLabel: "Source :",
       ownerLabel: "Conseiller :",
+      marketLabel: "Marché commercial :",
       gbp: {
         title: "Google Business Profile",
         connected: (count: number) => `Connecté — ${count} établissement(s)`,
@@ -1278,6 +1279,7 @@ export const crm = {
       archivedBadge: "Archived",
       sourceLabel: "Source:",
       ownerLabel: "Owner:",
+      marketLabel: "Commercial market:",
       gbp: {
         title: "Google Business Profile",
         connected: (count: number) => `Connected — ${count} location(s)`,

@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { archiveClient, deleteClient, unarchiveClient, updateClientStage } from "@/lib/actions/crm-clients";
-import { getClientStageOptions } from "@/components/crm/badges";
+import { archiveClient, deleteClient, unarchiveClient, updateClientMarket, updateClientStage } from "@/lib/actions/crm-clients";
+import { getClientMarketOptions, getClientStageOptions } from "@/components/crm/badges";
 import { InlineStatusSelect } from "@/components/crm/inline-status-select";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
@@ -13,6 +13,21 @@ export function ClientStageSelect({ id, stage, locale = "fr" }: { id: string; st
       value={stage}
       options={getClientStageOptions(locale)}
       action={updateClientStage.bind(null, id)}
+      className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir disabled:opacity-50"
+    />
+  );
+}
+
+/** market is "CANADA" | "EUROPE" | null (already resolved server-side —
+ * see lib/crm-service-linking.ts's resolveClientMarket) — converted here
+ * to InlineStatusSelect's "" sentinel for the "Non défini" option, the
+ * one place that conversion happens on the display side (P0.2A-4). */
+export function ClientMarketSelect({ id, market, locale = "fr" }: { id: string; market: "CANADA" | "EUROPE" | null; locale?: Locale }) {
+  return (
+    <InlineStatusSelect
+      value={market ?? ""}
+      options={getClientMarketOptions(locale)}
+      action={updateClientMarket.bind(null, id)}
       className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir disabled:opacity-50"
     />
   );
