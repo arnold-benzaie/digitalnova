@@ -20,6 +20,7 @@ import { buildInvoiceQrDataUri } from "@/lib/pdf/invoice-qr";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
 import { APP_BASE_URL } from "@/lib/brand";
+import { requireStaffRole } from "@/lib/dev-role";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NEW_CLIENT_SENTINEL = "__new__";
@@ -212,6 +213,12 @@ async function resolveInvoiceClient(
 }
 
 export async function createInvoice(formData: FormData) {
+  // Chantier 2 / Phase 1 security fix: same reasoning as Chantier 1's
+  // updateQuoteStatus/convertQuoteToInvoice — a page-level requireStaffRole()
+  // gate does not extend to this Server Action. Re-verify the caller here,
+  // before any read, write, or email side effect.
+  await requireStaffRole();
+
   const locale = await resolveLocale(formData);
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
@@ -311,6 +318,9 @@ async function createInvoiceCore(formData: FormData, locale: Locale, currency: s
  * editable here specifically because the invoice is still a draft — once
  * issued, this function (and therefore the locale) is unreachable. */
 export async function updateInvoice(id: string, formData: FormData) {
+  // Chantier 2 / Phase 1 security fix — see createInvoice's comment above.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].invoiceNotFound);
@@ -371,6 +381,12 @@ export async function updateInvoice(id: string, formData: FormData) {
 }
 
 export async function updateInvoiceStatus(id: string, status: string) {
+  // Chantier 2 / Phase 1 security fix — see createInvoice's comment above.
+  // Highest-risk of the five: without this, a forged direct call could mark
+  // any invoice "paid"/"refunded"/"canceled" with no real payment ever
+  // having occurred.
+  await requireStaffRole();
+
   const locale = await getLocale();
   if (!INVOICE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
   // "delivery_failed" is a system-set outcome of a failed send attempt
@@ -550,6 +566,9 @@ async function recordDeliveryFailure(invoiceId: string, clientId: string | null,
  * invoice should go through updateInvoiceStatus(id, "sent") instead (a fresh
  * attempt, not a resend of a success that never happened) — see the guard below. */
 export async function resendInvoice(id: string) {
+  // Chantier 2 / Phase 1 security fix — see createInvoice's comment above.
+  await requireStaffRole();
+
   const locale = await getLocale();
   try {
     const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
@@ -566,6 +585,9 @@ export async function resendInvoice(id: string) {
 /** Only a draft invoice can be permanently deleted — a sent/paid/canceled/
  * refunded one must remain in the record for accounting continuity. */
 export async function deleteInvoice(id: string) {
+  // Chantier 2 / Phase 1 security fix — see createInvoice's comment above.
+  await requireStaffRole();
+
   const locale = await getLocale();
   try {
     const [existing] = await db.select().from(crmInvoices).where(eq(crmInvoices.id, id)).limit(1);
