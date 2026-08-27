@@ -28,6 +28,7 @@ const PAGES = [
   "/admin/audit/equipe",
   "/admin/audit/notifications",
   "/admin/audit/parametres",
+  "/admin/catalogue",
 ];
 
 for (const viewport of VIEWPORTS) {
