@@ -8,6 +8,7 @@ import { crmClients, crmInvoiceItems, crmInvoices, type CrmInvoiceClientSnapshot
 import { logCrmAudit } from "@/lib/audit";
 import { computeTotals, CURRENCY_VALUES, getInvoiceStatusOptions, INVOICE_STATUS_VALUES, parseLineItems } from "@/lib/crm-billing";
 import { nextDocumentNumber } from "@/lib/crm-document-number";
+import { sanitizeServiceIds } from "@/lib/crm-service-linking";
 import { getLocale } from "@/lib/i18n/locale";
 import { isLocale } from "@/lib/i18n/shared";
 import type { Locale } from "@/lib/i18n/dictionaries";
@@ -249,7 +250,7 @@ async function createInvoiceCore(formData: FormData, locale: Locale, currency: s
   const dueAtRaw = formData.get("dueAt");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"), locale);
+  const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
   const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
 
@@ -278,6 +279,7 @@ async function createInvoiceCore(formData: FormData, locale: Locale, currency: s
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
       position: index,
+      serviceId: item.serviceId,
     })),
   );
 
@@ -325,7 +327,7 @@ export async function updateInvoice(id: string, formData: FormData) {
   const dueAtRaw = formData.get("dueAt");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"), locale);
+  const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
   const [invoice] = await db
@@ -351,6 +353,7 @@ export async function updateInvoice(id: string, formData: FormData) {
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
       position: index,
+      serviceId: item.serviceId,
     })),
   );
 

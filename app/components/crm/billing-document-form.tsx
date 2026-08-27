@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { computeTotals, formatMoney, getCurrencyOptions } from "@/lib/crm-billing";
 import { dictionaries, LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
-type Item = { description: string; quantity: string; unitPrice: string };
+type Item = { description: string; quantity: string; unitPrice: string; serviceId: string | null };
 type ClientOption = { id: string; name: string; preferredLocale?: string | null; email?: string | null };
 type DealOption = { id: string; title: string };
+type CatalogueServiceOption = { serviceId: string; label: string };
 
 const NEW_CLIENT_SENTINEL = "__new__";
 
@@ -20,7 +21,7 @@ type Initial = {
   taxRatePercent: number;
   notes?: string | null;
   dateValue?: string;
-  items: { description: string; quantity: number; unitPriceCents: number }[];
+  items: { description: string; quantity: number; unitPriceCents: number; serviceId?: string | null }[];
 };
 
 export function BillingDocumentForm({
@@ -37,6 +38,7 @@ export function BillingDocumentForm({
    * manual entry, auto-send + preview) — quotes reuse this same component
    * without them, since crm_quotes has no locale/auto-send concept. */
   showInvoiceOptions = false,
+  serviceOptions,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   submitLabel: string;
@@ -48,6 +50,10 @@ export function BillingDocumentForm({
   onDone?: () => void;
   locale?: Locale;
   showInvoiceOptions?: boolean;
+  /** Active, non-DUO catalogue services a line can optionally be linked
+   * to (P0.2A-2) — omitted or empty simply hides the picker, every line
+   * stays a free-text line exactly as before. */
+  serviceOptions?: CatalogueServiceOption[];
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -59,8 +65,13 @@ export function BillingDocumentForm({
   const [taxRatePercent, setTaxRatePercent] = useState(String(initial?.taxRatePercent ?? 0));
   const [items, setItems] = useState<Item[]>(
     initial?.items.length
-      ? initial.items.map((i) => ({ description: i.description, quantity: String(i.quantity), unitPrice: (i.unitPriceCents / 100).toFixed(2) }))
-      : [{ description: "", quantity: "1", unitPrice: "" }],
+      ? initial.items.map((i) => ({
+          description: i.description,
+          quantity: String(i.quantity),
+          unitPrice: (i.unitPriceCents / 100).toFixed(2),
+          serviceId: i.serviceId ?? null,
+        }))
+      : [{ description: "", quantity: "1", unitPrice: "", serviceId: null }],
   );
 
   // Invoice-only state — inert (never read/rendered) when showInvoiceOptions
@@ -94,6 +105,7 @@ export function BillingDocumentForm({
       description: i.description.trim(),
       quantity: Math.max(1, Math.round(Number(i.quantity) || 1)),
       unitPriceCents: Math.round((Number(i.unitPrice) || 0) * 100),
+      serviceId: i.serviceId,
     }));
   const taxRateBasisPoints = Math.round((Number(taxRatePercent) || 0) * 100);
   const totals = computeTotals(parsedItems, taxRateBasisPoints);
@@ -102,10 +114,20 @@ export function BillingDocumentForm({
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   }
   function addItem() {
-    setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "" }]);
+    setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "", serviceId: null }]);
   }
   function removeItem(index: number) {
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }
+  /** Selecting a catalogue service pre-fills the description with its
+   * name — quantity/price are deliberately left untouched (rule 5: the
+   * amount that ends up on the document is always a manually-confirmed
+   * snapshot, never auto-pulled from the catalogue). Picking "— Free
+   * line —" (empty value) just clears serviceId; the description the
+   * staff member already typed is kept, not erased. */
+  function updateItemService(index: number, serviceId: string) {
+    const option = serviceOptions?.find((o) => o.serviceId === serviceId);
+    updateItem(index, { serviceId: serviceId || null, ...(option ? { description: option.label } : {}) });
   }
 
   return (
@@ -119,7 +141,7 @@ export function BillingDocumentForm({
           try {
             await action(formData);
             formRef.current?.reset();
-            setItems([{ description: "", quantity: "1", unitPrice: "" }]);
+            setItems([{ description: "", quantity: "1", unitPrice: "", serviceId: null }]);
             setSelectedClientId("");
             setManualEmail("");
             setSendAutomatically(false);
@@ -279,6 +301,21 @@ export function BillingDocumentForm({
         <p className="text-xs font-semibold uppercase tracking-wide text-pm-gris">{t.linesLabel}</p>
         {items.map((item, index) => (
           <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {serviceOptions && serviceOptions.length > 0 && (
+              <select
+                value={item.serviceId ?? ""}
+                onChange={(e) => updateItemService(index, e.target.value)}
+                aria-label={t.catalogueServiceFreeLineOption}
+                className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir sm:w-56"
+              >
+                <option value="">{t.catalogueServiceFreeLineOption}</option>
+                {serviceOptions.map((o) => (
+                  <option key={o.serviceId} value={o.serviceId}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
               value={item.description}
               onChange={(e) => updateItem(index, { description: e.target.value })}

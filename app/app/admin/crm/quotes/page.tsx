@@ -1,9 +1,10 @@
 import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
-import { crmClients, crmQuotes } from "@/db/schema";
+import { crmClients, crmQuotes, services } from "@/db/schema";
 import { createQuote } from "@/lib/actions/crm-quotes";
-import { formatMoney, getQuoteStatusOptions, QUOTE_STATUS_VALUES } from "@/lib/crm-billing";
+import { formatMoney, getQuoteStatusOptions, QUOTE_STATUS_VALUES, toCatalogueServiceOptions } from "@/lib/crm-billing";
+import { selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import { ConvertQuoteToInvoiceButton, DeleteQuoteButton, QuoteStatusSelect } from "@/components/crm/quote-invoice-actions";
 import { requireStaffRole } from "@/lib/dev-role";
@@ -40,7 +41,7 @@ export default async function CrmQuotesPage({ searchParams }: { searchParams: Pr
   if (status) conditions.push(eq(crmQuotes.status, status));
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
-  const [allQuotes, allClients, [{ count: totalCount }], [{ count: overallCount }]] = await Promise.all([
+  const [allQuotes, allClients, catalogueServices, [{ count: totalCount }], [{ count: overallCount }]] = await Promise.all([
     db
       .select()
       .from(crmQuotes)
@@ -49,11 +50,17 @@ export default async function CrmQuotesPage({ searchParams }: { searchParams: Pr
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db.select().from(crmClients).orderBy(asc(crmClients.name)),
+    db
+      .select({ serviceId: services.serviceId, displayNameFr: services.displayNameFr, displayNameEn: services.displayNameEn })
+      .from(services)
+      .where(selectableCatalogueServiceCondition())
+      .orderBy(asc(services.displayNameFr)),
     db.select({ count: sql<number>`count(*)::int` }).from(crmQuotes).where(whereClause),
     db.select({ count: sql<number>`count(*)::int` }).from(crmQuotes),
   ]);
 
   const clientNameById = new Map(allClients.map((c) => [c.id, c.name]));
+  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasFilters = Boolean(q || status);
 
@@ -68,6 +75,7 @@ export default async function CrmQuotesPage({ searchParams }: { searchParams: Pr
           clientOptions={allClients.map((c) => ({ id: c.id, name: c.name }))}
           dateField={{ name: "validUntil", label: t.validUntilLabel }}
           locale={locale}
+          serviceOptions={serviceOptions}
         />
       </div>
 

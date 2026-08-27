@@ -1,9 +1,10 @@
 import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
-import { crmClients, crmInvoices } from "@/db/schema";
+import { crmClients, crmInvoices, services } from "@/db/schema";
 import { createInvoice } from "@/lib/actions/crm-invoices";
-import { formatMoney, getInvoiceStatusOptions, INVOICE_STATUS_VALUES } from "@/lib/crm-billing";
+import { formatMoney, getInvoiceStatusOptions, INVOICE_STATUS_VALUES, toCatalogueServiceOptions } from "@/lib/crm-billing";
+import { selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import { DeleteInvoiceButton, InvoiceStatusSelect, ResendInvoiceButton, RetryInvoiceDeliveryButton } from "@/components/crm/quote-invoice-actions";
 import { requireStaffRole } from "@/lib/dev-role";
@@ -40,7 +41,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
   if (status) conditions.push(eq(crmInvoices.status, status));
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
-  const [allInvoices, allClients, [{ count: totalCount }], [{ count: overallCount }], paidByCurrency] = await Promise.all([
+  const [allInvoices, allClients, catalogueServices, [{ count: totalCount }], [{ count: overallCount }], paidByCurrency] = await Promise.all([
     db
       .select()
       .from(crmInvoices)
@@ -49,6 +50,11 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db.select().from(crmClients).orderBy(asc(crmClients.name)),
+    db
+      .select({ serviceId: services.serviceId, displayNameFr: services.displayNameFr, displayNameEn: services.displayNameEn })
+      .from(services)
+      .where(selectableCatalogueServiceCondition())
+      .orderBy(asc(services.displayNameFr)),
     db.select({ count: sql<number>`count(*)::int` }).from(crmInvoices).where(whereClause),
     db.select({ count: sql<number>`count(*)::int` }).from(crmInvoices),
     // Summed per currency, never blended — a EUR total and a CAD total are
@@ -61,6 +67,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
   ]);
 
   const clientNameById = new Map(allClients.map((c) => [c.id, c.name]));
+  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasFilters = Boolean(q || status);
 
@@ -81,6 +88,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
           dateField={{ name: "dueAt", label: t.dueLabel }}
           locale={locale}
           showInvoiceOptions
+          serviceOptions={serviceOptions}
         />
       </div>
 

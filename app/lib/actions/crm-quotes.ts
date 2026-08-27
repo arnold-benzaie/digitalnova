@@ -7,6 +7,7 @@ import { crmInvoiceItems, crmInvoices, crmQuoteItems, crmQuotes } from "@/db/sch
 import { logCrmAudit } from "@/lib/audit";
 import { CURRENCY_VALUES, computeTotals, parseLineItems, QUOTE_STATUS_VALUES } from "@/lib/crm-billing";
 import { nextDocumentNumber } from "@/lib/crm-document-number";
+import { sanitizeServiceIds } from "@/lib/crm-service-linking";
 import { getLocale } from "@/lib/i18n/locale";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -59,7 +60,7 @@ export async function createQuote(formData: FormData) {
   const validUntilRaw = formData.get("validUntil");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"), locale);
+  const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
   const quoteNumber = await nextDocumentNumber(crmQuotes, crmQuotes.quoteNumber, "DEV");
 
@@ -86,6 +87,7 @@ export async function createQuote(formData: FormData) {
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
       position: index,
+      serviceId: item.serviceId,
     })),
   );
 
@@ -120,7 +122,7 @@ export async function updateQuote(id: string, formData: FormData) {
   const validUntilRaw = formData.get("validUntil");
   const notes = (formData.get("notes") as string) || null;
 
-  const items = parseLineItems(formData.get("items"), locale);
+  const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
   const [quote] = await db
@@ -145,6 +147,7 @@ export async function updateQuote(id: string, formData: FormData) {
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
       position: index,
+      serviceId: item.serviceId,
     })),
   );
 
@@ -241,6 +244,15 @@ export async function convertQuoteToInvoice(quoteId: string) {
           quantity: item.quantity,
           unitPriceCents: item.unitPriceCents,
           position: item.position,
+          // Verbatim copy, never re-derived from the current catalogue —
+          // the quote's serviceId was already validated when that quote
+          // was created/updated (sanitizeServiceIds), and the FK's own
+          // ON DELETE SET NULL already keeps it accurate if the underlying
+          // service was deleted since. Re-validating here would let a
+          // service being merely deactivated retroactively erase
+          // traceability on a document whose price/description snapshot
+          // must never change (P0.2A-2 rule 12).
+          serviceId: item.serviceId,
         })),
     );
   }

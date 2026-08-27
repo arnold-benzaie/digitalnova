@@ -19,6 +19,7 @@ import {
   projects,
   searchConsoleProperties,
   seoAudits,
+  services,
   tasks,
   tickets,
   users,
@@ -60,7 +61,8 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
 import { createInvoice } from "@/lib/actions/crm-invoices";
-import { formatMoney } from "@/lib/crm-billing";
+import { formatMoney, toCatalogueServiceOptions } from "@/lib/crm-billing";
+import { selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import {
   ConvertQuoteToInvoiceButton,
@@ -142,6 +144,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
     clientDocuments,
     clientQuotes,
     clientInvoices,
+    catalogueServices,
   ] = await Promise.all([
     db.select().from(deals).where(eq(deals.clientId, id)).orderBy(desc(deals.createdAt)),
     db.select().from(tickets).where(eq(tickets.clientId, id)).orderBy(desc(tickets.createdAt)),
@@ -153,7 +156,12 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
     db.select().from(crmClientDocuments).where(eq(crmClientDocuments.clientId, id)).orderBy(desc(crmClientDocuments.createdAt)),
     db.select().from(crmQuotes).where(eq(crmQuotes.clientId, id)).orderBy(desc(crmQuotes.createdAt)),
     db.select().from(crmInvoices).where(eq(crmInvoices.clientId, id)).orderBy(desc(crmInvoices.issuedAt)),
+    db
+      .select({ serviceId: services.serviceId, displayNameFr: services.displayNameFr, displayNameEn: services.displayNameEn })
+      .from(services)
+      .where(selectableCatalogueServiceCondition()),
   ]);
+  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale);
 
   // Unified activity timeline — every logAudit() call across the CRM domain
   // (client/deal/ticket/task/project/event/contract/interaction) already
@@ -377,6 +385,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title }))}
             dateField={{ name: "validUntil", label: t.validUntilLabel }}
             locale={locale}
+            serviceOptions={serviceOptions}
           />
         </div>
       </section>
@@ -421,6 +430,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title }))}
             dateField={{ name: "dueAt", label: t.dueLabel }}
             locale={locale}
+            serviceOptions={serviceOptions}
           />
         </div>
       </section>

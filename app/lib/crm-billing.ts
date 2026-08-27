@@ -75,7 +75,30 @@ export function formatMoney(cents: number, currency: string, uiLocale: Locale = 
   return (cents / 100).toLocaleString(locale, { style: "currency", currency });
 }
 
-export type LineItemInput = { description: string; quantity: number; unitPriceCents: number };
+export type LineItemInput = {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  // Purely informative traceability back to the canonical catalogue — see
+  // db/schema.ts's crmQuoteItems.serviceId. Never trusted at face value:
+  // callers must run this through sanitizeServiceIds (lib/crm-service-linking.ts)
+  // before persisting, since it arrives from client-submitted form data
+  // (P0.2A-2).
+  serviceId: string | null;
+};
+
+/** { serviceId, label } options for the catalogue picker in
+ * BillingDocumentForm — a pure formatting step (no DB access, so this stays
+ * safe to import from a client component) over rows already fetched by the
+ * calling page. DUO services are expected to already be excluded by the
+ * caller's query (see lib/crm-service-linking.ts's selectableCatalogueServiceCondition,
+ * the single source of truth for that rule). */
+export function toCatalogueServiceOptions(
+  rows: { serviceId: string; displayNameFr: string; displayNameEn: string }[],
+  locale: Locale,
+): { serviceId: string; label: string }[] {
+  return rows.map((r) => ({ serviceId: r.serviceId, label: locale === "en" ? r.displayNameEn : r.displayNameFr }));
+}
 
 const LINE_ITEM_ERRORS = {
   fr: {
@@ -130,10 +153,17 @@ export function parseLineItems(raw: FormDataEntryValue | null, locale: Locale = 
     if (!Number.isFinite(unitPriceCents) || unitPriceCents < 0) {
       throw new Error(t.invalidPrice(index + 1));
     }
+    // Shape-only check here (must be a non-empty string, else null) — this
+    // is NOT proof the id refers to a real, currently-selectable catalogue
+    // service. Every caller must additionally run the result through
+    // sanitizeServiceIds (lib/crm-service-linking.ts) before persisting.
+    const serviceIdRaw = (item as Record<string, unknown>).serviceId;
+    const serviceId = typeof serviceIdRaw === "string" && serviceIdRaw.trim() ? serviceIdRaw.trim() : null;
     return {
       description: (item as { description: string }).description.trim(),
       quantity: Math.round(quantity),
       unitPriceCents: Math.round(unitPriceCents),
+      serviceId,
     };
   });
 }
