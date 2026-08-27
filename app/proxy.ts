@@ -46,6 +46,10 @@ const isPublicRoute = createRouteMatcher([
   // /invoice-verification is the new QR-code target page.
   "/api/invoices(.*)",
   "/invoice-verification(.*)",
+  // CRM quote client page — possession of a valid token, resolved only by
+  // resolveQuoteByToken(), is the credential. External clients must reach
+  // it without a PUBLIC-MAP staff session; the page remains read-only.
+  "/quote-verification/:token",
   // Local-only visual presentation route. Its page returns 404 in production,
   // so this entry never makes a production interface publicly reachable.
   "/audit-premium-showcase",

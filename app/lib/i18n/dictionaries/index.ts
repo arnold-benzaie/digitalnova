@@ -29,6 +29,7 @@ import { systemHealth } from "./system-health";
 import { catalogueAdmin } from "./catalogue-admin";
 import { siteAnalytics } from "./site-analytics";
 import { invoiceVerification } from "./invoice-verification";
+import { quoteVerification } from "./quote-verification";
 import { chat } from "./chat";
 
 export type { Locale } from "./types";
@@ -56,6 +57,7 @@ export const dictionaries = {
     catalogueAdmin: catalogueAdmin.fr,
     siteAnalytics: siteAnalytics.fr,
     invoiceVerification: invoiceVerification.fr,
+    quoteVerification: quoteVerification.fr,
     chat: chat.fr,
   },
   en: {
@@ -79,6 +81,7 @@ export const dictionaries = {
     catalogueAdmin: catalogueAdmin.en,
     siteAnalytics: siteAnalytics.en,
     invoiceVerification: invoiceVerification.en,
+    quoteVerification: quoteVerification.en,
     chat: chat.en,
   },
 } as const;
