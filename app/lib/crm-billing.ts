@@ -87,17 +87,85 @@ export type LineItemInput = {
   serviceId: string | null;
 };
 
-/** { serviceId, label } options for the catalogue picker in
- * BillingDocumentForm — a pure formatting step (no DB access, so this stays
- * safe to import from a client component) over rows already fetched by the
- * calling page. DUO services are expected to already be excluded by the
- * caller's query (see lib/crm-service-linking.ts's selectableCatalogueServiceCondition,
- * the single source of truth for that rule). */
+export type CatalogueServiceOption = {
+  serviceId: string;
+  label: string;
+  // Market-list prices, pre-converted to cents server-side — null means
+  // "no offer for that market" (or no market/offer data was supplied at
+  // all), never a guessed value (P0.2A-3).
+  canadaPriceCents: number | null;
+  europePriceCents: number | null;
+};
+
+/**
+ * Deterministic decimal-string -> integer-cents conversion for
+ * service_market_offers.price (numeric(10,2), always returned as a string
+ * by the pg driver — confirmed by components/catalogue/service-card.tsx's
+ * own direct, unconverted use of `offer.price`). Deliberately NOT
+ * `parseFloat(price) * 100` / `Number(price) * 100`: floating-point
+ * multiplication can drift ("49.99" * 100 → 4998.999999999999 before
+ * rounding masks it), so this instead treats the string itself as the
+ * exact value — split on the decimal point, pad the fractional part to
+ * exactly 2 digits, concatenate as an integer. Returns null (never
+ * throws, never invents a price) for anything that isn't a plain
+ * non-negative number with at most 2 decimals — real rows always match
+ * this shape (DB's own numeric(10,2) + CHECK price >= 0), so null here
+ * signals a genuinely unexpected input, not a normal case to paper over.
+ */
+export function priceStringToCents(price: string): number | null {
+  if (typeof price !== "string") return null;
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(price.trim());
+  if (!match) return null;
+  const [, whole, fraction = ""] = match;
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/** { serviceId, label, canadaPriceCents, europePriceCents } options for the
+ * catalogue picker in BillingDocumentForm — a pure formatting step (no DB
+ * access, so this stays safe to import from a client component) over rows
+ * already fetched by the calling page. DUO services are expected to
+ * already be excluded by the caller's query (see lib/crm-service-linking.ts's
+ * selectableCatalogueServiceCondition, the single source of truth for that
+ * rule). `offersByServiceId` is optional and keyed by serviceId with the
+ * two markets' raw price STRINGS (as read from service_market_offers) —
+ * omit it (or a given service's entry) to get {..., canadaPriceCents:
+ * null, europePriceCents: null}, identical to P0.2A-2's behavior. */
 export function toCatalogueServiceOptions(
   rows: { serviceId: string; displayNameFr: string; displayNameEn: string }[],
   locale: Locale,
-): { serviceId: string; label: string }[] {
-  return rows.map((r) => ({ serviceId: r.serviceId, label: locale === "en" ? r.displayNameEn : r.displayNameFr }));
+  offersByServiceId?: Map<string, { canada?: string; europe?: string }>,
+): CatalogueServiceOption[] {
+  return rows.map((r) => {
+    const offers = offersByServiceId?.get(r.serviceId);
+    return {
+      serviceId: r.serviceId,
+      label: locale === "en" ? r.displayNameEn : r.displayNameFr,
+      canadaPriceCents: offers?.canada != null ? priceStringToCents(offers.canada) : null,
+      europePriceCents: offers?.europe != null ? priceStringToCents(offers.europe) : null,
+    };
+  });
+}
+
+export type ClientMarket = "CANADA" | "EUROPE" | null;
+
+/**
+ * Whether — and at what price — selecting `option` should prefill
+ * unitPrice, given the resolved client market and the document's
+ * currently-selected currency. Pure and fully deterministic: returns a
+ * concrete cents value only when the market is known with certainty AND
+ * an offer exists for it AND the document's own currency already matches
+ * that market's currency (CANADA→CAD, EUROPE→EUR) — the "devise
+ * incohérente" case (e.g. market=CANADA but the document is currently set
+ * to EUR) deliberately returns null rather than converting or guessing
+ * (P0.2A-3 rule). Never mutates anything — the caller decides what to do
+ * with the result (BillingDocumentForm only ever uses it to suggest an
+ * initial value; the field remains a normal editable input afterward).
+ */
+export function resolveCataloguePrefillPriceCents(option: CatalogueServiceOption, market: ClientMarket, currency: string): number | null {
+  if (market === "CANADA" && currency === "CAD") return option.canadaPriceCents;
+  if (market === "EUROPE" && currency === "EUR") return option.europePriceCents;
+  return null;
 }
 
 const LINE_ITEM_ERRORS = {

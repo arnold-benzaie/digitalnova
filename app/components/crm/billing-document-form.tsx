@@ -2,13 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { computeTotals, formatMoney, getCurrencyOptions } from "@/lib/crm-billing";
+import { computeTotals, formatMoney, getCurrencyOptions, resolveCataloguePrefillPriceCents, type CatalogueServiceOption, type ClientMarket } from "@/lib/crm-billing";
 import { dictionaries, LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
 type Item = { description: string; quantity: string; unitPrice: string; serviceId: string | null };
 type ClientOption = { id: string; name: string; preferredLocale?: string | null; email?: string | null };
 type DealOption = { id: string; title: string };
-type CatalogueServiceOption = { serviceId: string; label: string };
 
 const NEW_CLIENT_SENTINEL = "__new__";
 
@@ -39,6 +38,8 @@ export function BillingDocumentForm({
    * without them, since crm_quotes has no locale/auto-send concept. */
   showInvoiceOptions = false,
   serviceOptions,
+  clientMarket,
+  marketByClientId,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   submitLabel: string;
@@ -54,6 +55,17 @@ export function BillingDocumentForm({
    * to (P0.2A-2) — omitted or empty simply hides the picker, every line
    * stays a free-text line exactly as before. */
   serviceOptions?: CatalogueServiceOption[];
+  /** Already-resolved market for `fixedClientId` (P0.2A-3) — server-side
+   * lookup, single client, no N+1 concern. Ignored when fixedClientId is
+   * unset. */
+  clientMarket?: ClientMarket;
+  /** Already-resolved { clientId: market } lookup for the dynamic client
+   * dropdown (`clientOptions`) — the server can't know in advance which
+   * client will be picked, so every client's market is resolved once,
+   * up front, in a single batched query (see
+   * lib/crm-service-linking.ts's resolveClientMarkets). Ignored when
+   * fixedClientId is set. */
+  marketByClientId?: Record<string, ClientMarket>;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -119,15 +131,40 @@ export function BillingDocumentForm({
   function removeItem(index: number) {
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }
+  /** Resolves the effective client for whichever flow is active — a fixed
+   * client (clients/[id] page) or the dynamic dropdown (quotes/invoices
+   * list pages) — then looks up its already-resolved market. Never null
+   * from a guess: only ever a value the server actually computed. */
+  function resolveEffectiveMarket(): ClientMarket {
+    if (fixedClientId) return clientMarket ?? null;
+    if (selectedClientId && selectedClientId !== NEW_CLIENT_SENTINEL) {
+      return marketByClientId?.[selectedClientId] ?? null;
+    }
+    return null;
+  }
   /** Selecting a catalogue service pre-fills the description with its
-   * name — quantity/price are deliberately left untouched (rule 5: the
-   * amount that ends up on the document is always a manually-confirmed
-   * snapshot, never auto-pulled from the catalogue). Picking "— Free
-   * line —" (empty value) just clears serviceId; the description the
-   * staff member already typed is kept, not erased. */
+   * name, same as P0.2A-2. Price (P0.2A-3): suggested ONLY when the
+   * client's market is known with certainty, an offer exists for it, AND
+   * the document's currently-selected currency already matches that
+   * market (CANADA→CAD, EUROPE→EUR) — resolveCataloguePrefillPriceCents
+   * (lib/crm-billing.ts) is the single place that decision is made, pure
+   * and fully testable without a browser. Never overwrites the price
+   * field with nothing: when no safe prefill applies, unitPrice is simply
+   * left exactly as it was — always still a normal, freely-editable
+   * input afterward, and the value actually submitted is whatever it
+   * holds at submit time, never re-derived from the catalogue. */
   function updateItemService(index: number, serviceId: string) {
     const option = serviceOptions?.find((o) => o.serviceId === serviceId);
-    updateItem(index, { serviceId: serviceId || null, ...(option ? { description: option.label } : {}) });
+    if (!option) {
+      updateItem(index, { serviceId: null });
+      return;
+    }
+    const prefillCents = resolveCataloguePrefillPriceCents(option, resolveEffectiveMarket(), currency);
+    updateItem(index, {
+      serviceId,
+      description: option.label,
+      ...(prefillCents !== null ? { unitPrice: (prefillCents / 100).toFixed(2) } : {}),
+    });
   }
 
   return (

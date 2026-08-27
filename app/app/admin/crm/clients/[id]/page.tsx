@@ -62,7 +62,7 @@ import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
 import { createInvoice } from "@/lib/actions/crm-invoices";
 import { formatMoney, toCatalogueServiceOptions } from "@/lib/crm-billing";
-import { selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
+import { buildCatalogueOfferPriceMap, resolveClientMarket, selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import {
   ConvertQuoteToInvoiceButton,
@@ -145,6 +145,8 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
     clientQuotes,
     clientInvoices,
     catalogueServices,
+    catalogueOfferPriceMap,
+    clientMarket,
   ] = await Promise.all([
     db.select().from(deals).where(eq(deals.clientId, id)).orderBy(desc(deals.createdAt)),
     db.select().from(tickets).where(eq(tickets.clientId, id)).orderBy(desc(tickets.createdAt)),
@@ -160,8 +162,14 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
       .select({ serviceId: services.serviceId, displayNameFr: services.displayNameFr, displayNameEn: services.displayNameEn })
       .from(services)
       .where(selectableCatalogueServiceCondition()),
+    buildCatalogueOfferPriceMap(),
+    // Single client already known server-side — not an N+1 concern (see
+    // resolveClientMarket's own docstring). P0.2A-3 decision: organizationId
+    // null or organizations.market null/invalid both collapse to null here,
+    // never a guessed market.
+    resolveClientMarket(client.organizationId),
   ]);
-  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale);
+  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale, catalogueOfferPriceMap);
 
   // Unified activity timeline — every logAudit() call across the CRM domain
   // (client/deal/ticket/task/project/event/contract/interaction) already
@@ -386,6 +394,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             dateField={{ name: "validUntil", label: t.validUntilLabel }}
             locale={locale}
             serviceOptions={serviceOptions}
+            clientMarket={clientMarket}
           />
         </div>
       </section>
@@ -431,6 +440,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
             dateField={{ name: "dueAt", label: t.dueLabel }}
             locale={locale}
             serviceOptions={serviceOptions}
+            clientMarket={clientMarket}
           />
         </div>
       </section>

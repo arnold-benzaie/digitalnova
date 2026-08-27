@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { crmClients, crmInvoices, services } from "@/db/schema";
 import { createInvoice } from "@/lib/actions/crm-invoices";
 import { formatMoney, getInvoiceStatusOptions, INVOICE_STATUS_VALUES, toCatalogueServiceOptions } from "@/lib/crm-billing";
-import { selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
+import { buildCatalogueOfferPriceMap, resolveClientMarkets, selectableCatalogueServiceCondition } from "@/lib/crm-service-linking";
 import { BillingDocumentForm } from "@/components/crm/billing-document-form";
 import { DeleteInvoiceButton, InvoiceStatusSelect, ResendInvoiceButton, RetryInvoiceDeliveryButton } from "@/components/crm/quote-invoice-actions";
 import { requireStaffRole } from "@/lib/dev-role";
@@ -41,7 +41,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
   if (status) conditions.push(eq(crmInvoices.status, status));
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
-  const [allInvoices, allClients, catalogueServices, [{ count: totalCount }], [{ count: overallCount }], paidByCurrency] = await Promise.all([
+  const [allInvoices, allClients, catalogueServices, catalogueOfferPriceMap, [{ count: totalCount }], [{ count: overallCount }], paidByCurrency] = await Promise.all([
     db
       .select()
       .from(crmInvoices)
@@ -55,6 +55,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
       .from(services)
       .where(selectableCatalogueServiceCondition())
       .orderBy(asc(services.displayNameFr)),
+    buildCatalogueOfferPriceMap(),
     db.select({ count: sql<number>`count(*)::int` }).from(crmInvoices).where(whereClause),
     db.select({ count: sql<number>`count(*)::int` }).from(crmInvoices),
     // Summed per currency, never blended — a EUR total and a CAD total are
@@ -67,7 +68,10 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
   ]);
 
   const clientNameById = new Map(allClients.map((c) => [c.id, c.name]));
-  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale);
+  const serviceOptions = toCatalogueServiceOptions(catalogueServices, locale, catalogueOfferPriceMap);
+  // Client picked dynamically in the browser — resolve every client's
+  // market once, up front, in a single batched query (P0.2A-3).
+  const marketByClientId = await resolveClientMarkets(allClients);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasFilters = Boolean(q || status);
 
@@ -89,6 +93,7 @@ export default async function CrmInvoicesPage({ searchParams }: { searchParams: 
           locale={locale}
           showInvoiceOptions
           serviceOptions={serviceOptions}
+          marketByClientId={marketByClientId}
         />
       </div>
 
