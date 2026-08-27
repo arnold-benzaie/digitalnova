@@ -310,6 +310,12 @@ export async function deleteQuote(id: string) {
 }
 
 export async function convertQuoteToInvoice(quoteId: string) {
+  // Chantier 1 / Phase 5 security fix: same reasoning as updateQuoteStatus
+  // (Phase 3) — a page-level requireStaffRole() gate does not extend to
+  // this Server Action, which creates a real invoice as a side effect.
+  // Re-verify the caller here, before any read or write.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);

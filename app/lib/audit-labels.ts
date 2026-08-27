@@ -119,6 +119,12 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return `Devis ${m.quoteNumber} — statut : ${QUOTE_STATUS_LABEL[m.status as string] ?? m.status}`;
     case "crm.quote_deleted":
       return `Devis supprimé : ${m.quoteNumber}`;
+    case "crm.quote_sent":
+      return `Devis envoyé : ${m.quoteNumber}`;
+    case "crm.quote_accepted":
+      return `Devis accepté : ${m.quoteNumber}`;
+    case "crm.quote_declined":
+      return `Devis refusé : ${m.quoteNumber}`;
     case "crm.invoice_created":
       return `Facture créée : ${m.invoiceNumber} — ${m.title}`;
     case "crm.invoice_created_from_quote":
@@ -273,6 +279,12 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return `Quote ${m.quoteNumber} — status: ${QUOTE_STATUS_LABEL_EN[m.status as string] ?? m.status}`;
     case "crm.quote_deleted":
       return `Quote deleted: ${m.quoteNumber}`;
+    case "crm.quote_sent":
+      return `Quote sent: ${m.quoteNumber}`;
+    case "crm.quote_accepted":
+      return `Quote accepted: ${m.quoteNumber}`;
+    case "crm.quote_declined":
+      return `Quote declined: ${m.quoteNumber}`;
     case "crm.invoice_created":
       return `Invoice created: ${m.invoiceNumber} — ${m.title}`;
     case "crm.invoice_created_from_quote":
