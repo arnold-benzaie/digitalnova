@@ -678,8 +678,16 @@ export const crmQuoteItems = pgTable(
     quantity: integer("quantity").notNull().default(1),
     unitPriceCents: integer("unit_price_cents").notNull().default(0),
     position: integer("position").notNull().default(0),
+    // Purely informative traceability back to the canonical catalogue —
+    // NEVER a live pricing source. unitPriceCents above is, and remains,
+    // the sole snapshot of what this line actually costs; nothing reads
+    // this column to compute or refresh a price. Nullable (existing rows
+    // and any future free-text line have no catalogue service), ON DELETE
+    // SET NULL so a catalogue service being removed can never fail or
+    // cascade into deleting a historical quote line (P0.2A-1).
+    serviceId: text("service_id").references(() => services.serviceId, { onDelete: "set null" }),
   },
-  (table) => [index("crm_quote_items_quote_id_idx").on(table.quoteId)],
+  (table) => [index("crm_quote_items_quote_id_idx").on(table.quoteId), index("crm_quote_items_service_id_idx").on(table.serviceId)],
 );
 
 /**
@@ -802,8 +810,13 @@ export const crmInvoiceItems = pgTable(
     quantity: integer("quantity").notNull().default(1),
     unitPriceCents: integer("unit_price_cents").notNull().default(0),
     position: integer("position").notNull().default(0),
+    // Same purely-informative traceability as crmQuoteItems.serviceId
+    // above — never a pricing source, nullable, ON DELETE SET NULL.
+    // P0.2A-1 does NOT change convertQuoteToInvoice to copy this value —
+    // that belongs to P0.2A-2.
+    serviceId: text("service_id").references(() => services.serviceId, { onDelete: "set null" }),
   },
-  (table) => [index("crm_invoice_items_invoice_id_idx").on(table.invoiceId)],
+  (table) => [index("crm_invoice_items_invoice_id_idx").on(table.invoiceId), index("crm_invoice_items_service_id_idx").on(table.serviceId)],
 );
 
 /** Phase 3 — recurring PDF report delivery, one schedule per organization. */
