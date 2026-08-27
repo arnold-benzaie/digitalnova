@@ -15,7 +15,7 @@ type NavDict = {
     team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
-    automations: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
+    automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
   };
 };
 
@@ -83,6 +83,7 @@ export function getStaffNavSections(t: NavDict): NavSection[] {
       items: [
         { label: t.items.billing, href: "/admin/billing", icon: "creditCard" },
         { label: t.items.automations, href: "/admin/integrations", icon: "zap" },
+        { label: t.items.catalogue, href: "/admin/catalogue", icon: "tag" },
       ],
     },
   ];
