@@ -22,7 +22,20 @@ const isDev = process.env.NODE_ENV !== "production";
 const allowClerkDevDomain = isDev || process.env.VERCEL_ENV === "preview";
 const CLERK_FRONTEND_API = "https://clerk.public-map.com";
 const CLERK_DEV_FRONTEND_API = "https://*.clerk.accounts.dev";
-const clerkSources = allowClerkDevDomain ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API}` : CLERK_FRONTEND_API;
+// Distinct from CLERK_DEV_FRONTEND_API above (no ".clerk." in the domain):
+// this is Clerk's Account Portal / dev-browser-sync domain for Development
+// instances (e.g. https://next-akita-2.accounts.dev), used transparently by
+// Clerk's own SDK independently of this app's custom /sign-in page.
+// Confirmed missing via a real Playwright e2e run: "violates the following
+// Content Security Policy directive: connect-src ... The action has been
+// blocked" against exactly this domain, cascading into "Failed to fetch"
+// and runtime errors. Folded into clerkSources (not just connect-src) since
+// it shares the same script-src/frame-src rationale as CLERK_DEV_FRONTEND_API
+// above and the same allowClerkDevDomain gate — never reaches Production.
+const CLERK_DEV_ACCOUNT_PORTAL = "https://*.accounts.dev";
+const clerkSources = allowClerkDevDomain
+  ? `${CLERK_FRONTEND_API} ${CLERK_DEV_FRONTEND_API} ${CLERK_DEV_ACCOUNT_PORTAL}`
+  : CLERK_FRONTEND_API;
 // Clerk loads Cloudflare Turnstile (bot-protection challenge) on sign-up
 // whenever it decides a request needs one — not on every sign-up, which is
 // why this was missed by the original security audit's real-browser CSP
