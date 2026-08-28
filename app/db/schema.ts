@@ -522,6 +522,26 @@ export const interactions = pgTable(
     summary: text("summary").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
     createdBy: text("created_by"),
+    // AI Commercial Radar / Phase 1F — "outbound" | "inbound" | null.
+    // Required for new call/email rows; must stay null for note/meeting
+    // (a note has no communication direction, a meeting is bidirectional
+    // by nature). Existing rows predate this field and are left null —
+    // that null means "unknown/legacy", a DIFFERENT meaning than the null
+    // that is the only valid state for note/meeting going forward. See
+    // lib/actions/crm-interactions.ts's canonical write matrix for the
+    // full validation rules — never set client-side, never inferred from
+    // `summary`.
+    direction: text("direction"),
+    // AI Commercial Radar / Phase 1F — "positive" | "neutral" | "negative"
+    // | null. Describes ONLY the engagement quality of THIS interaction as
+    // directly observed by the staff member who logged it — never overall
+    // prospect sentiment, never commercial interest, never a deal outcome
+    // (read those from deals.stage/crmQuotes instead). Deliberately no
+    // "no_response" value: an unanswered-outreach fact must be derived at
+    // read time from timestamps, never stored (this table is append-only,
+    // so a stored no_response could never be corrected by a later reply).
+    // See lib/actions/crm-interactions.ts's canonical write matrix.
+    outcome: text("outcome"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("interactions_client_id_idx").on(table.clientId)],

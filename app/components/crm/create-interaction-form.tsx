@@ -10,7 +10,23 @@ export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: s
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [type, setType] = useState("note");
+  const [direction, setDirection] = useState("");
   const t = dictionaries[locale].crm.interactions;
+
+  // Mirrors lib/actions/crm-interactions.ts's canonical write matrix — UX
+  // only, the Server Action validates independently and is authoritative.
+  const directionApplicable = type === "call" || type === "email";
+  const outcomeApplicable = type === "call" || type === "meeting" || (type === "email" && direction === "inbound");
+
+  function handleTypeChange(nextType: string) {
+    setType(nextType);
+    // A direction chosen under the previous type may no longer be valid
+    // (e.g. email+outbound -> note) — always reset it on type change; the
+    // direction/outcome <select>s themselves also unmount when no longer
+    // applicable, so a submitted form never carries a stale value.
+    setDirection("");
+  }
 
   return (
     <form
@@ -22,6 +38,8 @@ export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: s
           try {
             await createInteraction(formData);
             formRef.current?.reset();
+            setType("note");
+            setDirection("");
             router.refresh();
           } catch (err) {
             setError(err instanceof Error ? err.message : dictionaries[locale].common.error);
@@ -31,12 +49,54 @@ export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: s
     >
       <input type="hidden" name="clientId" value={clientId} />
       <div className="flex flex-col gap-3 sm:flex-row">
-        <select name="type" defaultValue="note" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+        <select
+          name="type"
+          value={type}
+          onChange={(e) => handleTypeChange(e.target.value)}
+          className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+        >
           {t.typeOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
           ))}
         </select>
-        <input name="createdBy" placeholder={t.createdByPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+
+        {directionApplicable && (
+          <select
+            name="direction"
+            value={direction}
+            onChange={(e) => setDirection(e.target.value)}
+            required
+            className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+          >
+            <option value="" disabled>
+              {t.directionPlaceholder}
+            </option>
+            {t.directionOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {outcomeApplicable && (
+          <select name="outcome" defaultValue="" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+            <option value="">{t.outcomeUnset}</option>
+            {t.outcomeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <input
+          name="createdBy"
+          placeholder={t.createdByPlaceholder}
+          className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+        />
       </div>
       <textarea
         name="summary"
