@@ -12,6 +12,13 @@
 // getCurrentSession (the one lib/audit.ts's logCrmAudit calls) is faked
 // to return null.
 //
+// AI Commercial Radar / Phase 1B — updateClientMarket now also calls
+// requireStaffRole() (lib/actions/crm-clients.ts), so requireSession()
+// must be faked to return a real staff session too — this file only
+// exercises the already-legitimate staff flow; non-staff/unauthenticated
+// rejection is proven separately in
+// crm-clients-radar-foundation.integration.test.mjs.
+//
 // Run with: npx tsx --test --experimental-test-module-mocks lib/actions/crm-clients-market.integration.test.mjs
 import { test, mock, after } from "node:test";
 import assert from "node:assert/strict";
@@ -24,7 +31,22 @@ process.env.DATABASE_URL = LOCAL_DB_URL;
 
 mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
-mock.module("@/lib/session", { namedExports: { getCurrentSession: async () => null } });
+mock.module("@/lib/session", {
+  namedExports: {
+    requireSession: async () => ({
+      userId: "test-staff-user",
+      clerkUserId: "test_clerk_staff",
+      email: "staff@example.com",
+      fullName: "Test Staff",
+      firstName: "Test",
+      organizationId: "test-org",
+      organizationName: "Test Org",
+      role: "staff",
+      previousLastLoginAt: null,
+    }),
+    getCurrentSession: async () => null,
+  },
+});
 
 const { db } = await import("@/db");
 const { crmClients, crmQuoteItems, crmQuotes, organizations } = await import("@/db/schema");

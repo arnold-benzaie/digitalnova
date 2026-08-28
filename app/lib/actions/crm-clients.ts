@@ -17,10 +17,23 @@ import { logCrmAudit } from "@/lib/audit";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
 import { getOrCreateOrganizationForClient } from "@/lib/actions/crm-gbp";
+import { requireStaffRole } from "@/lib/dev-role";
 
 const MESSAGES = {
-  fr: { nameRequired: "Le nom du client est requis.", invalidStage: "Étape invalide.", clientNotFound: "Client introuvable.", invalidMarket: "Marché invalide." },
-  en: { nameRequired: "Client name is required.", invalidStage: "Invalid stage.", clientNotFound: "Client not found.", invalidMarket: "Invalid market." },
+  fr: {
+    nameRequired: "Le nom du client est requis.",
+    invalidStage: "Étape invalide.",
+    clientNotFound: "Client introuvable.",
+    invalidMarket: "Marché invalide.",
+    invalidDoNotContact: "Valeur do-not-contact invalide.",
+  },
+  en: {
+    nameRequired: "Client name is required.",
+    invalidStage: "Invalid stage.",
+    clientNotFound: "Client not found.",
+    invalidMarket: "Invalid market.",
+    invalidDoNotContact: "Invalid do-not-contact value.",
+  },
 } as const;
 
 const STAGES = ["lead", "prospect", "client", "churned"] as const;
@@ -32,7 +45,23 @@ const STAGES = ["lead", "prospect", "client", "churned"] as const;
 // invented third state, and never a silent fallback for anything else.
 const CLIENT_MARKET_VALUES = ["CANADA", "EUROPE"] as const;
 
+/**
+ * AI Commercial Radar / Phase 1B — undefined means "field not present in
+ * this FormData, leave the column untouched" (drizzle omits undefined
+ * values from both insert().values() and update().set()); an explicit
+ * empty string after trim means "clear it" -> null. No case normalization,
+ * no enum, no inference — the caller's raw text, or nothing.
+ */
+function normalizeIndustry(formData: FormData): string | null | undefined {
+  if (!formData.has("industry")) return undefined;
+  const raw = formData.get("industry");
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 export async function createClient(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
@@ -54,6 +83,7 @@ export async function createClient(formData: FormData) {
       ownerName: (formData.get("ownerName") as string) || null,
       notes: (formData.get("notes") as string) || null,
       stage,
+      industry: normalizeIndustry(formData),
     })
     .returning();
 
@@ -73,6 +103,7 @@ export async function createClient(formData: FormData) {
 }
 
 export async function updateClientStage(id: string, stage: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!STAGES.includes(stage as (typeof STAGES)[number])) {
     throw new Error(MESSAGES[locale].invalidStage);
@@ -124,6 +155,7 @@ export async function updateClientStage(id: string, stage: string) {
  * never a corrupted or contradictory state.
  */
 export async function updateClientMarket(id: string, market: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (market !== "" && !CLIENT_MARKET_VALUES.includes(market as (typeof CLIENT_MARKET_VALUES)[number])) {
     throw new Error(MESSAGES[locale].invalidMarket);
@@ -160,6 +192,7 @@ export async function updateClientMarket(id: string, market: string) {
 
 /** Full edit — everything createClient can set, except stage (see ClientStageSelect). */
 export async function updateClient(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
@@ -177,6 +210,7 @@ export async function updateClient(id: string, formData: FormData) {
       source: (formData.get("source") as string) || null,
       ownerName: (formData.get("ownerName") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      industry: normalizeIndustry(formData),
     })
     .where(eq(crmClients.id, id))
     .returning();
@@ -199,11 +233,71 @@ export async function updateClient(id: string, formData: FormData) {
 }
 
 /**
+ * AI Commercial Radar / Phase 1B — architectural block only, not a
+ * consent-management system: sets or clears the flag any future outreach
+ * feature must check before contacting this client. No contact/outreach
+ * action reads this flag yet in this phase.
+ *
+ * Idempotent by design: if the requested state exactly matches what's
+ * already stored (same doNotContact AND same effective reason), nothing
+ * is written and no audit entry is produced — only a genuine transition
+ * is logged, per the same no-op-vs-real-change discipline already used
+ * elsewhere in this codebase's payment/status engines.
+ */
+export async function updateClientDoNotContact(id: string, doNotContact: boolean, reason: string) {
+  await requireStaffRole();
+  const locale = await getLocale();
+  if (typeof doNotContact !== "boolean") {
+    throw new Error(MESSAGES[locale].invalidDoNotContact);
+  }
+  if (typeof reason !== "string") {
+    throw new Error(MESSAGES[locale].invalidDoNotContact);
+  }
+
+  // Reason is only ever meaningful while doNotContact is true — clearing
+  // the flag always clears the reason too, never leaving a stale reason
+  // attached to a client who is contactable again.
+  const trimmedReason = reason.trim();
+  const resolvedReason = doNotContact ? (trimmedReason === "" ? null : trimmedReason) : null;
+
+  const [existing] = await db
+    .select({ doNotContact: crmClients.doNotContact, doNotContactReason: crmClients.doNotContactReason })
+    .from(crmClients)
+    .where(eq(crmClients.id, id))
+    .limit(1);
+  if (!existing) throw new Error(MESSAGES[locale].clientNotFound);
+
+  if (existing.doNotContact === doNotContact && existing.doNotContactReason === resolvedReason) {
+    return;
+  }
+
+  await db.update(crmClients).set({ doNotContact, doNotContactReason: resolvedReason }).where(eq(crmClients.id, id));
+
+  await logCrmAudit({
+    action: "crm.client_do_not_contact_changed",
+    targetType: "crm_client",
+    targetId: id,
+    clientId: id,
+    metadata: {
+      oldDoNotContact: existing.doNotContact,
+      newDoNotContact: doNotContact,
+      oldReason: existing.doNotContactReason,
+      newReason: resolvedReason,
+    },
+  });
+
+  revalidatePath("/admin/crm");
+  revalidatePath("/admin/crm/clients");
+  revalidatePath(`/admin/crm/clients/${id}`);
+}
+
+/**
  * Soft-archive — hides the client from the default list view without
  * touching its sales `stage` or deleting any related deals/tickets/etc.
  * Reversible via unarchiveClient, unlike deleteClient.
  */
 export async function archiveClient(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [client] = await db
     .update(crmClients)
@@ -227,6 +321,7 @@ export async function archiveClient(id: string) {
 }
 
 export async function unarchiveClient(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [client] = await db
     .update(crmClients)
@@ -251,6 +346,7 @@ export async function unarchiveClient(id: string) {
  * tied to this client. Prefer archiveClient() unless the data must actually
  * be gone (e.g. a mistaken entry, or a legal deletion request). */
 export async function deleteClient(id: string) {
+  await requireStaffRole();
   await db.delete(crmClients).where(eq(crmClients.id, id));
 
   await logCrmAudit({
@@ -270,6 +366,7 @@ export async function deleteClient(id: string) {
  * elsewhere: an explicit user action, not automatic seeding on every request.
  */
 export async function seedDemoCrmData() {
+  await requireStaffRole();
   const existing = await db.select({ id: crmClients.id }).from(crmClients).limit(1);
   if (existing.length > 0) return;
 

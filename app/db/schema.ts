@@ -421,13 +421,26 @@ export const crmClients = pgTable(
     ownerName: text("owner_name"), // assigned staff member (text — no real staff users until Clerk)
     notes: text("notes"),
     organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+    // AI Commercial Radar / Phase 1B — prospect industry, free text like
+    // `source`/`category` elsewhere in this schema (no enum yet; see
+    // lib/actions/crm-clients.ts for the trim/empty-to-null write policy).
+    industry: text("industry"),
+    // Radar / Phase 1B — architectural block only, not a consent-management
+    // system: prevents any future outreach feature from treating this
+    // client as contactable. Set exclusively via updateClientDoNotContact()
+    // (lib/actions/crm-clients.ts), which is the sole writer and the sole
+    // source of the "crm.client_do_not_contact_changed" audit entries —
+    // who/when a change happened lives in auditLog, not in a redundant
+    // column here.
+    doNotContact: boolean("do_not_contact").notNull().default(false),
+    doNotContactReason: text("do_not_contact_reason"),
     // Soft-archive: hides a client from the default list view without
     // touching `stage` (a churned client and an archived one are different
     // things) and without the irreversible cascade a hard delete triggers.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("crm_clients_organization_id_idx").on(table.organizationId)],
+  (table) => [index("crm_clients_organization_id_idx").on(table.organizationId), index("crm_clients_industry_idx").on(table.industry)],
 );
 
 /** Sales pipeline — one client can have several deals over time. */
