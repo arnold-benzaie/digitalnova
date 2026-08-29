@@ -121,9 +121,11 @@ export const memberships = pgTable(
  * `users`/`memberships` on sign-up (see comment above), so an admin invites
  * by email + intended role here; lib/session.ts claims the invitation (and
  * creates the membership) the first time a Clerk session with a matching
- * email is seen. Not yet part of a drizzle migration — applied by hand
- * alongside the other Phase 0 auth tables pending the migration cleanup
- * (schema/migration drift is a separate, larger tracked issue).
+ * email is seen. Represented by drizzle migrations from the start —
+ * `CREATE TABLE "invitations"` + its FKs land in 0001_good_cobalt_man.sql,
+ * its indexes in 0002_calm_juggernaut.sql, and it is present in the
+ * meta/0033 snapshot and every local/Production database. (An earlier
+ * version of this comment wrongly claimed it was applied by hand.)
  */
 export const invitations = pgTable(
   "invitations",

@@ -13,6 +13,7 @@
     "db:studio": "drizzle-kit studio",
     "db:generate:local": "drizzle-kit generate --config=drizzle.local.config.ts",
     "db:push:local": "tsx scripts/db-push-local.mjs",
+    "db:verify:migrations": "tsx scripts/migration-replay-check.mjs",
     "audit:db:generate": "drizzle-kit generate --config=drizzle-audit.config.ts",
     "audit:db:studio": "drizzle-kit studio --config=drizzle-audit.config.ts",
     "audit:db:migrate": "tsx scripts/audit-db-migrate.mjs",

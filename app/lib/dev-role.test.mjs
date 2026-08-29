@@ -91,8 +91,14 @@ test("utilisateur connecté sans rôle : requireAdminRole redirects to /access-p
   await assertRedirectsTo(requireAdminRole, "/access-pending");
 });
 
-for (const role of ["staff", "admin"]) {
-  test(`administrateur/staff : requireStaffRole allows role=${role}`, async () => {
+// agent/supervisor are included alongside staff on purpose: PHASE 2A.0's
+// transition contract is that these three legacy non-admin roles keep
+// today's exact behavior — they PASS requireStaffRole() and FAIL
+// requireAdminRole() (redirect to /admin) — until Phase 2B introduces the
+// real owner/admin/manager/employee model. This locks that contract so a
+// later change can't silently widen or narrow it.
+for (const role of ["staff", "agent", "supervisor", "admin"]) {
+  test(`administrateur/staff/agent/supervisor : requireStaffRole allows role=${role}`, async () => {
     withSession(role);
     assert.equal(await requireStaffRole(), role);
   });
@@ -103,10 +109,12 @@ test("administrateur : requireAdminRole allows admin", async () => {
   assert.equal(await requireAdminRole(), "admin");
 });
 
-test("staff (non-admin) : requireAdminRole redirects to /admin", async () => {
-  withSession("staff");
-  await assertRedirectsTo(requireAdminRole, "/admin");
-});
+for (const role of ["staff", "agent", "supervisor"]) {
+  test(`${role} (non-admin) : requireAdminRole redirects to /admin`, async () => {
+    withSession(role);
+    await assertRedirectsTo(requireAdminRole, "/admin");
+  });
+}
 
 test("client essayant d'accéder à une page staff : requireStaffRole redirects to /dashboard", async () => {
   withSession("client");
