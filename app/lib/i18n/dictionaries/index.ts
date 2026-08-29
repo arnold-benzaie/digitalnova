@@ -28,6 +28,7 @@ import { developerConsole } from "./developer-console";
 import { systemHealth } from "./system-health";
 import { catalogueAdmin } from "./catalogue-admin";
 import { siteAnalytics } from "./site-analytics";
+import { commercialAnalytics } from "./commercial-analytics";
 import { invoiceVerification } from "./invoice-verification";
 import { quoteVerification } from "./quote-verification";
 import { chat } from "./chat";
@@ -56,6 +57,7 @@ export const dictionaries = {
     systemHealth: systemHealth.fr,
     catalogueAdmin: catalogueAdmin.fr,
     siteAnalytics: siteAnalytics.fr,
+    commercialAnalytics: commercialAnalytics.fr,
     invoiceVerification: invoiceVerification.fr,
     quoteVerification: quoteVerification.fr,
     chat: chat.fr,
@@ -80,6 +82,7 @@ export const dictionaries = {
     systemHealth: systemHealth.en,
     catalogueAdmin: catalogueAdmin.en,
     siteAnalytics: siteAnalytics.en,
+    commercialAnalytics: commercialAnalytics.en,
     invoiceVerification: invoiceVerification.en,
     quoteVerification: quoteVerification.en,
     chat: chat.en,
