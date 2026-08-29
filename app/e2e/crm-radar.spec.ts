@@ -59,7 +59,40 @@ test.describe.serial("Radar Queue — /admin/crm/radar", () => {
     page.once("dialog", (dialog) => dialog.accept());
     await page.goto(clientDetailUrl);
     await page.getByRole("button", { name: "Supprimer définitivement" }).click();
-    await page.waitForURL(/\/admin\/crm\/clients$/);
+
+    // Preferred outcome is client-side navigation to the clients list, but
+    // DeleteClientButton's post-delete router.push() can lose a genuine
+    // race against Next's own implicit refresh of this still-mounted,
+    // now-deleted client-detail page, which transiently resolves to its
+    // own notFound() boundary instead (app/admin/crm/clients/[id]/page.tsx's
+    // `if (!client) notFound();`) — confirmed via a prior standalone run's
+    // server log + screenshot. Either transient state is acceptable here;
+    // this is a best-effort observation, not the success gate below. Each
+    // participant carries its own .catch(() => null) BEFORE entering
+    // Promise.race — the loser's own eventual timeout-rejection must never
+    // be left unhandled, since Promise.race does not cancel it and a bare
+    // .catch() on the race's own result only covers whichever settles
+    // first, not the other one's later, independent rejection.
+    const waitForClientsList = page
+      .waitForURL(/\/admin\/crm\/clients$/, { timeout: 15_000 })
+      .then(() => "clients-list" as const)
+      .catch(() => null);
+    const waitForNotFound = page
+      .getByText("This page could not be found.")
+      .waitFor({ timeout: 15_000 })
+      .then(() => "not-found" as const)
+      .catch(() => null);
+    await Promise.race([waitForClientsList, waitForNotFound]);
+
+    // Deterministic proof of deletion, independent of whichever transient
+    // state the click produced: a FRESH navigation to the same detail URL
+    // has no stale client-side state to race against — if the fixture is
+    // truly gone this reliably renders Next's not-found boundary; if
+    // deletion actually failed, hit an app error, or affected the wrong
+    // record, this assertion fails loudly instead of the cleanup silently
+    // "succeeding".
+    await page.goto(clientDetailUrl);
+    await expect(page.getByText("This page could not be found.")).toBeVisible();
     await page.close();
   });
 
