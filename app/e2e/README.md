@@ -1,6 +1,6 @@
 # Suite Playwright — PUBLIC-MAP Audit
 
-Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, portail public `app/audit-report/[token]`). N'existe et ne s'exécute que pour ce module — jamais contre le reste de l'application (CRM, dashboard) ni contre le site vitrine à la racine du dépôt.
+Suite de non-régression end-to-end. Née autour du module Audit (`app/admin/audit/**`, portail public `app/audit-report/[token]` — `full-lifecycle.spec.ts`, `responsive.spec.ts`, `audit-module-coverage.spec.ts`, `audit-permissions.spec.ts`), elle couvre aussi désormais quelques parcours de l'application principale : RBAC staff (`staff-rbac.spec.ts`), page d'attente d'accès (`access-pending.spec.ts`), file Radar CRM (`crm-radar.spec.ts`), tableau de bord performance commerciale CRM (`crm-performance.spec.ts`). Elle ne prétend pas couvrir toute l'application, et ne tourne jamais contre le site vitrine à la racine du dépôt.
 
 ## Prérequis avant de lancer la suite
 
@@ -40,7 +40,7 @@ Suite de non-régression end-to-end pour le module Audit (`app/admin/audit/**`, 
 ## Lancer la suite
 
 ```
-npm run test:e2e            # toute la suite (34 scénarios)
+npm run test:e2e            # toute la suite Playwright
 npx playwright test e2e/full-lifecycle.spec.ts   # un seul fichier
 npx playwright show-report e2e/report            # rouvrir le dernier rapport HTML
 ```
@@ -55,13 +55,22 @@ Rien de tout cela n'est généré pour les tests qui passent — uniquement en c
 
 ## Hook pre-commit
 
-Un hook Git bloque tout commit touchant `app/**` tant que cette suite n'est pas verte — voir `../../.githooks/pre-commit` à la racine du dépôt. Il est activé automatiquement par `npm install` (script `prepare` dans `package.json`, qui exécute `git config core.hooksPath .githooks`). Un commit qui ne touche que le site vitrine à la racine du dépôt n'est pas concerné et n'attend pas ce hook.
+Le dépôt utilise une **passerelle pre-commit à paliers** — voir `../../.githooks/pre-commit` à la racine du dépôt, et `../../.githooks/README.md` pour le détail de la classification des chemins. Elle est activée automatiquement par `npm install` (script `prepare` dans `package.json`, qui exécute `git config core.hooksPath .githooks` — chemin **relatif**, jamais absolu). Un commit qui ne touche que le site vitrine à la racine du dépôt n'est pas concerné.
 
-Si le serveur dev ou le conteneur Docker ne tournent pas, le hook bloque le commit avec un message explicite plutôt que d'ignorer silencieusement la vérification. Le hook appelle `node e2e/auth-setup.mjs`, qui échoue explicitement (voir point 0 des prérequis) si `.env.e2e.local` est absent/incomplet ou si la clé résolue est une clé Clerk Production — dans ce cas, le serveur dev tourne probablement encore avec les clés de `.env.local` : l'arrêter et le relancer avec les clés Development (point 1).
+En résumé (détail complet dans `../../.githooks/README.md`) :
+
+- **Palier 0** — documentation (`*.md`/`*.mdx`), fichiers hors `app/`, ou changement limité à `.githooks/**` : aucune validation applicative (un changement de `.githooks/**` relance en plus l'auto-test du classifieur).
+- **Palier 1** — changements applicatifs ordinaires (composants, `lib/i18n`, pages `dashboard`, assets statiques non sensibles) : `tsc --noEmit`, ESLint sur les seuls fichiers indexés, `npm run test:integrations` — tout en local, base de test locale requise.
+- **Palier 1 ENHANCED** — Server Actions liées à l'autorisation (`lib/actions/**`, `lib/dev-org.ts`) : palier 1 + tests de sécurité locaux ciblés (`lib/dev-role.test.mjs`, suites `*-auth`/`*-idor` de `lib/actions/`) — toujours sans cloud ni navigateur.
+- **Palier 2** — chemins sensibles (session/auth/RBAC, module Audit, routes API, layouts, arborescence DB/schéma, infra `e2e/`, fichiers de build/config) **ou tout chemin `app/**` non classé (défaut restrictif)** : palier 1, palier 1 ENHANCED, **puis** la suite Playwright Audit complète décrite ci-dessus.
+
+Autrement dit : **la suite Playwright complète n'est PAS lancée pour chaque commit `app/**`** — uniquement au palier 2. Les prérequis Playwright (serveur dev sur `localhost:3600` démarré selon les points 0–3 ci-dessus, conteneur `public-map-audit-test-db`) ne concernent que ce palier ; le hook les vérifie — il sonde le serveur et le conteneur, **exécute** `node e2e/auth-setup.mjs` (qui contacte Clerk), puis lance Playwright — et bloque le commit avec un message explicite si l'une de ces étapes échoue. Il ne démarre jamais de serveur ni de conteneur Docker et ne provisionne aucune infrastructure.
+
+N'utilise pas `git commit --no-verify` pour contourner un blocage : corrige l'échec réel (type / lint / test) ou démarre le prérequis local légitime manquant.
 
 ## Étendre la suite
 
-**Règle permanente : toute nouvelle fonctionnalité ajoutée au module Audit doit s'accompagner d'un test (ou d'une extension d'un test existant) dans ce dossier.** Deux fichiers existent aujourd'hui :
+**Règle permanente : toute nouvelle fonctionnalité du module Audit doit s'accompagner d'un test (ou d'une extension d'un test existant) dans ce dossier.** Le parcours Audit repose surtout sur deux fichiers :
 
 - `full-lifecycle.spec.ts` — un parcours métier complet et séquentiel (prospect → devis), à étendre avec de nouvelles étapes `test.step()` quand une nouvelle action s'insère dans ce parcours (ex. un nouveau statut, un nouveau type de preuve).
 - `responsive.spec.ts` — un passage desktop/tablette/mobile sur les pages clés ; ajouter une nouvelle route Audit à `PAGES` quand une nouvelle page est créée.
