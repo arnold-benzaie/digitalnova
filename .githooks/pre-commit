@@ -1,72 +1,394 @@
 #!/usr/bin/env bash
-# Pre-commit gate for the PUBLIC-MAP Audit Playwright suite (app/e2e/).
+# PUBLIC-MAP pre-commit gate — tiered, path-scoped.
 #
-# This repo's root also hosts an unrelated static marketing site (index.html,
-# cart.js, etc.) with no relationship to the Next.js app or to Playwright —
-# so this hook only runs when the commit actually touches something under
-# app/. A commit that only edits root-level marketing files skips it
-# entirely and commits immediately.
+# Replaces the previous "any staged app/** change runs the full Playwright
+# Audit suite" gate. That suite needs a dev server bound to the Preview
+# schema plus a live Clerk cloud session, and has zero coverage of the
+# server-action / shared-helper layer — so paying its cost (and its cloud
+# prerequisites) for every app/** change was an over-broad gate.
 #
-# Installed via `core.hooksPath` (see app/package.json's "prepare" script,
-# or run `git config core.hooksPath .githooks` once by hand). Not a husky
-# setup — there is no root package.json for husky to hang off of.
-set -euo pipefail
+# This hook classifies the staged paths and runs the smallest sufficient
+# set of checks. The overall tier is the MAXIMUM sensitivity across all
+# staged paths; anything under app/ that is not explicitly recognised as
+# safe is treated as Tier 2 (default-deny).
+#
+#   Tier 0  documentation (*.md / *.mdx) / non-app files / .githooks-only
+#           -> no app validation. A .githooks/** change additionally runs
+#              the classifier self-test (.githooks/pre-commit.classify.test.sh).
+#              Static assets (css/img/font) are NOT universally Tier 0 --
+#              they follow their path (sensitive tree -> Tier 2).
+#
+#   Tier 1  ordinary app code (components, i18n, dashboard pages) and
+#           non-sensitive-tree static assets
+#           -> tsc --noEmit --incremental false  (no .tsbuildinfo write)
+#            + eslint on the staged JS/TS files only (no --fix, no --cache)
+#            + npm run test:integrations  (local disposable DB 127.0.0.1:5434)
+#
+#   Tier 1 ENHANCED  authorization-adjacent (lib/actions/**, lib/dev-org.ts)
+#           -> Tier 1 PLUS the targeted authorization tests: every
+#              lib/actions/*-auth.integration.test.mjs and
+#              lib/actions/*-idor.integration.test.mjs (filename-agnostic
+#              discovery; zero combined discovery == BLOCK) + the required
+#              lib/dev-role.test.mjs. All local, cloud-free.
+#
+#   Tier 2  auth / session / RBAC / admin shell / Audit module / DB (schema,
+#           migrations, guards, clients) / e2e infra / API routes / build
+#           config / route-tree layouts / ANY unclassified app/** path
+#           -> Tier 1 (+ Enhanced) PLUS the full Playwright Audit chain
+#              (dev server :3600, Docker audit DB, real Clerk session,
+#               npx playwright test). Fail-closed, semantics unchanged from
+#              the previous hook.
+#
+# No check ever suggests --no-verify. A missing local prerequisite blocks
+# the commit with an explicit "start X" message.
+#
+# This file is intentionally safe to `source`: sourcing only defines
+# functions (the classifier self-test sources it). Execution happens only
+# when the file is run directly (git).
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-APP_DIR="$REPO_ROOT/app"
-cd "$REPO_ROOT"
+# ===========================================================================
+# Pure path classifier -- NO git, NO side effects, safe to source.
+# ===========================================================================
 
-STAGED_APP_FILES="$(git diff --cached --name-only --diff-filter=ACMR -- app/ || true)"
+# classify_path <repo-relative-path>  ->  prints one of: 0 | 1 | 1E | 2
+classify_path() {
+  local p="$1"
 
-if [ -z "$STAGED_APP_FILES" ]; then
-  echo "[pre-commit] Aucun fichier sous app/ dans ce commit — suite Playwright Audit ignorée."
+  # Documentation is the ONLY content class that is universally Tier 0
+  # regardless of where it lives (terminal-extension match). Every other
+  # static asset is classified by its path context further below, so a
+  # stylesheet / fixture under a sensitive tree cannot skip its gate.
+  case "$p" in
+    *.md|*.mdx)
+      printf '0\n'; return 0 ;;
+  esac
+
+  # The hook directory itself (the runner handles it specially).
+  case "$p" in
+    .githooks|.githooks/*)
+      printf '0\n'; return 0 ;;
+  esac
+
+  # Anything not under app/ (repo-root marketing site, root configs).
+  case "$p" in
+    app/*) : ;;
+    *) printf '0\n'; return 0 ;;
+  esac
+
+  # --- app/ paths: the sensitive set is matched FIRST, so no broad
+  #     Tier-1 rule below can ever swallow a sensitive subpath. ---
+  case "$p" in
+    app/app/admin/*|\
+    app/app/audit-report/*|\
+    app/app/api/*|\
+    app/lib/gbp-audit/*|\
+    app/lib/session.ts|\
+    app/lib/dev-role.ts|\
+    app/lib/admin-access.ts|\
+    app/proxy.ts|\
+    app/middleware.ts|\
+    app/db/*|\
+    app/drizzle*.config.*|\
+    app/e2e/*|\
+    app/playwright*.config.*|\
+    app/package.json|\
+    app/package-lock.json|\
+    app/pnpm-lock.yaml|\
+    app/tsconfig*.json|\
+    app/eslint.config.*|\
+    app/next.config.*|\
+    app/components/app-shell*|\
+    app/components/app-sidebar-nav*)
+      printf '2\n'; return 0 ;;
+  esac
+
+  # Route-tree layout files gate rendering/access -> always Tier 2.
+  case "$p" in
+    app/app/*layout.tsx|app/app/*layout.jsx)
+      printf '2\n'; return 0 ;;
+  esac
+
+  # Authorization-adjacent -> Tier 1 ENHANCED.
+  case "$p" in
+    app/lib/actions/*|app/lib/dev-org.ts)
+      printf '1E\n'; return 0 ;;
+  esac
+
+  # Non-document static assets under a NON-sensitive app/ tree -- the
+  # sensitive trees (admin, e2e, db, ...) were already caught as Tier 2
+  # above, so anything reaching here is safe for the cheap Tier-1 checks.
+  # NOTE: *.txt is deliberately NOT here -- a text file may be a runtime /
+  # fixture / config input, so it follows its path (default-deny Tier 2
+  # under app/ unless an audited rule says otherwise).
+  case "$p" in
+    *.css|*.scss|*.sass|*.svg|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.avif|*.ico|*.woff|*.woff2|*.ttf|*.otf)
+      printf '1\n'; return 0 ;;
+  esac
+
+  # Known-safe ordinary app code -> Tier 1.
+  case "$p" in
+    app/components/*|\
+    app/lib/i18n/*|\
+    app/app/dashboard/*)
+      printf '1\n'; return 0 ;;
+  esac
+
+  # Default-deny: any other app/** path.
+  printf '2\n'; return 0
+}
+
+# _tier_rank <tier>  ->  numeric rank for max() comparison
+_tier_rank() {
+  case "$1" in
+    0)  printf '0\n' ;;
+    1)  printf '1\n' ;;
+    1E) printf '2\n' ;;
+    2)  printf '3\n' ;;
+    *)  printf '3\n' ;;   # unknown -> most severe
+  esac
+}
+
+# classify_paths <path> [<path> ...]  ->  prints overall tier (maximum).
+# Reads ONLY its arguments. Never touches git.
+classify_paths() {
+  local overall='0' overall_rank=0 p t r
+  for p in "$@"; do
+    t="$(classify_path "$p")"
+    r="$(_tier_rank "$t")"
+    if [ "$r" -gt "$overall_rank" ]; then
+      overall_rank="$r"
+      overall="$t"
+    fi
+  done
+  printf '%s\n' "$overall"
+}
+
+# ===========================================================================
+# Execution helpers -- reached only when run directly, never on source.
+# ===========================================================================
+
+# Local disposable approval-test DB. Printed nowhere; used only as a child
+# process environment value so a Tier-1 test process can never inherit a
+# Preview/Production DATABASE_URL from the parent shell.
+_local_approval_db_url() {
+  printf '%s' 'postgresql://approval_test_user:localtest_approval_only@127.0.0.1:5434/public_map_approval_test'
+}
+
+_require_local_approval_db() {
+  if ! ( exec 3<>/dev/tcp/127.0.0.1/5434 ) 2>/dev/null; then
+    echo ""
+    echo "[pre-commit] ECHEC : base de test locale injoignable sur 127.0.0.1:5434 (conteneur public-map-approval-test-db)."
+    echo "  Demarre-la avant de commiter : docker start public-map-approval-test-db"
+    echo "  Commit bloque."
+    exit 1
+  fi
+}
+
+run_tier1() {
+  echo "[pre-commit] Tier 1 -- typecheck + lint des fichiers indexes + tests d'integration locaux."
+  cd "$REPO_ROOT/app"
+
+  echo "[pre-commit]   - tsc --noEmit --incremental false"
+  if ! npx --no-install tsc --noEmit --incremental false -p tsconfig.json; then
+    echo "[pre-commit] ECHEC (Tier 1) : erreurs TypeScript (ou tsc local absent -- lancer npm install). Commit bloque."
+    exit 1
+  fi
+
+  local f rel
+  local -a lint_files=()
+  for f in "${STAGED_PATHS[@]}"; do
+    case "$f" in
+      app/*.ts|app/*.tsx|app/*.mts|app/*.cts|app/*.js|app/*.jsx|app/*.mjs|app/*.cjs)
+        rel="${f#app/}"
+        lint_files[${#lint_files[@]}]="$rel"
+        ;;
+    esac
+  done
+  if [ "${#lint_files[@]}" -gt 0 ]; then
+    echo "[pre-commit]   - eslint (${#lint_files[@]} fichier(s) indexe(s), sans --fix)"
+    if ! npx --no-install eslint --no-error-on-unmatched-pattern -- "${lint_files[@]}"; then
+      echo "[pre-commit] ECHEC (Tier 1) : erreurs ESLint sur des fichiers indexes. Commit bloque."
+      exit 1
+    fi
+  else
+    echo "[pre-commit]   - eslint : aucun fichier JS/TS indexe sous app/, ignore."
+  fi
+
+  _require_local_approval_db
+  echo "[pre-commit]   - npm run test:integrations (DB locale :5434)"
+  if ! DATABASE_URL="$(_local_approval_db_url)" npm run --silent test:integrations; then
+    echo "[pre-commit] ECHEC (Tier 1) : tests d'integration en echec. Commit bloque."
+    exit 1
+  fi
+
+  cd "$REPO_ROOT"
+}
+
+run_tier1_enhanced() {
+  echo "[pre-commit] Tier 1 ENHANCED -- tests d'autorisation cibles (IDOR / RBAC)."
+  cd "$REPO_ROOT/app"
+  _require_local_approval_db
+
+  # lib/dev-role.test.mjs is a stable, long-lived RBAC unit test -> required.
+  if [ ! -f "lib/dev-role.test.mjs" ]; then
+    echo "[pre-commit] ECHEC (Tier 1 ENHANCED) : test RBAC attendu introuvable : lib/dev-role.test.mjs. Commit bloque."
+    exit 1
+  fi
+
+  # Filename-agnostic, NUL-safe discovery of the per-module authorization
+  # test suites (the *-auth and *-idor conventions under lib/actions/). A
+  # rename within either convention keeps working; only deleting ALL of
+  # them trips the fail-closed check below. The two suffixes are mutually
+  # exclusive, so find yields each file once; `sort -zu` is belt-and-braces
+  # dedup + deterministic order.
+  local t
+  local -a sec_tests=()
+  while IFS= read -r -d '' t; do
+    sec_tests[${#sec_tests[@]}]="${t#./}"
+  done < <(find lib/actions -maxdepth 1 -type f \
+             \( -name '*-auth.integration.test.mjs' -o -name '*-idor.integration.test.mjs' \) \
+             -print0 | LC_ALL=C sort -zu)
+
+  if [ "${#sec_tests[@]}" -eq 0 ]; then
+    echo "[pre-commit] ECHEC (Tier 1 ENHANCED) : aucun test d'autorisation trouve (lib/actions/*-auth|*-idor.integration.test.mjs). Commit bloque."
+    exit 1
+  fi
+
+  local discovered_count="${#sec_tests[@]}"
+  sec_tests[${#sec_tests[@]}]="lib/dev-role.test.mjs"
+
+  echo "[pre-commit]   - node:test serie (${#sec_tests[@]} fichier(s)) : ${discovered_count} suite(s) *-auth/*-idor + dev-role"
+  if ! DATABASE_URL="$(_local_approval_db_url)" npx --no-install tsx --test --test-concurrency=1 --experimental-test-module-mocks "${sec_tests[@]}"; then
+    echo "[pre-commit] ECHEC (Tier 1 ENHANCED) : un test d'autorisation a echoue. Commit bloque."
+    exit 1
+  fi
+
+  cd "$REPO_ROOT"
+}
+
+run_tier2() {
+  echo "[pre-commit] Tier 2 -- chemins sensibles indexes : suite Playwright Audit complete requise."
+  local f
+  for f in "${STAGED_PATHS[@]}"; do
+    if [ "$(classify_path "$f")" = "2" ]; then
+      echo "[pre-commit]   declencheur Tier 2 : $f"
+    fi
+  done
+  cd "$REPO_ROOT/app"
+
+  # /api/gbp-audit/e2e-db-target is a public route (own NODE_ENV/VERCEL
+  # guard, not Clerk) -- doubles as the "server responds" check.
+  local DEV_URL="http://localhost:3600/api/gbp-audit/e2e-db-target"
+  local HTTP_STATUS
+  HTTP_STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DEV_URL")" || HTTP_STATUS="000"
+  if [ "$HTTP_STATUS" != "200" ]; then
+    echo ""
+    echo "[pre-commit] ECHEC (Tier 2) : le serveur dev PUBLIC-MAP Audit ne repond pas sur $DEV_URL (HTTP $HTTP_STATUS)."
+    echo "  Demarre-le avant de commiter -- voir app/e2e/README.md pour la commande exacte."
+    echo "  Commit bloque."
+    exit 1
+  fi
+
+  if ! docker ps --filter "name=public-map-audit-test-db" --filter "status=running" --format '{{.Names}}' | grep -q .; then
+    echo ""
+    echo "[pre-commit] ECHEC (Tier 2) : le conteneur Docker public-map-audit-test-db n'est pas demarre."
+    echo "  Demarre-le avant de commiter (docker start public-map-audit-test-db, ou voir app/e2e/README.md)."
+    echo "  Commit bloque."
+    exit 1
+  fi
+
+  # Clerk dev-instance session JWTs are short-lived -- regenerate a fresh
+  # one right before every run rather than trusting a possibly-stale file.
+  echo "[pre-commit] Rafraichissement de la session Clerk reelle (e2e/auth-setup.mjs)..."
+  if ! node e2e/auth-setup.mjs; then
+    echo ""
+    echo "[pre-commit] ECHEC (Tier 2) : impossible d'etablir une session Clerk reelle contre le serveur dev."
+    echo "  Voir app/e2e/README.md."
+    echo "  Commit bloque."
+    exit 1
+  fi
+
+  if npx --no-install playwright test; then
+    echo ""
+    echo "[pre-commit] OK -- suite Playwright Audit verte."
+  else
+    echo ""
+    echo "[pre-commit] ECHEC (Tier 2) : au moins un test Playwright a echoue. Commit bloque."
+    echo "  Rapport HTML   : npx playwright show-report e2e/report"
+    echo "  Captures/video : app/test-results/ (generees uniquement pour les tests en echec)"
+    exit 1
+  fi
+
+  cd "$REPO_ROOT"
+}
+
+main() {
+  set -euo pipefail
+
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  cd "$REPO_ROOT"
+
+  STAGED_PATHS=()
+  local f
+  while IFS= read -r -d '' f; do
+    STAGED_PATHS[${#STAGED_PATHS[@]}]="$f"
+  done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+
+  if [ "${#STAGED_PATHS[@]}" -eq 0 ]; then
+    echo "[pre-commit] Index vide -- rien a valider."
+    exit 0
+  fi
+
+  # A .githooks/** change always runs the classifier self-test first.
+  local touches_githooks=0
+  for f in "${STAGED_PATHS[@]}"; do
+    case "$f" in
+      .githooks|.githooks/*) touches_githooks=1 ;;
+    esac
+  done
+  if [ "$touches_githooks" -eq 1 ]; then
+    echo "[pre-commit] Modification .githooks/** -- auto-test du classifieur..."
+    if bash "$REPO_ROOT/.githooks/pre-commit.classify.test.sh"; then
+      echo "[pre-commit] OK -- auto-test du classifieur vert."
+    else
+      echo "[pre-commit] ECHEC : l'auto-test du classifieur du hook a echoue. Commit bloque."
+      exit 1
+    fi
+  fi
+
+  # Independent maximum-severity evaluation.
+  local need_t1=0 need_t1e=0 need_t2=0 t
+  for f in "${STAGED_PATHS[@]}"; do
+    t="$(classify_path "$f")"
+    case "$t" in
+      1)  need_t1=1 ;;
+      1E) need_t1=1; need_t1e=1 ;;
+      2)  need_t1=1; need_t1e=1; need_t2=1 ;;
+    esac
+  done
+
+  local overall
+  overall="$(classify_paths "${STAGED_PATHS[@]}")"
+  echo "[pre-commit] Tier retenu : $overall  (${#STAGED_PATHS[@]} chemin(s) indexe(s))"
+
+  if [ "$need_t1" -eq 0 ]; then
+    echo "[pre-commit] Tier 0 -- aucun chemin app/ necessitant une validation. Commit autorise."
+    exit 0
+  fi
+
+  run_tier1
+  if [ "$need_t1e" -eq 1 ]; then
+    run_tier1_enhanced
+  fi
+  if [ "$need_t2" -eq 1 ]; then
+    run_tier2
+  fi
+
+  echo "[pre-commit] OK -- verifications du tier $overall vertes. Commit autorise."
   exit 0
-fi
+}
 
-echo "[pre-commit] Fichiers app/ modifiés détectés — vérification de non-régression PUBLIC-MAP Audit..."
-cd "$APP_DIR"
-
-# /api/gbp-audit/e2e-db-target is a public route (own NODE_ENV/VERCEL guard,
-# not Clerk) — reachable with no session, so it doubles as the "server
-# responds" check. Checking an authenticated page here would just redirect
-# to /sign-in and "succeed" with the wrong content.
-DEV_URL="http://localhost:3600/api/gbp-audit/e2e-db-target"
-HTTP_STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DEV_URL")" || HTTP_STATUS="000"
-if [ "$HTTP_STATUS" != "200" ]; then
-  echo ""
-  echo "[pre-commit] ÉCHEC : le serveur dev PUBLIC-MAP Audit ne répond pas sur $DEV_URL (HTTP $HTTP_STATUS)."
-  echo "  Démarre-le avant de commiter — voir app/e2e/README.md pour la commande exacte."
-  echo "  Commit bloqué."
-  exit 1
-fi
-
-if ! docker ps --filter "name=public-map-audit-test-db" --filter "status=running" --format '{{.Names}}' | grep -q .; then
-  echo ""
-  echo "[pre-commit] ÉCHEC : le conteneur Docker public-map-audit-test-db n'est pas démarré."
-  echo "  Démarre-le avant de commiter (docker start public-map-audit-test-db, ou voir app/e2e/README.md)."
-  echo "  Commit bloqué."
-  exit 1
-fi
-
-# Clerk dev-instance session JWTs are short-lived — regenerate a fresh one
-# right before every run rather than trusting a possibly-stale saved file.
-echo "[pre-commit] Rafraîchissement de la session Clerk réelle (e2e/auth-setup.mjs)..."
-if ! node e2e/auth-setup.mjs; then
-  echo ""
-  echo "[pre-commit] ÉCHEC : impossible d'établir une session Clerk réelle contre le serveur dev."
-  echo "  Voir app/e2e/README.md."
-  echo "  Commit bloqué."
-  exit 1
-fi
-
-if npx playwright test; then
-  echo ""
-  echo "[pre-commit] OK — suite Playwright Audit verte. Commit autorisé."
-  exit 0
-else
-  echo ""
-  echo "[pre-commit] ÉCHEC : au moins un test Playwright a échoué. Commit bloqué."
-  echo "  Rapport HTML   : npx playwright show-report e2e/report"
-  echo "  Captures/vidéo : app/test-results/ (générées uniquement pour les tests en échec)"
-  exit 1
+# Run only when executed directly (git). Safe to `source` (the self-test does).
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
 fi
