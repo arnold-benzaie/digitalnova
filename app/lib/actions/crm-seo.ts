@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmWebsites, seoAuditIssues, seoAudits, seoKeywordRankings, seoKeywords } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getSeoProvider } from "@/lib/seo";
 import { SEO_ISSUE_STATUS_VALUES } from "@/lib/seo-shared";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
@@ -48,6 +49,7 @@ async function getWebsiteOrThrow(websiteId: string, locale: Locale) {
  * crawler would need.
  */
 export async function runSeoAudit(websiteId: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const website = await getWebsiteOrThrow(websiteId, locale);
 
@@ -116,6 +118,7 @@ export async function runSeoAudit(websiteId: string) {
 }
 
 export async function updateSeoIssueStatus(issueId: string, status: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!SEO_ISSUE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
 
@@ -151,6 +154,7 @@ export async function updateSeoIssueStatus(issueId: string, status: string) {
 }
 
 export async function addSeoKeyword(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const websiteId = formData.get("websiteId");
   if (typeof websiteId !== "string" || !websiteId) throw new Error(MESSAGES[locale].websiteRequired);
@@ -176,6 +180,7 @@ export async function addSeoKeyword(formData: FormData) {
 }
 
 export async function deleteSeoKeyword(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [existing] = await db.select().from(seoKeywords).where(eq(seoKeywords.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].keywordNotFound);
@@ -198,6 +203,7 @@ export async function deleteSeoKeyword(id: string) {
  * appends a new ranking snapshot per keyword — this is what powers the
  * position-history view. */
 export async function refreshKeywordRankings(websiteId: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const website = await getWebsiteOrThrow(websiteId, locale);
   const keywords = await db.select().from(seoKeywords).where(eq(seoKeywords.websiteId, websiteId));
@@ -234,6 +240,7 @@ export async function refreshKeywordRankings(websiteId: string) {
 }
 
 export async function getAuditHistory(websiteId: string, limit = 20) {
+  await requireStaffRole();
   return db
     .select()
     .from(seoAudits)

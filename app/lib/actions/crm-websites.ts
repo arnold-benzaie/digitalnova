@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmWebsites } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -25,6 +26,7 @@ function normalizeUrl(raw: FormDataEntryValue | null, locale: Locale): string {
 }
 
 export async function createWebsite(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
@@ -48,6 +50,7 @@ export async function createWebsite(formData: FormData) {
 }
 
 export async function updateWebsite(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [existing] = await db.select().from(crmWebsites).where(eq(crmWebsites.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].websiteNotFound);
@@ -71,6 +74,7 @@ export async function updateWebsite(id: string, formData: FormData) {
 }
 
 export async function deleteWebsite(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [existing] = await db.select().from(crmWebsites).where(eq(crmWebsites.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].websiteNotFound);

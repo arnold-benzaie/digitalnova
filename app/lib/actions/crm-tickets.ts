@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, tickets } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { getLocale } from "@/lib/i18n/locale";
@@ -47,6 +48,7 @@ const NEW_CLIENT_SENTINEL = "__new__";
  * thrown Server Action error messages in production builds.
  */
 export async function createTicket(formData: FormData): Promise<{ error: string } | undefined> {
+  await requireStaffRole();
   const locale = await getLocale();
   const clientIdRaw = formData.get("clientId");
   const subject = formData.get("subject");
@@ -108,6 +110,7 @@ export async function createTicket(formData: FormData): Promise<{ error: string 
 }
 
 export async function updateTicketStatus(id: string, status: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
     throw new Error(MESSAGES[locale].invalidStatus);
@@ -134,6 +137,7 @@ export async function updateTicketStatus(id: string, status: string) {
 
 /** Full edit — subject/description/priority; use updateTicketStatus for status. */
 export async function updateTicket(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const subject = formData.get("subject");
   if (typeof subject !== "string" || !subject.trim()) {
@@ -171,6 +175,7 @@ export async function updateTicket(id: string, formData: FormData) {
 }
 
 export async function deleteTicket(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [ticket] = await db.delete(tickets).where(eq(tickets.id, id)).returning();
   if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);

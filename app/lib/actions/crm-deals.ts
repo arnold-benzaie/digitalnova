@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
 
@@ -16,6 +17,7 @@ const MESSAGES = {
 const STAGES = ["new", "contacted", "qualified", "proposal", "won", "lost"] as const;
 
 export async function createDeal(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
@@ -55,6 +57,7 @@ export async function createDeal(formData: FormData) {
 }
 
 export async function updateDealStage(id: string, stage: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!STAGES.includes(stage as (typeof STAGES)[number])) {
     throw new Error(MESSAGES[locale].invalidStage);
@@ -80,6 +83,7 @@ export async function updateDealStage(id: string, stage: string) {
 }
 
 export async function updateDeal(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
@@ -116,6 +120,7 @@ export async function updateDeal(id: string, formData: FormData) {
 }
 
 export async function deleteDeal(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [deal] = await db.delete(deals).where(eq(deals.id, id)).returning();
   if (!deal) throw new Error(MESSAGES[locale].dealNotFound);

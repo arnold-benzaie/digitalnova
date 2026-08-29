@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 
 const MESSAGES = {
@@ -13,6 +14,7 @@ const MESSAGES = {
 } as const;
 
 export async function createCalendarEvent(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   const startAtRaw = formData.get("startAt");
@@ -54,6 +56,7 @@ export async function createCalendarEvent(formData: FormData) {
 
 /** Full edit — title/description/type/start/end. */
 export async function updateCalendarEvent(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   const startAtRaw = formData.get("startAt");
@@ -95,6 +98,7 @@ export async function updateCalendarEvent(id: string, formData: FormData) {
 }
 
 export async function deleteCalendarEvent(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [event] = await db.delete(calendarEvents).where(eq(calendarEvents.id, id)).returning();
   if (!event) throw new Error(MESSAGES[locale].eventNotFound);

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { contracts } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getESignProvider } from "@/lib/esign";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
@@ -29,6 +30,7 @@ const MESSAGES = {
 } as const;
 
 export async function createContract(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
@@ -67,6 +69,7 @@ export async function createContract(formData: FormData) {
  * provider already has that exact content, so editing here would silently
  * desync from what the signer actually saw. */
 export async function updateContract(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   const content = formData.get("content");
@@ -104,6 +107,7 @@ export async function updateContract(id: string, formData: FormData) {
 }
 
 export async function sendContractForSignature(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [contract] = await db.select().from(contracts).where(eq(contracts.id, id)).limit(1);
   if (!contract) throw new Error(MESSAGES[locale].contractNotFound);
@@ -138,6 +142,7 @@ export async function sendContractForSignature(id: string) {
 }
 
 export async function simulateContractSignature(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [contract] = await db
     .update(contracts)

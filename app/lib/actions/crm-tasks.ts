@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { tasks } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 
 const MESSAGES = {
@@ -15,6 +16,7 @@ const MESSAGES = {
 const STATUSES = ["todo", "in_progress", "done"] as const;
 
 export async function createTask(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
@@ -49,6 +51,7 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTaskStatus(id: string, status: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
     throw new Error(MESSAGES[locale].invalidStatus);
@@ -71,6 +74,7 @@ export async function updateTaskStatus(id: string, status: string) {
 
 /** Full edit — title/description/assignee/due date; use updateTaskStatus for status. */
 export async function updateTask(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
@@ -106,6 +110,7 @@ export async function updateTask(id: string, formData: FormData) {
 }
 
 export async function deleteTask(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [task] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
   if (!task) throw new Error(MESSAGES[locale].taskNotFound);

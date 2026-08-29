@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
 
 const MESSAGES = {
@@ -15,6 +16,7 @@ const MESSAGES = {
 const STATUSES = ["planning", "in_progress", "completed", "on_hold"] as const;
 
 export async function createProject(formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   const name = formData.get("name");
@@ -51,6 +53,7 @@ export async function createProject(formData: FormData) {
 }
 
 export async function updateProjectStatus(id: string, status: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
     throw new Error(MESSAGES[locale].invalidStatus);
@@ -73,6 +76,7 @@ export async function updateProjectStatus(id: string, status: string) {
 
 /** Full edit — name/description/dates; use updateProjectStatus for status. */
 export async function updateProject(id: string, formData: FormData) {
+  await requireStaffRole();
   const locale = await getLocale();
   const name = formData.get("name");
   if (typeof name !== "string" || !name.trim()) {
@@ -109,6 +113,7 @@ export async function updateProject(id: string, formData: FormData) {
 }
 
 export async function deleteProject(id: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [project] = await db.delete(projects).where(eq(projects.id, id)).returning();
   if (!project) throw new Error(MESSAGES[locale].projectNotFound);

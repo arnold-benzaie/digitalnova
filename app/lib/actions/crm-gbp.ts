@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, organizations } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { replyToReview, syncGbpData } from "@/lib/actions/gbp";
 import { getLocale } from "@/lib/i18n/locale";
 
@@ -22,6 +23,7 @@ const MESSAGES = {
  * this creates that organization on demand and links it back.
  */
 export async function getOrCreateOrganizationForClient(clientId: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, clientId)).limit(1);
   if (!client) throw new Error(MESSAGES[locale].clientNotFound);
@@ -46,12 +48,14 @@ export async function getOrCreateOrganizationForClient(clientId: string) {
 }
 
 export async function syncGbpDataForClient(clientId: string) {
+  await requireStaffRole();
   const org = await getOrCreateOrganizationForClient(clientId);
   await syncGbpData(org.id);
   revalidatePath(`/admin/crm/clients/${clientId}/gbp`);
 }
 
 export async function replyToReviewForClient(clientId: string, reviewId: string, replyText: string) {
+  await requireStaffRole();
   await replyToReview(reviewId, replyText);
   revalidatePath(`/admin/crm/clients/${clientId}/gbp`);
 }
