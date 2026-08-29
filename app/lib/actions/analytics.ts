@@ -3,38 +3,27 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { analyticsMetrics, analyticsProperties, organizations } from "@/db/schema";
+import { analyticsMetrics, analyticsProperties } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { getAnalyticsProvider, type AnalyticsProperty } from "@/lib/analytics";
-import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import { resolveAuthorizedOrganization } from "@/lib/dev-org";
 import { getGoogleConnection, recordAnalyticsSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
-import type { Locale } from "@/lib/i18n/dictionaries";
 
 const MESSAGES = {
   fr: {
-    organizationNotFound: "Organisation introuvable.",
     noGoogleConnection: "Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».",
   },
   en: {
-    organizationNotFound: "Organization not found.",
     noGoogleConnection: "No Google account connected for this organization. Use the \"Connect a Google account\" button.",
   },
 } as const;
 
-/** Same pattern as lib/actions/gbp.ts::resolveOrganization. */
-async function resolveOrganization(organizationId: string | undefined, locale: Locale) {
-  if (!organizationId) return getOrCreateDevOrganization();
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  if (!org) throw new Error(MESSAGES[locale].organizationNotFound);
-  return org;
-}
-
 export async function connectAnalytics(organizationId?: string) {
   const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
 
   const googleConnection = await getGoogleConnection(org.id);
   if (!googleConnection) {
@@ -99,8 +88,7 @@ export async function connectAnalytics(organizationId?: string) {
 }
 
 export async function syncAnalyticsData(organizationId?: string) {
-  const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
   const provider = getAnalyticsProvider(org.id);
 
   const orgProperties = await db.select().from(analyticsProperties).where(eq(analyticsProperties.organizationId, org.id));

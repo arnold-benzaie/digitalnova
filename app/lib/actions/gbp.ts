@@ -3,47 +3,33 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { gbpConnections, locationMetrics, locations, organizations, reviews } from "@/db/schema";
+import { gbpConnections, locationMetrics, locations, reviews } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import { requireStaffRole } from "@/lib/dev-role";
+import { resolveAuthorizedOrganization } from "@/lib/dev-org";
 import { getGbpProvider, type GbpLocation } from "@/lib/gbp";
 import { getGoogleConnection, recordGbpSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
-import type { Locale } from "@/lib/i18n/dictionaries";
+import { requireSession } from "@/lib/session";
 
 const MESSAGES = {
   fr: {
-    organizationNotFound: "Organisation introuvable.",
     noGoogleConnection: "Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».",
     replyRequired: "La réponse ne peut pas être vide.",
     reviewNotFound: "Avis introuvable.",
-    locationNotFound: "Établissement introuvable.",
   },
   en: {
-    organizationNotFound: "Organization not found.",
     noGoogleConnection: "No Google account connected for this organization. Use the \"Connect a Google account\" button.",
     replyRequired: "The reply cannot be empty.",
     reviewNotFound: "Review not found.",
-    locationNotFound: "Location not found.",
   },
 } as const;
 
-/** Defaults to the signed-in session's own organization (the client-portal
- * use case at /dashboard/gbp) when no id is given — pass one explicitly for
- * the CRM use case (lib/actions/crm-gbp.ts), where staff act on a specific
- * client's organization rather than their own session. */
-async function resolveOrganization(organizationId: string | undefined, locale: Locale) {
-  if (!organizationId) return getOrCreateDevOrganization();
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  if (!org) throw new Error(MESSAGES[locale].organizationNotFound);
-  return org;
-}
-
 export async function connectGbp(organizationId?: string) {
   const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
 
   const googleConnection = await getGoogleConnection(org.id);
   if (!googleConnection) {
@@ -152,8 +138,7 @@ export async function connectGbp(organizationId?: string) {
 }
 
 export async function syncGbpData(organizationId?: string) {
-  const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
   const provider = await getGbpProvider(org.id);
 
   const orgLocations = await db.select().from(locations).where(eq(locations.organizationId, org.id));
@@ -248,14 +233,35 @@ export async function syncGbpData(organizationId?: string) {
 }
 
 export async function replyToReview(reviewId: string, replyText: string) {
+  const session = await requireSession();
   const locale = await getLocale();
   if (!replyText.trim()) throw new Error(MESSAGES[locale].replyRequired);
 
-  const [review] = await db.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
-  if (!review) throw new Error(MESSAGES[locale].reviewNotFound);
+  // Resolve the review together with its owning organization in a single
+  // join, so ownership is known before anything observable happens (no
+  // provider call, no write, no audit/webhook).
+  const [row] = await db
+    .select({ review: reviews, location: locations })
+    .from(reviews)
+    .innerJoin(locations, eq(locations.id, reviews.locationId))
+    .where(eq(reviews.id, reviewId))
+    .limit(1);
 
-  const [location] = await db.select().from(locations).where(eq(locations.id, review.locationId)).limit(1);
-  if (!location) throw new Error(MESSAGES[locale].locationNotFound);
+  // A client may only reply to a review owned by their own organization.
+  // Every other case — a review owned by another tenant, or a reviewId
+  // that doesn't exist — is funnelled through requireStaffRole(), which
+  // redirects a `client` out to /dashboard with the SAME outcome either
+  // way (it never throws a raw error), so a client cannot use this action
+  // to learn whether a given reviewId exists. Staff keep the ability to
+  // reply on behalf of any client (lib/actions/crm-gbp.ts).
+  const ownedBySession = row !== undefined && row.location.organizationId === session.organizationId;
+  if (!ownedBySession) {
+    await requireStaffRole();
+  }
+  if (!row) {
+    throw new Error(MESSAGES[locale].reviewNotFound);
+  }
+  const { review, location } = row;
 
   const provider = await getGbpProvider(location.organizationId);
   await provider.replyToReview(review.googleReviewId, replyText.trim());

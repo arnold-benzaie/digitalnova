@@ -2,6 +2,7 @@ import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
+import { requireStaffRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
 
 /**
@@ -33,3 +34,48 @@ export const getOrCreateDevOrganization = cache(async () => {
   }
   return org;
 });
+
+/**
+ * Ownership-aware organization resolver for the dual-use client/staff
+ * server actions that accept an optional `organizationId` (the Google
+ * integrations: GBP / Analytics / Search Console). It replaces the private
+ * `resolveOrganization` helpers those modules used to carry, which looked
+ * up ANY caller-supplied id with no ownership check.
+ *
+ * Contract:
+ *  - no id, or the caller's own organization id  → the signed-in session's
+ *    own organization (the /dashboard/* client-portal path — the action
+ *    buttons there always call with no argument, so this is unchanged).
+ *  - a DIFFERENT organization id  → allowed only once requireStaffRole()
+ *    passes. A `client` is redirected to /dashboard by requireStaffRole()
+ *    (it never throws a raw error) BEFORE the requested organization is
+ *    ever queried, so a client cannot use this to probe which organization
+ *    ids exist.
+ *
+ * Staff callers (lib/actions/crm-*.ts, already requireStaffRole()-gated,
+ * and the staff-only Google OAuth callback) keep the existing ability to
+ * act on an explicitly selected client organization.
+ *
+ * Not wrapped in cache(): the argument varies per call within a request
+ * (a CRM page can act on several client organizations), and getSession /
+ * getOrCreateDevOrganization underneath are already memoized.
+ */
+export async function resolveAuthorizedOrganization(organizationId?: string) {
+  const session = await requireSession();
+
+  if (!organizationId || organizationId === session.organizationId) {
+    return getOrCreateDevOrganization();
+  }
+
+  await requireStaffRole();
+
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!org) {
+    throw new Error("Organisation introuvable pour ce compte.");
+  }
+  return org;
+}

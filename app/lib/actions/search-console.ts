@@ -3,38 +3,27 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { organizations, searchConsoleMetrics, searchConsoleProperties } from "@/db/schema";
+import { searchConsoleMetrics, searchConsoleProperties } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { getOrCreateDevOrganization } from "@/lib/dev-org";
+import { resolveAuthorizedOrganization } from "@/lib/dev-org";
 import { getGoogleConnection, recordSearchConsoleSyncResult, sanitizeGoogleError } from "@/lib/google/oauth";
 import { notify } from "@/lib/notifications";
 import { getSearchConsoleProvider, type SearchConsoleProperty } from "@/lib/searchconsole";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
-import type { Locale } from "@/lib/i18n/dictionaries";
 
 const MESSAGES = {
   fr: {
-    organizationNotFound: "Organisation introuvable.",
     noGoogleConnection: "Aucun compte Google connecté pour cette organisation. Utilisez le bouton « Connecter un compte Google ».",
   },
   en: {
-    organizationNotFound: "Organization not found.",
     noGoogleConnection: "No Google account connected for this organization. Use the \"Connect a Google account\" button.",
   },
 } as const;
 
-/** Same pattern as lib/actions/gbp.ts::resolveOrganization. */
-async function resolveOrganization(organizationId: string | undefined, locale: Locale) {
-  if (!organizationId) return getOrCreateDevOrganization();
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-  if (!org) throw new Error(MESSAGES[locale].organizationNotFound);
-  return org;
-}
-
 export async function connectSearchConsole(organizationId?: string) {
   const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
 
   const googleConnection = await getGoogleConnection(org.id);
   if (!googleConnection) {
@@ -101,8 +90,7 @@ export async function connectSearchConsole(organizationId?: string) {
 }
 
 export async function syncSearchConsoleData(organizationId?: string) {
-  const locale = await getLocale();
-  const org = await resolveOrganization(organizationId, locale);
+  const org = await resolveAuthorizedOrganization(organizationId);
   const provider = getSearchConsoleProvider(org.id);
 
   const orgProperties = await db.select().from(searchConsoleProperties).where(eq(searchConsoleProperties.organizationId, org.id));
