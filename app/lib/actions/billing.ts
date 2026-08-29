@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { invoices, subscriptions } from "@/db/schema";
 import { getBillingProvider } from "@/lib/billing";
 import { logAudit } from "@/lib/audit";
+import { requireStaffRole } from "@/lib/dev-role";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { notify } from "@/lib/notifications";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
@@ -24,6 +25,7 @@ const MESSAGES = {
  * subscription in one step, exactly the way the webhook handler would.
  */
 export async function subscribeToPlan(planId: string) {
+  await requireStaffRole();
   const locale = await getLocale();
   const provider = getBillingProvider();
   const plan = provider.listPlans().find((p) => p.id === planId);
@@ -92,6 +94,7 @@ export async function subscribeToPlan(planId: string) {
 }
 
 export async function cancelSubscription() {
+  await requireStaffRole();
   const [org, locale] = await Promise.all([getOrCreateDevOrganization(), getLocale()]);
   const provider = getBillingProvider();
 
