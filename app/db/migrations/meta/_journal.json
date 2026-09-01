@@ -239,6 +239,13 @@
       "when": 1787959920834,
       "tag": "0033_reflective_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788027109724,
+      "tag": "0034_aberrant_earthquake",
+      "breakpoints": true
     }
   ]
 }

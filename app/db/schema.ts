@@ -1796,3 +1796,87 @@ export const serviceLegacyIdentifiers = pgTable(
   },
   (table) => [uniqueIndex("service_legacy_identifiers_legacy_identifier_idx").on(table.legacyIdentifier)],
 );
+
+/**
+ * Phase 2B.1 — internal-workforce RBAC foundation (additive, INERT).
+ *
+ * A SEPARATE identity axis from `memberships` / `roles` (the client/tenant
+ * axis, which is unchanged). A `staff_members` row marks a `users` row as
+ * part of PUBLIC-MAP's internal workforce and carries exactly one
+ * `staff_roles` role — OWNER / ADMIN / MANAGER / EMPLOYEE, never "client"
+ * (which stays on the `roles` table). No runtime code reads these tables
+ * yet: lib/dev-role.ts / lib/admin-access.ts / lib/session.ts and every
+ * Server Action are unchanged by this slice. The closed permission
+ * catalogue + role→permission matrix live in lib/rbac/permissions.ts and
+ * are likewise not consumed by any gate yet.
+ *
+ * Conceptually mirrors the GBP-Audit module's audit_staff_* tables
+ * (db/audit-schema.ts) — but those live in a SEPARATE database with their
+ * own migrations/lifecycle and are not touched here.
+ */
+export const staffRoles = pgTable("staff_roles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  // "OWNER" | "ADMIN" | "MANAGER" | "EMPLOYEE" — the four rows are seeded
+  // by migration 0034 (INSERT ... ON CONFLICT DO NOTHING). This is a
+  // closed, code-defined catalogue (see lib/rbac/permissions.ts), unlike
+  // the runtime-mutable `roles` table.
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const staffMembers = pgTable(
+  "staff_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Always the single internal PUBLIC-MAP org (organizations.isInternal)
+    // in V1 — kept as an explicit column for a future multi-workspace model.
+    workspaceOrgId: uuid("workspace_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => staffRoles.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("ACTIVE"), // "ACTIVE" | "SUSPENDED" | "OFFBOARDING"
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("staff_members_user_workspace_unique").on(table.userId, table.workspaceOrgId),
+    index("staff_members_workspace_role_status_idx").on(table.workspaceOrgId, table.roleId, table.status),
+    check("staff_members_status_check", sql`${table.status} IN ('ACTIVE','SUSPENDED','OFFBOARDING')`),
+  ],
+);
+
+/**
+ * Same shape/purpose as the main app's `invitations` table — an OWNER/ADMIN
+ * grants internal-workforce access by email before that person has a
+ * staff_members row. No claim logic, no email, no Server Action in this
+ * slice: the table is inert storage only.
+ */
+export const staffInvitations = pgTable(
+  "staff_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceOrgId: uuid("workspace_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => staffRoles.id, { onDelete: "restrict" }),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("pending"), // "pending" | "claimed" | "revoked"
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("staff_invitations_email_idx").on(table.email),
+    index("staff_invitations_workspace_status_idx").on(table.workspaceOrgId, table.status),
+    check("staff_invitations_status_check", sql`${table.status} IN ('pending','claimed','revoked')`),
+  ],
+);
