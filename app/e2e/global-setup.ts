@@ -6,6 +6,7 @@
  * (not just "some other local Postgres on 5433").
  */
 import { E2E_AUDIT_DATABASE_URL, auditDb } from "./helpers/audit-db";
+import { assertE2EDatabaseTargets } from "./helpers/e2e-db-targets";
 import { assertNotMainProductionDatabase } from "../db/guard-main-production";
 import { auditRateLimitHits } from "../db/audit-schema";
 import { like, sql } from "drizzle-orm";
@@ -48,13 +49,26 @@ export default async function globalSetup() {
       "Le serveur E2E (http://localhost:3600) ne répond pas. Lancer `npm run build:e2e` puis `npm run start:e2e` avec DATABASE_URL et AUDIT_DATABASE_URL sur les bases Docker locales — voir e2e/README.md.",
     );
   }
-  const dbTarget = dbTargetRes.ok ? ((await dbTargetRes.json()) as { database: string }).database : null;
+  const dbTargets = dbTargetRes.ok
+    ? ((await dbTargetRes.json()) as { database?: string; auditDatabase?: string; mainDatabase?: string })
+    : {};
+  const dbTarget = dbTargets.auditDatabase ?? dbTargets.database ?? null;
   if (dbTarget !== "public_map_audit_test") {
     throw new Error(
       `Le serveur E2E n'est pas connecté à la base de test locale (cible détectée : "${dbTarget ?? "indéterminée"}", attendu "public_map_audit_test"). ` +
         "Il pointe probablement vers le vrai projet Supabase Audit — voir e2e/README.md pour la commande de démarrage exacte.",
     );
   }
+  // T-1.4-B-B — the running server's LIVE main + Audit database names, from
+  // its own `select current_database()` on BOTH connections. Fails the whole
+  // run here, before any test, if the server's main connection is not the
+  // local Docker main test DB — the audit-only check above never covered
+  // that, so a server started without sourcing .env.e2e.local could run the
+  // whole CRM suite's writes against an ambient main target.
+  assertE2EDatabaseTargets({
+    mainDatabase: dbTargets.mainDatabase,
+    auditDatabase: dbTargets.auditDatabase ?? dbTargets.database,
+  });
 
   const authFile = await import("node:fs").then((fs) => fs.existsSync("playwright/.auth/local-admin.json")).catch(() => false);
   if (!authFile) {
