@@ -1,0 +1,17 @@
+{
+  "_comment": "TEMPLATE ONLY — contains NO real identities. Copy to a gitignored file (e.g. rbac-bootstrap-manifest.local.json), fill in real values obtained from the operator, and pass it via --manifest. Do NOT commit a filled-in manifest in this slice.",
+  "_howToFill": {
+    "ownerUserId": "The stable users.id UUID of the human-approved initial OWNER. Alternatively omit this and set ownerEmail; the tool resolves it read-only to exactly one ACTIVE internal admin and prints the UUID for you to confirm with --confirm-owner-id.",
+    "ownerEmail": "Optional legibility input for dry-run resolution. The real write is always keyed by the resolved users.id UUID, never by email.",
+    "adminUserIds": "Zero or more stable users.id UUIDs, each an OTHER current ACTIVE internal admin who must keep users.ts access. Each becomes ADMIN. Never OWNER.",
+    "adminEmails": "Optional legibility input, resolved the same way as ownerEmail.",
+    "expectedWorkspaceOrgId": "Optional. The organizations.id UUID of the single internal workspace (organizations.is_internal = true). If set, the tool asserts the resolved workspace matches it.",
+    "expectedDbName": "REQUIRED. The current_database() name the operator expects on the target (never guessed by the tool). For a real production run this is the production main DB name."
+  },
+  "ownerUserId": "00000000-0000-0000-0000-000000000000",
+  "ownerEmail": null,
+  "adminUserIds": [],
+  "adminEmails": [],
+  "expectedWorkspaceOrgId": "00000000-0000-0000-0000-000000000000",
+  "expectedDbName": "REPLACE_WITH_OPERATOR_SUPPLIED_DB_NAME"
+}
