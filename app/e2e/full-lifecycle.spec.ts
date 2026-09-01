@@ -1,5 +1,6 @@
-import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { PDFParse } from "pdf-parse";
+import { collectConsoleErrors } from "./helpers/console-errors";
 import { cleanupE2EAudit, countLingeringE2EFixtures, resolveAuditIds } from "./helpers/audit-db";
 import { computeFullAuditScore } from "../lib/gbp-audit/checklist";
 
@@ -76,13 +77,6 @@ let businessId: string | undefined;
 let prospectId: string | undefined;
 let portalUrl: string | undefined;
 
-function trackErrors(page: Page, bucket: string[]) {
-  page.on("console", (msg: ConsoleMessage) => {
-    if (msg.type() === "error") bucket.push(`[console] ${msg.text()}`);
-  });
-  page.on("pageerror", (err) => bucket.push(`[pageerror] ${err.message}`));
-}
-
 test.describe.configure({ mode: "serial" });
 
 test.afterAll(async () => {
@@ -92,8 +86,7 @@ test.afterAll(async () => {
 });
 
 test("parcours complet PUBLIC-MAP Audit : prospect -> devis", async ({ page, browser }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await test.step("1-3. Créer le prospect, l'entreprise et l'audit", async () => {
     // #id locators throughout, not getByLabel — several required-field labels
@@ -283,8 +276,7 @@ test("parcours complet PUBLIC-MAP Audit : prospect -> devis", async ({ page, bro
 
     const prospectContext = await browser.newContext();
     const prospectPage = await prospectContext.newPage();
-    const prospectErrors: string[] = [];
-    trackErrors(prospectPage, prospectErrors);
+    const { errors: prospectErrors } = collectConsoleErrors(prospectPage);
 
     await prospectPage.goto(portalUrl!);
     await expect(prospectPage.getByRole("heading", { name: BUSINESS.legalName })).toBeVisible();

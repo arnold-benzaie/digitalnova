@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectConsoleErrors } from "./helpers/console-errors";
 
 /**
  * Responsive smoke pass — desktop/tablet/mobile on the key Audit pages.
@@ -37,12 +38,7 @@ for (const viewport of VIEWPORTS) {
 
     for (const path of PAGES) {
       test(`${path} : pas de débordement horizontal, pas d'erreur console`, async ({ page }) => {
-        const consoleErrors: string[] = [];
-        page.on("console", (msg) => {
-          if (msg.type() === "error") consoleErrors.push(msg.text());
-        });
-        const pageErrors: string[] = [];
-        page.on("pageerror", (err) => pageErrors.push(err.message));
+        const { errors } = collectConsoleErrors(page);
 
         const response = await page.goto(path, { waitUntil: "load" });
         expect(response?.status(), `${path} a répondu avec une erreur HTTP`).toBeLessThan(400);
@@ -52,8 +48,7 @@ for (const viewport of VIEWPORTS) {
         const overflowPx = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflowPx, `${path} déborde horizontalement de ${overflowPx}px en ${viewport.name}`).toBeLessThanOrEqual(1);
 
-        expect(consoleErrors, `${path} : erreurs console en ${viewport.name} : ${consoleErrors.join(" | ")}`).toEqual([]);
-        expect(pageErrors, `${path} : erreurs runtime en ${viewport.name} : ${pageErrors.join(" | ")}`).toEqual([]);
+        expect(errors, `${path} : erreurs runtime en ${viewport.name} : ${errors.join(" | ")}`).toEqual([]);
       });
     }
 

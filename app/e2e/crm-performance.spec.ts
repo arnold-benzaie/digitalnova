@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectConsoleErrors } from "./helpers/console-errors";
 
 /**
  * AI Commercial Radar / Phase 1G-D — Commercial Performance dashboard
@@ -47,11 +48,7 @@ test.describe("Commercial Performance dashboard — /admin/crm/performance", () 
   });
 
   test("staff can open the page with no console errors, and every primary section renders", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (err) => errors.push(String(err)));
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
+    const { errors } = collectConsoleErrors(page);
 
     await page.goto("/admin/crm/performance");
     await expect(page.getByRole("heading", { name: "Performance commerciale", level: 1 })).toBeVisible();

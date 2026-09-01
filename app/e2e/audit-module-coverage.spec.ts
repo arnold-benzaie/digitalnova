@@ -1,4 +1,5 @@
-import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { collectConsoleErrors } from "./helpers/console-errors";
 import { auditDb } from "./helpers/audit-db";
 import { auditBusinesses, auditProspects, gbpServiceOffers, auditStaffInvitations } from "../db/audit-schema";
 import { eq, like, sql } from "drizzle-orm";
@@ -24,13 +25,6 @@ const BUSINESS_NAME = "[E2E-COVERAGE] Fixture Paramètres/Rapports";
 const PROSPECT_EMAIL = "e2e-coverage+fixture@example.com";
 const STAFF_INVITE_EMAIL = "e2e-coverage+staff-invite@example.com";
 const OFFER_LABEL = "[E2E-COVERAGE] Offre de test";
-
-function trackErrors(page: Page, bucket: string[]) {
-  page.on("console", (msg: ConsoleMessage) => {
-    if (msg.type() === "error") bucket.push(`[console] ${msg.text()}`);
-  });
-  page.on("pageerror", (err) => bucket.push(`[pageerror] ${err.message}`));
-}
 
 let fixtureAuditId: string | undefined;
 
@@ -80,8 +74,7 @@ test.afterAll(async () => {
 });
 
 test("Tableau de bord : KPI, graphiques, filtres de période, sans erreur console", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit");
   await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
@@ -99,8 +92,7 @@ test("Tableau de bord : KPI, graphiques, filtres de période, sans erreur consol
 });
 
 test("Audits (liste) : affiche la fixture, recherche avec résultat et sans résultat", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/liste");
   await expect(page.getByRole("link", { name: BUSINESS_NAME })).toBeVisible();
@@ -119,8 +111,7 @@ test("Audits (liste) : affiche la fixture, recherche avec résultat et sans rés
 });
 
 test("Rapports : charge sans erreur, formulaire de filtre présent", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/rapports");
   await expect(page.getByRole("heading", { name: "Rapports" })).toBeVisible();
@@ -132,8 +123,7 @@ test("Rapports : charge sans erreur, formulaire de filtre présent", async ({ pa
 });
 
 test("Notifications : charge sans erreur (état vide ou liste)", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/notifications");
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
@@ -141,8 +131,7 @@ test("Notifications : charge sans erreur (état vide ou liste)", async ({ page }
 });
 
 test("Offres : accessible en admin, création et suppression d'une offre de test", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/offres");
   await expect(page.getByRole("heading", { name: /[Oo]ffres/ })).toBeVisible();
@@ -160,8 +149,7 @@ test("Offres : accessible en admin, création et suppression d'une offre de test
 });
 
 test("Équipe : accessible en admin, invitation d'un membre de test", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/equipe");
   await expect(page.getByRole("heading", { name: /[ÉE]quipe/ })).toBeVisible();
@@ -180,8 +168,7 @@ test("Équipe : accessible en admin, invitation d'un membre de test", async ({ p
 });
 
 test("Paramètres : les 6 onglets s'ouvrent, régression du bug gbp_audit_settings, modification persistée", async ({ page }) => {
-  const errors: string[] = [];
-  trackErrors(page, errors);
+  const { errors } = collectConsoleErrors(page);
 
   await page.goto("/admin/audit/parametres");
   // Regression check for the missing-migration bug fixed this session:

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectConsoleErrors } from "./helpers/console-errors";
 
 /**
  * AI Commercial Radar / Phase 1E — staff Radar Queue UI (/admin/crm/radar).
@@ -109,11 +110,7 @@ test.describe.serial("Radar Queue — /admin/crm/radar", () => {
   });
 
   test("staff can open the Radar page with no console errors", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (err) => errors.push(String(err)));
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
+    const { errors } = collectConsoleErrors(page);
     await page.goto("/admin/crm/radar");
     await expect(page.getByRole("heading", { name: "Radar prospects" })).toBeVisible();
     // The confidence caption (dictionary key `confidenceCaption`) is
