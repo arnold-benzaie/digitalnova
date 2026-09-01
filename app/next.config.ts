@@ -19,7 +19,19 @@ const isDev = process.env.NODE_ENV !== "production";
 // Clerk JS" / CSP script-src violation). VERCEL_ENV is Vercel's own
 // system env var ("production" | "preview" | "development") — checking
 // it, not the branch name, so this holds for any Preview deployment.
-const allowClerkDevDomain = isDev || process.env.VERCEL_ENV === "preview";
+//
+// PUBLIC_MAP_E2E=1 (T-1.4-A Plan B): the local end-to-end suite runs a
+// PRODUCTION build (`next build` + `next start`, so NODE_ENV=production
+// and `isDev` is false) against Clerk's Development instance — exactly the
+// Preview-deployment shape above, minus Vercel. This flag re-allows the
+// SAME Clerk Development origins for that one local case only. It is set
+// solely by the `build:e2e` / `start:e2e` npm scripts, is never present in
+// any Vercel environment, and touches nothing else — not `isDev` (so no
+// dev-only `'unsafe-eval'`), not database resolution, not auth.
+const allowClerkDevDomain =
+  isDev ||
+  process.env.VERCEL_ENV === "preview" ||
+  process.env.PUBLIC_MAP_E2E === "1";
 const CLERK_FRONTEND_API = "https://clerk.public-map.com";
 const CLERK_DEV_FRONTEND_API = "https://*.clerk.accounts.dev";
 // Distinct from CLERK_DEV_FRONTEND_API above (no ".clerk." in the domain):
