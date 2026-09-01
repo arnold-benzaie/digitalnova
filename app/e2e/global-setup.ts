@@ -45,20 +45,20 @@ export default async function globalSetup() {
   const dbTargetRes = await fetch("http://localhost:3600/api/gbp-audit/e2e-db-target").catch(() => null);
   if (!dbTargetRes) {
     throw new Error(
-      "Le serveur dev (http://localhost:3600) ne répond pas. Démarrer `npm run dev` avec DATABASE_URL sur le schéma preview et AUDIT_DATABASE_URL sur Docker — voir e2e/README.md.",
+      "Le serveur E2E (http://localhost:3600) ne répond pas. Lancer `npm run build:e2e` puis `npm run start:e2e` avec DATABASE_URL et AUDIT_DATABASE_URL sur les bases Docker locales — voir e2e/README.md.",
     );
   }
   const dbTarget = dbTargetRes.ok ? ((await dbTargetRes.json()) as { database: string }).database : null;
   if (dbTarget !== "public_map_audit_test") {
     throw new Error(
-      `Le serveur dev n'est pas connecté à la base de test locale (cible détectée : "${dbTarget ?? "indéterminée"}", attendu "public_map_audit_test"). ` +
+      `Le serveur E2E n'est pas connecté à la base de test locale (cible détectée : "${dbTarget ?? "indéterminée"}", attendu "public_map_audit_test"). ` +
         "Il pointe probablement vers le vrai projet Supabase Audit — voir e2e/README.md pour la commande de démarrage exacte.",
     );
   }
 
   const authFile = await import("node:fs").then((fs) => fs.existsSync("playwright/.auth/local-admin.json")).catch(() => false);
   if (!authFile) {
-    throw new Error("playwright/.auth/local-admin.json introuvable. Lancer `node e2e/auth-setup.mjs` (serveur dev déjà démarré) avant la suite.");
+    throw new Error("playwright/.auth/local-admin.json introuvable. Lancer `node e2e/auth-setup.mjs` (serveur E2E déjà démarré) avant la suite.");
   }
 
   // The public portal actions (resolveReportByToken, submitPortalQuoteRequest)
@@ -70,5 +70,5 @@ export default async function globalSetup() {
   // "public_map_audit_test", already verified above.
   await auditDb.delete(auditRateLimitHits).where(like(auditRateLimitHits.key, "portal_%"));
 
-  console.log(`[e2e/global-setup] Cible confirmée : base "${dbName}" sur localhost:5433, schéma Audit présent, serveur dev prêt.`);
+  console.log(`[e2e/global-setup] Cible confirmée : base "${dbName}" sur localhost:5433, schéma Audit présent, serveur E2E prêt.`);
 }

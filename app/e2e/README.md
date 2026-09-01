@@ -13,7 +13,7 @@ Suite de non-régression end-to-end. Née autour du module Audit (`app/admin/aud
    ```
    (Ces clés `sk_test_`/`pk_test_` sont déjà celles utilisées par l'environnement Preview de Vercel pour la branche `preview/public-map-audit` — aucune nouvelle instance Clerk à créer.) Alternative : Clerk Dashboard → sélectionner l'instance **Development** → API Keys.
    `e2e/auth-setup.mjs` charge `.env.e2e.local` en priorité sur `.env.local` et refuse de s'exécuter si la clé résolue est une clé Production (`sk_live_...`) — donc une clé Production ne peut jamais être utilisée localement, même par erreur de configuration.
-1. **La suite tourne contre un serveur en mode PRODUCTION local** (`next build` + `next start`), pas `next dev` — voir « Pourquoi un serveur de production local » plus bas. Avec les clés Clerk **Development** ci-dessus, `DATABASE_URL` pointé sur le schéma `preview` de la base principale, **et** `AUDIT_DATABASE_URL` sur la base Docker locale — toutes indispensables. Une fois `.env.e2e.local` rempli (voir point 0, en y ajoutant aussi `DATABASE_URL` avec le suffixe `preview` ci-dessous), **construire puis démarrer** :
+1. **La suite tourne contre un serveur en mode PRODUCTION local** (`next build` + `next start`), pas `next dev` — voir « Pourquoi un serveur de production local » plus bas. Avec les clés Clerk **Development** ci-dessus, `DATABASE_URL` pointé sur la **base Docker principale locale** (`public-map-approval-test-db`, port 5434) **et** `AUDIT_DATABASE_URL` sur la base Docker Audit locale (`public-map-audit-test-db`, port 5433) — toutes indispensables. Une fois `.env.e2e.local` rempli (voir point 0, en y ajoutant aussi `DATABASE_URL` ci-dessous), **construire puis démarrer** :
    ```
    set -a && source .env.e2e.local && set +a
    npm run build:e2e        # PUBLIC_MAP_E2E=1 next build --webpack  (à relancer à chaque changement de code testé)
@@ -23,21 +23,21 @@ Suite de non-régression end-to-end. Née autour du module Audit (`app/admin/aud
    ```
    CLERK_SECRET_KEY="sk_test_..." \
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..." \
-   DATABASE_URL="<valeur de .env.local>?options=-c%20search_path%3Dpreview" \
+   DATABASE_URL="postgresql://approval_test_user:localtest_approval_only@127.0.0.1:5434/public_map_approval_test" \
    AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" \
    npm run build:e2e && \
    CLERK_SECRET_KEY="sk_test_..." NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..." \
-   DATABASE_URL="<...>?options=-c%20search_path%3Dpreview" \
+   DATABASE_URL="postgresql://approval_test_user:localtest_approval_only@127.0.0.1:5434/public_map_approval_test" \
    AUDIT_DATABASE_URL="postgresql://postgres:localtest@localhost:5433/public_map_audit_test" \
    npm run start:e2e
    ```
    `PUBLIC_MAP_E2E=1` (défini uniquement par ces deux scripts, jamais sur Vercel) réautorise dans la CSP les origines Clerk **Development** (`*.clerk.accounts.dev`, `*.accounts.dev`) — exactement la même forme qu'un déploiement Preview Vercel, `isDev` en moins. Il ne touche ni `isDev` (donc pas de `'unsafe-eval'`), ni la résolution de base de données (`db/index.ts` ne regarde que `VERCEL_ENV === "preview"` + `PREVIEW_SCHEMA_DATABASE_URL`, aucun des deux ici), ni l'authentification. Le mode production supprime **par construction** le chien de garde mémoire de `next dev` (`if (isDev)` dans `node_modules/next/dist/server/lib/start-server.js`) et la recompilation webpack à la demande — les deux causes des `net::ERR_CONNECTION_REFUSED` / `net::ERR_ABORTED` / redémarrages de worker / navigations qui n'aboutissaient pas sous `next dev`.
-   Le schéma `preview` de la base principale porte déjà un membership admin réel pour le compte de test (contact@public-map.com — le même utilisé par `e2e-preview/`). Sans cet override, `DATABASE_URL` cible le schéma `public` réel — la suite ne doit jamais créer de données de test dans la vraie base de production. Sans l'override `AUDIT_DATABASE_URL`, `.env.local` pointe vers le vrai projet Supabase Audit (cloud) : toute création faite depuis l'UI y atterrirait pendant que `e2e/helpers/env.ts` force l'harnais de test vers Docker — les deux ne se verraient plus. Symptômes typiques : fixtures qui semblent dupliquées d'un run à l'autre, ou « audit introuvable en base juste après création ».
-2. Le conteneur Docker de test est démarré :
+   La base Docker principale locale (`public_map_approval_test` sur `127.0.0.1:5434` — la même que `lib/**/*.integration.test.mjs` et `e2e/helpers/main-db-role.mjs`) porte le membership admin du compte de test (contact@public-map.com). Sans cet override, `DATABASE_URL` de `.env.local` cible la vraie base de production principale — la suite ne doit jamais y créer de données de test. Sans l'override `AUDIT_DATABASE_URL`, `.env.local` pointe vers le vrai projet Supabase Audit (cloud) : toute création faite depuis l'UI y atterrirait pendant que `e2e/helpers/env.ts` force l'harnais de test vers Docker — les deux ne se verraient plus. Symptômes typiques : fixtures qui semblent dupliquées d'un run à l'autre, ou « audit introuvable en base juste après création ».
+2. Les deux conteneurs Docker de test sont démarrés :
    ```
-   docker start public-map-audit-test-db
+   docker start public-map-approval-test-db public-map-audit-test-db
    ```
-   (base `public_map_audit_test`, port 5433 — jamais le projet Supabase cloud, voir `e2e/global-setup.ts` qui le vérifie explicitement à chaque run via `db/guard-main-production.ts`. Cette vérification porte sur l'harnais de test lui-même, pas sur le serveur E2E déjà lancé — voir le point 1.)
+   (base principale `public_map_approval_test` sur port 5434 — celle que sert le serveur E2E via `DATABASE_URL` — et base Audit `public_map_audit_test` sur port 5433 ; jamais un projet Supabase cloud. `e2e/global-setup.ts` vérifie explicitement à chaque run, via `db/guard-main-production.ts`, que la cible Audit est bien locale. Cette vérification porte sur l'harnais de test lui-même, pas sur le serveur E2E déjà lancé — voir le point 1.)
 3. Une session Clerk réelle est établie pour ce compte, une fois le serveur E2E prêt (démarré avec les clés Development du point 1 — sinon la session serait établie sur une instance et validée sur une autre) :
    ```
    node e2e/auth-setup.mjs
@@ -71,7 +71,7 @@ En résumé (détail complet dans `../../.githooks/README.md`) :
 - **Palier 1 ENHANCED** — Server Actions liées à l'autorisation (`lib/actions/**`, `lib/dev-org.ts`) : palier 1 + tests de sécurité locaux ciblés (`lib/dev-role.test.mjs`, suites `*-auth`/`*-idor` de `lib/actions/`) — toujours sans cloud ni navigateur.
 - **Palier 2** — chemins sensibles (session/auth/RBAC, module Audit, routes API, layouts, arborescence DB/schéma, infra `e2e/`, fichiers de build/config) **ou tout chemin `app/**` non classé (défaut restrictif)** : palier 1, palier 1 ENHANCED, **puis** la suite Playwright Audit complète décrite ci-dessus.
 
-Autrement dit : **la suite Playwright complète n'est PAS lancée pour chaque commit `app/**`** — uniquement au palier 2. Les prérequis Playwright (serveur E2E de production sur `localhost:3600` — `npm run build:e2e` **puis** `npm run start:e2e` selon les points 0–3 ci-dessus, conteneur `public-map-audit-test-db`) ne concernent que ce palier ; le hook les vérifie — il sonde le serveur et le conteneur, **exécute** `node e2e/auth-setup.mjs` (qui contacte Clerk), puis lance Playwright — et bloque le commit avec un message explicite si l'une de ces étapes échoue. Il ne construit, ne démarre ni serveur ni conteneur Docker et ne provisionne aucune infrastructure : au palier 2, penser à relancer `npm run build:e2e` si le code testé a changé depuis le dernier build.
+Autrement dit : **la suite Playwright complète n'est PAS lancée pour chaque commit `app/**`** — uniquement au palier 2. Les prérequis Playwright (serveur E2E de production sur `localhost:3600` — `npm run build:e2e` **puis** `npm run start:e2e` selon les points 0–3 ci-dessus, conteneurs `public-map-approval-test-db` + `public-map-audit-test-db`) ne concernent que ce palier ; le hook les vérifie — il sonde le serveur et le conteneur, **exécute** `node e2e/auth-setup.mjs` (qui contacte Clerk), puis lance Playwright — et bloque le commit avec un message explicite si l'une de ces étapes échoue. Il ne construit, ne démarre ni serveur ni conteneur Docker et ne provisionne aucune infrastructure : au palier 2, penser à relancer `npm run build:e2e` si le code testé a changé depuis le dernier build.
 
 N'utilise pas `git commit --no-verify` pour contourner un blocage : corrige l'échec réel (type / lint / test) ou démarre le prérequis local légitime manquant.
 

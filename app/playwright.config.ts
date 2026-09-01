@@ -23,10 +23,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  // Generous, not arbitrary: this dev server compiles routes on first
-  // request (webpack, not turbopack) — earlier manual testing this session
-  // repeatedly saw 15-20s first-loads on individual pages. The full
-  // lifecycle test visits ~10 distinct routes in one run.
+  // Generous, not arbitrary: the production-mode `next start` server serves
+  // pre-built routes (no on-demand compile), so per-navigation latency is
+  // sub-second — but the serial specs (full-lifecycle, staff-rbac) chain
+  // ~10 real navigations plus DB fixture work in one test, and this leaves
+  // ample headroom on a loaded machine without masking a genuine hang.
   timeout: 180_000,
   expect: { timeout: 10_000 },
   reporter: [["list"], ["html", { outputFolder: "e2e/report", open: "never" }]],
@@ -45,8 +46,9 @@ export default defineConfig({
     baseURL: "http://localhost:3600",
     // Real Clerk session for the existing admin account (contact@public-map.com),
     // established once by e2e/auth-setup.mjs — see e2e/README.md for the
-    // required dev-server startup command (DATABASE_URL on the "preview"
-    // schema + a matching audit_staff_memberships row in the local Docker DB).
+    // required E2E-server startup (`npm run build:e2e` + `npm run start:e2e`
+    // with DATABASE_URL on the local Docker main test DB, plus a matching
+    // audit_staff_memberships row in the local Docker Audit DB).
     storageState: "playwright/.auth/local-admin.json",
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",

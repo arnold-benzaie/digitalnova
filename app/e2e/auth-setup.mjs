@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * One-off script (not a Playwright test) that establishes a REAL,
- * authenticated Clerk session against the LOCAL dev server (localhost:3600),
+ * authenticated Clerk session against the local production-mode E2E server
+ * (localhost:3600, started via `npm run build:e2e` then `npm run start:e2e`),
  * for the already-existing real admin account (contact@public-map.com).
  * Uses Clerk's own "sign-in token" Backend API (POST /v1/sign_in_tokens) —
  * Clerk's documented mechanism for password-less sign-in for automation —
@@ -26,11 +27,12 @@
  * from, so a misconfigured .env.e2e.local (or its absence) can never
  * silently fall back to running E2E against Production.
  *
- * Prerequisite: the dev server must be running with DATABASE_URL pointed at
- * the "preview" schema AND the same Clerk dev keys as this script (see
- * e2e/README.md) — that schema already has a real membership for this
- * account on the main app; without it, /admin/layout.tsx would deny access
- * before ever reaching the Audit-specific check below.
+ * Prerequisite: the E2E server must be running with DATABASE_URL pointed at
+ * the local Docker main test DB (127.0.0.1:5434/public_map_approval_test)
+ * AND the same Clerk dev keys as this script (see e2e/README.md) — that
+ * database already has a real membership for this account on the main app;
+ * without it, /admin/layout.tsx would deny access before ever reaching the
+ * Audit-specific check below.
  *
  * Output: playwright/.auth/local-admin.json (Playwright storageState).
  */
