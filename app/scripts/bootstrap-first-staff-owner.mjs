@@ -138,6 +138,25 @@ async function resolveInternalAdmin(conn, { userId, email }, internalOrgId) {
   return { ok: true, id: row.id };
 }
 
+/** The current staff_members set for one workspace, as {user_id, role, status} rows. */
+async function readStaffMembersSet(conn, internalOrgId) {
+  return (
+    await conn.query(
+      `select sm.user_id, sr.name as role, sm.status
+         from staff_members sm
+         join staff_roles sr on sr.id = sm.role_id
+        where sm.workspace_org_id = $1`,
+      [internalOrgId],
+    )
+  ).rows;
+}
+
+/** True iff `existing` is exactly `planned` (same user:role pairs, order-insensitive) and every row is ACTIVE. */
+function matchesPlanExactly(existing, planned) {
+  const key = (rows) => rows.map((r) => `${r.user_id}:${r.role}`).sort().join("|");
+  return existing.length > 0 && key(existing) === key(planned) && existing.every((r) => r.status === "ACTIVE");
+}
+
 /**
  * Injectable core.
  *   connectFn(url) -> { query(sql, params?) -> { rows }, end() }
@@ -275,24 +294,17 @@ export async function run({
       ...adminIds.map((id) => ({ userId: id, role: "ADMIN" })),
     ];
 
-    // ---- existing privileged rows / idempotency ----------------
-    const existing = (
-      await conn.query(
-        `select sm.user_id, sr.name as role, sm.status
-           from staff_members sm
-           join staff_roles sr on sr.id = sm.role_id
-          where sm.workspace_org_id = $1`,
-        [internalOrgId],
-      )
-    ).rows;
-
-    const key = (rows) => rows.map((r) => `${r.user_id}:${r.role}`).sort().join("|");
-    const plannedKey = key(planned.map((p) => ({ user_id: p.userId, role: p.role })));
-    const existingKey = key(existing);
+    // ---- existing privileged rows / idempotency (fast-path only) ------
+    // This is an operator-friendly EARLY exit, not the safety boundary:
+    // it runs before BEGIN, so two concurrent invocations for the SAME
+    // workspace could both pass it. The authoritative, race-free decision
+    // is the re-read taken under the workspace advisory lock inside the
+    // transaction below (see "workspace-scoped serialization").
+    const plannedRows = planned.map((p) => ({ user_id: p.userId, role: p.role }));
+    const existing = await readStaffMembersSet(conn, internalOrgId);
 
     if (existing.length > 0) {
-      const allActive = existing.every((r) => r.status === "ACTIVE");
-      if (existingKey === plannedKey && allActive) {
+      if (matchesPlanExactly(existing, plannedRows)) {
         log("");
         log("  = Already bootstrapped — the internal workspace already holds exactly this");
         log("    OWNER/ADMIN staff_members set, all ACTIVE. Zero mutation.");
@@ -345,7 +357,58 @@ export async function run({
     log("Writing OWNER + ADMIN rows in a single transaction...");
     await conn.query("BEGIN");
     try {
-      // re-check inside the tx
+      // ---- workspace-scoped serialization ------------------------
+      // Transaction-scoped advisory lock keyed off the resolved internal
+      // workspace id (hashtext of the two-argument form, so it never
+      // collides with any other advisory lock namespace in this DB).
+      // Scoped to ONE workspace: a different workspace hashes to a
+      // different second key and is never blocked by this one. Acquired
+      // BEFORE the authoritative eligibility re-read below, so a second
+      // concurrent bootstrap for the SAME workspace waits here until the
+      // first transaction ends. Auto-released on COMMIT *or* ROLLBACK —
+      // no manual unlock, and it cannot outlive this transaction the way
+      // a session-level advisory lock could if the process died mid-tx.
+      //
+      // Why this is needed: the pre-tx "existing" read above, and the
+      // candidate-specific re-checks below (resolveInternalAdmin for
+      // OWNER/each ADMIN, and the per-user-id conflict SELECT), only ever
+      // reason about THIS invocation's own candidate ids. Nothing before
+      // this lock asks "does this workspace already have an OWNER at
+      // all, for ANY user?" — so two concurrent invocations bootstrapping
+      // two DIFFERENT OWNER candidates for the SAME workspace could each
+      // observe an empty pre-tx read, each pass their own candidate-only
+      // re-checks, and both COMMIT. Nothing in the schema forbids two
+      // different users both holding role_id = OWNER in one workspace
+      // (staff_members_user_workspace_unique only prevents the SAME user
+      // from having two rows in the same workspace) — so that race is a
+      // real path to two OWNER rows without this lock.
+      await conn.query("select pg_advisory_xact_lock(hashtext('rbac-staff-bootstrap'), hashtext($1::text))", [internalOrgId]);
+
+      // ---- authoritative workspace-wide re-read (under the lock) -----
+      // This — not the pre-tx fast-path above — is what actually decides
+      // whether the bootstrap may proceed. It is guaranteed to observe
+      // any state a previously-serialized invocation for this SAME
+      // workspace committed, because that invocation's lock has already
+      // been released (COMMIT/ROLLBACK) by the time this query runs.
+      const lockedExisting = await readStaffMembersSet(conn, internalOrgId);
+      if (lockedExisting.length > 0) {
+        if (matchesPlanExactly(lockedExisting, plannedRows)) {
+          await conn.query("ROLLBACK");
+          log("");
+          log("  = Already bootstrapped (observed under the workspace lock) — zero mutation.");
+          log("─".repeat(64));
+          return { ok: true, alreadyBootstrapped: true, mutated: false, owner: ownerId, admins: adminIds };
+        }
+        throw new Error(
+          "workspace already has staff_members rows that do not match this manifest, observed under the " +
+            "workspace lock (a concurrent bootstrap won the race): " +
+            (lockedExisting.map((r) => `${r.user_id}:${r.role}(${r.status})`).join(", ") || "(none)"),
+        );
+      }
+
+      // re-check inside the tx (candidate-specific — kept as additional
+      // defense-in-depth; the workspace-wide re-read above is the actual
+      // race-free authorization boundary)
       const reOwner = await resolveInternalAdmin(conn, { userId: ownerId }, internalOrgId);
       if (!reOwner.ok) throw new Error(`owner re-check failed inside tx: ${reOwner.reason}`);
       for (const id of adminIds) {

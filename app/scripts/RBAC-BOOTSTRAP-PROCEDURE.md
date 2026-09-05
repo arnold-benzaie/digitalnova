@@ -12,7 +12,8 @@
 | File | Purpose |
 |---|---|
 | `scripts/db-migrate.mjs` | Reviewed main-DB migrator — replays the selected `--migrations-folder` via **drizzle-orm `migrate()`** (NOT `drizzle-kit push`, which would not run hand-appended seed statements such as `0034`'s `staff_roles` seed). Inspection by default. A production `--apply` requires: a positively-identified target; a `--migrations-folder` that canonically resolves **inside `<repo>/db/`**; an operator `--expected-pending` set that must exactly equal the target's actual pending migrations; a reviewer-supplied `--expected-fingerprint` (SHA-256 of the folder, checked before connection **and** again immediately before `migrate()`); `--acknowledge-prefix-hash-drift` if any already-applied prefix row's hash differs; then read-only structural post-verification of every applied migration. |
-| `scripts/bootstrap-first-staff-owner.mjs` | Reviewed first OWNER/ADMIN bootstrap — creates exactly one `OWNER` `staff_members` row plus one `ADMIN` row per explicitly-approved current active internal admin. Dry-run by default; one transaction; idempotent; fail-closed. |
+| `scripts/bootstrap-first-staff-owner.mjs` | Reviewed first OWNER/ADMIN bootstrap — creates exactly one `OWNER` `staff_members` row plus one `ADMIN` row per explicitly-approved current active internal admin. Dry-run by default; one transaction, serialized per workspace by a `pg_advisory_xact_lock` (see "Bootstrap workspace-scoped serialization" below); idempotent; fail-closed. |
+| `scripts/bootstrap-first-staff-owner.concurrency.integration.test.mjs` | Disposable-container proof that the workspace-scoped advisory lock actually serializes two genuinely concurrent bootstrap attempts for the same workspace — real `pg.Client` connections, no mocked interleaving. |
 | `scripts/lib/protected-db-target.mjs` | Shared positive DB-target classifier (production vs disposable vs refused). |
 | `scripts/rbac-bootstrap-manifest.example.json` | Manifest **template** — no real identities. |
 
@@ -216,6 +217,143 @@ interleave, not this cross-connection window.
 Neither slice is authorised by this tooling. Each is its own
 human-authorised step with its own pre-apply snapshot.
 
+## Bootstrap workspace-scoped serialization (RBAC-BOOTSTRAP-CONCURRENCY-HARDENING-1)
+
+**Gap this closes:** before this hardening, `bootstrap-first-staff-owner.mjs`'s
+only workspace-wide "does this workspace already have a privileged set?"
+check ran **before** `BEGIN`. Everything inside the write transaction —
+`resolveInternalAdmin` re-checks and the per-user-id conflict `SELECT` —
+only reasons about **that invocation's own** candidate ids, never "does
+this workspace already have an OWNER at all, for any user?". Two
+concurrent invocations bootstrapping **two different** OWNER candidates
+for the **same** workspace could each observe an empty pre-`BEGIN` read,
+each pass their own candidate-only re-checks, and both `COMMIT` — nothing
+in the schema forbids two different users both holding `role_id = OWNER`
+in one workspace (`staff_members_user_workspace_unique` only prevents the
+**same** user from having two rows in the same workspace). This is a
+**tool/application-level** gap, distinct from the already-documented
+`db-migrate.mjs` "Residual DB race" above (which concerns migration
+metadata replay, not OWNER uniqueness).
+
+**IMPORTANT — this remains APPLICATION/TOOL ENFORCEMENT, not a DATABASE
+CONSTRAINT.** No schema change was made. There is still no partial unique
+index, exclusion constraint, or check constraint in `db/schema.ts` /
+migration `0034` preventing two `staff_members` rows with `role_id =
+OWNER` in the same `workspace_org_id`. A direct SQL write that bypasses
+this tool entirely (`psql`, the Supabase SQL editor, a different script)
+is **not** protected by anything below. The guarantee described here holds
+**only** for writes that go through `bootstrap-first-staff-owner.mjs`.
+
+**The fix — a transaction-scoped advisory lock:**
+
+```sql
+select pg_advisory_xact_lock(hashtext('rbac-staff-bootstrap'), hashtext($1::text));
+```
+
+with `$1` = the resolved internal workspace id (`organizations.id` where
+`is_internal = true`).
+
+- **Acquisition point:** the very first statement inside the write
+  transaction, **before** the authoritative eligibility re-read and
+  before the pre-existing candidate-specific re-checks.
+- **Key derivation:** `hashtext('rbac-staff-bootstrap')` (a fixed
+  namespace) + `hashtext(workspace_id::text)` (the two-argument
+  `pg_advisory_xact_lock(int, int)` form) — deterministic per workspace,
+  scoped to **one** workspace only. A different workspace id hashes to a
+  different second key and is **never** blocked by this one (proven by
+  `bootstrap-first-staff-owner.concurrency.integration.test.mjs`, which
+  exercises the raw lock primitive directly with two distinct UUIDs).
+- **Release:** `pg_advisory_xact_lock` is transaction-scoped — it is
+  released automatically on **either** `COMMIT` or `ROLLBACK`. No manual
+  `pg_advisory_unlock` call exists or is needed. Unlike a session-level
+  advisory lock, it cannot outlive the transaction if the process dies
+  mid-write.
+- **Authoritative re-read moved under the lock:** immediately after
+  acquiring the lock, the transaction re-reads the workspace's full
+  `staff_members` set (the same query the pre-`BEGIN` fast-path uses) and
+  makes the real eligibility decision from **that** read — not the
+  pre-`BEGIN` one. A second concurrent invocation for the **same**
+  workspace blocks on the lock until the first transaction ends, then its
+  own re-read is guaranteed to observe whatever the first one committed
+  (or, if the first rolled back, the pre-existing empty state). If the
+  now-current state exactly matches this invocation's own manifest, it
+  reports `alreadyBootstrapped` with zero mutation; if it differs, it
+  refuses — **never** reconciles, overwrites, or auto-promotes/demotes
+  anyone. The pre-`BEGIN` read is kept as an operator-friendly **fast
+  path only** (fail fast without opening a transaction for the common
+  "already done" / "obviously conflicting" case) — it is explicitly *not*
+  the safety boundary.
+- **Existing candidate-specific rechecks preserved** (owner + each admin
+  `resolveInternalAdmin` re-check, and the per-user-id conflict `SELECT`)
+  as additional defense-in-depth, unchanged in behavior.
+
+**Test coverage** —
+`scripts/bootstrap-first-staff-owner.concurrency.integration.test.mjs`
+(disposable `postgres:16-alpine`; every invocation drives a REAL, independent
+`pg.Client` against the REAL bootstrap implementation — nothing about its
+SQL or control flow is reimplemented or mocked in any of the tests below):
+
+1. **Two different eligible OWNER candidates**, synchronized with an
+   explicit test-only rendezvous barrier (`makeBarrier` /
+   `barrierConnectFn`) so both invocations are DETERMINISTICALLY forced
+   to reach the `pg_advisory_xact_lock` statement at the same real time —
+   not `Promise.all` scheduling luck. **This specific test — and only
+   this one — independently proves the fix**, per the negative control
+   below. → exactly one commits, the workspace ends with exactly one
+   `OWNER` row (verified directly against the disposable database, not
+   from the JS return values alone), the surviving `ADMIN` row belongs
+   only to the winning manifest, the loser is refused/rolled back with
+   zero partial/orphan rows.
+2. The **same** manifest fired twice concurrently (`Promise.all`, no
+   barrier needed) → converges to exactly one committed OWNER+ADMIN set,
+   no duplication; both invocations return `ok: true` (one
+   `mutated: true`, the other `alreadyBootstrapped: true`). This test
+   also independently discriminates (see negative control below) —
+   without the hardening the loser hits a raw `staff_members_user_workspace_unique`
+   violation and returns `ok: false`, failing this test's assertions.
+3. A failure injected **after** lock acquisition (a poisoned `INSERT`) →
+   the transaction rolls back, zero partial `staff_members` rows remain,
+   and a subsequent valid bootstrap for the same workspace proceeds
+   immediately (bounded by a timeout in the test) — proving the lock does
+   not outlive the failed transaction. This test exercises the hardened
+   code's own correctness and is not intended as a hardened-vs-unhardened
+   discriminator.
+4. The raw lock primitive, tested directly (two raw connections, explicit
+   `sleep()`-gated assertions — deterministic, not timing-dependent):
+   two different workspace ids never block each other; the same
+   workspace id does block until the holder's transaction ends. These
+   prove the underlying mechanism in isolation from the tool's business
+   logic.
+
+**Negative control (RBAC-BOOTSTRAP-CONCURRENCY-TEST-FIX-1):** an earlier,
+`Promise.all`-only version of test 1 was found, during independent review,
+to pass 6/6 times even against a disposable scratch copy with the lock and
+authoritative reread entirely removed — because the pre-existing
+post-insert verification already happened to catch the race under normal
+local-disposable-DB timing, not because of the fix. The barrier-based
+version of test 1 was verified against the same kind of reverted scratch
+copy (never a tracked file) and reliably **fails** — deterministically,
+not probabilistically — reproducing the exact double-`OWNER`-commit the
+hardening exists to prevent (`{mutated:true}` for **both** invocations,
+`2 !== 1` distinct `OWNER` rows), confirming the barrier genuinely forces
+the race window the lock closes. Test 2 (same manifest) was independently
+confirmed to already reliably fail pre-hardening (4/4) via the same
+method. Tests 3 and 4 test properties of the hardened code itself
+(lock release, primitive scoping) rather than discriminating
+hardened-vs-unhardened, and are not claimed to.
+
+**Not tested end-to-end at the bootstrap-tool level:** two real internal
+workspaces racing against each other through the *full* tool. `db/schema.ts`'s
+`organizations_is_internal_unique` (a partial unique index on
+`organizations(is_internal) WHERE is_internal = true`) enforces at most
+one internal workspace can ever exist, and the tool itself refuses unless
+exactly one is found — so a genuine two-internal-workspace scenario cannot
+be constructed without violating a real production invariant, and doing
+so would not usefully test lock scoping anyway (the tool would refuse
+before reaching the lock). The lock-scoping guarantee is instead verified
+at the underlying primitive level (item 4 above), which is what the tool's
+per-invocation key derivation actually depends on.
+
 ## Positive production target guard (`--apply` real run)
 
 `scripts/lib/protected-db-target.mjs` classifies a target as
@@ -270,6 +408,7 @@ npx tsx --test scripts/db-migrate.test.mjs scripts/bootstrap-first-staff-owner.t
 # integration (needs Docker; each creates + destroys its own postgres:16-alpine):
 npx tsx --test scripts/rbac-mig-tooling.integration.test.mjs
 npx tsx --test scripts/db-migrate.hardening.integration.test.mjs   # --migrations-folder + --expected-pending + clean-prefix + change-window gates
+npx tsx --test scripts/bootstrap-first-staff-owner.concurrency.integration.test.mjs   # workspace-scoped advisory lock: real concurrent OWNER races
 ```
 
 `db-migrate.hardening.integration.test.mjs` builds its `0000..0033`
