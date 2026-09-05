@@ -147,10 +147,11 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
       },
     });
 
-    // listWorkforceMembers is the ONLY runtime-capable export of this
-    // module (see RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1) — every
-    // assertion below goes through it, exactly as any real caller must.
-    const { listWorkforceMembers } = await import(
+    // listWorkforceMembers/addWorkforceMember are the ONLY runtime-capable
+    // exports of this module (see RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1
+    // and RBAC-RUNTIME-R2B-WORKFORCE-MUTATION-FOUNDATION-1) — every
+    // assertion below goes through them, exactly as any real caller must.
+    const { listWorkforceMembers, addWorkforceMember } = await import(
       "/Users/arnoldbenzaie/Documents/projects.md/digitalnova/.claude/worktrees/chantier1-phase2-quote-public-page/app/lib/actions/workforce.ts"
     );
 
@@ -204,6 +205,95 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
     // Workspace isolation: listWorkforceMembers() takes zero arguments —
     // every call above already demonstrates there is no parameter through
     // which a second workspace could ever be requested.
+
+    // ================================================================
+    // R2B: addWorkforceMember() — real mutation against real Postgres,
+    // reusing this same disposable container/seed (a fresh `@/db` Pool
+    // cannot be opened a second time in this process — db/index.ts caches
+    // its Pool on globalThis for the life of the module, so every
+    // real-@/db scenario in this file must share the one container/test()
+    // body established above, exactly like the read-only assertions).
+    // ================================================================
+    const freshTargetId = await seedUser("fresh-target@example.com");
+    const ownerAttemptTargetId = await seedUser("owner-attempt-target@example.com");
+    const raceTargetId = await seedUser("race-target@example.com");
+    const nonInternalOrgId = randomUUID();
+    await pool.query("insert into organizations (id, name, is_internal) values ($1,'Other org (non-internal)', false)", [nonInternalOrgId]);
+
+    // 1. authorized ADMIN caller creates the expected normal membership.
+    asUser(adminUserId);
+    const added = await addWorkforceMember(freshTargetId, "EMPLOYEE");
+    assert.deepEqual(added, { userId: freshTargetId, email: "fresh-target@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+
+    // It lands only in the internal workspace (never the non-internal one
+    // seeded above), with the correct role and inviter recorded.
+    const [freshRow] = (
+      await pool.query("select id, workspace_org_id, role_id, status, invited_by_user_id from staff_members where user_id = $1", [freshTargetId])
+    ).rows;
+    assert.equal(freshRow.workspace_org_id, orgId);
+    assert.notEqual(freshRow.workspace_org_id, nonInternalOrgId);
+    assert.equal(freshRow.role_id, roleId.EMPLOYEE);
+    assert.equal(freshRow.status, "ACTIVE");
+    assert.equal(freshRow.invited_by_user_id, adminUserId);
+
+    // The real logAudit() write path was used (lib/audit.ts) — no parallel
+    // audit subsystem, real actor/workspace/target/role/timestamp.
+    const [auditRow] = (
+      await pool.query("select action, actor_user_id, organization_id, metadata from audit_log where target_type = 'staff_member' and target_id = $1", [
+        freshRow.id,
+      ])
+    ).rows;
+    assert.equal(auditRow.action, "workforce.member_added");
+    assert.equal(auditRow.actor_user_id, adminUserId);
+    assert.equal(auditRow.organization_id, orgId);
+    assert.equal(auditRow.metadata.role, "EMPLOYEE");
+
+    // 2. an unauthorized caller (MANAGER — no WORKFORCE_MANAGE permission)
+    // cannot reach the write at all.
+    asUser(managerUserId);
+    await assert.rejects(() => addWorkforceMember(raceTargetId, "EMPLOYEE"), /NEXT_REDIRECT/);
+    const [noRowForUnauthorized] = (await pool.query("select 1 from staff_members where user_id = $1", [raceTargetId])).rows;
+    assert.equal(noRowForUnauthorized, undefined, "an unauthorized caller must never create a row");
+
+    // 3. duplicate membership is rejected deterministically, and never
+    // changes the existing member's role as a side effect.
+    asUser(adminUserId);
+    await assert.rejects(() => addWorkforceMember(freshTargetId, "MANAGER"), /already a workforce member/);
+    const [freshRowAfterDuplicate] = (await pool.query("select role_id from staff_members where user_id = $1", [freshTargetId])).rows;
+    assert.equal(freshRowAfterDuplicate.role_id, roleId.EMPLOYEE, "a duplicate add must never change the existing role");
+
+    // 4. OWNER can never be created through this action.
+    await assert.rejects(() => addWorkforceMember(ownerAttemptTargetId, "OWNER"), /workforce role must be one of/);
+    const [noOwnerRow] = (await pool.query("select 1 from staff_members where user_id = $1", [ownerAttemptTargetId])).rows;
+    assert.equal(noOwnerRow, undefined, "OWNER must never be creatable through R2B");
+
+    // 5. an EXISTING OWNER cannot be mutated through this action — the
+    // insert collides with staff_members_one_owner_per_workspace/
+    // staff_members_user_workspace_unique exactly like any other
+    // duplicate, and the OWNER's row is left untouched.
+    await assert.rejects(() => addWorkforceMember(ownerUserId, "ADMIN"), /already a workforce member/);
+    const [ownerRowAfter] = (await pool.query("select role_id from staff_members where user_id = $1", [ownerUserId])).rows;
+    assert.equal(ownerRowAfter.role_id, roleId.OWNER, "an existing OWNER must never be mutated through this action");
+
+    // 6. concurrency: two simultaneous adds for the same brand-new target
+    // race against the real staff_members_user_workspace_unique index —
+    // exactly one must win, the other must fail closed, and only one row
+    // may ever exist.
+    const raceResults = await Promise.allSettled([addWorkforceMember(raceTargetId, "EMPLOYEE"), addWorkforceMember(raceTargetId, "MANAGER")]);
+    const raceFulfilled = raceResults.filter((r) => r.status === "fulfilled");
+    const raceRejected = raceResults.filter((r) => r.status === "rejected");
+    assert.equal(raceFulfilled.length, 1, "exactly one concurrent add must win");
+    assert.equal(raceRejected.length, 1, "the other concurrent add must fail closed, never silently merge");
+    assert.match(String(raceRejected[0].reason), /already a workforce member/);
+    const raceRows = (await pool.query("select role_id from staff_members where user_id = $1", [raceTargetId])).rows;
+    assert.equal(raceRows.length, 1, "no duplicate row may ever be created under concurrency");
+
+    // 7. cross-workspace isolation: no staff_members row created by any of
+    // the above ever references the non-internal workspace.
+    const [{ count: nonInternalStaffCount }] = (
+      await pool.query("select count(*)::int as count from staff_members where workspace_org_id = $1", [nonInternalOrgId])
+    ).rows;
+    assert.equal(nonInternalStaffCount, 0, "no staff_members row may ever be created in a non-internal workspace");
 
     // @/db's own module-scoped Pool (db/index.ts caches it on
     // globalThis.pgPool) was opened as a side effect of importing
