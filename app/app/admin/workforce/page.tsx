@@ -1,31 +1,38 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { listWorkforceMembers } from "@/lib/actions/workforce";
+import { listAssignableWorkforceUsers } from "@/lib/actions/workforce-ui";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
+import { AddWorkforceMemberForm } from "@/components/workforce/add-workforce-member-form";
 
 /**
- * PHASE OWNER-UI-3A — read-only view of the internal-staff workforce on the
- * new StaffRole RBAC axis (staff_roles / staff_members). Distinct from
+ * PHASE OWNER-UI-3A / OWNER-UI-4A — the internal-staff workforce on the new
+ * StaffRole RBAC axis (staff_roles / staff_members). Distinct from
  * /admin/users (legacy AppRole / memberships) and /admin/audit/equipe
  * (GBP-Audit staff, separate database) — this page reads ONLY axis C.
  *
- * Authorization is the FIRST statement, before locale, dictionary,
- * listWorkforceMembers(), or any render: requireStaffMember("WORKFORCE_MANAGE")
+ * Authorization is the FIRST statement, before locale, dictionary, the
+ * workforce reads, or any render: requireStaffMember("WORKFORCE_MANAGE")
  * — granted to OWNER and ADMIN, denied to MANAGER/EMPLOYEE and to anyone
  * with no ACTIVE staff_members row (redirected to /admin by
- * requireStaffMember's existing contract). listWorkforceMembers() then
- * runs its OWN identical guard — defense in depth — and remains the
- * AUTHORITATIVE source of the row set: it resolves the internal workspace
- * server-side (no caller parameter) and applies a positive role allowlist
- * (ADMIN/MANAGER/EMPLOYEE), so OWNER can never appear here even for an
- * OWNER caller. This page adds no client-side OWNER filtering — it would
- * be redundant and could mask a regression in R2A.
+ * requireStaffMember's existing contract). listWorkforceMembers() and
+ * listAssignableWorkforceUsers() then each run their OWN identical guard —
+ * defense in depth. listWorkforceMembers() remains the AUTHORITATIVE
+ * source of the displayed row set (server-resolved workspace, positive
+ * role allowlist ADMIN/MANAGER/EMPLOYEE), so OWNER never appears here.
  *
- * Read-only in this slice: no add-member, no role change, no OWNER
- * management, no DB write, no schema change. A missing internal workspace
- * or a DB failure propagates (never silently rendered as an empty table),
- * so an empty list and an infrastructure failure stay distinguishable.
+ * OWNER-UI-4A adds an "add member" dialog (AddWorkforceMemberForm) whose
+ * eligible-user list is listAssignableWorkforceUsers() — a UX prefilter
+ * only. The authoritative mutation is R2B addWorkforceMember() via the
+ * lib/actions/workforce-ui.ts wrapper: it validates UUID shape, role
+ * allowlist (OWNER rejected), workspace, `users` existence, the duplicate
+ * constraint and the permission. This page still adds no client-side
+ * OWNER filtering and performs no DB write of its own.
+ *
+ * A missing internal workspace or a DB failure propagates (never silently
+ * rendered as an empty table), so an empty list and an infrastructure
+ * failure stay distinguishable.
  */
 const STATUS_BADGE_CLASS: Record<string, string> = {
   ACTIVE: "bg-pm-g-green/10 text-pm-g-green",
@@ -36,7 +43,10 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 export default async function WorkforcePage() {
   await requireStaffMember("WORKFORCE_MANAGE");
 
-  const members = await listWorkforceMembers();
+  // Guard-first is preserved: the await above fully resolves (and
+  // redirect()s on any denial) before these run, and each read re-checks
+  // WORKFORCE_MANAGE itself.
+  const [members, assignable] = await Promise.all([listWorkforceMembers(), listAssignableWorkforceUsers()]);
   const locale = await getLocale();
   const t = dictionaries[locale].workforce;
 
@@ -53,7 +63,11 @@ export default async function WorkforcePage() {
 
   return (
     <>
-      <AdminPageHero title={t.title} subtitle={t.subtitle} />
+      <AdminPageHero
+        title={t.title}
+        subtitle={t.subtitle}
+        actions={<AddWorkforceMemberForm assignableUsers={assignable.users} hasMore={assignable.hasMore} locale={locale} />}
+      />
 
       <div className={`${panelClass} mt-6`}>
         {members.length === 0 ? (

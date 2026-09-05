@@ -54,6 +54,26 @@ mock.module("@/lib/actions/workforce", {
   },
 });
 
+// PHASE OWNER-UI-4A — the eligible-user read is a separate module-boundary
+// mock (its real impl imports @/db); the client dialog is stubbed to a
+// no-op so its transitive "use client" deps never load. The stub is still
+// a real element in the tree, so its forwarded props are assertable.
+let assignableResult = { users: [], hasMore: false };
+let assignableError = null;
+let assignableCalls = 0;
+mock.module("@/lib/actions/workforce-ui", {
+  namedExports: {
+    listAssignableWorkforceUsers: async () => {
+      assignableCalls += 1;
+      if (assignableError) throw assignableError;
+      return assignableResult;
+    },
+  },
+});
+mock.module("@/components/workforce/add-workforce-member-form", {
+  namedExports: { AddWorkforceMemberForm: () => null },
+});
+
 const { default: WorkforcePage } = await import("./page.tsx");
 
 function reset() {
@@ -62,7 +82,27 @@ function reset() {
   workforceRows = [];
   listCalls = 0;
   listError = null;
+  assignableResult = { users: [], hasMore: false };
+  assignableError = null;
+  assignableCalls = 0;
 }
+
+/** Every element in the tree whose props satisfy `pred` — walks children
+ * AND the AdminPageHero `actions` slot (where the Add-Member dialog lives). */
+function findByProps(node, pred, found = []) {
+  if (node == null || typeof node !== "object") return found;
+  if (Array.isArray(node)) {
+    for (const child of node) findByProps(child, pred, found);
+    return found;
+  }
+  if (node.props) {
+    if (pred(node.props)) found.push(node);
+    findByProps(node.props.children, pred, found);
+    findByProps(node.props.actions, pred, found);
+  }
+  return found;
+}
+const addMemberForms = (el) => findByProps(el, (p) => "assignableUsers" in p && "hasMore" in p);
 
 /** Recursively collect every string leaf + title/subtitle props from a
  * React element tree, so a rendered async Server Component can be asserted
@@ -102,6 +142,7 @@ test("OWNER-UI-3A page: a guard denial (NEXT_REDIRECT) rejects before any workfo
   await assert.rejects(() => WorkforcePage(), /NEXT_REDIRECT/);
   assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"], "the guard still ran, with exactly WORKFORCE_MANAGE");
   assert.equal(listCalls, 0, "listWorkforceMembers() must never run when the page guard denies");
+  assert.equal(assignableCalls, 0, "listAssignableWorkforceUsers() must never run when the page guard denies");
 });
 
 test("OWNER-UI-3A page: authorization ignores caller-supplied input — a forged { searchParams } / { params } changes nothing", async () => {
@@ -157,4 +198,66 @@ test("OWNER-UI-3A page: a listWorkforceMembers() failure propagates — never sw
   listError = new Error("internal workspace is not configured");
   await assert.rejects(() => WorkforcePage(), /internal workspace is not configured/);
   assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"], "the page guard still ran first");
+});
+
+// ---------------------------- PHASE OWNER-UI-4A ----------------------------
+// The page now also renders the "add member" dialog and feeds it
+// listAssignableWorkforceUsers()'s result. The dialog component and the
+// eligible-user read are both module-boundary mocks here; the anti-join
+// semantics (OWNER / existing members excluded) are proven for real in
+// lib/actions/workforce-ui.integration.test.mjs.
+
+test("OWNER-UI-4A page: renders exactly one AddWorkforceMemberForm, after the guard, with listAssignableWorkforceUsers() called once", async () => {
+  reset();
+  workforceRows = [member({ email: "admin@example.com" })];
+  assignableResult = { users: [{ id: "11111111-1111-4111-8111-111111111111", email: "candidate@example.com" }], hasMore: false };
+  const el = await WorkforcePage();
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.equal(assignableCalls, 1, "eligible-user read runs once, only after the route guard resolved");
+  assert.equal(addMemberForms(el).length, 1, "exactly one add-member dialog is rendered");
+});
+
+test("OWNER-UI-4A page: forwards assignable.users and assignable.hasMore verbatim to the dialog", async () => {
+  reset();
+  const users = [
+    { id: "11111111-1111-4111-8111-111111111111", email: "a@example.com" },
+    { id: "22222222-2222-4222-8222-222222222222", email: "b@example.com" },
+  ];
+  assignableResult = { users, hasMore: true };
+  const [form] = addMemberForms(await WorkforcePage());
+  assert.deepEqual(form.props.assignableUsers, users);
+  assert.equal(form.props.hasMore, true);
+});
+
+test("OWNER-UI-4A page: an empty eligible list is forwarded as [] (the dialog disables itself; the page does not gate)", async () => {
+  reset();
+  assignableResult = { users: [], hasMore: false };
+  const [form] = addMemberForms(await WorkforcePage());
+  assert.deepEqual(form.props.assignableUsers, []);
+  assert.equal(form.props.hasMore, false);
+});
+
+test("OWNER-UI-4A page: the workforce table / empty-state stay independent of the eligible-user list", async () => {
+  reset();
+  workforceRows = [];
+  assignableResult = { users: [{ id: "11111111-1111-4111-8111-111111111111", email: "c@example.com" }], hasMore: false };
+  const text = collectText(await WorkforcePage()).join(" | ");
+  assert.ok(text.includes(t.emptyState), "members list empty-state still renders when there ARE eligible users");
+  assert.ok(!text.includes(t.columnMember), "still no table when there are no members");
+});
+
+test("OWNER-UI-4A page: a listAssignableWorkforceUsers() failure propagates — not swallowed into a broken render", async () => {
+  reset();
+  assignableError = new Error("internal workspace is not configured");
+  await assert.rejects(() => WorkforcePage(), /internal workspace is not configured/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"], "the page guard still ran first");
+});
+
+test("OWNER-UI-4A page: still a zero-parameter Server Component; forged params/searchParams remain inert", async () => {
+  reset();
+  assert.equal(WorkforcePage.length, 0);
+  assignableResult = { users: [], hasMore: false };
+  const el = await WorkforcePage({ searchParams: { role: "OWNER", workspace: "other" }, params: { workspace: "other" } });
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.equal(addMemberForms(el).length, 1);
 });
