@@ -144,6 +144,12 @@ export function AppShellClient({
   children,
 }: {
   role: DevRole;
+  // PHASE OWNER-UI-1 — plumbed through from AppShell (see its own comment)
+  // as the correct boundary for a future OWNER-only nav entry to consume.
+  // Deliberately not destructured above: nothing in this component reads
+  // it yet — OWNER-UI-2 is the mission scoped to actually branch on it
+  // when building `sections` below.
+  isOwner?: boolean;
   badges: NavBadgeCounts;
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;

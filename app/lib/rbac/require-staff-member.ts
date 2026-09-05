@@ -104,3 +104,52 @@ export async function requireStaffMember(permission: Permission): Promise<StaffR
   }
   return result.role;
 }
+
+/**
+ * PHASE OWNER-UI-1 — non-redirecting OWNER visibility signal, for deciding
+ * whether to RENDER an OWNER-only affordance (e.g. a future nav entry),
+ * never for deciding whether to ALLOW an OWNER-only action or route —
+ * that authorization still belongs exclusively to
+ * requireStaffMember("OWNER_MANAGE") (or a future permission), called
+ * again at the actual protected route/action. This function must never be
+ * treated as a substitute authorization gate.
+ *
+ * Reuses "OWNER_MANAGE" — the one permission lib/rbac/permissions.ts
+ * documents as OWNER-exclusive — as the sole source of truth, via the
+ * exact same evaluateStaffPermission() core requireStaffMember() itself
+ * uses. No second OWNER lookup, no email, no client-suppliable state, no
+ * duplicated allowlist: every evaluateStaffPermission() denial branch
+ * (no internal workspace, no membership, inactive membership,
+ * permission-denied) already resolves to `ok: false` here, so this is
+ * fail-closed by construction — `false` covers every non-OWNER case
+ * uniformly, with no case that must be special-cased to avoid an
+ * accidental `true`.
+ *
+ * Deliberately does not catch a genuine infrastructure failure (e.g. the
+ * DB being unreachable): every other await in the admin layout/AppShell
+ * render path (org, notifications, badge counts) is equally unguarded, so
+ * this stays consistent with that existing convention rather than
+ * introducing a new error-swallowing path — a real DB outage still fails
+ * the whole request instead of silently rendering with `isOwner: false`,
+ * which would be a correctness regression, not extra safety.
+ *
+ * Takes NO parameters — reviewed API invariant (see the compile-time
+ * @ts-expect-error proof in require-staff-member.permission-type-check.ts):
+ * unlike evaluateStaffPermission() (this function's own pure core, kept
+ * injectable for its own tests), this exported wrapper accepts no
+ * workspace resolver, membership lookup, user id, role, or any other
+ * override — every real dependency below is the repository's real
+ * production implementation, always. There is no parameter through which
+ * a caller could substitute a test double, another identity, or another
+ * workspace at runtime.
+ */
+export async function isCurrentUserOwner(): Promise<boolean> {
+  const session = await requireSession();
+  // Same two-argument call shape as requireStaffMember() above — relies
+  // on evaluateStaffPermission()'s own default getInternalOrgId/
+  // lookupMembership (getInternalOrganizationId / defaultLookupStaffMembership),
+  // never re-specified here, so there is exactly one place in this file
+  // that names the real production dependencies.
+  const result = await evaluateStaffPermission({ userId: session.userId, permission: "OWNER_MANAGE" });
+  return result.ok && result.role === "OWNER";
+}

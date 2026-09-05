@@ -22,16 +22,40 @@ const INTERNAL_ORG_ID = "e35cbc31-9604-4324-adc6-f6f5c1ffc248";
 const USER_ID = "32371e8f-fc5e-4add-a7e4-9d4baf84252e";
 
 // require-staff-member.ts imports @/db at module scope for its DEFAULT
-// lookup (never exercised below — every evaluateStaffPermission() test
-// injects lookupMembership/getInternalOrgId directly), but @/db's real
-// module throws synchronously at import time when DATABASE_URL isn't set.
-// It also imports @/lib/session, whose real implementation transitively
-// pulls in a `server-only`-guarded module that throws outside an actual
-// Next.js server render. Both are mocked to harmless stand-ins so this
-// suite needs neither a live Postgres connection nor a Next.js runtime —
-// exactly the reason lib/dev-role.test.mjs mocks @/lib/session the same
-// way before importing lib/dev-role.ts.
-mock.module("@/db", { namedExports: { db: {} } });
+// lookup (never exercised by the evaluateStaffPermission()/requireStaffMember()
+// tests below, which all inject lookupMembership/getInternalOrgId directly),
+// but @/db's real module throws synchronously at import time when
+// DATABASE_URL isn't set. It also imports @/lib/session, whose real
+// implementation transitively pulls in a `server-only`-guarded module that
+// throws outside an actual Next.js server render. Both are mocked to
+// harmless stand-ins so this suite needs neither a live Postgres
+// connection nor a Next.js runtime — exactly the reason lib/dev-role.test.mjs
+// mocks @/lib/session the same way before importing lib/dev-role.ts.
+//
+// isCurrentUserOwner() (PHASE OWNER-UI-1 / SECURITY-CLEANUP-1) takes no
+// argument at all — unlike evaluateStaffPermission(), it cannot be given
+// an injected lookupMembership/getInternalOrgId, so its own tests (below)
+// exercise the REAL defaultLookupStaffMembership() against this fake
+// `db`, which only needs to support that one query shape
+// (select({roleName,status}).from(staffMembers).innerJoin(staffRoles,...)
+// .where(...).limit(1)) — a flat chain is enough since no other query
+// shape in this file reaches @/db through the zero-argument wrapper.
+let membershipRowOrError = { row: undefined };
+const fakeMembershipDb = {
+  select: () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: () => ({
+          limit: () => {
+            if ("error" in membershipRowOrError) return Promise.reject(membershipRowOrError.error);
+            return Promise.resolve(membershipRowOrError.row ? [membershipRowOrError.row] : []);
+          },
+        }),
+      }),
+    }),
+  }),
+};
+mock.module("@/db", { namedExports: { db: fakeMembershipDb } });
 
 /** @type {{ kind: "unauthenticated" } | { kind: "session"; userId: string }} */
 let sessionMockState = { kind: "session", userId: USER_ID };
@@ -54,7 +78,7 @@ mock.module("@/lib/notifications", {
   },
 });
 
-const { evaluateStaffPermission, requireStaffMember } = await import("./require-staff-member.ts");
+const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner } = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
   return async () => id;
@@ -72,6 +96,20 @@ function throwingLookup(err = new Error("db unreachable")) {
   return async () => {
     throw err;
   };
+}
+
+// ---- isCurrentUserOwner()-only fixtures: it has no injectable params, so
+// its real defaultLookupStaffMembership() must hit the fake `db` above
+// instead. `internalOrgIdMock` (already set up for @/lib/notifications)
+// covers the workspace-resolution half of the same real call chain. ----
+function withMembershipRow(roleName, status = "ACTIVE") {
+  membershipRowOrError = { row: { roleName, status } };
+}
+function withNoMembershipRow() {
+  membershipRowOrError = { row: undefined };
+}
+function withMembershipLookupError(err = new Error("db unreachable")) {
+  membershipRowOrError = { error: err };
 }
 
 async function evaluate(roleName, permission, { status = "ACTIVE", getInternalOrgId = fixedInternalOrg(), lookupMembership } = {}) {
@@ -263,4 +301,82 @@ test("requireStaffMember redirects to /admin when the resolved caller has no sta
 
 test("requireStaffMember has exactly one parameter (permission) — no way to pass an identity", () => {
   assert.equal(requireStaffMember.length, 1);
+});
+
+// ------------------- isCurrentUserOwner(): OWNER-UI-1 visibility signal -------------------
+// Non-redirecting — every assertion below checks a plain boolean, never a
+// thrown NEXT_REDIRECT, distinguishing it from requireStaffMember() above.
+//
+// isCurrentUserOwner() takes NO argument (hardened in SECURITY-CLEANUP-1 —
+// see the compile-time @ts-expect-error proof in
+// require-staff-member.permission-type-check.ts for why that isn't
+// re-asserted here via a brittle `.length` check): every call below is
+// `isCurrentUserOwner()`, and the scenario is driven entirely by the
+// module-level `internalOrgIdMock` (@/lib/notifications) and the fake
+// `db` (`withMembershipRow`/`withNoMembershipRow`/`withMembershipLookupError`
+// above) that its real, un-overridable defaultLookupStaffMembership()
+// actually queries — the OWNER/ADMIN/MANAGER/EMPLOYEE role matrix itself
+// is already exhaustively proven against evaluateStaffPermission()
+// directly in tests 1-20 above; these tests exist to prove
+// isCurrentUserOwner()'s own composition (real session -> real
+// evaluateStaffPermission("OWNER_MANAGE") -> ok && role === "OWNER"), not
+// to re-litigate that matrix a second time.
+
+test("OWNER-UI-1.1. real OWNER membership -> isOwner = true", async () => {
+  withMembershipRow("OWNER");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, true);
+});
+
+test("OWNER-UI-1.2. ADMIN -> isOwner = false", async () => {
+  withMembershipRow("ADMIN");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, false);
+});
+
+test("OWNER-UI-1.3. MANAGER -> isOwner = false", async () => {
+  withMembershipRow("MANAGER");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, false);
+});
+
+test("OWNER-UI-1.4. EMPLOYEE -> isOwner = false", async () => {
+  withMembershipRow("EMPLOYEE");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, false);
+});
+
+test("OWNER-UI-1.5. missing staff_members membership -> isOwner = false, never true", async () => {
+  withNoMembershipRow();
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, false);
+});
+
+test("OWNER-UI-1.5b. no internal workspace resolvable -> isOwner = false, never true", async () => {
+  withMembershipRow("OWNER"); // present but must never be reached — no-workspace denies first
+  internalOrgIdMock = async () => null;
+  try {
+    const isOwner = await isCurrentUserOwner();
+    assert.equal(isOwner, false);
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("OWNER-UI-1.5c. inactive (SUSPENDED) OWNER row -> isOwner = false — an OWNER row alone is not enough, it must also be ACTIVE", async () => {
+  withMembershipRow("OWNER", "SUSPENDED");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, false);
+});
+
+test("OWNER-UI-1.6. determination is based on OWNER_MANAGE via the real defaultLookupStaffMembership() — never email — proven by a fake `db` row that carries only roleName/status, no email field at all", async () => {
+  membershipRowOrError = { row: { roleName: "OWNER", status: "ACTIVE" } };
+  assert.equal("email" in membershipRowOrError.row, false, "the membership row consulted has no email field — the decision cannot be email-based");
+  const isOwner = await isCurrentUserOwner();
+  assert.equal(isOwner, true);
+});
+
+test("OWNER-UI-1.7. a DB/lookup failure propagates (rejects), never silently resolves to false or true", async () => {
+  withMembershipLookupError();
+  await assert.rejects(() => isCurrentUserOwner(), /db unreachable/);
 });
