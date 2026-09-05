@@ -18,6 +18,7 @@ import { accessPending, accessDenied, accessRefused, accessSuspended } from "./a
 import { adminUsers } from "./admin-users";
 import { adminOnboarding } from "./admin-onboarding";
 import { ownerControl } from "./owner";
+import { workforce } from "./workforce";
 import { dashboard } from "./dashboard";
 import { settings } from "./settings";
 import { notificationsPage } from "./notifications";
@@ -48,6 +49,7 @@ export const dictionaries = {
     adminUsers: adminUsers.fr,
     adminOnboarding: adminOnboarding.fr,
     ownerControl: ownerControl.fr,
+    workforce: workforce.fr,
     dashboard: dashboard.fr,
     settings: settings.fr,
     notificationsPage: notificationsPage.fr,
@@ -74,6 +76,7 @@ export const dictionaries = {
     adminUsers: adminUsers.en,
     adminOnboarding: adminOnboarding.en,
     ownerControl: ownerControl.en,
+    workforce: workforce.en,
     dashboard: dashboard.en,
     settings: settings.en,
     notificationsPage: notificationsPage.en,
