@@ -78,7 +78,7 @@ mock.module("@/lib/notifications", {
   },
 });
 
-const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner } = await import("./require-staff-member.ts");
+const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce } = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
   return async () => id;
@@ -379,4 +379,80 @@ test("OWNER-UI-1.6. determination is based on OWNER_MANAGE via the real defaultL
 test("OWNER-UI-1.7. a DB/lookup failure propagates (rejects), never silently resolves to false or true", async () => {
   withMembershipLookupError();
   await assert.rejects(() => isCurrentUserOwner(), /db unreachable/);
+});
+
+// ------------- canCurrentUserManageWorkforce(): OWNER-UI-3B visibility signal -------------
+// Same non-redirecting, zero-argument shape as isCurrentUserOwner(), but
+// follows the "WORKFORCE_MANAGE" permission (OWNER + ADMIN today) and
+// returns evaluateStaffPermission().ok verbatim — no hardcoded role names.
+// Driven by the same module-level `internalOrgIdMock` + fake `db`
+// (`withMembershipRow`/`withNoMembershipRow`/`withMembershipLookupError`).
+// Never an authorization gate — /admin/workforce keeps its own
+// requireStaffMember("WORKFORCE_MANAGE") server guard (OWNER-UI-3A).
+
+test("OWNER-UI-3B.1. OWNER -> canManageWorkforce = true", async () => {
+  withMembershipRow("OWNER");
+  assert.equal(await canCurrentUserManageWorkforce(), true);
+});
+
+test("OWNER-UI-3B.2. ADMIN -> canManageWorkforce = true", async () => {
+  withMembershipRow("ADMIN");
+  assert.equal(await canCurrentUserManageWorkforce(), true);
+});
+
+test("OWNER-UI-3B.3. MANAGER -> canManageWorkforce = false", async () => {
+  withMembershipRow("MANAGER");
+  assert.equal(await canCurrentUserManageWorkforce(), false);
+});
+
+test("OWNER-UI-3B.4. EMPLOYEE -> canManageWorkforce = false", async () => {
+  withMembershipRow("EMPLOYEE");
+  assert.equal(await canCurrentUserManageWorkforce(), false);
+});
+
+test("OWNER-UI-3B.5. missing staff_members membership -> canManageWorkforce = false", async () => {
+  withNoMembershipRow();
+  assert.equal(await canCurrentUserManageWorkforce(), false);
+});
+
+test("OWNER-UI-3B.6. inactive (SUSPENDED) ADMIN row -> canManageWorkforce = false — an ADMIN row alone is not enough, it must also be ACTIVE", async () => {
+  withMembershipRow("ADMIN", "SUSPENDED");
+  assert.equal(await canCurrentUserManageWorkforce(), false);
+});
+
+test("OWNER-UI-3B.7. permission-denied (unknown stored role) -> canManageWorkforce = false", async () => {
+  withMembershipRow("SOMETHING_ELSE_NOT_A_REAL_ROLE");
+  assert.equal(await canCurrentUserManageWorkforce(), false);
+});
+
+test("OWNER-UI-3B.7b. no internal workspace resolvable -> canManageWorkforce = false, never true", async () => {
+  withMembershipRow("ADMIN"); // present but must never be reached — no-workspace denies first
+  internalOrgIdMock = async () => null;
+  try {
+    assert.equal(await canCurrentUserManageWorkforce(), false);
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("OWNER-UI-3B.8. determination is via WORKFORCE_MANAGE against the real defaultLookupStaffMembership() — never email — proven by a fake `db` row carrying only roleName/status, no email field", async () => {
+  membershipRowOrError = { row: { roleName: "ADMIN", status: "ACTIVE" } };
+  assert.equal("email" in membershipRowOrError.row, false, "the membership row consulted has no email field — the decision cannot be email-based");
+  assert.equal(await canCurrentUserManageWorkforce(), true);
+});
+
+test("OWNER-UI-3B.9. a DB/lookup failure propagates (rejects), never silently resolves to false or true", async () => {
+  withMembershipLookupError();
+  await assert.rejects(() => canCurrentUserManageWorkforce(), /db unreachable/);
+});
+
+test("OWNER-UI-3B.10. no hardcoded role names — it returns evaluateStaffPermission().ok verbatim, so it would follow a future WORKFORCE_MANAGE policy change automatically (MANAGER row still denied today because the permission catalogue denies it)", async () => {
+  // This is the composition guarantee: the signal never re-implements the
+  // OWNER/ADMIN allowlist. With a MANAGER row it is false purely because
+  // hasPermission("MANAGER","WORKFORCE_MANAGE") is false in the catalogue,
+  // not because this function names "MANAGER".
+  withMembershipRow("MANAGER");
+  assert.equal(await canCurrentUserManageWorkforce(), hasPermission("MANAGER", "WORKFORCE_MANAGE"));
+  withMembershipRow("ADMIN");
+  assert.equal(await canCurrentUserManageWorkforce(), hasPermission("ADMIN", "WORKFORCE_MANAGE"));
 });

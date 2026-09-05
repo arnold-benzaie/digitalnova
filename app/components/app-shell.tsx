@@ -20,17 +20,29 @@ import { AppShellClient } from "@/components/app-shell-client";
  * AppShellClient — this stays a Server Component so it can fetch org,
  * notifications and badge counts directly.
  *
- * `isOwner` (PHASE OWNER-UI-1) is an OPTIONAL, purely-additive visibility
- * signal from the separate internal-staff RBAC axis (lib/rbac/require-
- * staff-member.ts's isCurrentUserOwner()) — only app/admin/layout.tsx
- * computes and passes it today; app/dashboard/layout.tsx (client portal)
- * omits it, defaulting to `false`, since OWNER is never a concept in that
- * context. It carries no capability of its own: nothing in this component
- * or AppShellClient currently reads it to change rendering — it exists
- * purely so a future OWNER-only nav entry (OWNER-UI-2) can consume it
- * without further plumbing.
+ * `isOwner` (PHASE OWNER-UI-1) and `canManageWorkforce` (PHASE OWNER-UI-3B)
+ * are OPTIONAL, purely-additive visibility signals from the separate
+ * internal-staff RBAC axis (lib/rbac/require-staff-member.ts's
+ * isCurrentUserOwner() / canCurrentUserManageWorkforce()) — only
+ * app/admin/layout.tsx computes and passes them; app/dashboard/layout.tsx
+ * (client portal) omits both, defaulting to `false`, since neither is a
+ * concept there. They carry no capability of their own: they only decide
+ * whether getStaffNavSections() emits the "Owner Control" / "Workforce"
+ * nav items; the corresponding routes each re-check their own permission
+ * server-side. No RBAC call and no route authorization happens in this
+ * component.
  */
-export async function AppShell({ children, role, isOwner = false }: { children: ReactNode; role: DevRole; isOwner?: boolean }) {
+export async function AppShell({
+  children,
+  role,
+  isOwner = false,
+  canManageWorkforce = false,
+}: {
+  children: ReactNode;
+  role: DevRole;
+  isOwner?: boolean;
+  canManageWorkforce?: boolean;
+}) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const visibility = notificationVisibilityWhere(org.id, session.userId, session.role);
   const [recentNotifications, unreadCount, badges, locale] = await Promise.all([
@@ -54,6 +66,7 @@ export async function AppShell({ children, role, isOwner = false }: { children: 
     <AppShellClient
       role={role}
       isOwner={isOwner}
+      canManageWorkforce={canManageWorkforce}
       badges={badges}
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}

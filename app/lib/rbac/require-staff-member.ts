@@ -153,3 +153,39 @@ export async function isCurrentUserOwner(): Promise<boolean> {
   const result = await evaluateStaffPermission({ userId: session.userId, permission: "OWNER_MANAGE" });
   return result.ok && result.role === "OWNER";
 }
+
+/**
+ * PHASE OWNER-UI-3B — non-redirecting WORKFORCE_MANAGE visibility signal,
+ * for deciding whether to RENDER the /admin/workforce nav entry. Like
+ * isCurrentUserOwner() above, it is NEVER an authorization gate:
+ * /admin/workforce independently calls requireStaffMember("WORKFORCE_MANAGE")
+ * as its own first statement (OWNER-UI-3A), and that remains the only
+ * thing that decides route access. A client that forges the resulting
+ * boolean can at most render a dead link in its own browser.
+ *
+ * Follows the "WORKFORCE_MANAGE" permission catalogue entry as the sole
+ * source of truth — via the exact same evaluateStaffPermission() core the
+ * two functions above use — and returns its `ok` verbatim. It deliberately
+ * does NOT additionally hardcode role names (unlike isCurrentUserOwner()'s
+ * `role === "OWNER"` refinement): the permission grant in
+ * lib/rbac/permissions.ts (OWNER + ADMIN today) is the authoritative
+ * policy, so if that policy is deliberately changed later this signal
+ * tracks it automatically. No email, no client-suppliable state, no
+ * duplicated allowlist.
+ *
+ * Errors propagate exactly as in isCurrentUserOwner(): a real
+ * infrastructure failure fails the whole request rather than silently
+ * resolving to `false`; a normal `{ ok: false }` permission denial
+ * (no workspace, no membership, inactive membership, permission-denied)
+ * resolves to `false`.
+ *
+ * Takes NO parameters — reviewed API invariant (see the compile-time
+ * @ts-expect-error proof in require-staff-member.permission-type-check.ts):
+ * no workspace resolver, membership lookup, user id, role, or any other
+ * override.
+ */
+export async function canCurrentUserManageWorkforce(): Promise<boolean> {
+  const session = await requireSession();
+  const result = await evaluateStaffPermission({ userId: session.userId, permission: "WORKFORCE_MANAGE" });
+  return result.ok;
+}

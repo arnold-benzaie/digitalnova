@@ -137,6 +137,7 @@ function sectionKeyForPath(sections: NavSection[], pathname: string): string | n
 export function AppShellClient({
   role,
   isOwner = false,
+  canManageWorkforce = false,
   badges,
   recentNotifications,
   unreadCount,
@@ -145,14 +146,16 @@ export function AppShellClient({
   children,
 }: {
   role: DevRole;
-  // PHASE OWNER-UI-1 plumbed this through from AppShell; PHASE OWNER-UI-2
-  // consumes it — the ONLY use is deciding whether getStaffNavSections()
-  // emits the OWNER-only "Owner Control" item below. It never gates a
-  // route or an action: /admin/owner independently calls
-  // requireStaffMember("OWNER_MANAGE") server-side. AppShell defaults it
-  // to `false`, and app/dashboard/layout.tsx never passes it, so the
-  // client portal (getClientNavSections) is entirely unaffected.
+  // PHASE OWNER-UI-1/2 (`isOwner`) and PHASE OWNER-UI-3B
+  // (`canManageWorkforce`): server-derived visibility booleans, plumbed
+  // from AppShell. Their ONLY use is deciding whether getStaffNavSections()
+  // emits the "Owner Control" / "Workforce" items below. Neither gates a
+  // route or an action — /admin/owner and /admin/workforce each call
+  // requireStaffMember(...) server-side themselves. AppShell defaults both
+  // to `false`, and app/dashboard/layout.tsx passes neither, so the client
+  // portal (getClientNavSections) is entirely unaffected.
   isOwner?: boolean;
+  canManageWorkforce?: boolean;
   badges: NavBadgeCounts;
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
@@ -164,8 +167,8 @@ export function AppShellClient({
   const pathname = usePathname() ?? "";
   const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
   const sections = useMemo(
-    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner })),
-    [role, t, isOwner],
+    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner, canManageWorkforce })),
+    [role, t, isOwner, canManageWorkforce],
   );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 

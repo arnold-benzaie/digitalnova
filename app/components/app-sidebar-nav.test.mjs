@@ -100,3 +100,83 @@ test("OWNER-UI-2: getClientNavSections() has no item labeled like the Owner Cont
     .filter((i) => i.label === t.items.ownerControl);
   assert.equal(matches.length, 0);
 });
+
+// ---------------- PHASE OWNER-UI-3B — Workforce nav visibility ----------------
+// The /admin/workforce item is generated ONLY on an explicit
+// { canManageWorkforce: true }; every other shape leaves the sidebar with
+// no such item. Independent of the OWNER-UI-2 { isOwner } flag.
+
+const workforceItems = (sections) => sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/workforce");
+
+test("OWNER-UI-3B: { canManageWorkforce: true } -> exactly one /admin/workforce item, in the relation section, with the dictionary label", () => {
+  const sections = getStaffNavSections(t, { canManageWorkforce: true });
+  const matches = workforceItems(sections);
+  assert.equal(matches.length, 1, "expected exactly one Workforce item");
+  assert.equal(matches[0].label, t.items.workforce);
+  assert.equal(matches[0].href, "/admin/workforce");
+
+  const relation = sections.find((s) => s.key === "relation");
+  assert.ok(relation, "expected a 'relation' section");
+  assert.ok(relation.items.some((i) => i.href === "/admin/workforce"), "the Workforce item must live in the relation section");
+});
+
+test("OWNER-UI-3B: the Workforce item sits immediately after Users and before any Owner Control item", () => {
+  const relation = getStaffNavSections(t, { canManageWorkforce: true, isOwner: true }).find((s) => s.key === "relation");
+  const hrefs = relation.items.map((i) => i.href);
+  assert.equal(hrefs[hrefs.indexOf("/admin/workforce") - 1], "/admin/users", "Workforce comes right after Users");
+  assert.ok(hrefs.indexOf("/admin/workforce") < hrefs.indexOf("/admin/owner"), "Workforce comes before Owner Control");
+});
+
+test("OWNER-UI-3B: the Workforce item is never duplicated under { canManageWorkforce: true }", () => {
+  assert.equal(workforceItems(getStaffNavSections(t, { canManageWorkforce: true })).length, 1);
+});
+
+test("OWNER-UI-3B: { canManageWorkforce: false } -> no /admin/workforce item", () => {
+  assert.equal(workforceItems(getStaffNavSections(t, { canManageWorkforce: false })).length, 0);
+});
+
+test("OWNER-UI-3B: { canManageWorkforce: undefined } -> no /admin/workforce item", () => {
+  assert.equal(workforceItems(getStaffNavSections(t, { canManageWorkforce: undefined })).length, 0);
+});
+
+test("OWNER-UI-3B: options omitted entirely -> no /admin/workforce item", () => {
+  assert.equal(workforceItems(getStaffNavSections(t)).length, 0);
+});
+
+test("OWNER-UI-3B: empty options object -> no /admin/workforce item", () => {
+  assert.equal(workforceItems(getStaffNavSections(t, {})).length, 0);
+});
+
+test("OWNER-UI-3B: a truthy-but-not-true canManageWorkforce (string / number) does NOT reveal the item — strict === true only", () => {
+  assert.equal(workforceItems(getStaffNavSections(t, { canManageWorkforce: "true" })).length, 0);
+  assert.equal(workforceItems(getStaffNavSections(t, { canManageWorkforce: 1 })).length, 0);
+});
+
+test("OWNER-UI-3B: OWNER-like (isOwner:true, canManageWorkforce:true) -> BOTH Workforce and Owner Control visible", () => {
+  const sections = getStaffNavSections(t, { isOwner: true, canManageWorkforce: true });
+  assert.equal(workforceItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 1);
+});
+
+test("OWNER-UI-3B: ADMIN-like (isOwner:false, canManageWorkforce:true) -> Workforce visible, Owner Control absent", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: true });
+  assert.equal(workforceItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 0);
+});
+
+test("OWNER-UI-3B: MANAGER/EMPLOYEE-like (isOwner:false, canManageWorkforce:false) -> neither Workforce nor Owner Control", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: false });
+  assert.equal(workforceItems(sections).length, 0);
+  assert.equal(ownerItems(sections).length, 0);
+});
+
+test("OWNER-UI-3B: getClientNavSections() never contains /admin/workforce, and no Owner Control regression", () => {
+  const sections = getClientNavSections(t);
+  assert.equal(workforceItems(sections).length, 0);
+  assert.equal(ownerItems(sections).length, 0);
+  assert.equal(
+    sections.flatMap((s) => s.items).filter((i) => i.label === t.items.workforce).length,
+    0,
+    "no item labeled like the Workforce nav entry",
+  );
+});
