@@ -136,6 +136,7 @@ function sectionKeyForPath(sections: NavSection[], pathname: string): string | n
 
 export function AppShellClient({
   role,
+  isOwner = false,
   badges,
   recentNotifications,
   unreadCount,
@@ -144,11 +145,13 @@ export function AppShellClient({
   children,
 }: {
   role: DevRole;
-  // PHASE OWNER-UI-1 — plumbed through from AppShell (see its own comment)
-  // as the correct boundary for a future OWNER-only nav entry to consume.
-  // Deliberately not destructured above: nothing in this component reads
-  // it yet — OWNER-UI-2 is the mission scoped to actually branch on it
-  // when building `sections` below.
+  // PHASE OWNER-UI-1 plumbed this through from AppShell; PHASE OWNER-UI-2
+  // consumes it — the ONLY use is deciding whether getStaffNavSections()
+  // emits the OWNER-only "Owner Control" item below. It never gates a
+  // route or an action: /admin/owner independently calls
+  // requireStaffMember("OWNER_MANAGE") server-side. AppShell defaults it
+  // to `false`, and app/dashboard/layout.tsx never passes it, so the
+  // client portal (getClientNavSections) is entirely unaffected.
   isOwner?: boolean;
   badges: NavBadgeCounts;
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
@@ -160,7 +163,10 @@ export function AppShellClient({
   const t = dictionaries[locale].navigation;
   const pathname = usePathname() ?? "";
   const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
-  const sections = useMemo(() => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t)), [role, t]);
+  const sections = useMemo(
+    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner })),
+    [role, t, isOwner],
+  );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
