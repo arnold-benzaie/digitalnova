@@ -244,11 +244,11 @@ test("O.1 HEAD journal (ends 0034) + expected [0031,0032,0033] → refused local
   assert.equal(r.refused, true, JSON.stringify(r));
 });
 
-test("O.2 HEAD journal + DB at 0030 + expected = valid trailing slice [0032,0033,0034] → equality gate refuses (observed pending also has 0031)", async () => {
+test("O.2 HEAD journal + DB at 0030 + expected = valid trailing slice [0033,0034,0035] → equality gate refuses (observed pending also has 0031,0032)", async () => {
   await resetDb();
   await seedPrefix(folder30);
   const r = await runMigrate({
-    argv: ["--apply", "--db-url", URL, "--migrations-folder", REAL_MIGRATIONS, "--expected-pending", `${TAG_0032},${TAG_0033},0034_aberrant_earthquake`],
+    argv: ["--apply", "--db-url", URL, "--migrations-folder", REAL_MIGRATIONS, "--expected-pending", `${TAG_0033},0034_aberrant_earthquake,0035_tough_phil_sheldon`],
     env: TEST_ENV,
     promptFn: async () => "MIGRATE",
     ...silent,

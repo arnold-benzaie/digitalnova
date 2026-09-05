@@ -632,6 +632,73 @@ export const STRUCTURAL_VERIFIERS = {
       rbac: { roleRows, tablesOk, seedExact },
     };
   },
+  // 0035 (RBAC-OWNER-DB-INVARIANT): OWNER staff_roles row normalized to a
+  // fixed id + a partial unique index DB-enforcing at-most-one OWNER
+  // membership per workspace. Deliberately does NOT require any
+  // staff_members row to exist — zero OWNER memberships is valid both
+  // before and immediately after this migration; the controlled bootstrap
+  // tool establishes the initial operational exactly-one separately.
+  "0035_tough_phil_sheldon": async (conn) => {
+    const FIXED_OWNER_ID = "6a615714-4eb7-44f3-993b-f113292f0aa2";
+    const ownerRows = (await conn.query("select id from staff_roles where name = 'OWNER'")).rows;
+    const ownerExactlyOne = ownerRows.length === 1;
+    const ownerIdMatches = ownerExactlyOne && ownerRows[0].id === FIXED_OWNER_ID;
+
+    // Catalog-based check (not indexdef string-scraping): reads indisunique,
+    // the exact indexed key columns, and the predicate expression directly
+    // from pg_index/pg_attribute, then requires the predicate to normalize
+    // (whitespace/parens stripped) to EXACTLY "role_id='<fixed>'::uuid" —
+    // not merely contain it. This rejects a non-unique index, a wrong
+    // operator, a wrong predicate column, an extra indexed key, and an
+    // extra AND/OR condition, all of which a substring/regex check on
+    // indexdef could previously miss.
+    const idx = (
+      await conn.query(
+        `select
+           i.indisunique,
+           i.indnkeyatts,
+           pg_get_expr(i.indpred, i.indrelid) as predicate,
+           (select string_agg(a.attname, ',' order by k.ord)
+              from unnest(i.indkey::int2[]) with ordinality as k(attnum, ord)
+              join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
+           ) as key_columns_csv
+         from pg_index i
+         join pg_class c on c.oid = i.indexrelid
+         join pg_class t on t.oid = i.indrelid
+         join pg_namespace n on n.oid = t.relnamespace
+         where n.nspname = 'public' and t.relname = 'staff_members' and c.relname = 'staff_members_one_owner_per_workspace'`,
+      )
+    ).rows[0];
+    const expectedPredicate = `role_id='${FIXED_OWNER_ID}'::uuid`;
+    const normalizedPredicate = idx?.predicate ? idx.predicate.replace(/[()\s]/g, "") : null;
+    const indexOk =
+      !!idx &&
+      idx.indisunique === true &&
+      idx.indnkeyatts === 1 &&
+      idx.key_columns_csv === "workspace_org_id" &&
+      normalizedPredicate === expectedPredicate;
+
+    const fkOk = (
+      await conn.query(
+        `select count(*)::int n from information_schema.table_constraints
+           where table_schema='public' and constraint_type='FOREIGN KEY'
+             and ((table_name='staff_members' and constraint_name like '%role_id%')
+                or (table_name='staff_invitations' and constraint_name like '%role_id%'))`,
+      )
+    ).rows[0].n;
+
+    const roleRows = (await conn.query("select name from staff_roles order by name")).rows.map((x) => x.name);
+    const catalogueExact = JSON.stringify(roleRows) === JSON.stringify(["ADMIN", "EMPLOYEE", "MANAGER", "OWNER"]);
+
+    const ok = ownerExactlyOne && ownerIdMatches && indexOk && fkOk >= 2 && catalogueExact;
+    return {
+      ok,
+      detail:
+        `OWNER rows=${ownerRows.length}/1 id-matches-fixed=${ownerIdMatches} ` +
+        `index=${indexOk ? "present+correct" : "MISSING/WRONG"} role-FKs=${fkOk}/2 ` +
+        `catalogue=[${roleRows.join(",")}] ${catalogueExact ? "exact" : "UNEXPECTED"}`,
+    };
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────

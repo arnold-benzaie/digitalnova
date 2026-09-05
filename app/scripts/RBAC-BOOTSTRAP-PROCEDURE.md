@@ -14,6 +14,8 @@
 | `scripts/db-migrate.mjs` | Reviewed main-DB migrator — replays the selected `--migrations-folder` via **drizzle-orm `migrate()`** (NOT `drizzle-kit push`, which would not run hand-appended seed statements such as `0034`'s `staff_roles` seed). Inspection by default. A production `--apply` requires: a positively-identified target; a `--migrations-folder` that canonically resolves **inside `<repo>/db/`**; an operator `--expected-pending` set that must exactly equal the target's actual pending migrations; a reviewer-supplied `--expected-fingerprint` (SHA-256 of the folder, checked before connection **and** again immediately before `migrate()`); `--acknowledge-prefix-hash-drift` if any already-applied prefix row's hash differs; then read-only structural post-verification of every applied migration. |
 | `scripts/bootstrap-first-staff-owner.mjs` | Reviewed first OWNER/ADMIN bootstrap — creates exactly one `OWNER` `staff_members` row plus one `ADMIN` row per explicitly-approved current active internal admin. Dry-run by default; one transaction, serialized per workspace by a `pg_advisory_xact_lock` (see "Bootstrap workspace-scoped serialization" below); idempotent; fail-closed. |
 | `scripts/bootstrap-first-staff-owner.concurrency.integration.test.mjs` | Disposable-container proof that the workspace-scoped advisory lock actually serializes two genuinely concurrent bootstrap attempts for the same workspace — real `pg.Client` connections, no mocked interleaving. |
+| `db/migrations/0035_tough_phil_sheldon.sql` | New, additive migration (after immutable `0034`) — normalizes OWNER's `staff_roles.id` to a fixed value and DB-enforces at-most-one OWNER `staff_members` row per workspace. See "Database-level AT-MOST-ONE OWNER per workspace" below. |
+| `scripts/rbac-owner-invariant.integration.test.mjs` | Disposable-container proof of `0035`'s invariant and fail-closed behavior across every pre-existing-state scenario (zero/one/many OWNER rows, same/different workspace, `staff_invitations` repointing, UPDATE-based promotion/move). |
 | `scripts/lib/protected-db-target.mjs` | Shared positive DB-target classifier (production vs disposable vs refused). |
 | `scripts/rbac-bootstrap-manifest.example.json` | Manifest **template** — no real identities. |
 
@@ -354,6 +356,63 @@ before reaching the lock). The lock-scoping guarantee is instead verified
 at the underlying primitive level (item 4 above), which is what the tool's
 per-invocation key derivation actually depends on.
 
+## Database-level AT-MOST-ONE OWNER per workspace (RBAC-OWNER-DB-INVARIANT)
+
+Migration `0035_tough_phil_sheldon` — after, and never inside, the
+immutable `0034_aberrant_earthquake` — normalizes the `staff_roles` row
+named `OWNER` to a fixed, well-known id
+(`db/schema.ts`'s `OWNER_STAFF_ROLE_ID`, `6a615714-4eb7-44f3-993b-f113292f0aa2`)
+and then creates a partial unique index,
+`staff_members_one_owner_per_workspace`, on
+`staff_members(workspace_org_id) WHERE role_id = <that fixed id>`.
+
+**This id identifies the ROLE, never a person.** It is schema
+infrastructure — not a `users.id`, not derived from any email or human
+identity, and not a secret (the same status as the main-production
+project-ref constant in `db/guard-main-production.ts`). Every other
+`staff_roles` row (ADMIN/MANAGER/EMPLOYEE) keeps its ordinary
+migration-time `gen_random_uuid()` value; only OWNER needed a fixed id,
+because only OWNER cardinality needed a database-enforced invariant.
+
+**What the database now guarantees — and what it still does not:**
+
+- **AT-MOST-ONE** OWNER `staff_members` row per workspace **is now
+  DB-enforced**, atomically, on both `INSERT` and `UPDATE` (including a
+  role promotion or a workspace move) — proven by
+  `scripts/rbac-owner-invariant.integration.test.mjs` against real
+  disposable PostgreSQL.
+- The database does **NOT** guarantee **AT-LEAST-ONE**. Zero OWNER
+  `staff_members` rows is legal both before and **immediately after**
+  this migration — the migration never requires, creates, or assumes any
+  `staff_members` row exists. The controlled bootstrap tool
+  (`scripts/bootstrap-first-staff-owner.mjs`, unchanged by this slice —
+  it already resolves OWNER by `name`, never by a literal id) establishes
+  the initial **operational exactly-one**, once, separately, under its
+  own existing dry-run/apply/confirmation/lock/idempotency gates.
+- Protecting against a **later** deletion or demotion of the sole
+  remaining OWNER (keeping at-least-one true on an ongoing basis, not
+  just at bootstrap time) is a **separate, unaddressed, future**
+  runtime-authorization/transaction-policy problem — not solved here and
+  not conflated with the at-most-one invariant above.
+- A future **OWNER transfer** (OWNER A → OWNER B) must, inside one
+  transaction, **demote A's `role_id` before promoting B's** — the
+  reverse order is rejected immediately by this same partial unique
+  index (proven empirically during design). The index is not
+  `DEFERRABLE` (PostgreSQL does not support deferrable partial unique
+  indexes), so ordering — not constraint timing — is what makes a
+  transfer safe.
+
+Migration `0035` fails atomically and closed — never choosing a winner,
+never deleting or demoting anyone — if it finds the OWNER role missing
+or ambiguous, the fixed id already colliding with an unrelated role, an
+unknown/unrepointed dependency on the old OWNER id (the `DELETE` of the
+old role is itself the generic defense here — any table not already
+known to and repointed by this migration would make that `DELETE` fail
+its own foreign key check), or a pre-existing multi-OWNER-per-workspace
+violation (the `CREATE UNIQUE INDEX` step itself refuses over
+already-violating data, with no custom detection code needed). `0034`
+remains byte-identical; `0035` is a new, additive migration only.
+
 ## Positive production target guard (`--apply` real run)
 
 `scripts/lib/protected-db-target.mjs` classifies a target as
@@ -409,6 +468,7 @@ npx tsx --test scripts/db-migrate.test.mjs scripts/bootstrap-first-staff-owner.t
 npx tsx --test scripts/rbac-mig-tooling.integration.test.mjs
 npx tsx --test scripts/db-migrate.hardening.integration.test.mjs   # --migrations-folder + --expected-pending + clean-prefix + change-window gates
 npx tsx --test scripts/bootstrap-first-staff-owner.concurrency.integration.test.mjs   # workspace-scoped advisory lock: real concurrent OWNER races
+npx tsx --test scripts/rbac-owner-invariant.integration.test.mjs   # migration 0035: DB-enforced at-most-one OWNER per workspace
 ```
 
 `db-migrate.hardening.integration.test.mjs` builds its `0000..0033`

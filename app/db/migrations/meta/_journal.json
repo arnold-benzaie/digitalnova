@@ -246,6 +246,13 @@
       "when": 1788027109724,
       "tag": "0034_aberrant_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788583774628,
+      "tag": "0035_tough_phil_sheldon",
+      "breakpoints": true
     }
   ]
 }

@@ -1824,6 +1824,25 @@ export const staffRoles = pgTable("staff_roles", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * The fixed, well-known id of the `staff_roles` row named "OWNER".
+ *
+ * Identifies the ROLE, never a person: it is schema infrastructure, not a
+ * `users.id` and not derived from any email or human identity. Every other
+ * `staff_roles` row (ADMIN/MANAGER/EMPLOYEE) keeps its migration-time
+ * `gen_random_uuid()` value — only OWNER needs a fixed id, because only
+ * OWNER cardinality needs a database-enforced invariant (see the partial
+ * unique index below). A future migration (after 0034) rewrites the
+ * already-seeded random OWNER row to this exact id before that index is
+ * created; 0034 itself is never modified.
+ *
+ * Deliberately scoped to this file only — the bootstrap tool
+ * (scripts/bootstrap-first-staff-owner.mjs) resolves OWNER by `name` and
+ * must keep doing so; it does not need, and must not import, this
+ * constant.
+ */
+export const OWNER_STAFF_ROLE_ID = "6a615714-4eb7-44f3-993b-f113292f0aa2";
+
 export const staffMembers = pgTable(
   "staff_members",
   {
@@ -1848,6 +1867,16 @@ export const staffMembers = pgTable(
     uniqueIndex("staff_members_user_workspace_unique").on(table.userId, table.workspaceOrgId),
     index("staff_members_workspace_role_status_idx").on(table.workspaceOrgId, table.roleId, table.status),
     check("staff_members_status_check", sql`${table.status} IN ('ACTIVE','SUSPENDED','OFFBOARDING')`),
+    // DB-enforced AT-MOST-ONE OWNER per workspace. Does NOT enforce
+    // at-least-one — zero OWNER rows is legal both before and immediately
+    // after the migration that creates this index; the controlled
+    // bootstrap tool (scripts/bootstrap-first-staff-owner.mjs) establishes
+    // the initial operational exactly-one, once, separately. A future
+    // OWNER transfer must demote the old OWNER's role_id before promoting
+    // the new one, inside one transaction — this index is not deferrable.
+    uniqueIndex("staff_members_one_owner_per_workspace")
+      .on(table.workspaceOrgId)
+      .where(sql`${table.roleId} = ${sql.raw(`'${OWNER_STAFF_ROLE_ID}'`)}::uuid`),
   ],
 );
 

@@ -257,10 +257,10 @@ test("staticPreConnectionGate: RBAC migration pending but seed missing → refus
 });
 
 // ─────────────────────────── real FS (read-only) ─────────────────────────────
-test("readMigrationJournal: committed db/migrations journal valid; 35 entries; identity + fingerprint present", () => {
+test("readMigrationJournal: committed db/migrations journal valid; 36 entries; identity + fingerprint present", () => {
   const j = readMigrationJournal();
-  assert.equal(j.tags.length, 35);
-  assert.equal(j.tags[j.tags.length - 1], "0034_aberrant_earthquake");
+  assert.equal(j.tags.length, 36);
+  assert.equal(j.tags[j.tags.length - 1], "0035_tough_phil_sheldon");
   j.entries.forEach((e, i) => assert.equal(e.idx, i));
   assert.equal(j.rbacSeedMigrationPresent, true);
   assert.equal(j.rbacSeedOk, true);
@@ -465,8 +465,11 @@ test("CRM structural verify FAILS (0033 missing a column) → verifyFailed", asy
   const r = await promise;
   assert.equal(r.verifyFailed, true);
 });
-test("STRUCTURAL_VERIFIERS registry has entries for exactly the four known tags", () => {
-  assert.deepEqual(Object.keys(STRUCTURAL_VERIFIERS).sort(), [...CRM_TAGS, RBAC_SEED_MIGRATION_TAG].sort());
+test("STRUCTURAL_VERIFIERS registry has entries for exactly the five known tags", () => {
+  assert.deepEqual(
+    Object.keys(STRUCTURAL_VERIFIERS).sort(),
+    [...CRM_TAGS, RBAC_SEED_MIGRATION_TAG, "0035_tough_phil_sheldon"].sort(),
+  );
 });
 
 // ─────────────────── run(): FINDING C — prefix hash drift ────────────────────
