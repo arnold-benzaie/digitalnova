@@ -677,6 +677,7 @@ export const crm = {
       archivedBadge: "Archivé",
       sourceLabel: "Source :",
       ownerLabel: "Conseiller :",
+      assignmentTitle: "Responsable",
       marketLabel: "Marché commercial :",
       gbp: {
         title: "Google Business Profile",
@@ -1411,6 +1412,7 @@ export const crm = {
       archivedBadge: "Archived",
       sourceLabel: "Source:",
       ownerLabel: "Owner:",
+      assignmentTitle: "Owner",
       marketLabel: "Commercial market:",
       gbp: {
         title: "Google Business Profile",

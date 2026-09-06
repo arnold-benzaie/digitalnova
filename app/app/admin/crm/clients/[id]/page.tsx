@@ -20,6 +20,7 @@ import {
   searchConsoleProperties,
   seoAudits,
   services,
+  staffMembers,
   tasks,
   tickets,
   users,
@@ -58,6 +59,11 @@ import { updateProjectStatus } from "@/lib/actions/crm-projects";
 import { updateTaskStatus } from "@/lib/actions/crm-tasks";
 import { updateTicketStatus } from "@/lib/actions/crm-tickets";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireSession } from "@/lib/session";
+import { getRadarCapabilities } from "@/lib/rbac/require-staff-member";
+import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
+import { getInternalOrganizationId } from "@/lib/notifications";
+import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
 import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
 import { createInvoice } from "@/lib/actions/crm-invoices";
@@ -203,6 +209,42 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
     : [];
   const actorNameById = new Map(actors.map((a) => [a.id, a.fullName ?? a.email]));
 
+  // RADAR-CORE-1C — expose the shipped prospect/client assignment system
+  // (crm_clients.assigned_user_id, RADAR-CORE-1A) on the detail page.
+  // Read authorization stays requireStaffRole() above; the Axis-C `caps`
+  // below drive only the interactive affordances inside
+  // <RadarAssignmentControls>, and every mutation re-checks
+  // requireStaffMember(...) in the server actions.
+  const { userId: currentUserId } = await requireSession();
+  const assignmentCaps = await getRadarCapabilities();
+  const assignables = assignmentCaps.canAssignOthers ? await listAssignableRadarMembers() : [];
+
+  // Resolve the current assignee's display identity + ACTIVE-in-internal-
+  // workspace flag. One targeted lookup, only when someone is assigned.
+  // assigned_user_id is the SOLE structured assignment truth — the legacy
+  // free-text ownerName is never consulted. Mirrors radar-queue.ts's
+  // resolveAssignees(): a stale / removed / suspended assignee stays
+  // assigned but reads as inactive; a missing internal workspace still
+  // renders the page (identity resolved from `users`, active = false).
+  let assignedUserName: string | null = null;
+  let assignedUserActive = false;
+  if (client.assignedUserId) {
+    const internalOrgId = await getInternalOrganizationId();
+    const [assigneeRow] = await db
+      .select({ fullName: users.fullName, email: users.email, staffStatus: staffMembers.status })
+      .from(users)
+      .leftJoin(
+        staffMembers,
+        internalOrgId
+          ? and(eq(staffMembers.userId, users.id), eq(staffMembers.workspaceOrgId, internalOrgId))
+          : eq(staffMembers.userId, users.id),
+      )
+      .where(eq(users.id, client.assignedUserId))
+      .limit(1);
+    assignedUserName = assigneeRow ? (assigneeRow.fullName ?? assigneeRow.email ?? null) : null;
+    assignedUserActive = Boolean(internalOrgId) && assigneeRow?.staffStatus === "ACTIVE";
+  }
+
   return (
     <>
       <div className="flex flex-col gap-4 rounded-2xl border border-pm-gris-2 bg-white p-6 shadow-[0_8px_22px_rgba(13,36,67,0.05)] sm:flex-row sm:items-start sm:justify-between">
@@ -237,6 +279,21 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
           </div>
           <DeleteClientButton id={client.id} locale={locale} />
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)] sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.assignmentTitle}</p>
+        <RadarAssignmentControls
+          clientId={client.id}
+          assignedUserId={client.assignedUserId}
+          assignedUserName={assignedUserName}
+          assignedUserActive={assignedUserActive}
+          currentUserId={currentUserId}
+          caps={assignmentCaps}
+          assignables={assignables}
+          locale={locale}
+          t={dictionaries[locale].crm.radar.assignment}
+        />
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
