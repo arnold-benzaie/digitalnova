@@ -1,9 +1,10 @@
 "use server";
 
-import { desc, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { crmClients, crmInvoices, crmQuotes, deals, interactions } from "@/db/schema";
+import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, users } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
+import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
 import { assessOpportunity, type Confidence, type Priority } from "@/lib/radar/score";
 
@@ -27,11 +28,29 @@ export type RankedProspect = {
   reasons: string[];
   recommendedNextAction: string;
   lastInteractionAt: Date | null;
+  // RADAR-CORE-1B — authoritative assignment (crm_clients.assigned_user_id).
+  // NEVER a scoring / ranking signal; resolved only for the paginated slice
+  // that is actually returned. assignedUserId === null is the sole meaning
+  // of "unassigned" — legacy free-text ownerName is never consulted.
+  assignedUserId: string | null;
+  // fullName ?? email of the assigned user; null when assignedUserId is
+  // null, or when identity/workspace cannot be resolved for enrichment.
+  assignedUserName: string | null;
+  // true only when the assigned user currently has an ACTIVE staff_members
+  // row in the internal workspace. A stale/removed assignee stays assigned
+  // (assignedUserId kept) but reads as inactive.
+  assignedUserActive: boolean;
 };
+
+// RADAR-CORE-1B — assignment filter. Resolved by the page layer: the raw
+// "?assignee=me" URL token is turned into { mode: "user", userId } from the
+// server session before it reaches here; getRadarQueue never sees "me".
+export type RadarAssigneeFilter = { mode: "all" } | { mode: "unassigned" } | { mode: "user"; userId: string };
 
 export type RadarQueueParams = {
   page?: number;
   priority?: Priority[];
+  assignee?: RadarAssigneeFilter;
 };
 
 export type RadarQueueResult = {
@@ -58,6 +77,67 @@ function sanitizePage(page: number | undefined): number {
 function sanitizePriorityFilter(priority: Priority[] | undefined): Priority[] {
   if (!priority || priority.length === 0) return [];
   return priority.filter((p): p is Priority => PRIORITY_VALUES.includes(p));
+}
+
+// RADAR-CORE-1B — same "unknown value behaves as no filter" convention as
+// the priority filter above. A malformed { mode: "user" } with no string
+// userId falls back to { mode: "all" } rather than erroring.
+function sanitizeAssigneeFilter(assignee: RadarAssigneeFilter | undefined): RadarAssigneeFilter {
+  if (!assignee) return { mode: "all" };
+  if (assignee.mode === "unassigned") return { mode: "unassigned" };
+  if (assignee.mode === "user" && typeof assignee.userId === "string" && assignee.userId.length > 0) {
+    return { mode: "user", userId: assignee.userId };
+  }
+  return { mode: "all" };
+}
+
+/**
+ * RADAR-CORE-1B — resolve the display identity + ACTIVE-in-internal-workspace
+ * flag for the (≤ PAGE_SIZE) assigned user ids on the page actually being
+ * returned. ONE batched query, never N+1. If the internal workspace cannot
+ * be resolved, identity is still resolved from `users` and every row reads
+ * as inactive — the queue must stay readable regardless (RADAR-CORE-1B §12).
+ */
+async function resolveAssignees(
+  userIds: string[],
+): Promise<Map<string, { name: string | null; active: boolean }>> {
+  const out = new Map<string, { name: string | null; active: boolean }>();
+  if (userIds.length === 0) return out;
+
+  const internalOrgId = await getInternalOrganizationId();
+
+  if (!internalOrgId) {
+    const rows = await db
+      .select({ id: users.id, fullName: users.fullName, email: users.email })
+      .from(users)
+      .where(inArray(users.id, userIds));
+    for (const row of rows) {
+      out.set(row.id, { name: row.fullName ?? row.email ?? null, active: false });
+    }
+    return out;
+  }
+
+  const rows = await db
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      email: users.email,
+      staffStatus: staffMembers.status,
+    })
+    .from(users)
+    .leftJoin(
+      staffMembers,
+      and(eq(staffMembers.userId, users.id), eq(staffMembers.workspaceOrgId, internalOrgId)),
+    )
+    .where(inArray(users.id, userIds));
+
+  for (const row of rows) {
+    out.set(row.id, {
+      name: row.fullName ?? row.email ?? null,
+      active: row.staffStatus === "ACTIVE",
+    });
+  }
+  return out;
 }
 
 function groupByClientId<T extends { clientId: string }>(rows: T[]): Map<string, T[]> {
@@ -97,6 +177,7 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
 
   const page = sanitizePage(params.page);
   const priorityFilter = sanitizePriorityFilter(params.priority);
+  const assigneeFilter = sanitizeAssigneeFilter(params.assignee);
 
   const candidates = await db
     .select({
@@ -113,6 +194,10 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       doNotContact: crmClients.doNotContact,
       archivedAt: crmClients.archivedAt,
       createdAt: crmClients.createdAt,
+      // RADAR-CORE-1B — carried through for the Assignee column + filter
+      // ONLY. Never read by assessQualification / assessOpportunity / the
+      // ranking comparator below.
+      assignedUserId: crmClients.assignedUserId,
     })
     .from(crmClients)
     .orderBy(desc(crmClients.createdAt), crmClients.id)
@@ -213,6 +298,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       reasons: opportunity.reasons,
       recommendedNextAction: opportunity.recommendedNextAction,
       lastInteractionAt,
+      // Assignment is carried, never scored. Name / active are resolved
+      // after ranking + pagination, only for the returned slice.
+      assignedUserId: client.assignedUserId,
+      assignedUserName: null,
+      assignedUserActive: false,
       _createdAt: client.createdAt,
       _id: client.id,
     };
@@ -238,23 +328,47 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
     return a._id < b._id ? -1 : a._id > b._id ? 1 : 0; // absolute deterministic final tie-break
   });
 
-  const filtered = priorityFilter.length > 0 ? ranked.filter((r) => priorityFilter.includes(r.priority)) : ranked;
+  // Both filters are applied to the ALREADY-RANKED array, after sort and
+  // before pagination, so relative Radar order is preserved within the
+  // filtered subset. They compose by intersection. totalQualified /
+  // insufficientDataCount / notEligibleCount are NOT touched — they keep
+  // their pre-filter meaning.
+  const priorityFiltered =
+    priorityFilter.length > 0 ? ranked.filter((r) => priorityFilter.includes(r.priority)) : ranked;
+  const filtered =
+    assigneeFilter.mode === "unassigned"
+      ? priorityFiltered.filter((r) => r.assignedUserId === null)
+      : assigneeFilter.mode === "user"
+        ? priorityFiltered.filter((r) => r.assignedUserId === assigneeFilter.userId)
+        : priorityFiltered;
 
   const start = (page - 1) * PAGE_SIZE;
-  const items: RankedProspect[] = filtered.slice(start, start + PAGE_SIZE).map((r) => ({
-    clientId: r.clientId,
-    name: r.name,
-    industry: r.industry,
-    country: r.country,
-    region: r.region,
-    city: r.city,
-    stage: r.stage,
-    priority: r.priority,
-    confidence: r.confidence,
-    reasons: r.reasons,
-    recommendedNextAction: r.recommendedNextAction,
-    lastInteractionAt: r.lastInteractionAt,
-  }));
+  const pageSlice = filtered.slice(start, start + PAGE_SIZE);
+
+  const assigneeInfo = await resolveAssignees([
+    ...new Set(pageSlice.map((r) => r.assignedUserId).filter((id): id is string => id !== null)),
+  ]);
+
+  const items: RankedProspect[] = pageSlice.map((r) => {
+    const info = r.assignedUserId ? assigneeInfo.get(r.assignedUserId) : undefined;
+    return {
+      clientId: r.clientId,
+      name: r.name,
+      industry: r.industry,
+      country: r.country,
+      region: r.region,
+      city: r.city,
+      stage: r.stage,
+      priority: r.priority,
+      confidence: r.confidence,
+      reasons: r.reasons,
+      recommendedNextAction: r.recommendedNextAction,
+      lastInteractionAt: r.lastInteractionAt,
+      assignedUserId: r.assignedUserId,
+      assignedUserName: info?.name ?? null,
+      assignedUserActive: info?.active ?? false,
+    };
+  });
 
   return { items, page, pageSize: PAGE_SIZE, totalQualified, insufficientDataCount, notEligibleCount };
 }

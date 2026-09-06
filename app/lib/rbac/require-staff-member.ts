@@ -191,39 +191,59 @@ export async function canCurrentUserManageWorkforce(): Promise<boolean> {
 }
 
 /**
- * PHASE RADAR-CORE-1A — non-redirecting RADAR capability signal, for
- * deciding which per-row assignment affordances the RADAR queue should
- * RENDER (Assign-to-me button, assignee <select>, Release link). Like
- * isCurrentUserOwner() / canCurrentUserManageWorkforce() above, this is
- * NEVER an authorization gate: lib/actions/radar-assignment.ts's
+ * PHASE RADAR-CORE-1A / RADAR-CORE-1B — non-redirecting RADAR capability
+ * signal, for deciding which per-row assignment affordances the RADAR queue
+ * should RENDER (Claim-to-self button, assignee <select>, Release link).
+ * Like isCurrentUserOwner() / canCurrentUserManageWorkforce() above, this
+ * is NEVER an authorization gate: lib/actions/radar-assignment.ts's
  * claimProspect / assignProspect / unassignProspect each call
  * requireStaffMember("RADAR_WORK" | "RADAR_ASSIGN") as their own first
  * statement, and that remains the only thing that decides whether a
- * mutation runs. A client that forges either boolean can at most render a
+ * mutation runs. A client that forges any boolean can at most render a
  * control that the server-side action then refuses.
  *
- *  - canWork:   RADAR_WORK  (OWNER/ADMIN/MANAGER/EMPLOYEE today) — claim an
- *               unassigned prospect to self, release one's own.
- *  - canAssign: RADAR_ASSIGN (OWNER/ADMIN/MANAGER today) — assign/reassign
- *               to another member, unassign another's.
+ *  - canClaimToSelf: RADAR_WORK is granted AND the caller's own ACTIVE
+ *      StaffRole is an eligible assignee target (ADMIN / MANAGER / EMPLOYEE,
+ *      never OWNER). This is the exact server-side mirror of
+ *      isEligibleAssignee() applied to the caller: `work.ok` already means
+ *      "ACTIVE staff membership that holds RADAR_WORK"; the only remaining
+ *      exclusion is OWNER (a governance seat, never an operational one), so
+ *      an OWNER viewing the queue sees no Claim button — a self-claim would
+ *      return ASSIGNEE_NOT_ELIGIBLE anyway.
+ *  - canAssignOthers: RADAR_ASSIGN (OWNER/ADMIN/MANAGER today) — assign or
+ *      reassign to a named member, and release an assignment held by
+ *      someone else.
+ *  - canReleaseOwn: RADAR_WORK (OWNER/ADMIN/MANAGER/EMPLOYEE today) —
+ *      release one's own assignment.
  *
- * One requireSession(), two evaluateStaffPermission() calls via the exact
- * same core the wrappers above use — permission grants in
- * lib/rbac/permissions.ts are the sole source of truth, so a deliberate
- * future policy change tracks automatically. Errors propagate exactly as in
- * isCurrentUserOwner(): a real infrastructure failure fails the whole
- * request; a normal `{ ok: false }` denial (no workspace, no membership,
- * inactive membership, permission-denied) resolves to `false`.
+ * The caller's StaffRole used for canClaimToSelf comes straight off
+ * evaluateStaffPermission()'s own success branch ({ ok: true, role }); no
+ * role string is ever accepted from, or returned to, a client. One
+ * requireSession(), two evaluateStaffPermission() calls via the exact same
+ * core the wrappers above use — permission grants in lib/rbac/permissions.ts
+ * are the sole source of truth, so a deliberate future policy change tracks
+ * automatically. Errors propagate exactly as in isCurrentUserOwner(): a
+ * real infrastructure failure fails the whole request; a normal
+ * `{ ok: false }` denial (no workspace, no membership, inactive membership,
+ * permission-denied) resolves each boolean to `false`.
  *
  * Takes NO parameters — same reviewed API invariant as the two functions
  * above: no workspace resolver, membership lookup, user id, role, or any
  * other override.
  */
-export async function getRadarCapabilities(): Promise<{ canWork: boolean; canAssign: boolean }> {
+export async function getRadarCapabilities(): Promise<{
+  canClaimToSelf: boolean;
+  canAssignOthers: boolean;
+  canReleaseOwn: boolean;
+}> {
   const session = await requireSession();
   const [work, assign] = await Promise.all([
     evaluateStaffPermission({ userId: session.userId, permission: "RADAR_WORK" }),
     evaluateStaffPermission({ userId: session.userId, permission: "RADAR_ASSIGN" }),
   ]);
-  return { canWork: work.ok, canAssign: assign.ok };
+  return {
+    canClaimToSelf: work.ok && work.role !== "OWNER",
+    canAssignOthers: assign.ok,
+    canReleaseOwn: work.ok,
+  };
 }

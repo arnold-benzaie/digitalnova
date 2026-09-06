@@ -457,74 +457,99 @@ test("OWNER-UI-3B.10. no hardcoded role names — it returns evaluateStaffPermis
   assert.equal(await canCurrentUserManageWorkforce(), hasPermission("ADMIN", "WORKFORCE_MANAGE"));
 });
 
-// ------------- getRadarCapabilities(): RADAR-CORE-1A capability signal -------------
+// ------------- getRadarCapabilities(): RADAR-CORE-1A/1B capability signal -------------
 // Zero-argument, non-redirecting, session-derived. Returns
-// { canWork, canAssign } straight from evaluateStaffPermission().ok for
-// RADAR_WORK and RADAR_ASSIGN — no hardcoded role names. NEVER an auth
+// { canClaimToSelf, canAssignOthers, canReleaseOwn }. canAssignOthers /
+// canReleaseOwn come straight from evaluateStaffPermission().ok for
+// RADAR_ASSIGN / RADAR_WORK; canClaimToSelf additionally excludes OWNER
+// (the one role that holds RADAR_WORK but is never an eligible assignee
+// target — mirrors radar-assignment.ts::isEligibleAssignee). NEVER an auth
 // gate: lib/actions/radar-assignment.ts calls requireStaffMember(...) as
 // its own first statement. Same fake-db / internalOrgIdMock fixtures as
 // the two signals above.
 
-test("RADAR-CORE-1A.cap-1. getRadarCapabilities() takes zero arguments (reviewed API invariant)", () => {
+const ALL_CAPS_FALSE = { canClaimToSelf: false, canAssignOthers: false, canReleaseOwn: false };
+
+test("RADAR-CORE-1B.cap-1. getRadarCapabilities() takes zero arguments (reviewed API invariant)", () => {
   assert.equal(getRadarCapabilities.length, 0);
 });
 
-test("RADAR-CORE-1A.cap-2. ACTIVE MANAGER -> { canWork:true, canAssign:true }", async () => {
+test("RADAR-CORE-1B.cap-2. ACTIVE MANAGER -> all three true", async () => {
   withMembershipRow("MANAGER");
-  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+  assert.deepEqual(await getRadarCapabilities(), {
+    canClaimToSelf: true,
+    canAssignOthers: true,
+    canReleaseOwn: true,
+  });
 });
 
-test("RADAR-CORE-1A.cap-3. ACTIVE ADMIN -> { canWork:true, canAssign:true }", async () => {
+test("RADAR-CORE-1B.cap-3. ACTIVE ADMIN -> all three true", async () => {
   withMembershipRow("ADMIN");
-  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+  assert.deepEqual(await getRadarCapabilities(), {
+    canClaimToSelf: true,
+    canAssignOthers: true,
+    canReleaseOwn: true,
+  });
 });
 
-test("RADAR-CORE-1A.cap-4. ACTIVE OWNER -> { canWork:true, canAssign:true }", async () => {
+test("RADAR-CORE-1B.cap-4. ACTIVE OWNER -> canClaimToSelf FALSE, canAssignOthers/canReleaseOwn true (OWNER holds RADAR_WORK but is never an eligible assignee target)", async () => {
   withMembershipRow("OWNER");
-  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+  assert.deepEqual(await getRadarCapabilities(), {
+    canClaimToSelf: false,
+    canAssignOthers: true,
+    canReleaseOwn: true,
+  });
 });
 
-test("RADAR-CORE-1A.cap-5. ACTIVE EMPLOYEE -> canWork true, canAssign FALSE (one true while the other is false)", async () => {
+test("RADAR-CORE-1B.cap-5. ACTIVE EMPLOYEE -> canClaimToSelf/canReleaseOwn true, canAssignOthers FALSE", async () => {
   withMembershipRow("EMPLOYEE");
   const caps = await getRadarCapabilities();
-  assert.equal(caps.canWork, true);
-  assert.equal(caps.canAssign, false);
+  assert.deepEqual(caps, {
+    canClaimToSelf: true,
+    canAssignOthers: false,
+    canReleaseOwn: true,
+  });
   // Composition guarantee — mirrors the catalogue verbatim, no local allowlist.
-  assert.equal(caps.canWork, hasPermission("EMPLOYEE", "RADAR_WORK"));
-  assert.equal(caps.canAssign, hasPermission("EMPLOYEE", "RADAR_ASSIGN"));
+  assert.equal(caps.canReleaseOwn, hasPermission("EMPLOYEE", "RADAR_WORK"));
+  assert.equal(caps.canAssignOthers, hasPermission("EMPLOYEE", "RADAR_ASSIGN"));
 });
 
-test("RADAR-CORE-1A.cap-6. permission denial (no membership) -> { canWork:false, canAssign:false }", async () => {
+test("RADAR-CORE-1B.cap-6. permission denial (no membership) -> all three false", async () => {
   withNoMembershipRow();
-  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+  assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
 });
 
-test("RADAR-CORE-1A.cap-7. inactive (SUSPENDED) MANAGER -> both false — an ACTIVE row is required", async () => {
+test("RADAR-CORE-1B.cap-7. inactive (SUSPENDED) MANAGER -> all three false — an ACTIVE row is required", async () => {
   withMembershipRow("MANAGER", "SUSPENDED");
-  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+  assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
 });
 
-test("RADAR-CORE-1A.cap-7b. OFFBOARDING EMPLOYEE -> both false", async () => {
+test("RADAR-CORE-1B.cap-7b. OFFBOARDING EMPLOYEE -> all three false", async () => {
   withMembershipRow("EMPLOYEE", "OFFBOARDING");
-  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+  assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
 });
 
-test("RADAR-CORE-1A.cap-8. no internal workspace resolvable -> both false, never true", async () => {
+test("RADAR-CORE-1B.cap-7c. SUSPENDED OWNER -> all three false (canClaimToSelf never leaks true for an inactive OWNER)", async () => {
+  withMembershipRow("OWNER", "SUSPENDED");
+  assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
+});
+
+test("RADAR-CORE-1B.cap-8. no internal workspace resolvable -> all three false, never true", async () => {
   withMembershipRow("ADMIN");
   internalOrgIdMock = async () => null;
   try {
-    assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+    assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
   } finally {
     internalOrgIdMock = async () => INTERNAL_ORG_ID;
   }
 });
 
-test("RADAR-CORE-1A.cap-9. a DB/lookup failure propagates (rejects), never silently resolves", async () => {
+test("RADAR-CORE-1B.cap-9. a DB/lookup failure propagates (rejects), never silently resolves", async () => {
   withMembershipLookupError();
   await assert.rejects(() => getRadarCapabilities(), /db unreachable/);
 });
 
-test("RADAR-CORE-1A.cap-10. identity comes from requireSession() — an unauthenticated session redirects before any capability is computed", async () => {
+test("RADAR-CORE-1B.cap-10. identity comes from requireSession() — an unauthenticated session redirects before any capability is computed", async () => {
   sessionMockState = { kind: "unauthenticated" };
   try {
     await assert.rejects(() => getRadarCapabilities(), (e) => typeof e?.digest === "string" && e.digest.startsWith("NEXT_REDIRECT"));

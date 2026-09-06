@@ -38,7 +38,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { crmClients, staffMembers, staffRoles } from "@/db/schema";
+import { crmClients, staffMembers, staffRoles, users } from "@/db/schema";
 import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getInternalOrganizationId } from "@/lib/notifications";
@@ -259,4 +259,57 @@ export async function unassignProspect(clientId: string): Promise<RadarAssignmen
 
   const session = await requireSession();
   return runAssignmentMutation(clientId, { kind: "unassign" }, session.userId);
+}
+
+/**
+ * RADAR-CORE-1B — additive READ, used only to populate the RADAR queue
+ * UI's "assign to…" picker. NOT a mutation and NOT part of the assignment
+ * state machine: the three actions above stay the sole authority on who a
+ * prospect may be assigned to (isEligibleAssignee re-validates the one
+ * chosen id under the row lock inside runAssignmentMutation).
+ *
+ * Gate: requireStaffMember("RADAR_ASSIGN") — the exact permission
+ * assignProspect() requires, so MANAGER (who holds it) can populate the
+ * picker while EMPLOYEE (who does not) is redirected out before any DB
+ * read. The internal workspace is resolved server-side; no caller supplies
+ * a workspace / organization id. The ACTIVE + ELIGIBLE_ASSIGNEE_ROLES
+ * filter is the same one isEligibleAssignee() applies to a single id, so
+ * OWNER / SUSPENDED / OFFBOARDING / non-staff never appear. The result
+ * carries only what the <select> needs — a user id and a human label
+ * (fullName ?? email); role, status, email, and workspace id are never
+ * exposed to the client.
+ */
+export async function listAssignableRadarMembers(): Promise<Array<{ userId: string; displayName: string }>> {
+  await requireStaffMember("RADAR_ASSIGN");
+
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const rows = await db
+    .select({
+      userId: staffMembers.userId,
+      status: staffMembers.status,
+      roleName: staffRoles.name,
+      fullName: users.fullName,
+      email: users.email,
+    })
+    .from(staffMembers)
+    .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+    .innerJoin(users, eq(users.id, staffMembers.userId))
+    .where(eq(staffMembers.workspaceOrgId, internalOrgId));
+
+  return rows
+    .filter((r) => r.status === "ACTIVE" && ELIGIBLE_ASSIGNEE_ROLES.has(r.roleName))
+    .sort((a, b) => {
+      // fullName first (alphabetical), rows with no fullName last, then email.
+      const an = a.fullName ?? null;
+      const bn = b.fullName ?? null;
+      if (an !== null && bn !== null && an !== bn) return an < bn ? -1 : 1;
+      if (an !== null && bn === null) return -1;
+      if (an === null && bn !== null) return 1;
+      return a.email < b.email ? -1 : a.email > b.email ? 1 : 0;
+    })
+    .map((r) => ({ userId: r.userId, displayName: r.fullName ?? r.email }));
 }

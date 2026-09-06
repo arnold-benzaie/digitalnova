@@ -96,22 +96,27 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { crmClients, deals, interactions, crmQuotes, crmInvoices } = await import("@/db/schema");
-const { inArray } = await import("drizzle-orm");
+const { crmClients, deals, interactions, crmQuotes, crmInvoices, users, staffMembers, staffRoles, organizations } =
+  await import("@/db/schema");
+const { inArray, eq } = await import("drizzle-orm");
 const { getRadarQueue } = await import("./radar-queue.ts");
 
 const createdClientIds = new Set();
+const createdUserIds = new Set();
+const createdStaffMemberIds = new Set();
 
 beforeEach(() => {
   actAsStaff();
 });
 
 after(async () => {
+  if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
   if (createdClientIds.size) await db.delete(deals).where(inArray(deals.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(interactions).where(inArray(interactions.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmInvoices).where(inArray(crmInvoices.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmClients).where(inArray(crmClients.id, [...createdClientIds]));
+  if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
   await db.$client.end();
 });
 
@@ -127,11 +132,58 @@ async function makeClient(overrides = {}) {
     doNotContact: overrides.doNotContact ?? false,
     doNotContactReason: overrides.doNotContactReason ?? null,
     archivedAt: overrides.archivedAt ?? null,
+    assignedUserId: overrides.assignedUserId ?? null,
+    ownerName: overrides.ownerName ?? null,
   };
   if (overrides.createdAt !== undefined) values.createdAt = overrides.createdAt;
   const [client] = await db.insert(crmClients).values(values).returning();
   createdClientIds.add(client.id);
   return client;
+}
+
+// RADAR-CORE-1B — real `users` rows to hang crm_clients.assigned_user_id
+// (an FK to users.id) off of, plus optional staff_members rows in the
+// internal workspace to exercise the assignedUserActive flag.
+async function makeUser({ fullName = null, email } = {}) {
+  const [row] = await db
+    .insert(users)
+    .values({
+      clerkUserId: `radar_1b_${randomUUID()}`,
+      email: email ?? `radar-1b-${randomUUID()}@example.test`,
+      fullName,
+      status: "active",
+    })
+    .returning();
+  createdUserIds.add(row.id);
+  return row;
+}
+
+let INTERNAL_ORG_ID;
+let ADMIN_STAFF_ROLE_ID;
+async function internalOrgId() {
+  if (INTERNAL_ORG_ID === undefined) {
+    const [org] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
+    INTERNAL_ORG_ID = org?.id ?? null;
+  }
+  return INTERNAL_ORG_ID;
+}
+async function adminStaffRoleId() {
+  if (ADMIN_STAFF_ROLE_ID === undefined) {
+    const [r] = await db.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, "ADMIN")).limit(1);
+    ADMIN_STAFF_ROLE_ID = r?.id ?? null;
+  }
+  return ADMIN_STAFF_ROLE_ID;
+}
+async function makeStaffMember(userId, status) {
+  const orgId = await internalOrgId();
+  const roleId = await adminStaffRoleId();
+  if (!orgId || !roleId) return null;
+  const [row] = await db
+    .insert(staffMembers)
+    .values({ userId, workspaceOrgId: orgId, roleId, status })
+    .returning();
+  createdStaffMemberIds.add(row.id);
+  return row;
 }
 
 async function makeDeal(clientId, stage) {
@@ -513,4 +565,161 @@ test("an out-of-range page returns a valid empty items array without breaking co
   assert.deepEqual(result.items, []);
   assert.equal(result.page, 9999);
   assert.equal(typeof result.totalQualified, "number");
+});
+
+// =========================================================
+// RADAR-CORE-1B — assignment read-model + assignee filter
+// =========================================================
+
+async function findItem(clientId, params = {}) {
+  const items = await scanAllPages(params);
+  return items[indexOfClient(items, clientId)];
+}
+
+test("1B: an unassigned qualified prospect -> assignedUserId null, assignedUserName null, assignedUserActive false", async () => {
+  const c = await makeClient({ industry: "Santé", city: "Lyon" });
+  await makeDeal(c.id, "proposal");
+  const item = await findItem(c.id);
+  assert.ok(item);
+  assert.equal(item.assignedUserId, null);
+  assert.equal(item.assignedUserName, null);
+  assert.equal(item.assignedUserActive, false);
+});
+
+test("1B: assignedUserName resolves to fullName when present, and to email when fullName is null", async () => {
+  const named = await makeUser({ fullName: "Alice Assignee", email: "alice-1b@example.test" });
+  const unnamed = await makeUser({ fullName: null, email: "bob-1b@example.test" });
+  const cNamed = await makeClient({ industry: "Santé", city: "Nice", assignedUserId: named.id });
+  await makeDeal(cNamed.id, "proposal");
+  const cUnnamed = await makeClient({ industry: "Santé", city: "Nice", assignedUserId: unnamed.id });
+  await makeDeal(cUnnamed.id, "proposal");
+
+  const a = await findItem(cNamed.id);
+  const b = await findItem(cUnnamed.id);
+  assert.equal(a.assignedUserId, named.id);
+  assert.equal(a.assignedUserName, "Alice Assignee");
+  assert.equal(b.assignedUserId, unnamed.id);
+  assert.equal(b.assignedUserName, "bob-1b@example.test");
+});
+
+test("1B: assigned to an ACTIVE internal staff member -> assignedUserActive true", async () => {
+  const orgId = await internalOrgId();
+  if (!orgId) return; // documented: cannot seed staff without an internal workspace
+  const u = await makeUser({ fullName: "Active Staffer" });
+  await makeStaffMember(u.id, "ACTIVE");
+  const c = await makeClient({ industry: "Santé", city: "Metz", assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+  const item = await findItem(c.id);
+  assert.equal(item.assignedUserId, u.id);
+  assert.equal(item.assignedUserActive, true);
+});
+
+test("1B: assigned to a SUSPENDED staff member -> still assigned, assignedUserActive false (not treated as unassigned)", async () => {
+  const orgId = await internalOrgId();
+  if (!orgId) return;
+  const u = await makeUser({ fullName: "Suspended Staffer" });
+  await makeStaffMember(u.id, "SUSPENDED");
+  const c = await makeClient({ industry: "Santé", city: "Metz", assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+  const item = await findItem(c.id);
+  assert.equal(item.assignedUserId, u.id, "a suspended assignee stays assigned");
+  assert.equal(item.assignedUserActive, false);
+  assert.equal(item.assignedUserName, "Suspended Staffer", "identity is still resolved");
+});
+
+test("1B: assigned to a user with NO staff_members row -> still assigned, active false, identity still resolved", async () => {
+  const u = await makeUser({ fullName: "No Membership" });
+  const c = await makeClient({ industry: "Santé", city: "Caen", assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+  const item = await findItem(c.id);
+  assert.equal(item.assignedUserId, u.id);
+  assert.equal(item.assignedUserActive, false);
+  assert.equal(item.assignedUserName, "No Membership");
+});
+
+test("1B: legacy free-text ownerName never makes a prospect count as assigned", async () => {
+  const c = await makeClient({ industry: "Santé", city: "Brest", ownerName: "Jean Legacy", assignedUserId: null });
+  await makeDeal(c.id, "proposal");
+  const item = await findItem(c.id);
+  assert.equal(item.assignedUserId, null, "assigned_user_id is the sole authority; ownerName is ignored");
+  assert.equal(item.assignedUserName, null);
+});
+
+test("1B: ?assignee=unassigned returns only null-assignee rows; =user returns only that user's rows; =all is unchanged", async () => {
+  const u = await makeUser({ fullName: "Filter Target" });
+  const assigned = await makeClient({ industry: "Santé", city: "Dijon", assignedUserId: u.id });
+  await makeDeal(assigned.id, "proposal");
+  const unassigned = await makeClient({ industry: "Santé", city: "Dijon", assignedUserId: null });
+  await makeDeal(unassigned.id, "proposal");
+
+  const all = await scanAllPages({ assignee: { mode: "all" } });
+  assert.ok(indexOfClient(all, assigned.id) !== -1 && indexOfClient(all, unassigned.id) !== -1);
+
+  const onlyUnassigned = await scanAllPages({ assignee: { mode: "unassigned" } });
+  assert.equal(indexOfClient(onlyUnassigned, assigned.id), -1);
+  assert.ok(indexOfClient(onlyUnassigned, unassigned.id) !== -1);
+  assert.ok(onlyUnassigned.every((i) => i.assignedUserId === null));
+
+  const onlyMine = await scanAllPages({ assignee: { mode: "user", userId: u.id } });
+  assert.ok(indexOfClient(onlyMine, assigned.id) !== -1);
+  assert.equal(indexOfClient(onlyMine, unassigned.id), -1);
+  assert.ok(onlyMine.every((i) => i.assignedUserId === u.id));
+});
+
+test("1B: assignee filter composes with the priority filter by intersection", async () => {
+  const u = await makeUser({ fullName: "Intersection User" });
+  const highMine = await makeClient({ assignedUserId: u.id });
+  await makeDeal(highMine.id, "proposal"); // HIGH + mine
+  const lowMine = await makeClient({ assignedUserId: u.id });
+  await makeDeal(lowMine.id, "new"); // LOW + mine
+
+  const highAndMine = await scanAllPages({ priority: ["HIGH"], assignee: { mode: "user", userId: u.id } });
+  assert.ok(indexOfClient(highAndMine, highMine.id) !== -1);
+  assert.equal(indexOfClient(highAndMine, lowMine.id), -1, "LOW is excluded by the priority half of the intersection");
+});
+
+test("1B: the assignee filter is applied AFTER ranking — relative Radar order of the surviving rows is preserved", async () => {
+  const u = await makeUser({ fullName: "Order User" });
+  const high = await makeClient({ assignedUserId: u.id });
+  await makeDeal(high.id, "proposal"); // HIGH
+  const medium = await makeClient({ assignedUserId: u.id });
+  await makeDeal(medium.id, "qualified"); // MEDIUM
+
+  const mineOnly = await scanAllPages({ assignee: { mode: "user", userId: u.id } });
+  const iHigh = indexOfClient(mineOnly, high.id);
+  const iMedium = indexOfClient(mineOnly, medium.id);
+  assert.ok(iHigh !== -1 && iMedium !== -1);
+  assert.ok(iHigh < iMedium, "HIGH still ranks before MEDIUM within the filtered subset");
+});
+
+test("1B: totalQualified / insufficientDataCount / notEligibleCount are unaffected by any assignee filter", async () => {
+  const u = await makeUser({ fullName: "Count User" });
+  const c = await makeClient({ assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+
+  const unfiltered = await getRadarQueue();
+  const filteredUnassigned = await getRadarQueue({ assignee: { mode: "unassigned" } });
+  const filteredUser = await getRadarQueue({ assignee: { mode: "user", userId: u.id } });
+
+  assert.equal(filteredUnassigned.totalQualified, unfiltered.totalQualified);
+  assert.equal(filteredUser.totalQualified, unfiltered.totalQualified);
+  assert.equal(filteredUnassigned.insufficientDataCount, unfiltered.insufficientDataCount);
+  assert.equal(filteredUnassigned.notEligibleCount, unfiltered.notEligibleCount);
+});
+
+test("1B: adding assigned_user_id to the candidate SELECT did not change which candidates rank or their order", async () => {
+  const before = (await scanAllPages()).map((i) => i.clientId);
+  const u = await makeUser({ fullName: "Neutral User" });
+  const c = await makeClient({ assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+  const after = (await scanAllPages()).map((i) => i.clientId);
+  // the new client appears; every previously-present client keeps its order
+  const afterWithoutNew = after.filter((id) => id !== c.id);
+  assert.deepEqual(afterWithoutNew, before, "assigning a prospect never reorders the rest of the queue");
+});
+
+test("1B: structural — assignee identity is resolved in ONE batched query (no N+1)", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /inArray\(users\.id, userIds\)/, "one batched users lookup keyed by the page's assignee ids");
+  assert.ok(!/for \(const .* of pageSlice\)[\s\S]{0,200}await db/.test(IMPLEMENTATION_SOURCE), "no per-row await inside a pageSlice loop");
+  assert.match(IMPLEMENTATION_SOURCE, /resolveAssignees\(/, "a single dedicated resolver, called once");
 });

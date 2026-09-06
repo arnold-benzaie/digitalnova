@@ -129,15 +129,35 @@ const fakeTx = {
 };
 fakeTxRef = fakeTx;
 
+// RADAR-CORE-1B — non-transaction roster read used by listAssignableRadarMembers().
+// db.select({...}).from(staffMembers).innerJoin(staffRoles,...).innerJoin(users,...).where(...)
+// resolves to `rosterRows`. Any status / role the source does not filter in
+// SQL is present here so the JS-side ACTIVE + ELIGIBLE_ASSIGNEE_ROLES filter
+// is what the assertions actually exercise (mirrors isEligibleAssignee).
+let rosterRows = [];
+let rosterSelectUsed = false;
+function makeRosterBuilder() {
+  const b = {
+    from: () => b,
+    innerJoin: () => b,
+    where: () => {
+      rosterSelectUsed = true;
+      return Promise.resolve(rosterRows);
+    },
+  };
+  return b;
+}
+
 const fakeDb = {
   transaction: async (cb) => {
     transactionEntered = true;
     return cb(fakeTx);
   },
+  select: () => makeRosterBuilder(),
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { claimProspect, assignProspect, unassignProspect } = await import("./radar-assignment.ts");
+const { claimProspect, assignProspect, unassignProspect, listAssignableRadarMembers } = await import("./radar-assignment.ts");
 
 function reset() {
   permissionCalls = [];
@@ -157,6 +177,8 @@ function reset() {
   forUpdateUsed = false;
   updateSetCapture = null;
   transactionEntered = false;
+  rosterRows = [];
+  rosterSelectUsed = false;
 }
 
 // ============================ AUTH ============================
@@ -416,6 +438,99 @@ test("R1A-23. a logAudit failure inside the transaction propagates (assignment r
   assert.equal(auditWrites.length, 1, "logAudit was attempted, inside the tx");
   assert.equal(auditWrites[0].handedTx, true);
   assert.deepEqual(revalidateCalls, [], "a rolled-back assignment never revalidates");
+});
+
+// ============================ RADAR-CORE-1B: listAssignableRadarMembers ============================
+
+const ADMIN_UUID = "ad311111-0000-4000-8000-0000000000a1";
+const MGR_UUID = "ma224444-0000-4000-8000-0000000000a2";
+const EMP_UUID = "e3355555-0000-4000-8000-0000000000a3";
+const OWNER_UUID = "0e766666-0000-4000-8000-0000000000a4";
+
+test("R1B-1. listAssignableRadarMembers gates on requireStaffMember('RADAR_ASSIGN') FIRST — a denial rejects before any DB read", async () => {
+  reset();
+  denyPerms = new Set(["RADAR_ASSIGN"]);
+  await assert.rejects(() => listAssignableRadarMembers(), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["RADAR_ASSIGN"]);
+  assert.equal(rosterSelectUsed, false);
+});
+
+test("R1B-2. arity 0 (no caller-supplied workspace / filter)", () => {
+  assert.equal(listAssignableRadarMembers.length, 0);
+});
+
+test("R1B-3. missing internal workspace -> throws a configuration error, never a partial list", async () => {
+  reset();
+  internalOrgId = null;
+  await assert.rejects(() => listAssignableRadarMembers(), /internal workspace is not configured/);
+});
+
+test("R1B-4. ACTIVE ADMIN / MANAGER / EMPLOYEE are included; OWNER, SUSPENDED, OFFBOARDING and non-staff are excluded", async () => {
+  reset();
+  rosterRows = [
+    { userId: ADMIN_UUID, status: "ACTIVE", roleName: "ADMIN", fullName: "Ada Admin", email: "ada@x.test" },
+    { userId: MGR_UUID, status: "ACTIVE", roleName: "MANAGER", fullName: "Max Manager", email: "max@x.test" },
+    { userId: EMP_UUID, status: "ACTIVE", roleName: "EMPLOYEE", fullName: "Eve Employee", email: "eve@x.test" },
+    { userId: OWNER_UUID, status: "ACTIVE", roleName: "OWNER", fullName: "Olga Owner", email: "olga@x.test" },
+    { userId: "s0000000-0000-4000-8000-0000000000b1", status: "SUSPENDED", roleName: "MANAGER", fullName: "Sam Suspended", email: "sam@x.test" },
+    { userId: "0ff00000-0000-4000-8000-0000000000b2", status: "OFFBOARDING", roleName: "EMPLOYEE", fullName: "Ola Off", email: "ola@x.test" },
+    { userId: "c1100000-0000-4000-8000-0000000000b3", status: "ACTIVE", roleName: "CLIENT", fullName: "Cyril Client", email: "cyril@x.test" },
+  ];
+  const out = await listAssignableRadarMembers();
+  assert.deepEqual(
+    out.map((m) => m.userId).sort(),
+    [ADMIN_UUID, EMP_UUID, MGR_UUID].sort(),
+  );
+});
+
+test("R1B-5. displayName = fullName when present, email when fullName is null; result carries ONLY userId + displayName", async () => {
+  reset();
+  rosterRows = [
+    { userId: ADMIN_UUID, status: "ACTIVE", roleName: "ADMIN", fullName: "Ada Admin", email: "ada@x.test" },
+    { userId: MGR_UUID, status: "ACTIVE", roleName: "MANAGER", fullName: null, email: "max@x.test" },
+  ];
+  const out = await listAssignableRadarMembers();
+  const byId = Object.fromEntries(out.map((m) => [m.userId, m]));
+  assert.equal(byId[ADMIN_UUID].displayName, "Ada Admin");
+  assert.equal(byId[MGR_UUID].displayName, "max@x.test");
+  for (const m of out) {
+    assert.deepEqual(Object.keys(m).sort(), ["displayName", "userId"]);
+  }
+});
+
+test("R1B-6. stable ordering — fullName first (alphabetical), rows with no fullName last, then email", async () => {
+  reset();
+  rosterRows = [
+    { userId: "u1", status: "ACTIVE", roleName: "EMPLOYEE", fullName: null, email: "zeb@x.test" },
+    { userId: "u2", status: "ACTIVE", roleName: "MANAGER", fullName: "Bruno", email: "b@x.test" },
+    { userId: "u3", status: "ACTIVE", roleName: "ADMIN", fullName: "Alice", email: "a@x.test" },
+    { userId: "u4", status: "ACTIVE", roleName: "EMPLOYEE", fullName: null, email: "amy@x.test" },
+  ];
+  const out = await listAssignableRadarMembers();
+  assert.deepEqual(
+    out.map((m) => m.displayName),
+    ["Alice", "Bruno", "amy@x.test", "zeb@x.test"],
+  );
+});
+
+test("R1B-7. source invariants: RADAR_ASSIGN gate before any db.select, ACTIVE + ELIGIBLE_ASSIGNEE_ROLES filter, server-resolved workspace, no caller args, no role/status leaked", () => {
+  const src = readFileSync(fileURLToPath(new URL("./radar-assignment.ts", import.meta.url)), "utf8");
+  const body = src.slice(src.indexOf("export async function listAssignableRadarMembers"));
+  const gateIdx = body.indexOf('requireStaffMember("RADAR_ASSIGN")');
+  const orgIdx = body.indexOf("getInternalOrganizationId(");
+  const selectIdx = body.indexOf(".select(");
+  assert.ok(gateIdx >= 0, "RADAR_ASSIGN gate present");
+  assert.ok(gateIdx < orgIdx, "gate before workspace resolution");
+  assert.ok(orgIdx >= 0 && orgIdx < selectIdx, "workspace resolved before the roster select");
+  assert.ok(/if \(!internalOrgId\)\s*\{[\s\S]{0,120}throw new Error/.test(body), "throws when the internal workspace is missing");
+  assert.ok(body.includes("ELIGIBLE_ASSIGNEE_ROLES.has(r.roleName)"), "reuses the shared eligible-role set (OWNER excluded)");
+  assert.ok(body.includes('r.status === "ACTIVE"'), "ACTIVE-only filter");
+  assert.ok(body.includes("workspaceOrgId, internalOrgId"), "scoped to the server-resolved internal workspace");
+  assert.ok(/return rows[\s\S]*\.map\(\(r\) => \(\{ userId: r\.userId, displayName: r\.fullName \?\? r\.email \}\)\)/.test(body), "maps to exactly { userId, displayName }");
+  assert.ok(
+    !/export async function listAssignableRadarMembers\([^)]*\b(workspace|workspaceOrgId|organizationId|userId|role|status)\b/.test(src),
+    "takes no caller-supplied workspace/user/role/status",
+  );
 });
 
 // ============================ SOURCE INVARIANTS ============================
