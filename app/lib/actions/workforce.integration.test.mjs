@@ -147,11 +147,13 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
       },
     });
 
-    // listWorkforceMembers/addWorkforceMember are the ONLY runtime-capable
-    // exports of this module (see RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1
-    // and RBAC-RUNTIME-R2B-WORKFORCE-MUTATION-FOUNDATION-1) — every
-    // assertion below goes through them, exactly as any real caller must.
-    const { listWorkforceMembers, addWorkforceMember } = await import(
+    // listWorkforceMembers/addWorkforceMember/changeWorkforceMemberRole are
+    // the ONLY runtime-capable exports of this module (see
+    // RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1,
+    // RBAC-RUNTIME-R2B-WORKFORCE-MUTATION-FOUNDATION-1 and
+    // RBAC-RUNTIME-R2C-WORKFORCE-ROLE-CHANGE) — every assertion below goes
+    // through them, exactly as any real caller must.
+    const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole } = await import(
       "/Users/arnoldbenzaie/Documents/projects.md/digitalnova/.claude/worktrees/chantier1-phase2-quote-public-page/app/lib/actions/workforce.ts"
     );
 
@@ -294,6 +296,231 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
       await pool.query("select count(*)::int as count from staff_members where workspace_org_id = $1", [nonInternalOrgId])
     ).rows;
     assert.equal(nonInternalStaffCount, 0, "no staff_members row may ever be created in a non-internal workspace");
+
+    // ================================================================
+    // R2C: changeWorkforceMemberRole() — MANAGER <-> EMPLOYEE only, real
+    // SELECT ... FOR UPDATE + same-transaction audit against real Postgres.
+    // ================================================================
+    const auditCount = async (staffMemberId) =>
+      (
+        await pool.query(
+          "select count(*)::int as n from audit_log where action = 'workforce.member_role_changed' and target_id = $1",
+          [staffMemberId],
+        )
+      ).rows[0].n;
+    const smIdOf = async (userId) => (await pool.query("select id from staff_members where user_id = $1 and workspace_org_id = $2", [userId, orgId])).rows[0]?.id;
+    const roleIdOf = async (userId, workspace = orgId) =>
+      (await pool.query("select role_id from staff_members where user_id = $1 and workspace_org_id = $2", [userId, workspace])).rows[0]?.role_id;
+
+    const r2cAdmin2Id = await seedUser("r2c-admin2@example.com");
+    const r2cManagerId = await seedUser("r2c-manager@example.com");
+    const r2cEmployeeId = await seedUser("r2c-employee@example.com");
+    const r2cRaceSameId = await seedUser("r2c-race-same@example.com");
+    const r2cRaceOppId = await seedUser("r2c-race-opp@example.com");
+    const r2cNonInternalId = await seedUser("r2c-noninternal@example.com");
+    for (const [uid, rid] of [
+      [r2cAdmin2Id, roleId.ADMIN],
+      [r2cManagerId, roleId.MANAGER],
+      [r2cEmployeeId, roleId.EMPLOYEE],
+      [r2cRaceSameId, roleId.MANAGER],
+      [r2cRaceOppId, roleId.MANAGER],
+    ]) {
+      await pool.query("insert into staff_members (user_id, workspace_org_id, role_id, status) values ($1,$2,$3,'ACTIVE')", [uid, orgId, rid]);
+    }
+    await pool.query("insert into staff_members (user_id, workspace_org_id, role_id, status) values ($1,$2,$3,'ACTIVE')", [
+      r2cNonInternalId,
+      nonInternalOrgId,
+      roleId.MANAGER,
+    ]);
+
+    asUser(adminUserId);
+
+    // R2C-i. MANAGER (non-WORKFORCE_MANAGE) caller cannot reach the mutation.
+    asUser(managerUserId);
+    await assert.rejects(() => changeWorkforceMemberRole(r2cEmployeeId, "MANAGER"), /NEXT_REDIRECT/);
+    asUser(adminUserId);
+
+    // R2C-ii. the seeded OWNER cannot be changed (advisory + under-lock).
+    await assert.rejects(() => changeWorkforceMemberRole(ownerUserId, "MANAGER"), /workspace owner and cannot be modified here/);
+    assert.equal(await roleIdOf(ownerUserId), roleId.OWNER, "OWNER role_id must be unchanged");
+    assert.equal(await auditCount(await smIdOf(ownerUserId)), 0, "no role-change audit for the OWNER");
+
+    // R2C-iii. an ADMIN target cannot be changed through R2C (ADMIN tier reserved for OWNER_MANAGE).
+    await assert.rejects(
+      () => changeWorkforceMemberRole(r2cAdmin2Id, "MANAGER"),
+      /changing an administrator's role requires owner privileges/,
+    );
+    assert.equal(await roleIdOf(r2cAdmin2Id), roleId.ADMIN, "ADMIN role_id must be unchanged");
+    assert.equal(await auditCount(await smIdOf(r2cAdmin2Id)), 0);
+
+    // R2C-iv. self-role change rejected (admin caller targeting themselves).
+    await assert.rejects(() => changeWorkforceMemberRole(adminUserId, "MANAGER"), /cannot change their own role/);
+    assert.equal(await roleIdOf(adminUserId), roleId.ADMIN);
+
+    // R2C-v. a member of a NON-internal workspace is invisible to R2C.
+    await assert.rejects(() => changeWorkforceMemberRole(r2cNonInternalId, "EMPLOYEE"), /workforce member not found/);
+    assert.equal(await roleIdOf(r2cNonInternalId, nonInternalOrgId), roleId.MANAGER, "non-internal member untouched");
+
+    // R2C-vi. MANAGER -> EMPLOYEE: only role_id + updated_at change; exactly one truthful audit.
+    const beforeMgr = (
+      await pool.query(
+        "select id, role_id, workspace_org_id, user_id, status, invited_by_user_id, updated_at from staff_members where user_id = $1",
+        [r2cManagerId],
+      )
+    ).rows[0];
+    await new Promise((r) => setTimeout(r, 5)); // ensure updated_at can strictly advance
+    const mgrResult = await changeWorkforceMemberRole(r2cManagerId, "EMPLOYEE");
+    assert.deepEqual(mgrResult, { userId: r2cManagerId, email: "r2c-manager@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+    const afterMgr = (
+      await pool.query(
+        "select role_id, workspace_org_id, user_id, status, invited_by_user_id, updated_at from staff_members where user_id = $1",
+        [r2cManagerId],
+      )
+    ).rows[0];
+    assert.equal(afterMgr.role_id, roleId.EMPLOYEE);
+    assert.equal(afterMgr.workspace_org_id, beforeMgr.workspace_org_id);
+    assert.equal(afterMgr.user_id, beforeMgr.user_id);
+    assert.equal(afterMgr.status, "ACTIVE");
+    assert.equal(afterMgr.invited_by_user_id, beforeMgr.invited_by_user_id);
+    assert.ok(new Date(afterMgr.updated_at) > new Date(beforeMgr.updated_at), "updated_at must strictly advance");
+    const [mgrAudit] = (
+      await pool.query(
+        "select action, actor_user_id, organization_id, metadata from audit_log where action = 'workforce.member_role_changed' and target_id = $1",
+        [beforeMgr.id],
+      )
+    ).rows;
+    assert.equal(await auditCount(beforeMgr.id), 1, "exactly one role-change audit");
+    assert.equal(mgrAudit.actor_user_id, adminUserId);
+    assert.equal(mgrAudit.organization_id, orgId);
+    assert.deepEqual(mgrAudit.metadata, { targetUserId: r2cManagerId, previousRole: "MANAGER", newRole: "EMPLOYEE" });
+
+    // R2C-vii. EMPLOYEE -> MANAGER (symmetric).
+    const empSmId = await smIdOf(r2cEmployeeId);
+    const empResult = await changeWorkforceMemberRole(r2cEmployeeId, "MANAGER");
+    assert.equal(empResult.role, "MANAGER");
+    assert.equal(await roleIdOf(r2cEmployeeId), roleId.MANAGER);
+    const [empAudit] = (
+      await pool.query(
+        "select metadata from audit_log where action = 'workforce.member_role_changed' and target_id = $1",
+        [empSmId],
+      )
+    ).rows;
+    assert.deepEqual(empAudit.metadata, { targetUserId: r2cEmployeeId, previousRole: "EMPLOYEE", newRole: "MANAGER" });
+
+    // R2C-viii. no-op (already the target role) -> ROLE_UNCHANGED, no new audit.
+    await assert.rejects(() => changeWorkforceMemberRole(r2cManagerId, "EMPLOYEE"), /already has this role/);
+    assert.equal(await auditCount(beforeMgr.id), 1, "a no-op writes no audit");
+
+    // R2C-ix. SUSPENDED / OFFBOARDING targets rejected, unchanged.
+    await assert.rejects(() => changeWorkforceMemberRole(managerUserId, "EMPLOYEE"), /not active and cannot be modified/);
+    assert.equal(await roleIdOf(managerUserId), roleId.MANAGER);
+    await assert.rejects(() => changeWorkforceMemberRole(employeeUserId, "MANAGER"), /not active and cannot be modified/);
+    assert.equal(await roleIdOf(employeeUserId), roleId.EMPLOYEE);
+
+    // R2C-x. concurrency, SAME desired role: deterministic one-winner.
+    const sameSmId = await smIdOf(r2cRaceSameId);
+    const sameResults = await Promise.allSettled([
+      changeWorkforceMemberRole(r2cRaceSameId, "EMPLOYEE"),
+      changeWorkforceMemberRole(r2cRaceSameId, "EMPLOYEE"),
+    ]);
+    assert.equal(sameResults.filter((r) => r.status === "fulfilled").length, 1, "exactly one fulfilled");
+    const sameRejected = sameResults.filter((r) => r.status === "rejected");
+    assert.equal(sameRejected.length, 1);
+    assert.match(String(sameRejected[0].reason), /already has this role/);
+    assert.equal(await roleIdOf(r2cRaceSameId), roleId.EMPLOYEE, "final role EMPLOYEE");
+    assert.equal(await auditCount(sameSmId), 1, "exactly one role-change audit under same-role concurrency");
+
+    // R2C-xi. concurrency, OPPOSITE desired roles: ORDER-INDEPENDENT invariants.
+    // Initial role MANAGER; one caller -> EMPLOYEE, one caller -> MANAGER.
+    // Only two legal outcome classes exist (SET-TO-ROLE, serialized by the
+    // row lock); which one occurs depends on lock-acquisition order:
+    //   A) fulfilled === 1  -> the "-> MANAGER" caller locked first, saw
+    //      MANAGER, got ROLE_UNCHANGED; the "-> EMPLOYEE" caller then did
+    //      MANAGER -> EMPLOYEE. Final role EMPLOYEE, one audit {M -> E}.
+    //   B) fulfilled === 2  -> the "-> EMPLOYEE" caller locked first
+    //      (MANAGER -> EMPLOYEE), then the "-> MANAGER" caller (EMPLOYEE ->
+    //      MANAGER). Final role MANAGER, two audits {M -> E, E -> M}.
+    // NOTHING here relies on audit_log row order: audit_log has no monotonic
+    // column, created_at is DEFAULT now() (transaction-start time), and two
+    // concurrent transactions can carry equal or inverted created_at
+    // relative to their commit order. Assertions are multiset / count based.
+    const oppSmId = await smIdOf(r2cRaceOppId);
+    const oppResults = await Promise.allSettled([
+      changeWorkforceMemberRole(r2cRaceOppId, "EMPLOYEE"),
+      changeWorkforceMemberRole(r2cRaceOppId, "MANAGER"),
+    ]);
+    const oppFulfilled = oppResults.filter((r) => r.status === "fulfilled");
+    const oppRejected = oppResults.filter((r) => r.status === "rejected");
+    assert.equal(oppFulfilled.length + oppRejected.length, 2);
+    for (const r of oppRejected) {
+      assert.match(String(r.reason), /already has this role/, "the only allowed rejection is ROLE_UNCHANGED");
+      assert.doesNotMatch(String(r.reason), /state changed/, "opposite serialized transitions are never MEMBER_STATE_CHANGED");
+    }
+    assert.ok(oppFulfilled.length === 1 || oppFulfilled.length === 2, `unexpected fulfilled count: ${oppFulfilled.length}`);
+
+    const oppAudits = (
+      await pool.query(
+        "select actor_user_id, organization_id, metadata from audit_log where action = 'workforce.member_role_changed' and target_id = $1",
+        [oppSmId],
+      )
+    ).rows;
+    assert.equal(oppAudits.length, oppFulfilled.length, "exactly one role-change audit per fulfilled call");
+
+    // Per-row invariants (order-independent).
+    for (const a of oppAudits) {
+      assert.equal(a.actor_user_id, adminUserId);
+      assert.equal(a.organization_id, orgId);
+      assert.ok(["MANAGER", "EMPLOYEE"].includes(a.metadata.previousRole), `previousRole not ordinary: ${a.metadata.previousRole}`);
+      assert.ok(["MANAGER", "EMPLOYEE"].includes(a.metadata.newRole), `newRole not ordinary: ${a.metadata.newRole}`);
+      assert.notEqual(a.metadata.previousRole, a.metadata.newRole);
+      assert.equal(a.metadata.targetUserId, r2cRaceOppId);
+    }
+
+    // Exactly one audit records departing from the seeded initial role.
+    assert.equal(
+      oppAudits.filter((a) => a.metadata.previousRole === "MANAGER").length,
+      1,
+      "exactly one audit leaves the seeded MANAGER role",
+    );
+
+    // Multiset of transitions must match one of the two legal shapes exactly.
+    const oppTransitions = oppAudits.map((a) => `${a.metadata.previousRole}->${a.metadata.newRole}`).sort();
+    const oppFinalRoleId = await roleIdOf(r2cRaceOppId);
+    if (oppFulfilled.length === 1) {
+      assert.deepEqual(oppTransitions, ["MANAGER->EMPLOYEE"], "Case A: the sole transition is MANAGER -> EMPLOYEE");
+      assert.equal(oppFinalRoleId, roleId.EMPLOYEE, "Case A: final role EMPLOYEE");
+    } else {
+      assert.deepEqual(
+        oppTransitions,
+        ["EMPLOYEE->MANAGER", "MANAGER->EMPLOYEE"],
+        "Case B: transitions are exactly {MANAGER -> EMPLOYEE, EMPLOYEE -> MANAGER}",
+      );
+      assert.equal(new Set(oppTransitions).size, 2, "Case B: no duplicated transition");
+      assert.equal(oppFinalRoleId, roleId.MANAGER, "Case B: final role MANAGER");
+    }
+
+    // R2C-xii. OWNER race: concurrent attempts both rejected, OWNER untouched, no audit.
+    const ownerSmId = await smIdOf(ownerUserId);
+    const ownerRace = await Promise.allSettled([
+      changeWorkforceMemberRole(ownerUserId, "MANAGER"),
+      changeWorkforceMemberRole(ownerUserId, "EMPLOYEE"),
+    ]);
+    assert.equal(ownerRace.filter((r) => r.status === "fulfilled").length, 0, "no OWNER change may ever fulfil");
+    for (const r of ownerRace) assert.match(String(r.reason), /workspace owner and cannot be modified here/);
+    assert.equal(await roleIdOf(ownerUserId), roleId.OWNER);
+    assert.equal(await auditCount(ownerSmId), 0);
+
+    // R2C-xiii. cross-workspace isolation held throughout R2C.
+    assert.equal(await roleIdOf(r2cNonInternalId, nonInternalOrgId), roleId.MANAGER, "the non-internal member's role never changed");
+
+    // Audit rollback (UPDATE reverts if the in-transaction logAudit throws)
+    // is proven by the unit suite (R2C-22) + the single db.transaction()
+    // structure: logAudit(..., tx) runs inside the same tx as the UPDATE,
+    // so a failure there aborts both — standard Postgres semantics, and the
+    // same logAudit(..., tx) pattern R2B already relies on. Forcing that
+    // failure against real Postgres here would need either a forbidden
+    // test-only runtime seam or an audit_log schema mutation, so it is not
+    // reproduced at this layer.
 
     // @/db's own module-scoped Pool (db/index.ts caches it on
     // globalThis.pgPool) was opened as a side effect of importing

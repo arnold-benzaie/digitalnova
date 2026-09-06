@@ -74,6 +74,23 @@ let roleLookupOrError = { rows: [{ id: "role-admin-uuid" }] };
 let insertResultOrError = { row: { id: "staff-member-uuid", status: "ACTIVE" } };
 let auditWrites = [];
 
+// ---- R2C (changeWorkforceMemberRole) fake state ----
+// The advisory 3-join lookup ends in .limit() (not .orderBy() like R2A's
+// listing). Inside the transaction: SELECT ... FOR UPDATE on staff_members,
+// then TWO staff_roles lookups in order (locked role name, then new role
+// id), then UPDATE ... RETURNING.
+let r2cAdvisory = { rows: [] };
+let r2cLockedRow = { rows: [] };
+let r2cTxStaffRolesQueue = []; // [lockedRoleNameResult, newRoleIdResult]
+let r2cUpdateReturning = { rows: [{ status: "ACTIVE" }] };
+let r2cUpdateSetCapture = null;
+let r2cUpdateForUpdateUsed = false;
+let r2cAuditFailure = null; // set to an Error to make the in-transaction audit write reject
+
+function settle(box) {
+  return "error" in box ? Promise.reject(box.error) : Promise.resolve(box.rows);
+}
+
 const fakeDb = {
   select: () => ({
     from: (table) => {
@@ -82,7 +99,9 @@ const fakeDb = {
           innerJoin: () => ({
             innerJoin: () => ({
               where: () => ({
-                orderBy: () => ("error" in listRowsOrError ? Promise.reject(listRowsOrError.error) : Promise.resolve(listRowsOrError.rows)),
+                orderBy: () =>
+                  "error" in listRowsOrError ? Promise.reject(listRowsOrError.error) : Promise.resolve(listRowsOrError.rows),
+                limit: () => settle(r2cAdvisory), // R2C advisory staff_members ⋈ staff_roles ⋈ users
               }),
             }),
           }),
@@ -107,11 +126,38 @@ const fakeDb = {
   }),
   transaction: async (callback) => {
     const tx = {
+      select: () => ({
+        from: (table) => {
+          if (table === staffMembers) {
+            return {
+              where: () => ({
+                for: (strength) => {
+                  r2cUpdateForUpdateUsed = strength === "update";
+                  return { limit: () => settle(r2cLockedRow) };
+                },
+              }),
+            };
+          }
+          if (table === staffRoles) {
+            return { where: () => ({ limit: () => settle(r2cTxStaffRolesQueue.shift() ?? { rows: [] }) }) };
+          }
+          throw new Error(`fake tx: unexpected select().from() — ${String(table)}`);
+        },
+      }),
+      update: (table) => {
+        if (table !== staffMembers) throw new Error(`fake tx: unexpected update() — ${String(table)}`);
+        return {
+          set: (values) => {
+            r2cUpdateSetCapture = values;
+            return { where: () => ({ returning: () => settle(r2cUpdateReturning) }) };
+          },
+        };
+      },
       insert: (table) => ({
         values: (values) => {
           if (table === auditLog) {
             auditWrites.push(values);
-            return Promise.resolve();
+            return r2cAuditFailure ? Promise.reject(r2cAuditFailure) : Promise.resolve();
           }
           if (table === staffMembers) {
             return {
@@ -130,7 +176,7 @@ const fakeDb = {
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { listWorkforceMembers, addWorkforceMember } = await import("./workforce.ts");
+const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole } = await import("./workforce.ts");
 
 function withRows(rows) {
   listRowsOrError = { rows };
@@ -362,4 +408,246 @@ test("R2B-15. audit actor is the authenticated caller's session userId, never a 
   } finally {
     sessionMock = { userId: "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2" };
   }
+});
+
+// ---------------------- changeWorkforceMemberRole (R2C) ----------------------
+// MANAGER <-> EMPLOYEE only. ADMIN tier protected, OWNER protected, ACTIVE
+// only, no self-role change, server-serialized SET-TO-ROLE (SELECT ... FOR
+// UPDATE), audit in the same transaction, previousRole from the LOCKED row.
+// The REAL row lock / serialization / rollback are proven against a
+// disposable Postgres by lib/actions/workforce.integration.test.mjs.
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const R2C_SESSION_UUID = "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2"; // == default sessionMock.userId
+const R2C_TARGET_UUID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; // != session
+const R2C_INTERNAL_ORG = "e35cbc31-9604-4324-adc6-f6f5c1ffc248";
+
+function r2cReset() {
+  permissionMockState = { allow: true };
+  internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+  sessionMock = { userId: R2C_SESSION_UUID };
+  auditWrites = [];
+  r2cAdvisory = { rows: [] };
+  r2cLockedRow = { rows: [] };
+  r2cTxStaffRolesQueue = [];
+  r2cUpdateReturning = { rows: [{ status: "ACTIVE" }] };
+  r2cUpdateSetCapture = null;
+  r2cUpdateForUpdateUsed = false;
+  r2cAuditFailure = null;
+}
+
+/** Wire advisory + locked + tx staff_roles queue for a call that should
+ * reach (or nearly reach) the UPDATE. currentRole/lockedRole default equal. */
+function r2cWire({ currentRole = "MANAGER", lockedRole = currentRole, status = "ACTIVE", newRole = "EMPLOYEE" } = {}) {
+  r2cAdvisory = { rows: [{ staffMemberId: "sm-1", currentRoleName: currentRole, status, email: "t@example.com" }] };
+  r2cLockedRow = { rows: [{ id: "sm-1", roleId: `role-${lockedRole}`, status }] };
+  r2cTxStaffRolesQueue = [{ rows: [{ name: lockedRole }] }, { rows: [{ id: `role-${newRole}` }] }];
+  r2cUpdateReturning = { rows: [{ status }] };
+}
+
+test("R2C-1. first op is requireStaffMember('WORKFORCE_MANAGE'); a denial rejects, no audit", async () => {
+  r2cReset();
+  permissionMockState = { allow: false };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /NEXT_REDIRECT/);
+  assert.deepEqual(auditWrites, []);
+  permissionMockState = { allow: true };
+});
+
+test("R2C-2. accepts exactly two runtime parameters — no workspace/org/actor arg", () => {
+  assert.equal(changeWorkforceMemberRole.length, 2);
+});
+
+test("R2C-3. malformed / empty target UUID -> 'valid UUID', before any lookup, no audit", async () => {
+  for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --"]) {
+    r2cReset();
+    await assert.rejects(() => changeWorkforceMemberRole(bad, "MANAGER"), /target user id must be a valid UUID/);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2C-4. self-target rejected before any membership lookup, no UPDATE, no audit", async () => {
+  r2cReset();
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_SESSION_UUID, "MANAGER"), /cannot change their own role/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-5. newRole allowlist: ADMIN / OWNER / unknown / '' / null -> 'must be one of: MANAGER, EMPLOYEE', no audit", async () => {
+  for (const bad of ["ADMIN", "OWNER", "SUPERADMIN", "manager", "", null]) {
+    r2cReset();
+    await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, bad), /workforce role must be one of: MANAGER, EMPLOYEE/);
+    assert.deepEqual(auditWrites, []);
+    assert.equal(r2cUpdateSetCapture, null);
+  }
+});
+
+test("R2C-6. no internal workspace -> 'internal workspace is not configured'", async () => {
+  r2cReset();
+  internalOrgIdMock = async () => null;
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /internal workspace is not configured/);
+  internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+});
+
+test("R2C-7. no membership row -> MEMBER_NOT_FOUND, no audit", async () => {
+  r2cReset();
+  r2cAdvisory = { rows: [] };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /workforce member not found/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-8. advisory current role OWNER -> OWNER_PROTECTED, no UPDATE, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "OWNER", newRole: "MANAGER" });
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /workspace owner and cannot be modified here/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-9. advisory current role ADMIN -> ADMIN_TIER_PROTECTED, no UPDATE, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "ADMIN", newRole: "MANAGER" });
+  await assert.rejects(
+    () => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"),
+    /changing an administrator's role requires owner privileges/,
+  );
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-10. advisory status SUSPENDED / OFFBOARDING -> TARGET_NOT_MUTABLE, no UPDATE, no audit", async () => {
+  for (const status of ["SUSPENDED", "OFFBOARDING"]) {
+    r2cReset();
+    r2cWire({ currentRole: "MANAGER", status, newRole: "EMPLOYEE" });
+    await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /not active and cannot be modified/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2C-11. advisory no-op (current role === newRole) -> ROLE_UNCHANGED, no UPDATE, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "MANAGER" });
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /already has this role/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-12. UNDER-LOCK no-op: advisory role stale (EMPLOYEE), locked role is already MANAGER -> ROLE_UNCHANGED, no UPDATE, no audit", async () => {
+  r2cReset();
+  // advisory says EMPLOYEE (so advisory passes for newRole MANAGER), but the
+  // FOR UPDATE-locked row already reads MANAGER.
+  r2cWire({ currentRole: "EMPLOYEE", lockedRole: "MANAGER", newRole: "MANAGER" });
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER"), /already has this role/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-13. UNDER-LOCK OWNER protection: advisory MANAGER but locked role OWNER -> OWNER_PROTECTED, no UPDATE, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", lockedRole: "OWNER", newRole: "EMPLOYEE" });
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /workspace owner and cannot be modified here/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-14. MANAGER -> EMPLOYEE success: returns member, uses FOR UPDATE, sets ONLY roleId + updatedAt, one audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  const result = await changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE");
+  assert.deepEqual(result, { userId: R2C_TARGET_UUID, email: "t@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+  assert.equal(r2cUpdateForUpdateUsed, true, "the target row must be locked with SELECT ... FOR UPDATE");
+  assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["roleId", "updatedAt"], "only role_id + updated_at may be written");
+  assert.equal(r2cUpdateSetCapture.roleId, "role-EMPLOYEE");
+  assert.ok(r2cUpdateSetCapture.updatedAt instanceof Date);
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(auditWrites[0], {
+    actorUserId: R2C_SESSION_UUID,
+    organizationId: R2C_INTERNAL_ORG,
+    action: "workforce.member_role_changed",
+    targetType: "staff_member",
+    targetId: "sm-1",
+    metadata: { targetUserId: R2C_TARGET_UUID, previousRole: "MANAGER", newRole: "EMPLOYEE" },
+  });
+});
+
+test("R2C-15. EMPLOYEE -> MANAGER success (symmetric)", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "EMPLOYEE", newRole: "MANAGER" });
+  const result = await changeWorkforceMemberRole(R2C_TARGET_UUID, "MANAGER");
+  assert.equal(result.role, "MANAGER");
+  assert.equal(auditWrites.length, 1);
+  assert.equal(auditWrites[0].metadata.previousRole, "EMPLOYEE");
+  assert.equal(auditWrites[0].metadata.newRole, "MANAGER");
+  assert.equal(r2cUpdateSetCapture.roleId, "role-MANAGER");
+});
+
+test("R2C-16. audit organization is the server-resolved internal workspace, not any caller value", async () => {
+  r2cReset();
+  internalOrgIdMock = async () => "internal-org-from-server-only";
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  await changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE");
+  assert.equal(auditWrites[0].organizationId, "internal-org-from-server-only");
+  internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+});
+
+test("R2C-17. audit actor is the authenticated session userId, never a caller value", async () => {
+  r2cReset();
+  sessionMock = { userId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" };
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  await changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE");
+  assert.equal(auditWrites[0].actorUserId, "cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  sessionMock = { userId: R2C_SESSION_UUID };
+});
+
+test("R2C-18. optimistic UPDATE affects 0 rows -> MEMBER_STATE_CHANGED, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  r2cUpdateReturning = { rows: [] };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /workforce member state changed, please retry/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-19. locked row vanished between advisory and lock -> MEMBER_STATE_CHANGED, no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  r2cLockedRow = { rows: [] };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /workforce member state changed, please retry/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-20. an advisory-lookup DB failure propagates (rejects), never a false success", async () => {
+  r2cReset();
+  r2cAdvisory = { error: new Error("db unreachable") };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /db unreachable/);
+});
+
+test("R2C-21. an in-transaction UPDATE DB failure propagates (fails closed), no audit", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  r2cUpdateReturning = { error: new Error("connection terminated unexpectedly") };
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /connection terminated unexpectedly/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2C-22. audit failure inside the transaction propagates (rolls the change back)", async () => {
+  r2cReset();
+  r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
+  r2cAuditFailure = new Error("audit write failed");
+  await assert.rejects(() => changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE"), /audit write failed/);
+  r2cAuditFailure = null;
+});
+
+test("R2C-23. source invariants: previousRole from the LOCKED row, no email authorization, no Axis A/B, exactly 3 runtime exports", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce.ts", import.meta.url)), "utf8");
+  const imports = src.split("\n").filter((l) => /^\s*import\s/.test(l)).join("\n");
+  assert.ok(!imports.includes("@/lib/dev-role"), "no legacy AppRole gate import");
+  assert.ok(!imports.includes("@/lib/actions/users"), "no Axis A user-action import");
+  assert.ok(!imports.includes("requireAdminRole"), "no requireAdminRole import (docstring mentions of its absence are fine)");
+  assert.ok(!/\bmemberships\b/.test(imports) && !/\bauditDb\b/.test(imports), "no Axis A memberships / Axis B auditDb import");
+  assert.ok(src.includes("previousRole: lockedRole.name"), "audit previousRole must be sourced from the FOR UPDATE-locked row");
+  assert.ok(!/previousRole:\s*member\.currentRoleName/.test(src), "audit previousRole must NOT be the advisory value");
+  const runtimeExports = [...src.matchAll(/^export async function (\w+)/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(runtimeExports, ["addWorkforceMember", "changeWorkforceMemberRole", "listWorkforceMembers"]);
 });

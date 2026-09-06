@@ -18,9 +18,9 @@
  * decision. Mirrors lib/rbac/permissions.ts's own "explicit complete sets,
  * fail closed by omission" philosophy.
  */
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { staffMembers, staffRoles, users } from "@/db/schema";
+import { OWNER_STAFF_ROLE_ID, staffMembers, staffRoles, users } from "@/db/schema";
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { requireSession } from "@/lib/session";
@@ -291,9 +291,244 @@ async function addWorkforceMemberCore(targetUserId: string, role: string): Promi
  * callers cannot select, override, or influence which workspace receives
  * the new membership.
  *
- * This is the ONLY runtime-capable mutation export of this module.
+ * This and changeWorkforceMemberRole() (R2C, below) are the module's two
+ * runtime-capable mutation exports.
  */
 export async function addWorkforceMember(targetUserId: string, role: ListedWorkforceRole): Promise<WorkforceMember> {
   await requireStaffMember("WORKFORCE_MANAGE");
   return addWorkforceMemberCore(targetUserId, role);
+}
+
+/* ------------------------------------------------------------------------ *
+ * PHASE RBAC-RUNTIME-R2C — ordinary workforce role change (MANAGER ↔ EMPLOYEE)
+ * ------------------------------------------------------------------------ */
+
+/** OWNER and ADMIN are NOT ordinary workforce roles: R2C may never assign
+ * them, and may never touch a member who currently holds one. Positive
+ * allowlist (never a `!== "ADMIN"` negative check) so a hypothetical future
+ * 5th staff role is also protected by omission. Promoting/demoting the ADMIN
+ * tier, and the OWNER transfer, are a separate OWNER_MANAGE-gated
+ * capability. */
+const ORDINARY_WORKFORCE_ROLES = ["MANAGER", "EMPLOYEE"] as const;
+export type OrdinaryWorkforceRole = (typeof ORDINARY_WORKFORCE_ROLES)[number];
+
+function isOrdinaryWorkforceRole(value: unknown): value is OrdinaryWorkforceRole {
+  return typeof value === "string" && (ORDINARY_WORKFORCE_ROLES as readonly string[]).includes(value);
+}
+
+/** Shared by the advisory pre-check and the under-lock re-check. OWNER →
+ * owner-protected; ADMIN or any non-ordinary role → admin-tier-protected.
+ * Fail closed. */
+function assertOrdinaryTierTargetRole(currentRoleName: string): void {
+  if (currentRoleName === "OWNER") {
+    throw new Error("target is the workspace owner and cannot be modified here");
+  }
+  if (!isOrdinaryWorkforceRole(currentRoleName)) {
+    throw new Error("changing an administrator's role requires owner privileges");
+  }
+}
+
+/**
+ * Real UPDATE: ONE transaction, the `role_id` change and its single audit
+ * entry both commit or both roll back. Kept as its own function (not
+ * inlined) so it is exercised for real by the disposable-Postgres
+ * integration test — never only trusted via an injected fake.
+ *
+ * Server-serialized SET-TO-ROLE (NOT compare-and-swap — there is no
+ * caller-supplied expected role / row version): `SELECT ... FOR UPDATE` on
+ * the `staff_members` row alone, then every authoritative check is re-run
+ * against the LOCKED state, then the write. `previousRole` in the audit is
+ * always `lockedRole.name` — never the advisory value. The UPDATE's
+ * `role_id = <locked>` clause is a post-lock consistency guard (the lock is
+ * held from the locked read through the write, so it is a tautology in the
+ * happy path); `role_id <> OWNER_STAFF_ROLE_ID` is OWNER defense-in-depth.
+ */
+async function defaultUpdateWorkforceMemberRole(params: {
+  actorUserId: string;
+  workspaceOrgId: string;
+  targetUserId: string;
+  staffMemberId: string;
+  newRole: OrdinaryWorkforceRole;
+}): Promise<{ status: string }> {
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: staffMembers.id, roleId: staffMembers.roleId, status: staffMembers.status })
+      .from(staffMembers)
+      .where(eq(staffMembers.id, params.staffMemberId))
+      .for("update")
+      .limit(1);
+    if (!locked) {
+      // Row vanished between the advisory lookup and acquiring the lock.
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    const [lockedRole] = await tx.select({ name: staffRoles.name }).from(staffRoles).where(eq(staffRoles.id, locked.roleId)).limit(1);
+    if (!lockedRole) {
+      // staff_members.role_id is NOT NULL + FK onDelete:restrict, so this is
+      // unreachable in a consistent DB — treat as a defensive infra failure.
+      throw new Error("staff role not seeded");
+    }
+
+    assertOrdinaryTierTargetRole(lockedRole.name);
+    if (locked.status !== "ACTIVE") {
+      throw new Error("workforce member is not active and cannot be modified");
+    }
+    if (lockedRole.name === params.newRole) {
+      throw new Error("workforce member already has this role");
+    }
+
+    const [newRoleRow] = await tx.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, params.newRole)).limit(1);
+    if (!newRoleRow) {
+      throw new Error(`staff role not seeded: ${params.newRole}`);
+    }
+
+    const [updated] = await tx
+      .update(staffMembers)
+      .set({ roleId: newRoleRow.id, updatedAt: new Date() })
+      .where(
+        and(
+          eq(staffMembers.id, params.staffMemberId),
+          eq(staffMembers.roleId, locked.roleId),
+          ne(staffMembers.roleId, OWNER_STAFF_ROLE_ID),
+        ),
+      )
+      .returning({ status: staffMembers.status });
+    if (!updated) {
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    // Single write path for the audit trail (lib/audit.ts), same
+    // transaction as the UPDATE via logAudit's optional executor param —
+    // mirrors addWorkforceMember()'s pattern. previousRole is the
+    // LOCKED-read role, never the advisory value.
+    await logAudit(
+      {
+        actorUserId: params.actorUserId,
+        organizationId: params.workspaceOrgId,
+        action: "workforce.member_role_changed",
+        targetType: "staff_member",
+        targetId: params.staffMemberId,
+        metadata: { targetUserId: params.targetUserId, previousRole: lockedRole.name, newRole: params.newRole },
+      },
+      tx,
+    );
+
+    return { status: updated.status };
+  });
+}
+
+/**
+ * Module-private core: no session, no authorization — see
+ * changeWorkforceMemberRole() below for those. Deliberately NOT exported,
+ * same reason listWorkforceMembersCore()/addWorkforceMemberCore() aren't.
+ *
+ * Validation order: resolve the (caller-uncontrollable) internal workspace,
+ * then one advisory `staff_members ⋈ staff_roles ⋈ users` lookup, then
+ * advisory protected-tier / status / no-op rejections (early UX exits) —
+ * every one of which is re-run against the FOR UPDATE-locked row inside the
+ * transaction before any write.
+ */
+async function changeWorkforceMemberRoleCore(
+  targetUserId: string,
+  newRole: OrdinaryWorkforceRole,
+  actorUserId: string,
+): Promise<WorkforceMember> {
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const [member] = await db
+    .select({
+      staffMemberId: staffMembers.id,
+      currentRoleName: staffRoles.name,
+      status: staffMembers.status,
+      email: users.email,
+    })
+    .from(staffMembers)
+    .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+    .innerJoin(users, eq(users.id, staffMembers.userId))
+    .where(and(eq(staffMembers.userId, targetUserId), eq(staffMembers.workspaceOrgId, internalOrgId)))
+    .limit(1);
+  if (!member) {
+    throw new Error("workforce member not found");
+  }
+
+  // Advisory early rejections — all re-checked under the row lock in
+  // defaultUpdateWorkforceMemberRole() before the write.
+  assertOrdinaryTierTargetRole(member.currentRoleName);
+  if (member.status !== "ACTIVE") {
+    throw new Error("workforce member is not active and cannot be modified");
+  }
+  if (member.currentRoleName === newRole) {
+    throw new Error("workforce member already has this role");
+  }
+
+  const { status } = await defaultUpdateWorkforceMemberRole({
+    actorUserId,
+    workspaceOrgId: internalOrgId,
+    targetUserId,
+    staffMemberId: member.staffMemberId,
+    newRole,
+  });
+
+  return { userId: targetUserId, email: member.email, role: newRole, status: status as StaffMemberStatus };
+}
+
+/**
+ * Changes an existing ACTIVE workforce member's ordinary role — MANAGER ↔
+ * EMPLOYEE ONLY — inside the internal PUBLIC-MAP workspace.
+ *
+ * Gated by requireStaffMember("WORKFORCE_MANAGE") (R1/R2A/R2B's own
+ * permission); no authorization logic is reimplemented and no legacy
+ * requireAdminRole()/requireStaffRole() fallback is used.
+ *
+ * The ADMIN tier is categorically unreachable: `newRole` can never be ADMIN
+ * (positive allowlist), and a target whose CURRENT role is ADMIN is
+ * rejected — before the transaction and again under the row lock — with
+ * "changing an administrator's role requires owner privileges". Minting or
+ * removing an ADMIN is reserved for a separate OWNER_MANAGE-gated
+ * capability. OWNER is likewise unreachable: `newRole` can never be OWNER,
+ * an OWNER target is rejected before and under the lock, the UPDATE
+ * predicate excludes OWNER_STAFF_ROLE_ID, and the
+ * staff_members_one_owner_per_workspace partial unique index is a final
+ * backstop.
+ *
+ * `targetUserId` is a real `users.id` — never an email, never a
+ * caller-supplied workspace/organization id (the internal workspace is
+ * resolved server-side, exactly as R2A/R2B do). A caller cannot change
+ * their OWN role: `targetUserId === session.userId` is rejected before any
+ * membership lookup.
+ *
+ * SET-TO-ROLE, server-serialized — NOT compare-and-swap. There is no
+ * `expectedCurrentRole` / `expectedUpdatedAt` / row-version parameter.
+ * Concurrent calls on the same member are serialized by SELECT ... FOR
+ * UPDATE: a call whose requested role is already the member's role returns
+ * "workforce member already has this role"; two opposite concurrent
+ * transitions may both legitimately succeed, each auditing the role read
+ * under its own lock. One transaction: the `role_id` UPDATE and exactly one
+ * "workforce.member_role_changed" audit event commit or roll back together;
+ * ONLY `role_id` and `updated_at` change — never `status`,
+ * `workspace_org_id`, `user_id` or `invited_by_user_id`.
+ */
+export async function changeWorkforceMemberRole(
+  targetUserId: string,
+  newRole: OrdinaryWorkforceRole,
+): Promise<WorkforceMember> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    throw new Error("target user id must be a valid UUID");
+  }
+
+  const session = await requireSession();
+  if (targetUserId === session.userId) {
+    throw new Error("workforce members cannot change their own role");
+  }
+
+  if (!isOrdinaryWorkforceRole(newRole)) {
+    throw new Error("workforce role must be one of: MANAGER, EMPLOYEE");
+  }
+
+  return changeWorkforceMemberRoleCore(targetUserId, newRole, session.userId);
 }
