@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { crmClients, interactions } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
-import { requireStaffRole } from "@/lib/dev-role";
+import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireSession } from "@/lib/session";
 
 const TYPES = ["note", "call", "email", "meeting"] as const;
 type InteractionType = (typeof TYPES)[number];
@@ -80,7 +81,13 @@ function validateMatrix(type: InteractionType, direction: Direction | null, outc
 }
 
 export async function createInteraction(formData: FormData) {
-  await requireStaffRole();
+  // RADAR-CORE-2A-A — human interaction writes are gated on Axis-C
+  // (ACTIVE staff_members row in the internal workspace holding RADAR_WORK),
+  // and the author is ALWAYS the authenticated session — never a
+  // caller-supplied name, email, or id. The machine path
+  // (lib/api-v1/interactions.ts) is separate and unchanged.
+  await requireStaffMember("RADAR_WORK");
+  const { userId: actorUserId } = await requireSession();
   const locale = await getLocale();
 
   const clientId = formData.get("clientId");
@@ -141,7 +148,11 @@ export async function createInteraction(formData: FormData) {
       summary: summary.trim(),
       direction,
       outcome,
-      createdBy: (formData.get("createdBy") as string) || null,
+      // Authoritative, session-derived author. `createdBy` (the legacy
+      // free-text column) is deliberately left NULL for new human writes —
+      // any caller-supplied "createdBy" / "createdByUserId" / "actorUserId"
+      // FormData field is ignored.
+      createdByUserId: actorUserId,
     })
     .returning();
 

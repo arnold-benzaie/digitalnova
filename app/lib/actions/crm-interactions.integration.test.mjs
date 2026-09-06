@@ -5,10 +5,11 @@
 // anti-hallucination guarantees, structured audit metadata, and the
 // append-only/no-dedup nature of the interaction log.
 //
-// Same mocking convention as radar-qualification.integration.test.mjs /
-// crm-clients-radar-foundation.integration.test.mjs: @/lib/session's
-// requireSession() is faked with a mutable session state, so the REAL
-// requireStaffRole() (lib/dev-role.ts, never mocked) runs against it.
+// Same mocking convention as radar-assignment.integration.test.mjs:
+// @/lib/session's requireSession() is faked with a mutable session
+// state, and the REAL requireStaffMember("RADAR_WORK") (Axis-C, never
+// mocked) runs against real seeded users / staff_members rows in the
+// local internal workspace (RADAR-CORE-2A-A).
 //
 // Runs against the same fully isolated local Docker Postgres already used
 // throughout this project's other *.integration.test.mjs files
@@ -16,7 +17,7 @@
 // NEVER Production/Preview.
 //
 // Run with: npx tsx --test --experimental-test-module-mocks lib/actions/crm-interactions.integration.test.mjs
-import { test, mock, beforeEach, after } from "node:test";
+import { test, mock, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
@@ -29,33 +30,41 @@ process.env.DATABASE_URL = LOCAL_DB_URL;
 mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const STAFF_SESSION = {
-  userId: "test-staff-user",
-  clerkUserId: "test_clerk_staff",
-  email: "staff@example.com",
-  fullName: "Test Staff",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "staff",
-  previousLastLoginAt: null,
-};
-const CLIENT_SESSION = {
-  userId: "test-client-user",
-  clerkUserId: "test_clerk_client",
-  email: "client-role@example.com",
-  fullName: "Test Client",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "client",
-  previousLastLoginAt: null,
-};
+// RADAR-CORE-2A-A — createInteraction()'s human gate is now
+// requireStaffMember("RADAR_WORK") (Axis-C) + requireSession() for the
+// authoritative author id. So the "staff" identity here must be a REAL
+// users.id with a real ACTIVE staff_members row in the internal
+// workspace; a plain string userId would fail the uuid FK / the
+// membership lookup. Seeded once in before() below and torn down in
+// after().
+const STAFF_USER_ID = randomUUID(); // ACTIVE EMPLOYEE — the default actor
+const MANAGER_USER_ID = randomUUID(); // ACTIVE MANAGER
+const SUSPENDED_USER_ID = randomUUID(); // SUSPENDED EMPLOYEE — must be denied
+const NON_STAFF_USER_ID = randomUUID(); // authenticated but no staff_members row
+
+function sessionFor(userId, role = "staff") {
+  return {
+    userId,
+    clerkUserId: `test_clerk_${userId}`,
+    email: `${userId}@example.test`,
+    fullName: "Test Person",
+    firstName: "Test",
+    organizationId: "test-org",
+    organizationName: "Test Org",
+    role,
+    previousLastLoginAt: null,
+  };
+}
+const STAFF_SESSION = sessionFor(STAFF_USER_ID);
+const CLIENT_SESSION = sessionFor(NON_STAFF_USER_ID, "client");
 
 /** @type {{ session: object | null }} */
 let mockState = { session: STAFF_SESSION };
 function actAsStaff() {
   mockState = { session: STAFF_SESSION };
+}
+function actAs(userId) {
+  mockState = { session: sessionFor(userId) };
 }
 function actAsClient() {
   mockState = { session: CLIENT_SESSION };
@@ -70,22 +79,58 @@ mock.module("@/lib/session", {
       if (!mockState.session) throw new Error("UNAUTHENTICATED — no session");
       return mockState.session;
     },
-    // Deliberately always null, not mockState.session — matches
-    // crm-clients-radar-foundation.integration.test.mjs's established
-    // convention. logCrmAudit() reads getCurrentSession() to stamp
-    // actorUserId, a real `uuid` FK column; the fake STAFF_SESSION's
-    // userId ("test-staff-user") is not a valid UUID and would fail at
-    // the database level if actually persisted.
+    // Deliberately always null — logCrmAudit() reads getCurrentSession()
+    // to stamp auditLog.actorUserId; keeping it null here preserves the
+    // pre-2A audit-row expectations of this suite (the product's
+    // logCrmAudit is untouched by 2A-A and stamps the real session in
+    // production).
     getCurrentSession: async () => null,
   },
 });
 
 const { db } = await import("@/db");
-const { auditLog, crmClients, interactions } = await import("@/db/schema");
+const { auditLog, crmClients, interactions, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
 const { createInteraction } = await import("./crm-interactions.ts");
 
 const createdClientIds = new Set();
+const createdStaffMemberIds = new Set();
+const createdUserIds = new Set();
+let INTERNAL_ORG_ID;
+
+async function roleId(name) {
+  const [r] = await db.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, name)).limit(1);
+  return r?.id ?? null;
+}
+async function seedUser(userId) {
+  await db
+    .insert(users)
+    .values({ id: userId, clerkUserId: `test_clerk_${userId}`, email: `${userId}@example.test`, fullName: "Test Person", status: "active" })
+    .onConflictDoNothing();
+  createdUserIds.add(userId);
+}
+async function seedStaffMember(userId, roleName, status) {
+  const rid = await roleId(roleName);
+  const [row] = await db
+    .insert(staffMembers)
+    .values({ userId, workspaceOrgId: INTERNAL_ORG_ID, roleId: rid, status })
+    .returning();
+  createdStaffMemberIds.add(row.id);
+  return row;
+}
+
+before(async () => {
+  const [org] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
+  INTERNAL_ORG_ID = org?.id ?? null;
+  assert.ok(INTERNAL_ORG_ID, "local test DB must have an internal organization for the Axis-C gate");
+  await seedUser(STAFF_USER_ID);
+  await seedUser(MANAGER_USER_ID);
+  await seedUser(SUSPENDED_USER_ID);
+  await seedUser(NON_STAFF_USER_ID); // authenticated user with NO staff_members row
+  await seedStaffMember(STAFF_USER_ID, "EMPLOYEE", "ACTIVE");
+  await seedStaffMember(MANAGER_USER_ID, "MANAGER", "ACTIVE");
+  await seedStaffMember(SUSPENDED_USER_ID, "EMPLOYEE", "SUSPENDED");
+});
 
 beforeEach(() => {
   actAsStaff();
@@ -100,6 +145,8 @@ after(async () => {
     // Deleting the client cascades interactions (onDelete: "cascade").
     await db.delete(crmClients).where(inArray(crmClients.id, ids));
   }
+  if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
+  if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
   await db.$client.end();
 });
 
@@ -116,14 +163,17 @@ async function makeClient(overrides = {}) {
   return client;
 }
 
-function interactionFormData({ clientId, type = "note", direction, outcome, summary, createdBy } = {}) {
+function interactionFormData({ clientId, type = "note", direction, outcome, summary, createdBy, createdByUserId, actorUserId } = {}) {
   const fd = new FormData();
   fd.set("clientId", clientId);
   fd.set("type", type);
   if (direction !== undefined) fd.set("direction", direction);
   if (outcome !== undefined) fd.set("outcome", outcome);
   fd.set("summary", summary ?? `Test summary ${randomUUID()}`);
+  // Caller-supplied authorship fields — all of these MUST be ignored.
   if (createdBy !== undefined) fd.set("createdBy", createdBy);
+  if (createdByUserId !== undefined) fd.set("createdByUserId", createdByUserId);
+  if (actorUserId !== undefined) fd.set("actorUserId", actorUserId);
   return fd;
 }
 
@@ -456,4 +506,93 @@ test("multiple legitimate interaction attempts for the same client are all allow
   await createInteraction(interactionFormData({ clientId: client.id, type: "call", direction: "outbound" }));
   await createInteraction(interactionFormData({ clientId: client.id, type: "call", direction: "outbound" }));
   assert.equal((await interactionsFor(client.id)).length, 3);
+});
+
+// =========================================================
+// RADAR-CORE-2A-A — interaction authorship integrity
+// =========================================================
+
+test("2A: a submitted createdBy form field is IGNORED — created_by stays NULL, created_by_user_id is the session user", async () => {
+  const client = await makeClient();
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note", createdBy: "Fake Admin" }));
+  const [row] = await interactionsFor(client.id);
+  assert.equal(row.createdBy, null, "the spoofable free-text createdBy is never written on a human write");
+  assert.equal(row.createdByUserId, STAFF_USER_ID, "authorship is the authenticated session user id");
+});
+
+test("2A: submitted createdByUserId / actorUserId fields are IGNORED — author is always session.userId", async () => {
+  const client = await makeClient();
+  await createInteraction(
+    interactionFormData({
+      clientId: client.id,
+      type: "note",
+      createdBy: "Someone Else",
+      createdByUserId: MANAGER_USER_ID, // a real other user id
+      actorUserId: NON_STAFF_USER_ID,
+    }),
+  );
+  const [row] = await interactionsFor(client.id);
+  assert.equal(row.createdByUserId, STAFF_USER_ID, "never the caller-supplied target");
+  assert.notEqual(row.createdByUserId, MANAGER_USER_ID);
+  assert.notEqual(row.createdByUserId, NON_STAFF_USER_ID);
+  assert.equal(row.createdBy, null);
+});
+
+test("2A: created_by_user_id always equals the authenticated session's user id (acting as a different active member)", async () => {
+  const client = await makeClient();
+  actAs(MANAGER_USER_ID);
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note" }));
+  const [row] = await interactionsFor(client.id);
+  assert.equal(row.createdByUserId, MANAGER_USER_ID);
+});
+
+test("2A: ACTIVE EMPLOYEE (RADAR_WORK) may create an interaction", async () => {
+  const client = await makeClient();
+  actAs(STAFF_USER_ID);
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note" }));
+  assert.equal((await interactionsFor(client.id)).length, 1);
+});
+
+test("2A: ACTIVE MANAGER (RADAR_WORK) may create an interaction", async () => {
+  const client = await makeClient();
+  actAs(MANAGER_USER_ID);
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note" }));
+  assert.equal((await interactionsFor(client.id)).length, 1);
+});
+
+test("2A: a SUSPENDED staff member is DENIED — no interaction inserted", async () => {
+  const client = await makeClient();
+  actAs(SUSPENDED_USER_ID);
+  await assert.rejects(() => createInteraction(interactionFormData({ clientId: client.id, type: "note" })));
+  assert.equal((await interactionsFor(client.id)).length, 0);
+});
+
+test("2A: an authenticated user with NO staff_members row is DENIED — no interaction inserted", async () => {
+  const client = await makeClient();
+  actAs(NON_STAFF_USER_ID);
+  await assert.rejects(() => createInteraction(interactionFormData({ clientId: client.id, type: "note" })));
+  assert.equal((await interactionsFor(client.id)).length, 0);
+});
+
+test("2A: a legacy row (created_by_user_id NULL, created_by free text) is read back verbatim — no backfill, no rewrite", async () => {
+  const client = await makeClient();
+  const [legacy] = await db
+    .insert(interactions)
+    .values({ clientId: client.id, type: "note", summary: "Historical note", createdBy: "Legacy Person" })
+    .returning();
+  const [row] = await db.select().from(interactions).where(eq(interactions.id, legacy.id));
+  assert.equal(row.createdBy, "Legacy Person", "existing free-text authorship is preserved unchanged");
+  assert.equal(row.createdByUserId, null, "legacy rows are never attributed to a real user");
+});
+
+test("2A: structural — createInteraction never reads a caller createdBy/createdByUserId/actorUserId, and gates on RADAR_WORK", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const src = readFileSync(fileURLToPath(new URL("./crm-interactions.ts", import.meta.url)), "utf8");
+  assert.ok(src.includes('requireStaffMember("RADAR_WORK")'), "human gate is Axis-C RADAR_WORK");
+  assert.ok(src.includes("await requireSession()"), "actor id comes from the session");
+  assert.ok(src.includes("createdByUserId: actorUserId"), "structured author is the session user id");
+  assert.ok(!/formData\.get\(["']createdBy["']\)/.test(src), "never reads a caller createdBy");
+  assert.ok(!/formData\.get\(["'](createdByUserId|actorUserId)["']\)/.test(src), "never reads a caller actor id");
+  assert.ok(!src.includes("requireStaffRole"), "the Axis-A gate is fully replaced");
 });

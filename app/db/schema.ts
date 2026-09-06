@@ -542,6 +542,13 @@ export const interactions = pgTable(
     type: text("type").notNull(), // "call" | "email" | "meeting" | "note"
     summary: text("summary").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    // RADAR-CORE-2A-A — authoritative, session-derived authorship of a
+    // HUMAN interaction write. `created_by_user_id` is the sole authority
+    // for "who logged this"; `created_by` (below) is history/machine/legacy
+    // display text ONLY, never trusted for identity or authorization.
+    // NULL for: every pre-2A row (no backfill), machine/API writes
+    // (created_by = "api:{keyPrefix}"), and legacy free-text rows.
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdBy: text("created_by"),
     // AI Commercial Radar / Phase 1F — "outbound" | "inbound" | null.
     // Required for new call/email rows; must stay null for note/meeting
@@ -565,7 +572,10 @@ export const interactions = pgTable(
     outcome: text("outcome"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("interactions_client_id_idx").on(table.clientId)],
+  (table) => [
+    index("interactions_client_id_idx").on(table.clientId),
+    index("interactions_created_by_user_id_idx").on(table.createdByUserId),
+  ],
 );
 
 /** Delivery-side project tracking per client (distinct from sales deals). */

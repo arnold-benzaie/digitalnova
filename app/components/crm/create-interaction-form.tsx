@@ -91,12 +91,8 @@ export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: s
             ))}
           </select>
         )}
-
-        <input
-          name="createdBy"
-          placeholder={t.createdByPlaceholder}
-          className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
-        />
+        {/* RADAR-CORE-2A-A — the author is the authenticated session, never
+            chosen in the browser. There is no createdBy input. */}
       </div>
       <textarea
         name="summary"
