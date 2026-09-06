@@ -37,6 +37,33 @@ export const workforce = {
     errorNoEligibleUsers: "Aucun utilisateur éligible à ajouter.",
     errorGeneric: "L'ajout a échoué. Veuillez réessayer.",
     eligibleUsersLimited: "Seuls les 50 premiers utilisateurs éligibles sont affichés.",
+    // PHASE RBAC-RUNTIME-R2D-B — ordinary workforce lifecycle actions
+    // (suspend / reactivate / offboard) on MANAGER/EMPLOYEE rows. The
+    // backend (lib/actions/workforce.ts) is authoritative; none of these
+    // strings gate anything.
+    columnActions: "Actions",
+    actionSuspend: "Suspendre",
+    actionReactivate: "Réactiver",
+    actionOffboard: "Faire partir",
+    suspending: "Suspension…",
+    reactivating: "Réactivation…",
+    offboarding: "Départ en cours…",
+    suspendConfirmTitle: "Suspendre ce membre ?",
+    suspendConfirmDescription: (email: string) =>
+      `${email} perdra temporairement tout accès interne. Vous pourrez le réactiver plus tard.`,
+    suspendConfirmLabel: "Suspendre",
+    offboardConfirmTitle: "Faire partir ce membre ?",
+    offboardConfirmDescription: (email: string) =>
+      `${email} perd immédiatement tout accès interne. Le départ est définitif dans cette version : ce membre ne pourra pas être réintégré à l'effectif.`,
+    offboardConfirmLabel: "Faire partir",
+    errorInvalidTarget: "Membre cible non valide.",
+    errorSelfLifecycle: "Vous ne pouvez pas modifier votre propre statut.",
+    errorMemberNotFound: "Membre introuvable — la liste a été actualisée.",
+    errorOwnerProtected: "Le propriétaire de l'espace ne peut pas être modifié ici.",
+    errorAdminTierProtected: "Le cycle de vie d'un administrateur requiert les privilèges du propriétaire.",
+    errorStatusUnchanged: "Ce membre a déjà ce statut — la liste a été actualisée.",
+    errorInvalidTransition: "Cette transition de statut n'est pas autorisée — la liste a été actualisée.",
+    errorStateChanged: "Le statut de ce membre vient de changer. Veuillez réessayer.",
   },
   en: {
     title: "Workforce",
@@ -68,5 +95,32 @@ export const workforce = {
     errorNoEligibleUsers: "No eligible users to add.",
     errorGeneric: "Could not add the member. Please try again.",
     eligibleUsersLimited: "Only the first 50 eligible users are shown.",
+    // PHASE RBAC-RUNTIME-R2D-B — ordinary workforce lifecycle actions
+    // (suspend / reactivate / offboard) on MANAGER/EMPLOYEE rows. The
+    // backend (lib/actions/workforce.ts) is authoritative; none of these
+    // strings gate anything.
+    columnActions: "Actions",
+    actionSuspend: "Suspend",
+    actionReactivate: "Reactivate",
+    actionOffboard: "Offboard",
+    suspending: "Suspending…",
+    reactivating: "Reactivating…",
+    offboarding: "Offboarding…",
+    suspendConfirmTitle: "Suspend this member?",
+    suspendConfirmDescription: (email: string) =>
+      `${email} will temporarily lose all internal access. You can reactivate them later.`,
+    suspendConfirmLabel: "Suspend",
+    offboardConfirmTitle: "Offboard this member?",
+    offboardConfirmDescription: (email: string) =>
+      `${email} immediately loses all internal access. Offboarding is terminal in this version: this member cannot be re-added to the workforce.`,
+    offboardConfirmLabel: "Offboard",
+    errorInvalidTarget: "Invalid target member.",
+    errorSelfLifecycle: "You cannot change your own status.",
+    errorMemberNotFound: "Member not found — the list has been refreshed.",
+    errorOwnerProtected: "The workspace owner cannot be modified here.",
+    errorAdminTierProtected: "An administrator's lifecycle requires owner privileges.",
+    errorStatusUnchanged: "This member already has that status — the list has been refreshed.",
+    errorInvalidTransition: "That status transition is not allowed — the list has been refreshed.",
+    errorStateChanged: "This member's status just changed. Please try again.",
   },
 } as const;

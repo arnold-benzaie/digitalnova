@@ -1,10 +1,12 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireSession } from "@/lib/session";
 import { listWorkforceMembers } from "@/lib/actions/workforce";
 import { listAssignableWorkforceUsers } from "@/lib/actions/workforce-ui";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 import { AddWorkforceMemberForm } from "@/components/workforce/add-workforce-member-form";
+import { WorkforceLifecycleActions } from "@/components/workforce/workforce-lifecycle-actions";
 
 /**
  * PHASE OWNER-UI-3A / OWNER-UI-4A — the internal-staff workforce on the new
@@ -45,7 +47,10 @@ export default async function WorkforcePage() {
 
   // Guard-first is preserved: the await above fully resolves (and
   // redirect()s on any denial) before these run, and each read re-checks
-  // WORKFORCE_MANAGE itself.
+  // WORKFORCE_MANAGE itself. currentUserId is server-derived only (never a
+  // param/searchParam) — UX-only, to hide the caller's own lifecycle
+  // controls; R2D-A still rejects a self-mutation authoritatively.
+  const { userId: currentUserId } = await requireSession();
   const [members, assignable] = await Promise.all([listWorkforceMembers(), listAssignableWorkforceUsers()]);
   const locale = await getLocale();
   const t = dictionaries[locale].workforce;
@@ -77,9 +82,10 @@ export default async function WorkforcePage() {
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-pm-gris">
                 <tr>
-                  <th className="px-3 py-2">{t.columnMember}</th>
-                  <th className="px-3 py-2">{t.columnRole}</th>
-                  <th className="px-3 py-2">{t.columnStatus}</th>
+                  <th scope="col" className="px-3 py-2">{t.columnMember}</th>
+                  <th scope="col" className="px-3 py-2">{t.columnRole}</th>
+                  <th scope="col" className="px-3 py-2">{t.columnStatus}</th>
+                  <th scope="col" className="px-3 py-2 text-right">{t.columnActions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -95,6 +101,16 @@ export default async function WorkforcePage() {
                       >
                         {statusLabel[member.status] ?? member.status}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-right align-top">
+                      <WorkforceLifecycleActions
+                        userId={member.userId}
+                        email={member.email}
+                        role={member.role}
+                        status={member.status}
+                        locale={locale}
+                        currentUserId={currentUserId}
+                      />
                     </td>
                   </tr>
                 ))}

@@ -144,9 +144,13 @@ test("OWNER-UI-4A integration: eligible-user anti-join + addWorkforceMemberFromF
     let revalidateCalls = [];
     mock.module("next/cache", { namedExports: { revalidatePath: (p) => revalidateCalls.push(p) } });
 
-    const { listAssignableWorkforceUsers, addWorkforceMemberFromForm } = await import(
-      new URL("./workforce-ui.ts", import.meta.url).pathname
-    );
+    const {
+      listAssignableWorkforceUsers,
+      addWorkforceMemberFromForm,
+      suspendWorkforceMemberAction,
+      reactivateWorkforceMemberAction,
+      offboardWorkforceMemberAction,
+    } = await import(new URL("./workforce-ui.ts", import.meta.url).pathname);
 
     const asUser = (userId) => { sessionMockState = { kind: "session", userId }; };
     const form = (fields) => {
@@ -215,6 +219,112 @@ test("OWNER-UI-4A integration: eligible-user anti-join + addWorkforceMemberFromF
     assert.deepEqual(dup, { error: "DUPLICATE" });
     const [freshRowAfterDup] = (await pool.query("select role_id from staff_members where user_id = $1", [freshUserId])).rows;
     assert.equal(freshRowAfterDup.role_id, roleId.MANAGER, "a duplicate add must never change the existing role");
+
+    // ================================================================
+    // PHASE RBAC-RUNTIME-R2D-B — suspend/reactivate/offboard wrappers.
+    // Wrapper WIRING only (auth -> exactly one R2D-A call -> map -> revalidate);
+    // R2D-A's own FOR UPDATE races / OWNER ne(roleId) guard / concurrency
+    // multisets are proven by lib/actions/workforce.integration.test.mjs.
+    // ================================================================
+    const otherOrgId = randomUUID();
+    await pool.query("insert into organizations (id, name, is_internal) values ($1,'external workspace', false)", [otherOrgId]);
+
+    const r2dbActiveMgrId = await seedUser("r2db-active-mgr@example.com");
+    const r2dbSuspMgrId = await seedUser("r2db-susp-mgr@example.com");
+    const r2dbActiveEmpId = await seedUser("r2db-active-emp@example.com");
+    const r2dbOffboardedId = await seedUser("r2db-offboarded@example.com");
+    const r2dbAdmin2Id = await seedUser("r2db-admin2@example.com");
+    const r2dbExternalMgrId = await seedUser("r2db-external-mgr@example.com");
+    for (const [uid, rid, st, org] of [
+      [r2dbActiveMgrId, roleId.MANAGER, "ACTIVE", orgId],
+      [r2dbSuspMgrId, roleId.MANAGER, "SUSPENDED", orgId],
+      [r2dbActiveEmpId, roleId.EMPLOYEE, "ACTIVE", orgId],
+      [r2dbOffboardedId, roleId.MANAGER, "OFFBOARDING", orgId],
+      [r2dbAdmin2Id, roleId.ADMIN, "ACTIVE", orgId],
+      [r2dbExternalMgrId, roleId.MANAGER, "ACTIVE", otherOrgId],
+    ]) {
+      await pool.query("insert into staff_members (user_id, workspace_org_id, role_id, status) values ($1,$2,$3,$4)", [uid, org, rid, st]);
+    }
+
+    const statusOf = async (uid, org = orgId) =>
+      (await pool.query("select status from staff_members where user_id = $1 and workspace_org_id = $2", [uid, org])).rows[0]?.status;
+    const smIdOf = async (uid, org = orgId) =>
+      (await pool.query("select id from staff_members where user_id = $1 and workspace_org_id = $2", [uid, org])).rows[0]?.id;
+    const statusAuditCount = async (smId) =>
+      (await pool.query("select count(*)::int as n from audit_log where action = 'workforce.member_status_changed' and target_id = $1", [smId])).rows[0].n;
+
+    asUser(adminUserId);
+
+    // R2DB-i. ACTIVE MANAGER: suspend wrapper -> SUSPENDED, one truthful audit, revalidate recorded.
+    revalidateCalls = [];
+    const mgrSmId = await smIdOf(r2dbActiveMgrId);
+    const suspRes = await suspendWorkforceMemberAction(r2dbActiveMgrId);
+    assert.equal(suspRes, undefined, `expected success, got ${JSON.stringify(suspRes)}`);
+    assert.equal(await statusOf(r2dbActiveMgrId), "SUSPENDED");
+    assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+    assert.equal(await statusAuditCount(mgrSmId), 1, "exactly one workforce.member_status_changed audit");
+    const [suspAudit] = (
+      await pool.query("select actor_user_id, organization_id, metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1", [mgrSmId])
+    ).rows;
+    assert.equal(suspAudit.actor_user_id, adminUserId);
+    assert.equal(suspAudit.organization_id, orgId);
+    assert.deepEqual(suspAudit.metadata, { targetUserId: r2dbActiveMgrId, previousStatus: "ACTIVE", newStatus: "SUSPENDED" });
+
+    // R2DB-ii. then reactivate wrapper -> ACTIVE.
+    revalidateCalls = [];
+    assert.equal(await reactivateWorkforceMemberAction(r2dbActiveMgrId), undefined);
+    assert.equal(await statusOf(r2dbActiveMgrId), "ACTIVE");
+    assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+
+    // R2DB-iii. ACTIVE EMPLOYEE: offboard wrapper -> OFFBOARDING (terminal).
+    revalidateCalls = [];
+    assert.equal(await offboardWorkforceMemberAction(r2dbActiveEmpId), undefined);
+    assert.equal(await statusOf(r2dbActiveEmpId), "OFFBOARDING");
+    assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+
+    // R2DB-iv. OFFBOARDING is terminal — reactivate/suspend -> INVALID_STATUS_TRANSITION, no write, no audit, no revalidate.
+    const offSmId = await smIdOf(r2dbOffboardedId);
+    for (const act of [reactivateWorkforceMemberAction, suspendWorkforceMemberAction]) {
+      revalidateCalls = [];
+      assert.deepEqual(await act(r2dbOffboardedId), { error: "INVALID_STATUS_TRANSITION" });
+      assert.deepEqual(revalidateCalls, []);
+    }
+    assert.equal(await statusOf(r2dbOffboardedId), "OFFBOARDING");
+    assert.equal(await statusAuditCount(offSmId), 0);
+
+    // R2DB-v. no-op: suspend a SUSPENDED / reactivate an ACTIVE -> STATUS_UNCHANGED, no write, no revalidate.
+    revalidateCalls = [];
+    assert.deepEqual(await suspendWorkforceMemberAction(r2dbSuspMgrId), { error: "STATUS_UNCHANGED" });
+    assert.deepEqual(await reactivateWorkforceMemberAction(r2dbActiveMgrId), { error: "STATUS_UNCHANGED" });
+    assert.deepEqual(revalidateCalls, []);
+    assert.equal(await statusOf(r2dbSuspMgrId), "SUSPENDED");
+
+    // R2DB-vi. an ADMIN target -> ADMIN_TIER_PROTECTED for every wrapper; no write, no audit.
+    const admin2SmId = await smIdOf(r2dbAdmin2Id);
+    for (const act of [suspendWorkforceMemberAction, reactivateWorkforceMemberAction, offboardWorkforceMemberAction]) {
+      revalidateCalls = [];
+      assert.deepEqual(await act(r2dbAdmin2Id), { error: "ADMIN_TIER_PROTECTED" });
+      assert.deepEqual(revalidateCalls, []);
+    }
+    assert.equal(await statusOf(r2dbAdmin2Id), "ACTIVE");
+    assert.equal(await statusAuditCount(admin2SmId), 0);
+
+    // R2DB-vii. self target (the acting admin) -> SELF_LIFECYCLE_NOT_ALLOWED.
+    revalidateCalls = [];
+    assert.deepEqual(await suspendWorkforceMemberAction(adminUserId), { error: "SELF_LIFECYCLE_NOT_ALLOWED" });
+    assert.deepEqual(revalidateCalls, []);
+
+    // R2DB-viii. a member of a NON-internal workspace is invisible -> MEMBER_NOT_FOUND; the remote row is untouched.
+    revalidateCalls = [];
+    assert.deepEqual(await suspendWorkforceMemberAction(r2dbExternalMgrId), { error: "MEMBER_NOT_FOUND" });
+    assert.equal(await statusOf(r2dbExternalMgrId, otherOrgId), "ACTIVE", "the external-workspace member was never touched");
+    assert.deepEqual(revalidateCalls, []);
+
+    // R2DB-ix. a caller WITHOUT WORKFORCE_MANAGE (ACTIVE MANAGER) is denied before any wrapper effect.
+    asUser(r2dbActiveMgrId);
+    await assert.rejects(() => suspendWorkforceMemberAction(r2dbActiveEmpId), /NEXT_REDIRECT/);
+    asUser(adminUserId);
+    assert.equal(await statusOf(r2dbActiveEmpId), "OFFBOARDING", "a denied caller changed nothing");
 
     await globalThis.pgPool?.end().catch(() => {});
   } finally {

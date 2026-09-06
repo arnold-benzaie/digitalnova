@@ -33,7 +33,13 @@ import { staffMembers, users } from "@/db/schema";
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { isValidUuid } from "@/lib/api-v1/dto";
-import { addWorkforceMember, type ListedWorkforceRole } from "@/lib/actions/workforce";
+import {
+  addWorkforceMember,
+  offboardWorkforceMember,
+  reactivateWorkforceMember,
+  suspendWorkforceMember,
+  type ListedWorkforceRole,
+} from "@/lib/actions/workforce";
 
 export type AssignableUser = { id: string; email: string };
 
@@ -143,4 +149,109 @@ export async function addWorkforceMemberFromForm(formData: FormData): Promise<{ 
 
   revalidatePath("/admin/workforce");
   return undefined;
+}
+
+/* ---------------------------------------------------------------------- *
+ * PHASE RBAC-RUNTIME-R2D-B — UI glue for the ordinary workforce lifecycle
+ * (suspend / reactivate / offboard). Three thin wrappers over the already-
+ * integrated, authoritative R2D-A functions in lib/actions/workforce.ts.
+ *
+ * Each wrapper runs requireStaffMember("WORKFORCE_MANAGE") FIRST (R2D-A
+ * re-checks it too — defence in depth), validates the target UUID shape,
+ * calls EXACTLY ONE R2D-A function, maps its known thrown domain messages
+ * to a small stable code union (so no raw server string / infra detail
+ * reaches the browser), and lets infra/config/redirect errors propagate
+ * untouched. No caller workspace / org / actor / status / intent — R2D-A
+ * resolves the internal workspace and the acting user itself. This file
+ * writes nothing and logs no audit event of its own; R2D-A is the only
+ * writer/auditor, exactly as addWorkforceMemberFromForm() delegates to R2B.
+ * ---------------------------------------------------------------------- */
+
+export type WorkforceLifecycleErrorCode =
+  | "INVALID_TARGET"
+  | "SELF_LIFECYCLE_NOT_ALLOWED"
+  | "MEMBER_NOT_FOUND"
+  | "OWNER_PROTECTED"
+  | "ADMIN_TIER_PROTECTED"
+  | "STATUS_UNCHANGED"
+  | "INVALID_STATUS_TRANSITION"
+  | "MEMBER_STATE_CHANGED";
+
+/**
+ * R2D-A thrown Error.message -> stable UI code. Substring match on the
+ * distinctive phrase (same technique as addWorkforceMemberFromForm's R2B
+ * mapping). Returns null for anything outside the closed set — infra/config
+ * errors ("internal workspace is not configured", "staff role not
+ * seeded"), connectivity failures and unknown errors must reach the route
+ * error boundary, never a friendly domain code.
+ */
+function mapWorkforceLifecycleError(message: string): WorkforceLifecycleErrorCode | null {
+  if (message.includes("target user id must be a valid UUID")) return "INVALID_TARGET";
+  if (message.includes("workforce members cannot change their own lifecycle status")) return "SELF_LIFECYCLE_NOT_ALLOWED";
+  if (message.includes("workforce member not found")) return "MEMBER_NOT_FOUND";
+  if (message.includes("target is the workspace owner and cannot be modified here")) return "OWNER_PROTECTED";
+  if (message.includes("an administrator's lifecycle requires owner privileges")) return "ADMIN_TIER_PROTECTED";
+  if (message.includes("workforce member already has this status")) return "STATUS_UNCHANGED";
+  if (message.includes("this lifecycle transition is not allowed")) return "INVALID_STATUS_TRANSITION";
+  if (message.includes("workforce member state changed, please retry")) return "MEMBER_STATE_CHANGED";
+  return null;
+}
+
+type WorkforceLifecycleResult = { error: WorkforceLifecycleErrorCode } | undefined;
+
+/**
+ * Shared private runner — NOT a public dispatcher: it takes no caller
+ * intent/status, it takes a compile-time-bound reference to exactly one
+ * R2D-A function. Mirrors R2D-A's own private runLifecycleMutation().
+ */
+async function runWorkforceLifecycleAction(
+  targetUserId: string,
+  mutate: (targetUserId: string) => Promise<unknown>,
+): Promise<WorkforceLifecycleResult> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    return { error: "INVALID_TARGET" };
+  }
+
+  try {
+    await mutate(targetUserId);
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "";
+    const code = mapWorkforceLifecycleError(message);
+    if (code) return { error: code };
+    throw error;
+  }
+
+  revalidatePath("/admin/workforce");
+  return undefined;
+}
+
+/**
+ * Suspends an ACTIVE ordinary workforce member (MANAGER/EMPLOYEE) via R2D-A
+ * suspendWorkforceMember(). OWNER/ADMIN targets, self-targeting and a
+ * non-ACTIVE source are all rejected by R2D-A (advisory + under the row
+ * lock) and surface here as a mapped code. revalidatePath on success only.
+ */
+export async function suspendWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
+  return runWorkforceLifecycleAction(targetUserId, suspendWorkforceMember);
+}
+
+/**
+ * Reactivates a SUSPENDED ordinary workforce member via R2D-A
+ * reactivateWorkforceMember(). Same protections; revalidatePath on success
+ * only.
+ */
+export async function reactivateWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
+  return runWorkforceLifecycleAction(targetUserId, reactivateWorkforceMember);
+}
+
+/**
+ * Offboards an ordinary workforce member (ACTIVE or SUSPENDED -> the
+ * terminal OFFBOARDING) via R2D-A offboardWorkforceMember(). Same
+ * protections; revalidatePath on success only.
+ */
+export async function offboardWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
+  return runWorkforceLifecycleAction(targetUserId, offboardWorkforceMember);
 }

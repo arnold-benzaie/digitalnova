@@ -74,7 +74,33 @@ mock.module("@/components/workforce/add-workforce-member-form", {
   namedExports: { AddWorkforceMemberForm: () => null },
 });
 
+// PHASE RBAC-RUNTIME-R2D-B — the page now also derives currentUserId from
+// requireSession() (server-side, UX-only) and renders a per-row lifecycle
+// control. Both are module-boundary mocks: the session so no Clerk runtime
+// is needed, the client component (it is "use client" with useTransition /
+// useConfirmDialog) stubbed to a prop-capturing no-op.
+const PAGE_SELF_UUID = "5e1f0000-0000-4000-8000-00000000se1f";
+let sessionCalls = 0;
+mock.module("@/lib/session", {
+  namedExports: {
+    requireSession: async () => {
+      sessionCalls += 1;
+      if (denyMode) {
+        const err = new Error("NEXT_REDIRECT");
+        err.digest = "NEXT_REDIRECT;replace;/sign-in;307;";
+        throw err;
+      }
+      return { userId: PAGE_SELF_UUID };
+    },
+  },
+});
+mock.module("@/components/workforce/workforce-lifecycle-actions", {
+  namedExports: { WorkforceLifecycleActions: () => null },
+});
+
 const { default: WorkforcePage } = await import("./page.tsx");
+
+const lifecycleActionsEls = (el) => findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p);
 
 function reset() {
   permissionCalls = [];
@@ -85,6 +111,7 @@ function reset() {
   assignableResult = { users: [], hasMore: false };
   assignableError = null;
   assignableCalls = 0;
+  sessionCalls = 0;
 }
 
 /** Every element in the tree whose props satisfy `pred` — walks children
@@ -260,4 +287,92 @@ test("OWNER-UI-4A page: still a zero-parameter Server Component; forged params/s
   const el = await WorkforcePage({ searchParams: { role: "OWNER", workspace: "other" }, params: { workspace: "other" } });
   assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
   assert.equal(addMemberForms(el).length, 1);
+});
+
+// ---------------------------- PHASE RBAC-RUNTIME-R2D-B ----------------------------
+// The table gains an Actions column and one <WorkforceLifecycleActions/> per
+// row (stubbed here). currentUserId is derived from requireSession().userId,
+// server-side only. The lifecycle gating (role/status/self) is proven in
+// components/workforce/workforce-lifecycle-actions.test.mjs.
+
+test("R2DB-P1. Actions column header renders when the table has members", async () => {
+  reset();
+  workforceRows = [member({ email: "m@example.com", role: "MANAGER", status: "ACTIVE" })];
+  const text = collectText(await WorkforcePage()).join(" | ");
+  assert.ok(text.includes(t.columnActions), "the localized Actions column header is present");
+});
+
+test("R2DB-P2. exactly one WorkforceLifecycleActions per member row, after the guard, with requireSession() called once", async () => {
+  reset();
+  workforceRows = [
+    member({ email: "a@example.com", role: "MANAGER", status: "ACTIVE" }),
+    member({ email: "b@example.com", role: "EMPLOYEE", status: "SUSPENDED" }),
+    member({ email: "c@example.com", role: "ADMIN", status: "ACTIVE" }),
+  ];
+  const el = await WorkforcePage();
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.equal(sessionCalls, 1, "currentUserId is resolved once, only after the route guard");
+  assert.equal(lifecycleActionsEls(el).length, 3, "one lifecycle control element per member row");
+});
+
+test("R2DB-P3. each lifecycle element receives userId/email/role/status verbatim + locale + server currentUserId", async () => {
+  reset();
+  const rows = [
+    member({ userId: "u-aaa", email: "a@example.com", role: "MANAGER", status: "ACTIVE" }),
+    member({ userId: "u-bbb", email: "b@example.com", role: "EMPLOYEE", status: "SUSPENDED" }),
+  ];
+  workforceRows = rows;
+  const els = lifecycleActionsEls(await WorkforcePage());
+  for (const row of rows) {
+    const found = els.find((e) => e.props.userId === row.userId);
+    assert.ok(found, `a lifecycle element for ${row.userId}`);
+    assert.equal(found.props.email, row.email);
+    assert.equal(found.props.role, row.role);
+    assert.equal(found.props.status, row.status);
+    assert.equal(found.props.currentUserId, PAGE_SELF_UUID, "currentUserId is the requireSession() userId");
+    assert.equal(found.props.locale, "fr", "locale forwarded");
+  }
+});
+
+test("R2DB-P4. currentUserId comes from requireSession().userId — forged params/searchParams cannot influence it", async () => {
+  reset();
+  workforceRows = [member({ userId: "u-x", email: "x@example.com", role: "MANAGER", status: "ACTIVE" })];
+  const el = await WorkforcePage({ searchParams: { currentUserId: "attacker", userId: "attacker" }, params: { currentUserId: "attacker" } });
+  const [only] = lifecycleActionsEls(el);
+  assert.equal(only.props.currentUserId, PAGE_SELF_UUID, "a caller value never becomes currentUserId");
+});
+
+test("R2DB-P5. a guard denial blocks requireSession(), listWorkforceMembers() and all rendering", async () => {
+  reset();
+  denyMode = true;
+  await assert.rejects(() => WorkforcePage(), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.equal(listCalls, 0, "the workforce list must not be read when the guard denies");
+  assert.equal(sessionCalls, 0, "requireSession() must not run when the guard denies");
+});
+
+test("R2DB-P6. empty workforce -> no Actions column, no lifecycle elements", async () => {
+  reset();
+  workforceRows = [];
+  const el = await WorkforcePage();
+  const text = collectText(el).join(" | ");
+  assert.ok(text.includes(t.emptyState));
+  assert.ok(!text.includes(t.columnActions), "no Actions header when there is no table");
+  assert.equal(lifecycleActionsEls(el).length, 0);
+});
+
+test("R2DB-P7. a listWorkforceMembers() failure still propagates with the Actions column in place", async () => {
+  reset();
+  listError = new Error("internal workspace is not configured");
+  await assert.rejects(() => WorkforcePage(), /internal workspace is not configured/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+});
+
+test("R2DB-P8. Add Member dialog still rendered exactly once alongside the new lifecycle column", async () => {
+  reset();
+  workforceRows = [member({ email: "m@example.com", role: "MANAGER", status: "ACTIVE" })];
+  assignableResult = { users: [{ id: "11111111-1111-4111-8111-111111111111", email: "cand@example.com" }], hasMore: false };
+  const el = await WorkforcePage();
+  assert.equal(addMemberForms(el).length, 1, "OWNER-UI-4A Add Member behavior is unchanged");
+  assert.equal(lifecycleActionsEls(el).length, 1);
 });

@@ -50,11 +50,30 @@ mock.module("@/lib/rbac/require-staff-member", {
 let addCalls = [];
 /** @type {(userId: string, role: string) => Promise<unknown>} */
 let addBehavior = async (userId, role) => ({ userId, email: "target@example.com", role, status: "ACTIVE" });
+
+// PHASE RBAC-RUNTIME-R2D-B — the three R2D-A lifecycle functions as
+// configurable spies. Each records { fn, args, userId }; lifecycleBehavior
+// controls resolve/throw so every mapped + propagated error is exercised.
+let lifecycleCalls = [];
+/** @type {(fn: string, userId: string) => Promise<unknown>} */
+let lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
 mock.module("@/lib/actions/workforce", {
   namedExports: {
     addWorkforceMember: async (...received) => {
       addCalls.push({ args: received, userId: received[0], role: received[1] });
       return addBehavior(received[0], received[1]);
+    },
+    suspendWorkforceMember: async (...received) => {
+      lifecycleCalls.push({ fn: "suspend", args: received, userId: received[0] });
+      return lifecycleBehavior("suspend", received[0]);
+    },
+    reactivateWorkforceMember: async (...received) => {
+      lifecycleCalls.push({ fn: "reactivate", args: received, userId: received[0] });
+      return lifecycleBehavior("reactivate", received[0]);
+    },
+    offboardWorkforceMember: async (...received) => {
+      lifecycleCalls.push({ fn: "offboard", args: received, userId: received[0] });
+      return lifecycleBehavior("offboard", received[0]);
     },
   },
 });
@@ -99,13 +118,21 @@ mock.module("next/navigation", {
   },
 });
 
-const { listAssignableWorkforceUsers, addWorkforceMemberFromForm } = await import("./workforce-ui.ts");
+const {
+  listAssignableWorkforceUsers,
+  addWorkforceMemberFromForm,
+  suspendWorkforceMemberAction,
+  reactivateWorkforceMemberAction,
+  offboardWorkforceMemberAction,
+} = await import("./workforce-ui.ts");
 
 function reset() {
   permissionAllow = true;
   permissionCalls = [];
   addCalls = [];
   addBehavior = async (userId, role) => ({ userId, email: "target@example.com", role, status: "ACTIVE" });
+  lifecycleCalls = [];
+  lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
   internalOrgId = INTERNAL_ORG_ID;
   assignableRows = [];
   assignableQueryError = null;
@@ -331,4 +358,150 @@ test("4A-M17. imports only Axis-C + identity-discovery modules — no @/lib/audi
   }
   const schemaImport = imports.find((l) => l.includes("@/db/schema")) ?? "";
   assert.match(schemaImport, /\{\s*staffMembers,\s*users\s*\}/, "the @/db/schema import must be limited to { staffMembers, users }");
+});
+
+// ==================== PHASE RBAC-RUNTIME-R2D-B ====================
+// suspend / reactivate / offboard wrappers over the authoritative R2D-A
+// backend. Each: WORKFORCE_MANAGE first, UUID guard, exactly one R2D-A
+// call with one arg, 8 mapped domain codes, infra/redirect propagation,
+// revalidate on success only. The Add Member tests above are untouched.
+
+const R2DB_UUID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+const R2DB_WRAPPERS = [
+  { name: "suspend", action: () => suspendWorkforceMemberAction, fn: "suspend" },
+  { name: "reactivate", action: () => reactivateWorkforceMemberAction, fn: "reactivate" },
+  { name: "offboard", action: () => offboardWorkforceMemberAction, fn: "offboard" },
+];
+
+const R2DB_ERROR_MAP = [
+  ["target user id must be a valid UUID", "INVALID_TARGET"],
+  ["workforce members cannot change their own lifecycle status", "SELF_LIFECYCLE_NOT_ALLOWED"],
+  ["workforce member not found", "MEMBER_NOT_FOUND"],
+  ["target is the workspace owner and cannot be modified here", "OWNER_PROTECTED"],
+  ["an administrator's lifecycle requires owner privileges", "ADMIN_TIER_PROTECTED"],
+  ["workforce member already has this status", "STATUS_UNCHANGED"],
+  ["this lifecycle transition is not allowed", "INVALID_STATUS_TRANSITION"],
+  ["workforce member state changed, please retry", "MEMBER_STATE_CHANGED"],
+];
+
+test("R2DB-W1. each lifecycle wrapper takes exactly one runtime parameter", () => {
+  assert.equal(suspendWorkforceMemberAction.length, 1);
+  assert.equal(reactivateWorkforceMemberAction.length, 1);
+  assert.equal(offboardWorkforceMemberAction.length, 1);
+});
+
+test("R2DB-W2. requireStaffMember('WORKFORCE_MANAGE') is first — a denial rejects before any R2D-A call or revalidate", async () => {
+  for (const { action } of R2DB_WRAPPERS) {
+    reset();
+    permissionAllow = false;
+    await assert.rejects(() => action()(R2DB_UUID), /NEXT_REDIRECT/);
+    assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+    assert.deepEqual(lifecycleCalls, []);
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("R2DB-W3. malformed / empty / SQL-ish / email-shaped targetUserId -> INVALID_TARGET, no R2D-A call, no revalidate", async () => {
+  for (const { action } of R2DB_WRAPPERS) {
+    for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --", "person@example.com", undefined]) {
+      reset();
+      const result = await action()(bad);
+      assert.deepEqual(result, { error: "INVALID_TARGET" });
+      assert.deepEqual(lifecycleCalls, []);
+      assert.deepEqual(revalidateCalls, []);
+    }
+  }
+});
+
+test("R2DB-W4. suspend wrapper calls ONLY suspendWorkforceMember(id) once, then revalidates /admin/workforce, returns undefined", async () => {
+  reset();
+  const result = await suspendWorkforceMemberAction(R2DB_UUID);
+  assert.equal(result, undefined);
+  assert.equal(lifecycleCalls.length, 1);
+  assert.equal(lifecycleCalls[0].fn, "suspend");
+  assert.equal(lifecycleCalls[0].userId, R2DB_UUID);
+  assert.equal(lifecycleCalls[0].args.length, 1, "R2D-A is called with exactly (targetUserId) — no second arg");
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("R2DB-W5. reactivate wrapper calls ONLY reactivateWorkforceMember(id) once, then revalidates, returns undefined", async () => {
+  reset();
+  const result = await reactivateWorkforceMemberAction(R2DB_UUID);
+  assert.equal(result, undefined);
+  assert.equal(lifecycleCalls.length, 1);
+  assert.equal(lifecycleCalls[0].fn, "reactivate");
+  assert.equal(lifecycleCalls[0].args.length, 1);
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("R2DB-W6. offboard wrapper calls ONLY offboardWorkforceMember(id) once, then revalidates, returns undefined", async () => {
+  reset();
+  const result = await offboardWorkforceMemberAction(R2DB_UUID);
+  assert.equal(result, undefined);
+  assert.equal(lifecycleCalls.length, 1);
+  assert.equal(lifecycleCalls[0].fn, "offboard");
+  assert.equal(lifecycleCalls[0].args.length, 1);
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("R2DB-W7. every R2D-A domain message maps to its stable code, for every wrapper, with NO revalidate", async () => {
+  for (const { action } of R2DB_WRAPPERS) {
+    for (const [message, code] of R2DB_ERROR_MAP) {
+      reset();
+      lifecycleBehavior = async () => {
+        throw new Error(message);
+      };
+      const result = await action()(R2DB_UUID);
+      assert.deepEqual(result, { error: code }, `"${message}" must map to ${code}`);
+      assert.deepEqual(revalidateCalls, [], "a mapped error must not revalidate");
+    }
+  }
+});
+
+test("R2DB-W8. infra/config errors propagate untouched (route error boundary), never a code, never a revalidate", async () => {
+  for (const message of ["internal workspace is not configured", "staff role not seeded", "connection terminated unexpectedly"]) {
+    reset();
+    lifecycleBehavior = async () => {
+      throw new Error(message);
+    };
+    await assert.rejects(() => suspendWorkforceMemberAction(R2DB_UUID), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("R2DB-W9. a NEXT_REDIRECT thrown from inside R2D-A propagates — never mapped, never revalidated", async () => {
+  reset();
+  lifecycleBehavior = async () => {
+    const err = new Error("NEXT_REDIRECT");
+    err.digest = "NEXT_REDIRECT;replace;/admin;307;";
+    throw err;
+  };
+  await assert.rejects(() => offboardWorkforceMemberAction(R2DB_UUID), /NEXT_REDIRECT/);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("R2DB-W10. source invariants: no Axis A/B imports; the @/lib/actions/workforce import carries the three R2D-A fns; no wrapper takes workspace/org/actor/status/intent", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce-ui.ts", import.meta.url)), "utf8");
+  const importLines = src.split("\n").filter((l) => /^\s*import\s/.test(l));
+  for (const needle of ["@/lib/audit", "@/lib/dev-role", "@/lib/actions/users", "auditDb", "memberships"]) {
+    assert.ok(!importLines.some((l) => l.includes(needle)), `workforce-ui.ts must not import ${needle}`);
+  }
+  const workforceImport = src.match(/import\s*\{([\s\S]*?)\}\s*from\s*"@\/lib\/actions\/workforce"/);
+  assert.ok(workforceImport, "workforce-ui.ts must import from @/lib/actions/workforce");
+  for (const fn of ["addWorkforceMember", "suspendWorkforceMember", "reactivateWorkforceMember", "offboardWorkforceMember"]) {
+    assert.ok(workforceImport[1].includes(fn), `the @/lib/actions/workforce import must include ${fn}`);
+  }
+  const wrapperSig = /export async function (?:suspend|reactivate|offboard)WorkforceMemberAction\(([^)]*)\)/g;
+  let m;
+  let matched = 0;
+  while ((m = wrapperSig.exec(src))) {
+    matched += 1;
+    assert.match(m[1].trim(), /^targetUserId: string$/, "each wrapper signature is exactly (targetUserId: string)");
+  }
+  assert.equal(matched, 3, "all three lifecycle wrappers found");
+  assert.ok(
+    !/WorkforceMemberAction\([^)]*\b(workspace|organization|organizationId|actor|actorUserId|expectedStatus|intent)\b/.test(src),
+    "no wrapper takes a workspace/org/actor/status/intent argument",
+  );
 });
