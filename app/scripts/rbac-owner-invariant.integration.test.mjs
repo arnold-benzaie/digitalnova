@@ -37,8 +37,8 @@ import { run as runMigrate, STRUCTURAL_VERIFIERS } from "./db-migrate.mjs";
 
 const FIXED_OWNER_ID = "6a615714-4eb7-44f3-993b-f113292f0aa2";
 const NEW_TAG = "0035_tough_phil_sheldon"; // the migration THIS suite structurally verifies (OWNER normalization + index strength)
-const JOURNAL_TIP_TAG = "0037_amused_justin_hammer"; // current tip of the real db/migrations journal (RADAR-CORE-2A-A added the additive interactions.created_by_user_id migration on top of 0036; this suite's 0035 assertions are unaffected — only the total count / tip tag move)
-const JOURNAL_MIGRATION_COUNT = 38; // 0000..0037 inclusive
+const JOURNAL_TIP_TAG = "0038_pink_triton"; // current tip of the real db/migrations journal (RADAR-CORE-3A added the additive tasks.assigned_user_id / created_by_user_id migration on top of 0037; this suite's 0035 assertions are unaffected — only the total count / tip tag move)
+const JOURNAL_MIGRATION_COUNT = 39; // 0000..0038 inclusive
 const TEST_ENV = { RBAC_MIG_TEST_MODE: "1" };
 const silent = { log: () => {}, error: () => {} };
 const sh = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: "utf8", ...opts });

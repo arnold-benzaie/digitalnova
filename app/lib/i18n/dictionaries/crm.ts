@@ -202,7 +202,6 @@ export const crm = {
       create: {
         internalOption: "Interne (aucun client)",
         titlePlaceholder: "Titre de la tâche *",
-        assigneePlaceholder: "Assigné à",
         addButton: "Ajouter",
         adding: "Ajout...",
       },
@@ -211,7 +210,6 @@ export const crm = {
         title: "Modifier la tâche",
         titlePlaceholder: "Titre *",
         descriptionPlaceholder: "Description",
-        assigneePlaceholder: "Assigné à",
         saveButton: "Enregistrer",
         saving: "Enregistrement...",
       },
@@ -938,7 +936,6 @@ export const crm = {
       create: {
         internalOption: "Internal (no client)",
         titlePlaceholder: "Task title *",
-        assigneePlaceholder: "Assignee",
         addButton: "Add",
         adding: "Adding...",
       },
@@ -947,7 +944,6 @@ export const crm = {
         title: "Edit task",
         titlePlaceholder: "Title *",
         descriptionPlaceholder: "Description",
-        assigneePlaceholder: "Assignee",
         saveButton: "Save",
         saving: "Saving...",
       },

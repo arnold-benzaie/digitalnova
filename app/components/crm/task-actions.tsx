@@ -50,7 +50,8 @@ export function EditTaskForm({ task, locale = "fr" }: { task: Task; locale?: Loc
           <h2 className="font-serif text-lg font-semibold text-pm-noir">{t.title}</h2>
           <input name="title" required defaultValue={task.title} placeholder={t.titlePlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20" />
           <textarea name="description" rows={2} defaultValue={task.description ?? ""} placeholder={t.descriptionPlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20" />
-          <input name="assignee" defaultValue={task.assignee ?? ""} placeholder={t.assigneePlaceholder} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20" />
+          {/* RADAR-CORE-3A — no free-text assignee. Structured follow-up
+              assignment / Claim controls land in RADAR-CORE-3C. */}
           <input name="dueDate" type="date" defaultValue={dueDate} className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir focus:outline-none focus:ring-2 focus:ring-pm-noir/20" />
           {error && <p className="text-sm text-pm-rouge">{error}</p>}
           <div className="mt-1 flex items-center justify-end gap-3">

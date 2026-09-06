@@ -508,11 +508,25 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     dueDate: timestamp("due_date", { withTimezone: true }),
-    status: text("status").notNull().default("todo"), // "todo" | "in_progress" | "done"
+    status: text("status").notNull().default("todo"), // "todo" | "in_progress" | "done" | "cancelled" (application allowlist — no DB CHECK)
+    // RADAR-CORE-3A — a RADAR follow-up is a task with client_id AND
+    // due_date; OPEN = todo|in_progress, TERMINAL = done|cancelled.
+    // `assigned_user_id` is the sole structured authority for new human
+    // task ownership; `assignee` (below) is legacy free text kept for
+    // historical rows / display only, never trusted or written on new
+    // human writes. `created_by_user_id` is the session author of a new
+    // human task. Both NULL for: every pre-3A row (no backfill) and
+    // machine/API-created tasks.
+    assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     assignee: text("assignee"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("tasks_client_id_idx").on(table.clientId)],
+  (table) => [
+    index("tasks_client_id_idx").on(table.clientId),
+    index("tasks_assigned_user_id_idx").on(table.assignedUserId),
+    index("tasks_due_date_idx").on(table.dueDate),
+  ],
 );
 
 /** Meetings, calls, deadlines — optionally tied to a client. */

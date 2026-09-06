@@ -257,10 +257,10 @@ test("staticPreConnectionGate: RBAC migration pending but seed missing → refus
 });
 
 // ─────────────────────────── real FS (read-only) ─────────────────────────────
-test("readMigrationJournal: committed db/migrations journal valid; 38 entries; identity + fingerprint present", () => {
+test("readMigrationJournal: committed db/migrations journal valid; 39 entries; identity + fingerprint present", () => {
   const j = readMigrationJournal();
-  assert.equal(j.tags.length, 38);
-  assert.equal(j.tags[j.tags.length - 1], "0037_amused_justin_hammer");
+  assert.equal(j.tags.length, 39);
+  assert.equal(j.tags[j.tags.length - 1], "0038_pink_triton");
   j.entries.forEach((e, i) => assert.equal(e.idx, i));
   assert.equal(j.rbacSeedMigrationPresent, true);
   assert.equal(j.rbacSeedOk, true);

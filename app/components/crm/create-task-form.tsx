@@ -54,7 +54,9 @@ export function CreateTaskForm({
         required
         className="min-w-[180px] flex-1 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
       />
-      <input name="assignee" placeholder={t.assigneePlaceholder} className="w-40 rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
+      {/* RADAR-CORE-3A — the follow-up owner is a structured, session/
+          eligibility-validated assignment, never a free-text field. The
+          assignee picker lands in RADAR-CORE-3C. */}
       <input name="dueDate" type="date" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir" />
       <button
         type="submit"
