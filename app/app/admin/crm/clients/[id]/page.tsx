@@ -35,6 +35,7 @@ import {
   getTaskStatusOptions,
   getTicketPriorityLabel,
   getTicketStatusOptions,
+  TASK_STATUS_CLASS,
   TICKET_PRIORITY_CLASS,
 } from "@/components/crm/badges";
 import { ArchiveClientButton, ClientMarketSelect, ClientStageSelect, DeleteClientButton } from "@/components/crm/client-actions";
@@ -64,6 +65,7 @@ import { getRadarCapabilities } from "@/lib/rbac/require-staff-member";
 import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
+import { FollowUpActions } from "@/components/crm/follow-up-actions";
 import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
 import { createInvoice } from "@/lib/actions/crm-invoices";
@@ -244,6 +246,41 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
     assignedUserName = assigneeRow ? (assigneeRow.fullName ?? assigneeRow.email ?? null) : null;
     assignedUserActive = Boolean(internalOrgId) && assigneeRow?.staffStatus === "ACTIVE";
   }
+
+  // RADAR-CORE-3C — a task is a FOLLOW-UP when it is client-linked AND
+  // dated (`due_date IS NOT NULL`), regardless of open/terminal status;
+  // otherwise it is a generic CRM task. Only follow-up rows get the
+  // structured `tasks.assigned_user_id` owner display + <FollowUpActions>.
+  const isFollowUpTask = (task: (typeof clientTasks)[number]) => task.clientId !== null && task.dueDate !== null;
+  const followUpAssigneeIds = [
+    ...new Set(clientTasks.filter(isFollowUpTask).map((task) => task.assignedUserId).filter((v): v is string => Boolean(v))),
+  ];
+  // One batched lookup for every follow-up assignee id on the page — same
+  // shape as the client-assignee resolve above. A stale / removed /
+  // suspended assignee stays assigned but reads as inactive; an
+  // unresolvable id renders a localized "Former user", never the raw id.
+  const followUpAssigneeById = new Map<string, { name: string | null; active: boolean }>();
+  if (followUpAssigneeIds.length > 0) {
+    const internalOrgId = await getInternalOrganizationId();
+    const rows = await db
+      .select({ id: users.id, fullName: users.fullName, email: users.email, staffStatus: staffMembers.status })
+      .from(users)
+      .leftJoin(
+        staffMembers,
+        internalOrgId
+          ? and(eq(staffMembers.userId, users.id), eq(staffMembers.workspaceOrgId, internalOrgId))
+          : eq(staffMembers.userId, users.id),
+      )
+      .where(inArray(users.id, followUpAssigneeIds));
+    for (const row of rows) {
+      followUpAssigneeById.set(row.id, {
+        name: row.fullName ?? row.email ?? null,
+        active: Boolean(internalOrgId) && row.staffStatus === "ACTIVE",
+      });
+    }
+  }
+  const taskStatusLabel = Object.fromEntries(taskStatusOptions.map((o) => [o.value, o.label]));
+  const tFollowUp = dictionaries[locale].crm.clientDetail.followUp;
 
   return (
     <>
@@ -565,22 +602,58 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tasks}</h2>
         <div className="mt-3 flex flex-col gap-3">
-          {clientTasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
-              <div>
-                <p className="font-medium text-pm-noir">{task.title}</p>
-                <p className="text-xs text-pm-gris">
-                  {task.assignee ?? t.unassigned}
-                  {task.dueDate ? ` · ${t.duePrefix} ${formatDate(task.dueDate, locale)}` : ""}
-                </p>
+          {clientTasks.map((task) =>
+            isFollowUpTask(task) ? (
+              // CLASS A — a client-linked, dated follow-up: read-only status
+              // Badge + structured owner + full lifecycle via
+              // <FollowUpActions>. No InlineStatusSelect on this row.
+              <div key={task.id} className="rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-pm-noir">{task.title}</p>
+                    <p className="text-xs text-pm-gris">
+                      {t.duePrefix} {formatDate(task.dueDate!, locale)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Badge label={taskStatusLabel[task.status] ?? task.status} className={TASK_STATUS_CLASS[task.status] ?? ""} />
+                    <EditTaskForm task={task} locale={locale} />
+                    <DeleteTaskButton id={task.id} locale={locale} />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <FollowUpActions
+                    taskId={task.id}
+                    followUpAssignedUserId={task.assignedUserId}
+                    assignedUserName={task.assignedUserId ? (followUpAssigneeById.get(task.assignedUserId)?.name ?? null) : null}
+                    assignedUserActive={task.assignedUserId ? (followUpAssigneeById.get(task.assignedUserId)?.active ?? false) : false}
+                    status={task.status}
+                    dueDate={task.dueDate}
+                    currentUserId={currentUserId}
+                    caps={assignmentCaps}
+                    assignables={assignables}
+                    locale={locale}
+                    t={tFollowUp}
+                  />
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <InlineStatusSelect value={task.status} options={taskStatusOptions} action={updateTaskStatus.bind(null, task.id)} />
-                <EditTaskForm task={task} locale={locale} />
-                <DeleteTaskButton id={task.id} locale={locale} />
+            ) : (
+              // CLASS B — a generic client task (no due date): existing
+              // behavior preserved verbatim, including the legacy free-text
+              // `assignee` display and the InlineStatusSelect.
+              <div key={task.id} className="flex items-center justify-between gap-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
+                <div>
+                  <p className="font-medium text-pm-noir">{task.title}</p>
+                  <p className="text-xs text-pm-gris">{task.assignee ?? t.unassigned}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <InlineStatusSelect value={task.status} options={taskStatusOptions} action={updateTaskStatus.bind(null, task.id)} />
+                  <EditTaskForm task={task} locale={locale} />
+                  <DeleteTaskButton id={task.id} locale={locale} />
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
           {clientTasks.length === 0 && <p className="text-sm text-pm-gris">{t.empty.tasks}</p>}
         </div>
         <div className="mt-3">

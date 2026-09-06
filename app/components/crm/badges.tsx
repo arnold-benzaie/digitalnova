@@ -99,20 +99,30 @@ export const TICKET_PRIORITY_CLASS: Record<string, string> = {
   low: NEUTRAL,
 };
 
+// RADAR-CORE-3C — `cancelled` is a real backend status since RADAR-CORE-3A
+// (cancelFollowUp / updateTaskStatus / ALL_STATUSES). Adding it to the
+// shared options here is an intentional consistency fix: /admin/crm/tasks
+// (which reads getTaskStatusOptions + derives its ?status allowlist from
+// TASK_STATUS_OPTIONS) gains a Cancelled filter/status option, and
+// lib/audit-labels.ts's derived TASK_STATUS_LABEL gains a localized label
+// for cancelled status-change audit entries — neither file is edited.
 export const TASK_STATUS_OPTIONS = [
   { value: "todo", label: "À faire" },
   { value: "in_progress", label: "En cours" },
   { value: "done", label: "Terminé" },
+  { value: "cancelled", label: "Annulé" },
 ];
 export const TASK_STATUS_OPTIONS_EN = [
   { value: "todo", label: "To do" },
   { value: "in_progress", label: "In progress" },
   { value: "done", label: "Done" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 export const TASK_STATUS_CLASS: Record<string, string> = {
   todo: NEUTRAL,
   in_progress: WARM,
   done: GOOD,
+  cancelled: BAD,
 };
 
 export const PROJECT_STATUS_OPTIONS = [
