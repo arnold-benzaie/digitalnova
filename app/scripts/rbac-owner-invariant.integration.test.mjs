@@ -36,7 +36,9 @@ import { Pool } from "pg";
 import { run as runMigrate, STRUCTURAL_VERIFIERS } from "./db-migrate.mjs";
 
 const FIXED_OWNER_ID = "6a615714-4eb7-44f3-993b-f113292f0aa2";
-const NEW_TAG = "0035_tough_phil_sheldon";
+const NEW_TAG = "0035_tough_phil_sheldon"; // the migration THIS suite structurally verifies (OWNER normalization + index strength)
+const JOURNAL_TIP_TAG = "0036_brainy_deathbird"; // current tip of the real db/migrations journal (RADAR-CORE-1A added the additive crm_clients.assigned_user_id migration on top of 0035; this suite's 0035 assertions are unaffected — only the total count / tip tag move)
+const JOURNAL_MIGRATION_COUNT = 37; // 0000..0036 inclusive
 const TEST_ENV = { RBAC_MIG_TEST_MODE: "1" };
 const silent = { log: () => {}, error: () => {} };
 const sh = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: "utf8", ...opts });
@@ -122,8 +124,8 @@ test("A. clean replay 0000..0035 succeeds; OWNER normalized to fixed id; index p
   try {
     const r = await runMigrate({ argv: ["--apply", "--db-url", url], env: TEST_ENV, promptFn: async () => "MIGRATE", ...silent });
     assert.equal(r.ok, true, JSON.stringify(r));
-    assert.equal(r.post.recordedCount, 36);
-    assert.equal(r.post.latestTag, NEW_TAG);
+    assert.equal(r.post.recordedCount, JOURNAL_MIGRATION_COUNT);
+    assert.equal(r.post.latestTag, JOURNAL_TIP_TAG);
     const verifier = r.post.structural.find((s) => s.tag === NEW_TAG);
     assert.equal(verifier.ok, true, verifier.detail);
 
@@ -327,7 +329,7 @@ test("H-M, O. post-migration constraint behavior + idempotent replay", async () 
     const second = await runMigrate({ argv: ["--apply", "--db-url", url], env: TEST_ENV, promptFn: async () => "MIGRATE", ...silent });
     assert.equal(second.ok, true, JSON.stringify(second));
     const recordedAfter = (await pool.query("select count(*)::int n from drizzle.__drizzle_migrations")).rows[0].n;
-    assert.equal(recordedAfter, 36, "re-apply must not duplicate the migration record");
+    assert.equal(recordedAfter, JOURNAL_MIGRATION_COUNT, "re-apply must not duplicate the migration record");
   } finally {
     await stop();
   }

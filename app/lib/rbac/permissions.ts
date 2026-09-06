@@ -25,11 +25,13 @@ export const STAFF_ROLES = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 /**
- * The closed V1 permission catalogue — exactly 10. Each maps to an
- * existing enforcement point a later slice will migrate from
- * `requireStaffRole()` / `requireAdminRole()`. Speculative permissions
- * (RADAR_ASSIGN, RADAR_CONFIGURE, TEAM_VIEW, TEAM_MANAGE, TERRITORY_*, …)
- * are deliberately deferred until the feature that enforces them lands.
+ * The closed V1 permission catalogue — exactly 11. Each maps to an
+ * existing (or, for RADAR_ASSIGN, a newly-landing) enforcement point a
+ * later slice will migrate from `requireStaffRole()` / `requireAdminRole()`.
+ * Speculative permissions (RADAR_CONFIGURE, TEAM_VIEW, TEAM_MANAGE,
+ * TERRITORY_*, …) are deliberately deferred until the feature that enforces
+ * them lands — RADAR_ASSIGN's feature (RADAR-CORE-1A prospect assignment)
+ * is that feature, so it is added here now.
  */
 export const PERMISSIONS = [
   "OWNER_MANAGE", // promote/demote OWNER & ADMIN — the only OWNER-exclusive capability
@@ -38,8 +40,9 @@ export const PERMISSIONS = [
   "BILLING_MANAGE", // subscribeToPlan / cancelSubscription (today: requireStaffRole, AF-2)
   "CRM_READ",
   "CRM_WRITE", // ~20 crm-*.ts mutations (today: requireStaffRole)
-  "RADAR_WORK", // act on assigned prospects / "my work" (today: requireStaffRole)
+  "RADAR_WORK", // act on assigned prospects / "my work" incl. claim-unassigned-to-self (RADAR-CORE-1A: claimProspect / release-own)
   "RADAR_QUEUE_VIEW", // radar-queue.ts::getRadarQueue (today: requireStaffRole)
+  "RADAR_ASSIGN", // assign a prospect to ANOTHER staff member / reassign / unassign another's (RADAR-CORE-1A: assignProspect / foreign unassignProspect)
   "ANALYTICS_TEAM_VIEW", // commercial-analytics + CRM performance dashboard (today: requireStaffRole)
   "GBP_INTEGRATION_MANAGE", // AF-1 staff path in gbp/analytics/search-console connect/sync
 ] as const;
@@ -54,6 +57,7 @@ const OWNER_PERMISSIONS: readonly Permission[] = [
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
+  "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
 ];
@@ -66,6 +70,7 @@ const ADMIN_PERMISSIONS: readonly Permission[] = [
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
+  "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
 ];
@@ -75,6 +80,7 @@ const MANAGER_PERMISSIONS: readonly Permission[] = [
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
+  "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
 ];

@@ -22,6 +22,7 @@ const EXPECTED_PERMISSIONS = [
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
+  "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
 ];
@@ -34,16 +35,17 @@ test("STAFF_ROLES is exactly the four workforce roles, CLIENT absent", () => {
   assert.ok(!STAFF_ROLES.includes("client"));
 });
 
-test("PERMISSIONS is exactly the 10 V1 permissions, no duplicates", () => {
+test("PERMISSIONS is exactly the 11 V1 permissions, no duplicates", () => {
   assert.deepEqual([...PERMISSIONS], EXPECTED_PERMISSIONS);
-  assert.equal(PERMISSIONS.length, 10);
-  assert.equal(new Set(PERMISSIONS).size, 10, "no duplicate permission ids");
+  assert.equal(PERMISSIONS.length, 11);
+  assert.equal(new Set(PERMISSIONS).size, 11, "no duplicate permission ids");
 });
 
-test("no deferred/speculative permissions leaked in", () => {
-  for (const deferred of ["RADAR_ASSIGN", "RADAR_CONFIGURE", "TEAM_VIEW", "TEAM_MANAGE", "TERRITORY_VIEW"]) {
+test("no deferred/speculative permissions leaked in (RADAR_ASSIGN now landed with RADAR-CORE-1A)", () => {
+  for (const deferred of ["RADAR_CONFIGURE", "TEAM_VIEW", "TEAM_MANAGE", "TERRITORY_VIEW"]) {
     assert.ok(!PERMISSIONS.includes(deferred), `${deferred} must remain deferred`);
   }
+  assert.ok(PERMISSIONS.includes("RADAR_ASSIGN"), "RADAR_ASSIGN lands with the RADAR-CORE-1A assignment feature");
 });
 
 // ---- matrix shape & immutability -----------------------------------
@@ -74,11 +76,11 @@ test("every granted permission is a member of the PERMISSIONS catalogue", () => 
 });
 
 // ---- explicit V1 grants --------------------------------------------
-test("OWNER holds all 10 permissions", () => {
+test("OWNER holds all 11 permissions", () => {
   for (const p of PERMISSIONS) {
     assert.equal(hasPermission("OWNER", p), true, `OWNER should have ${p}`);
   }
-  assert.equal(ROLE_PERMISSIONS.OWNER.length, 10);
+  assert.equal(ROLE_PERMISSIONS.OWNER.length, 11);
 });
 
 test("OWNER_MANAGE is OWNER-only", () => {
@@ -101,14 +103,25 @@ test("MANAGER lacks every OWNER/ADMIN-only capability", () => {
   }
 });
 
-test("MANAGER has its expected operational + team-analytics capabilities", () => {
-  for (const p of ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "ANALYTICS_TEAM_VIEW", "GBP_INTEGRATION_MANAGE"]) {
+test("MANAGER has its expected operational + team-analytics + RADAR_ASSIGN capabilities", () => {
+  for (const p of ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "ANALYTICS_TEAM_VIEW", "GBP_INTEGRATION_MANAGE"]) {
     assert.equal(hasPermission("MANAGER", p), true, `MANAGER should have ${p}`);
   }
 });
 
-test("EMPLOYEE lacks OWNER/ADMIN-only capabilities AND the MANAGER-only ANALYTICS_TEAM_VIEW", () => {
-  for (const p of ["OWNER_MANAGE", "SYSTEM_ADMIN", "WORKFORCE_MANAGE", "BILLING_MANAGE", "ANALYTICS_TEAM_VIEW"]) {
+test("RADAR_ASSIGN is granted to OWNER/ADMIN/MANAGER and denied to EMPLOYEE (RADAR-CORE-1A policy)", () => {
+  assert.equal(hasPermission("OWNER", "RADAR_ASSIGN"), true);
+  assert.equal(hasPermission("ADMIN", "RADAR_ASSIGN"), true);
+  assert.equal(hasPermission("MANAGER", "RADAR_ASSIGN"), true);
+  assert.equal(hasPermission("EMPLOYEE", "RADAR_ASSIGN"), false, "EMPLOYEE may claim-to-self via RADAR_WORK but never assign another member");
+  // RADAR_WORK stays granted to all four — the claim-to-self / release-own path.
+  for (const role of ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"]) {
+    assert.equal(hasPermission(role, "RADAR_WORK"), true, `${role} keeps RADAR_WORK`);
+  }
+});
+
+test("EMPLOYEE lacks OWNER/ADMIN-only capabilities AND the MANAGER-tier ANALYTICS_TEAM_VIEW / RADAR_ASSIGN", () => {
+  for (const p of ["OWNER_MANAGE", "SYSTEM_ADMIN", "WORKFORCE_MANAGE", "BILLING_MANAGE", "ANALYTICS_TEAM_VIEW", "RADAR_ASSIGN"]) {
     assert.equal(hasPermission("EMPLOYEE", p), false, `EMPLOYEE must not have ${p}`);
   }
 });
@@ -143,5 +156,5 @@ test("hasPermission is deterministic and side-effect-free", () => {
   assert.equal(a, b);
   assert.equal(a, true);
   // calling it did not mutate the matrix
-  assert.equal(ROLE_PERMISSIONS.MANAGER.length, 6);
+  assert.equal(ROLE_PERMISSIONS.MANAGER.length, 7);
 });

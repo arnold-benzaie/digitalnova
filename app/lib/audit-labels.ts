@@ -101,14 +101,20 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return `Abonnement souscrit : ${m.plan} (${m.priceEuros} €)`;
     case "crm.client_archived":
       return "Client archivé";
+    case "crm.client_assigned":
+      return "Prospect assigné";
     case "crm.client_created":
       return `Client créé : ${m.name ?? ""}`;
     case "crm.client_deleted":
       return "Client supprimé";
+    case "crm.client_reassigned":
+      return "Prospect réassigné";
     case "crm.client_stage_changed":
       return `Étape client changée : ${CLIENT_STAGE_LABEL[m.stage as string] ?? m.stage}`;
     case "crm.client_unarchived":
       return "Client désarchivé";
+    case "crm.client_unassigned":
+      return "Prospect désassigné";
     case "crm.client_updated":
       return `Fiche client modifiée : ${m.name ?? ""}`;
     case "crm.quote_created":
@@ -261,14 +267,20 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return `Subscribed to plan: ${m.plan} (€${m.priceEuros})`;
     case "crm.client_archived":
       return "Client archived";
+    case "crm.client_assigned":
+      return "Prospect assigned";
     case "crm.client_created":
       return `Client created: ${m.name ?? ""}`;
     case "crm.client_deleted":
       return "Client deleted";
+    case "crm.client_reassigned":
+      return "Prospect reassigned";
     case "crm.client_stage_changed":
       return `Client stage changed: ${CLIENT_STAGE_LABEL_EN[m.stage as string] ?? m.stage}`;
     case "crm.client_unarchived":
       return "Client unarchived";
+    case "crm.client_unassigned":
+      return "Prospect unassigned";
     case "crm.client_updated":
       return `Client record updated: ${m.name ?? ""}`;
     case "crm.quote_created":

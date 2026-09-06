@@ -420,7 +420,22 @@ export const crmClients = pgTable(
     preferredLocale: text("preferred_locale"), // "fr" | "en" | null
     stage: text("stage").notNull().default("lead"), // "lead" | "prospect" | "client" | "churned"
     source: text("source"), // e.g. "site web", "recommandation", "salon"
-    ownerName: text("owner_name"), // assigned staff member (text — no real staff users until Clerk)
+    // LEGACY free-text owner (pre-RBAC). Untouched by RADAR-CORE-1A — kept
+    // only as historical/compat display data; `assignedUserId` below is the
+    // authoritative structured assignment going forward. Never migrated
+    // automatically (a free string cannot be deterministically resolved to
+    // a users.id).
+    ownerName: text("owner_name"),
+    // RADAR-CORE-1A — the authoritative prospect assignee: a real
+    // internal-staff identity. Nullable = unassigned (the truthful state of
+    // every pre-existing row; no backfill). Written ONLY by
+    // lib/actions/radar-assignment.ts (claim/assign/unassign), which
+    // validates the target is an ACTIVE ADMIN/MANAGER/EMPLOYEE staff_members
+    // row in the internal workspace (OWNER is never an eligible assignee).
+    // ON DELETE SET NULL: deleting the user row drops the assignment; the
+    // who/when history lives in auditLog (crm.client_assigned /
+    // _reassigned / _unassigned), not in a redundant column here.
+    assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
     notes: text("notes"),
     organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
     // AI Commercial Radar / Phase 1B — prospect industry, free text like
@@ -442,7 +457,11 @@ export const crmClients = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("crm_clients_organization_id_idx").on(table.organizationId), index("crm_clients_industry_idx").on(table.industry)],
+  (table) => [
+    index("crm_clients_organization_id_idx").on(table.organizationId),
+    index("crm_clients_industry_idx").on(table.industry),
+    index("crm_clients_assigned_user_id_idx").on(table.assignedUserId),
+  ],
 );
 
 /** Sales pipeline — one client can have several deals over time. */

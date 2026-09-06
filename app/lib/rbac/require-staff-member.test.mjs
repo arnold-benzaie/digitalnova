@@ -78,7 +78,7 @@ mock.module("@/lib/notifications", {
   },
 });
 
-const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce } = await import("./require-staff-member.ts");
+const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce, getRadarCapabilities } = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
   return async () => id;
@@ -455,4 +455,80 @@ test("OWNER-UI-3B.10. no hardcoded role names — it returns evaluateStaffPermis
   assert.equal(await canCurrentUserManageWorkforce(), hasPermission("MANAGER", "WORKFORCE_MANAGE"));
   withMembershipRow("ADMIN");
   assert.equal(await canCurrentUserManageWorkforce(), hasPermission("ADMIN", "WORKFORCE_MANAGE"));
+});
+
+// ------------- getRadarCapabilities(): RADAR-CORE-1A capability signal -------------
+// Zero-argument, non-redirecting, session-derived. Returns
+// { canWork, canAssign } straight from evaluateStaffPermission().ok for
+// RADAR_WORK and RADAR_ASSIGN — no hardcoded role names. NEVER an auth
+// gate: lib/actions/radar-assignment.ts calls requireStaffMember(...) as
+// its own first statement. Same fake-db / internalOrgIdMock fixtures as
+// the two signals above.
+
+test("RADAR-CORE-1A.cap-1. getRadarCapabilities() takes zero arguments (reviewed API invariant)", () => {
+  assert.equal(getRadarCapabilities.length, 0);
+});
+
+test("RADAR-CORE-1A.cap-2. ACTIVE MANAGER -> { canWork:true, canAssign:true }", async () => {
+  withMembershipRow("MANAGER");
+  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+});
+
+test("RADAR-CORE-1A.cap-3. ACTIVE ADMIN -> { canWork:true, canAssign:true }", async () => {
+  withMembershipRow("ADMIN");
+  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+});
+
+test("RADAR-CORE-1A.cap-4. ACTIVE OWNER -> { canWork:true, canAssign:true }", async () => {
+  withMembershipRow("OWNER");
+  assert.deepEqual(await getRadarCapabilities(), { canWork: true, canAssign: true });
+});
+
+test("RADAR-CORE-1A.cap-5. ACTIVE EMPLOYEE -> canWork true, canAssign FALSE (one true while the other is false)", async () => {
+  withMembershipRow("EMPLOYEE");
+  const caps = await getRadarCapabilities();
+  assert.equal(caps.canWork, true);
+  assert.equal(caps.canAssign, false);
+  // Composition guarantee — mirrors the catalogue verbatim, no local allowlist.
+  assert.equal(caps.canWork, hasPermission("EMPLOYEE", "RADAR_WORK"));
+  assert.equal(caps.canAssign, hasPermission("EMPLOYEE", "RADAR_ASSIGN"));
+});
+
+test("RADAR-CORE-1A.cap-6. permission denial (no membership) -> { canWork:false, canAssign:false }", async () => {
+  withNoMembershipRow();
+  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+});
+
+test("RADAR-CORE-1A.cap-7. inactive (SUSPENDED) MANAGER -> both false — an ACTIVE row is required", async () => {
+  withMembershipRow("MANAGER", "SUSPENDED");
+  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+});
+
+test("RADAR-CORE-1A.cap-7b. OFFBOARDING EMPLOYEE -> both false", async () => {
+  withMembershipRow("EMPLOYEE", "OFFBOARDING");
+  assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+});
+
+test("RADAR-CORE-1A.cap-8. no internal workspace resolvable -> both false, never true", async () => {
+  withMembershipRow("ADMIN");
+  internalOrgIdMock = async () => null;
+  try {
+    assert.deepEqual(await getRadarCapabilities(), { canWork: false, canAssign: false });
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("RADAR-CORE-1A.cap-9. a DB/lookup failure propagates (rejects), never silently resolves", async () => {
+  withMembershipLookupError();
+  await assert.rejects(() => getRadarCapabilities(), /db unreachable/);
+});
+
+test("RADAR-CORE-1A.cap-10. identity comes from requireSession() — an unauthenticated session redirects before any capability is computed", async () => {
+  sessionMockState = { kind: "unauthenticated" };
+  try {
+    await assert.rejects(() => getRadarCapabilities(), (e) => typeof e?.digest === "string" && e.digest.startsWith("NEXT_REDIRECT"));
+  } finally {
+    sessionMockState = { kind: "session", userId: USER_ID };
+  }
 });

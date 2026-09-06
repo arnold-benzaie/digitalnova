@@ -253,6 +253,13 @@
       "when": 1788583774628,
       "tag": "0035_tough_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788682345017,
+      "tag": "0036_brainy_deathbird",
+      "breakpoints": true
     }
   ]
 }
