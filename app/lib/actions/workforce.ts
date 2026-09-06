@@ -532,3 +532,255 @@ export async function changeWorkforceMemberRole(
 
   return changeWorkforceMemberRoleCore(targetUserId, newRole, session.userId);
 }
+
+/* ------------------------------------------------------------------------ *
+ * PHASE RBAC-RUNTIME-R2D-A — ordinary workforce lifecycle (suspend /
+ * reactivate / offboard), MANAGER/EMPLOYEE only. OFFBOARDING is TERMINAL —
+ * it is the V1 soft-removal state (the staff_members row is preserved for
+ * audit linkage, tenure, invited-by and role-at-offboarding history; no
+ * hard delete). ADMIN-tier lifecycle and OWNER offboarding are a separate
+ * future OWNER_MANAGE-gated capability (R2D-C). R2A/R2B/R2C behaviour is
+ * unchanged: R2D only ever writes `status` (+ `updated_at`); R2C still
+ * reads `status` as an ACTIVE-only gate, so a SUSPENDED or OFFBOARDING
+ * member cannot have their role changed until reactivated.
+ * ------------------------------------------------------------------------ */
+
+/** Lifecycle-specific tier guard — deliberately NOT assertOrdinaryTierTargetRole()
+ * above, whose ADMIN message is role-change-specific and part of R2C's
+ * committed contract. Same OWNER message (already lifecycle-neutral); a
+ * lifecycle-appropriate ADMIN message. Reuses the private
+ * isOrdinaryWorkforceRole() positive allowlist so a hypothetical future 5th
+ * staff role is protected by omission. Run advisory AND under the row lock,
+ * caller-agnostic (an OWNER caller cannot lifecycle-mutate an ADMIN through
+ * ordinary R2D-A either). */
+function assertOrdinaryTierTargetRoleForLifecycle(currentRoleName: string): void {
+  if (currentRoleName === "OWNER") {
+    throw new Error("target is the workspace owner and cannot be modified here");
+  }
+  if (!isOrdinaryWorkforceRole(currentRoleName)) {
+    throw new Error("an administrator's lifecycle requires owner privileges");
+  }
+}
+
+/**
+ * Real UPDATE: ONE transaction, the `status` change and its single audit
+ * entry both commit or both roll back. Kept as its own function (not
+ * inlined) so it is exercised for real by the disposable-Postgres
+ * integration test — never only trusted via an injected fake.
+ *
+ * Server-serialized SET-TO-STATUS (NOT compare-and-swap — there is no
+ * caller-supplied expected status / row version): `SELECT ... FOR UPDATE`
+ * on the `staff_members` row alone, then every authoritative check is
+ * re-run against the LOCKED state, then the write. `previousStatus` in the
+ * audit is always `locked.status` — never the advisory value. The UPDATE's
+ * `status = <locked>` / `role_id = <locked>` clauses are post-lock
+ * consistency guards (the lock is held from the locked read through the
+ * write, so they are tautologies in the happy path); `role_id <>
+ * OWNER_STAFF_ROLE_ID` is OWNER defense-in-depth. Only `status` and
+ * `updated_at` are written.
+ */
+async function defaultUpdateWorkforceMemberStatus(params: {
+  actorUserId: string;
+  workspaceOrgId: string;
+  targetUserId: string;
+  staffMemberId: string;
+  targetStatus: StaffMemberStatus;
+  acceptedSourceStatuses: readonly StaffMemberStatus[];
+}): Promise<{ status: string; roleName: string }> {
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: staffMembers.id, roleId: staffMembers.roleId, status: staffMembers.status })
+      .from(staffMembers)
+      .where(eq(staffMembers.id, params.staffMemberId))
+      .for("update")
+      .limit(1);
+    if (!locked) {
+      // Row vanished between the advisory lookup and acquiring the lock.
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    const [lockedRole] = await tx.select({ name: staffRoles.name }).from(staffRoles).where(eq(staffRoles.id, locked.roleId)).limit(1);
+    if (!lockedRole) {
+      // staff_members.role_id is NOT NULL + FK onDelete:restrict, so this is
+      // unreachable in a consistent DB — treat as a defensive infra failure.
+      throw new Error("staff role not seeded");
+    }
+
+    assertOrdinaryTierTargetRoleForLifecycle(lockedRole.name);
+    if (locked.status === params.targetStatus) {
+      throw new Error("workforce member already has this status");
+    }
+    if (!(params.acceptedSourceStatuses as readonly string[]).includes(locked.status)) {
+      throw new Error("this lifecycle transition is not allowed");
+    }
+
+    const [updated] = await tx
+      .update(staffMembers)
+      .set({ status: params.targetStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(staffMembers.id, params.staffMemberId),
+          eq(staffMembers.status, locked.status),
+          eq(staffMembers.roleId, locked.roleId),
+          ne(staffMembers.roleId, OWNER_STAFF_ROLE_ID),
+        ),
+      )
+      .returning({ status: staffMembers.status });
+    if (!updated) {
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    // Single write path for the audit trail (lib/audit.ts), same
+    // transaction as the UPDATE via logAudit's optional executor param —
+    // mirrors addWorkforceMember()/changeWorkforceMemberRole()'s pattern.
+    // previousStatus is the LOCKED-read status, never the advisory value.
+    await logAudit(
+      {
+        actorUserId: params.actorUserId,
+        organizationId: params.workspaceOrgId,
+        action: "workforce.member_status_changed",
+        targetType: "staff_member",
+        targetId: params.staffMemberId,
+        metadata: { targetUserId: params.targetUserId, previousStatus: locked.status, newStatus: params.targetStatus },
+      },
+      tx,
+    );
+
+    return { status: updated.status, roleName: lockedRole.name };
+  });
+}
+
+/**
+ * Module-private core: no session, no authorization — see
+ * runLifecycleMutation() / the three public wrappers below for those.
+ * Deliberately NOT exported, same reason listWorkforceMembersCore() /
+ * addWorkforceMemberCore() / changeWorkforceMemberRoleCore() aren't.
+ *
+ * Validation order: resolve the (caller-uncontrollable) internal workspace,
+ * then one advisory `staff_members ⋈ staff_roles ⋈ users` lookup, then
+ * advisory protected-tier / no-op / invalid-transition rejections (early UX
+ * exits) — every one of which is re-run against the FOR UPDATE-locked row
+ * inside the transaction before any write.
+ */
+async function changeWorkforceMemberLifecycleCore(
+  targetUserId: string,
+  targetStatus: StaffMemberStatus,
+  acceptedSourceStatuses: readonly StaffMemberStatus[],
+  actorUserId: string,
+): Promise<WorkforceMember> {
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const [member] = await db
+    .select({
+      staffMemberId: staffMembers.id,
+      currentRoleName: staffRoles.name,
+      currentStatus: staffMembers.status,
+      email: users.email,
+    })
+    .from(staffMembers)
+    .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+    .innerJoin(users, eq(users.id, staffMembers.userId))
+    .where(and(eq(staffMembers.userId, targetUserId), eq(staffMembers.workspaceOrgId, internalOrgId)))
+    .limit(1);
+  if (!member) {
+    throw new Error("workforce member not found");
+  }
+
+  // Advisory early rejections — all re-checked under the row lock in
+  // defaultUpdateWorkforceMemberStatus() before the write.
+  assertOrdinaryTierTargetRoleForLifecycle(member.currentRoleName);
+  if (member.currentStatus === targetStatus) {
+    throw new Error("workforce member already has this status");
+  }
+  if (!(acceptedSourceStatuses as readonly string[]).includes(member.currentStatus)) {
+    throw new Error("this lifecycle transition is not allowed");
+  }
+
+  const { status, roleName } = await defaultUpdateWorkforceMemberStatus({
+    actorUserId,
+    workspaceOrgId: internalOrgId,
+    targetUserId,
+    staffMemberId: member.staffMemberId,
+    targetStatus,
+    acceptedSourceStatuses,
+  });
+
+  return { userId: targetUserId, email: member.email, role: roleName as ListedWorkforceRole, status: status as StaffMemberStatus };
+}
+
+/**
+ * Shared private auth+delegation runner for the three lifecycle mutations.
+ * The public wrappers fix `targetStatus` / `acceptedSourceStatuses`
+ * internally — no caller-controlled lifecycle intent, status, workspace or
+ * actor ever reaches the core. First executable op is
+ * requireStaffMember("WORKFORCE_MANAGE"); no DB read happens before it.
+ */
+async function runLifecycleMutation(
+  targetUserId: string,
+  targetStatus: StaffMemberStatus,
+  acceptedSourceStatuses: readonly StaffMemberStatus[],
+): Promise<WorkforceMember> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    throw new Error("target user id must be a valid UUID");
+  }
+
+  const session = await requireSession();
+  if (targetUserId === session.userId) {
+    throw new Error("workforce members cannot change their own lifecycle status");
+  }
+
+  return changeWorkforceMemberLifecycleCore(targetUserId, targetStatus, acceptedSourceStatuses, session.userId);
+}
+
+/**
+ * Suspends an ACTIVE ordinary workforce member (MANAGER/EMPLOYEE) — a
+ * reversible loss of access: a SUSPENDED staff_members row fails
+ * requireStaffMember() for every Axis-C permission (lib/rbac/
+ * require-staff-member.ts's inactive-membership branch). Gated by
+ * requireStaffMember("WORKFORCE_MANAGE"). OWNER and ADMIN targets are
+ * rejected (advisory + under the row lock), caller-agnostic. A caller
+ * cannot suspend themselves. ACTIVE -> SUSPENDED only; SUSPENDED ->
+ * "workforce member already has this status"; OFFBOARDING (terminal) ->
+ * "this lifecycle transition is not allowed". Only `status` + `updated_at`
+ * change; exactly one "workforce.member_status_changed" audit event in the
+ * same transaction.
+ */
+export async function suspendWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
+  return runLifecycleMutation(targetUserId, "SUSPENDED", ["ACTIVE"]);
+}
+
+/**
+ * Reactivates a SUSPENDED ordinary workforce member back to ACTIVE,
+ * restoring Axis-C access. Same gate / self / OWNER / ADMIN protections as
+ * suspendWorkforceMember(). SUSPENDED -> ACTIVE only; ACTIVE -> "workforce
+ * member already has this status"; OFFBOARDING (terminal) -> "this
+ * lifecycle transition is not allowed". Only `status` + `updated_at`
+ * change; one same-transaction audit event.
+ */
+export async function reactivateWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
+  return runLifecycleMutation(targetUserId, "ACTIVE", ["SUSPENDED"]);
+}
+
+/**
+ * Offboards an ordinary workforce member — the V1 TERMINAL soft-removal.
+ * ACTIVE or SUSPENDED -> OFFBOARDING; OFFBOARDING -> "workforce member
+ * already has this status". There is no transition OUT of OFFBOARDING
+ * (reactivate/suspend on an offboarded member -> "this lifecycle
+ * transition is not allowed"). The staff_members row is preserved (audit
+ * linkage, tenure, invited-by, role-at-offboarding); no hard delete. Same
+ * gate / self / OWNER / ADMIN protections. Only `status` + `updated_at`
+ * change; one same-transaction audit event.
+ *
+ * Known V1 limitation (accepted; future R2E): because
+ * staff_members_user_workspace_unique(user_id, workspace_org_id) is a plain
+ * unique index, a preserved OFFBOARDING row blocks addWorkforceMember()
+ * from re-adding the same user to this workspace.
+ */
+export async function offboardWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
+  return runLifecycleMutation(targetUserId, "OFFBOARDING", ["ACTIVE", "SUSPENDED"]);
+}

@@ -176,7 +176,9 @@ const fakeDb = {
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole } = await import("./workforce.ts");
+const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole, suspendWorkforceMember, reactivateWorkforceMember, offboardWorkforceMember } = await import(
+  "./workforce.ts"
+);
 
 function withRows(rows) {
   listRowsOrError = { rows };
@@ -639,7 +641,7 @@ test("R2C-22. audit failure inside the transaction propagates (rolls the change 
   r2cAuditFailure = null;
 });
 
-test("R2C-23. source invariants: previousRole from the LOCKED row, no email authorization, no Axis A/B, exactly 3 runtime exports", () => {
+test("R2C-23. source invariants: previousRole from the LOCKED row, no email authorization, no Axis A/B, exact runtime export surface", () => {
   const src = readFileSync(fileURLToPath(new URL("./workforce.ts", import.meta.url)), "utf8");
   const imports = src.split("\n").filter((l) => /^\s*import\s/.test(l)).join("\n");
   assert.ok(!imports.includes("@/lib/dev-role"), "no legacy AppRole gate import");
@@ -649,5 +651,298 @@ test("R2C-23. source invariants: previousRole from the LOCKED row, no email auth
   assert.ok(src.includes("previousRole: lockedRole.name"), "audit previousRole must be sourced from the FOR UPDATE-locked row");
   assert.ok(!/previousRole:\s*member\.currentRoleName/.test(src), "audit previousRole must NOT be the advisory value");
   const runtimeExports = [...src.matchAll(/^export async function (\w+)/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(runtimeExports, ["addWorkforceMember", "changeWorkforceMemberRole", "listWorkforceMembers"]);
+  assert.deepEqual(runtimeExports, [
+    "addWorkforceMember",
+    "changeWorkforceMemberRole",
+    "listWorkforceMembers",
+    "offboardWorkforceMember",
+    "reactivateWorkforceMember",
+    "suspendWorkforceMember",
+  ]);
+});
+
+// ---------------------- workforce lifecycle (R2D-A) ----------------------
+// suspend / reactivate / offboard, MANAGER/EMPLOYEE only. OFFBOARDING is
+// terminal. Server-serialized SET-TO-STATUS, previousStatus from the LOCKED
+// row, one same-transaction audit. Reuses the R2C @/db fake verbatim (the
+// advisory 3-join lookup, the FOR UPDATE lock, the tx staff_roles queue —
+// here just one entry for the locked role name — and the tx update capture).
+// The REAL row lock / serialization / rollback are proven against a
+// disposable Postgres by lib/actions/workforce.integration.test.mjs.
+
+const R2D_SESSION_UUID = "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2"; // == default sessionMock.userId
+const R2D_TARGET_UUID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"; // != session
+
+function r2dReset() {
+  permissionMockState = { allow: true };
+  internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+  sessionMock = { userId: R2D_SESSION_UUID };
+  auditWrites = [];
+  r2cAdvisory = { rows: [] };
+  r2cLockedRow = { rows: [] };
+  r2cTxStaffRolesQueue = [];
+  r2cUpdateReturning = { rows: [{ status: "ACTIVE" }] };
+  r2cUpdateSetCapture = null;
+  r2cUpdateForUpdateUsed = false;
+  r2cAuditFailure = null;
+}
+
+/** Wire advisory + locked-row + tx staff_roles queue + UPDATE RETURNING for
+ * a lifecycle call. currentRole/lockedRole and currentStatus/lockedStatus
+ * default equal; set them apart to exercise the under-lock re-checks. */
+function r2dWire({ currentRole = "MANAGER", lockedRole = currentRole, currentStatus = "ACTIVE", lockedStatus = currentStatus, resultStatus } = {}) {
+  r2cAdvisory = { rows: [{ staffMemberId: "sm-d1", currentRoleName: currentRole, currentStatus, email: "life@example.com" }] };
+  r2cLockedRow = { rows: [{ id: "sm-d1", roleId: `role-${lockedRole}`, status: lockedStatus }] };
+  r2cTxStaffRolesQueue = [{ rows: [{ name: lockedRole }] }];
+  r2cUpdateReturning = { rows: [{ status: resultStatus ?? lockedStatus }] };
+}
+
+const R2D_FNS = {
+  suspend: { fn: () => suspendWorkforceMember, target: "SUSPENDED" },
+  reactivate: { fn: () => reactivateWorkforceMember, target: "ACTIVE" },
+  offboard: { fn: () => offboardWorkforceMember, target: "OFFBOARDING" },
+};
+
+test("R2D-1. each lifecycle function's first op is requireStaffMember('WORKFORCE_MANAGE'); a denial rejects, no audit, no lookup", async () => {
+  for (const { fn } of Object.values(R2D_FNS)) {
+    r2dReset();
+    permissionMockState = { allow: false };
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /NEXT_REDIRECT/);
+    assert.deepEqual(auditWrites, []);
+    assert.equal(r2cUpdateSetCapture, null);
+    permissionMockState = { allow: true };
+  }
+});
+
+test("R2D-2. each lifecycle function accepts exactly one runtime parameter", () => {
+  assert.equal(suspendWorkforceMember.length, 1);
+  assert.equal(reactivateWorkforceMember.length, 1);
+  assert.equal(offboardWorkforceMember.length, 1);
+});
+
+test("R2D-3. malformed / empty / SQL-ish targetUserId -> 'valid UUID', before any lookup, no audit", async () => {
+  for (const { fn } of Object.values(R2D_FNS)) {
+    for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --"]) {
+      r2dReset();
+      await assert.rejects(() => fn()(bad), /target user id must be a valid UUID/);
+      assert.deepEqual(auditWrites, []);
+      assert.equal(r2cUpdateSetCapture, null);
+    }
+  }
+});
+
+test("R2D-4. self-target rejected before any membership lookup, no UPDATE, no audit", async () => {
+  for (const { fn } of Object.values(R2D_FNS)) {
+    r2dReset();
+    await assert.rejects(() => fn()(R2D_SESSION_UUID), /workforce members cannot change their own lifecycle status/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-5. no internal workspace -> 'internal workspace is not configured'", async () => {
+  for (const { fn } of Object.values(R2D_FNS)) {
+    r2dReset();
+    internalOrgIdMock = async () => null;
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /internal workspace is not configured/);
+    internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+  }
+});
+
+test("R2D-6. no membership row -> MEMBER_NOT_FOUND, no audit", async () => {
+  for (const { fn } of Object.values(R2D_FNS)) {
+    r2dReset();
+    r2cAdvisory = { rows: [] };
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /workforce member not found/);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-7. advisory current role OWNER -> OWNER_PROTECTED, no UPDATE, no audit", async () => {
+  for (const { fn, target } of Object.values(R2D_FNS)) {
+    r2dReset();
+    r2dWire({ currentRole: "OWNER", currentStatus: target === "ACTIVE" ? "SUSPENDED" : "ACTIVE" });
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /target is the workspace owner and cannot be modified here/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-8. advisory current role ADMIN -> ADMIN_TIER_PROTECTED (lifecycle message), no UPDATE, no audit", async () => {
+  for (const { fn, target } of Object.values(R2D_FNS)) {
+    r2dReset();
+    r2dWire({ currentRole: "ADMIN", currentStatus: target === "ACTIVE" ? "SUSPENDED" : "ACTIVE" });
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /an administrator's lifecycle requires owner privileges/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-9. UNDER-LOCK OWNER protection: advisory MANAGER but locked role OWNER -> OWNER_PROTECTED, no UPDATE, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", lockedRole: "OWNER", currentStatus: "ACTIVE" });
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /target is the workspace owner and cannot be modified here/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-10. UNDER-LOCK ADMIN protection: advisory MANAGER but locked role ADMIN -> ADMIN_TIER_PROTECTED, no UPDATE, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", lockedRole: "ADMIN", currentStatus: "ACTIVE" });
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /an administrator's lifecycle requires owner privileges/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-11. ACTIVE -> SUSPENDED success: FOR UPDATE used, sets ONLY status + updatedAt, one truthful audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE", resultStatus: "SUSPENDED" });
+  const result = await suspendWorkforceMember(R2D_TARGET_UUID);
+  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "MANAGER", status: "SUSPENDED" });
+  assert.equal(r2cUpdateForUpdateUsed, true, "the target row must be locked with SELECT ... FOR UPDATE");
+  assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["status", "updatedAt"], "only status + updated_at may be written");
+  assert.equal(r2cUpdateSetCapture.status, "SUSPENDED");
+  assert.ok(r2cUpdateSetCapture.updatedAt instanceof Date);
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(auditWrites[0], {
+    actorUserId: R2D_SESSION_UUID,
+    organizationId: R2C_INTERNAL_ORG,
+    action: "workforce.member_status_changed",
+    targetType: "staff_member",
+    targetId: "sm-d1",
+    metadata: { targetUserId: R2D_TARGET_UUID, previousStatus: "ACTIVE", newStatus: "SUSPENDED" },
+  });
+});
+
+test("R2D-12. SUSPENDED -> ACTIVE success (reactivate)", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "EMPLOYEE", currentStatus: "SUSPENDED", resultStatus: "ACTIVE" });
+  const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
+  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+  assert.equal(r2cUpdateSetCapture.status, "ACTIVE");
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(auditWrites[0].metadata, { targetUserId: R2D_TARGET_UUID, previousStatus: "SUSPENDED", newStatus: "ACTIVE" });
+});
+
+test("R2D-13. ACTIVE -> OFFBOARDING and SUSPENDED -> OFFBOARDING succeed", async () => {
+  for (const from of ["ACTIVE", "SUSPENDED"]) {
+    r2dReset();
+    r2dWire({ currentRole: "MANAGER", currentStatus: from, resultStatus: "OFFBOARDING" });
+    const result = await offboardWorkforceMember(R2D_TARGET_UUID);
+    assert.equal(result.status, "OFFBOARDING");
+    assert.equal(r2cUpdateSetCapture.status, "OFFBOARDING");
+    assert.equal(auditWrites.length, 1);
+    assert.deepEqual(auditWrites[0].metadata, { targetUserId: R2D_TARGET_UUID, previousStatus: from, newStatus: "OFFBOARDING" });
+  }
+});
+
+test("R2D-14. no-op: suspend a SUSPENDED / reactivate an ACTIVE / offboard an OFFBOARDING -> STATUS_UNCHANGED, no UPDATE, no audit", async () => {
+  const cases = [
+    [() => suspendWorkforceMember, "SUSPENDED"],
+    [() => reactivateWorkforceMember, "ACTIVE"],
+    [() => offboardWorkforceMember, "OFFBOARDING"],
+  ];
+  for (const [fn, status] of cases) {
+    r2dReset();
+    r2dWire({ currentRole: "MANAGER", currentStatus: status });
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /workforce member already has this status/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-15. INVALID_STATUS_TRANSITION: OFFBOARDING is terminal (suspend/reactivate an offboarded member)", async () => {
+  for (const fn of [() => suspendWorkforceMember, () => reactivateWorkforceMember]) {
+    r2dReset();
+    r2dWire({ currentRole: "MANAGER", currentStatus: "OFFBOARDING" });
+    await assert.rejects(() => fn()(R2D_TARGET_UUID), /this lifecycle transition is not allowed/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("R2D-16. UNDER-LOCK no-op: advisory status stale (ACTIVE), locked status already SUSPENDED -> STATUS_UNCHANGED, no UPDATE, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE", lockedStatus: "SUSPENDED" });
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /workforce member already has this status/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-17. UNDER-LOCK invalid transition: advisory ACTIVE, locked status OFFBOARDING -> INVALID_STATUS_TRANSITION, no UPDATE, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE", lockedStatus: "OFFBOARDING" });
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /this lifecycle transition is not allowed/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-18. locked row vanished between advisory and lock -> MEMBER_STATE_CHANGED, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE" });
+  r2cLockedRow = { rows: [] };
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /workforce member state changed, please retry/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-19. optimistic UPDATE affects 0 rows -> MEMBER_STATE_CHANGED, no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE" });
+  r2cUpdateReturning = { rows: [] };
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /workforce member state changed, please retry/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-20. advisory-lookup DB failure propagates, never a false success", async () => {
+  r2dReset();
+  r2cAdvisory = { error: new Error("db unreachable") };
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /db unreachable/);
+});
+
+test("R2D-21. in-transaction UPDATE DB failure propagates (fails closed), no audit", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE" });
+  r2cUpdateReturning = { error: new Error("connection terminated unexpectedly") };
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /connection terminated unexpectedly/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("R2D-22. audit failure inside the transaction propagates (rolls the change back)", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE" });
+  r2cAuditFailure = new Error("audit write failed");
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /audit write failed/);
+  r2cAuditFailure = null;
+});
+
+test("R2D-23. audit organization is the server-resolved internal workspace, not any caller value; actor is the session userId", async () => {
+  r2dReset();
+  internalOrgIdMock = async () => "internal-org-from-server-only";
+  sessionMock = { userId: "ffffffff-ffff-4fff-8fff-ffffffffffff" };
+  r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE", resultStatus: "SUSPENDED" });
+  await suspendWorkforceMember(R2D_TARGET_UUID);
+  assert.equal(auditWrites[0].organizationId, "internal-org-from-server-only");
+  assert.equal(auditWrites[0].actorUserId, "ffffffff-ffff-4fff-8fff-ffffffffffff");
+  internalOrgIdMock = async () => R2C_INTERNAL_ORG;
+  sessionMock = { userId: R2D_SESSION_UUID };
+});
+
+test("R2D-24. source invariants: previousStatus from locked.status, only status+updatedAt in the R2D UPDATE, no Axis A/B, exactly six runtime exports", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce.ts", import.meta.url)), "utf8");
+  assert.ok(src.includes("previousStatus: locked.status"), "audit previousStatus must be the FOR UPDATE-locked status");
+  assert.ok(!/previousStatus:\s*member\.currentStatus/.test(src), "audit previousStatus must NOT be the advisory value");
+  // The R2D update helper's SET clause: status + updatedAt only.
+  assert.ok(src.includes(".set({ status: params.targetStatus, updatedAt: new Date() })"), "R2D UPDATE writes exactly status + updated_at");
+  const imports = src.split("\n").filter((l) => /^\s*import\s/.test(l)).join("\n");
+  assert.ok(!imports.includes("@/lib/dev-role") && !imports.includes("@/lib/actions/users"), "no Axis A imports");
+  assert.ok(!/\bmemberships\b/.test(imports) && !/\bauditDb\b/.test(imports), "no Axis A memberships / Axis B auditDb import");
+  const runtimeExports = [...src.matchAll(/^export async function (\w+)/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(runtimeExports, [
+    "addWorkforceMember",
+    "changeWorkforceMemberRole",
+    "listWorkforceMembers",
+    "offboardWorkforceMember",
+    "reactivateWorkforceMember",
+    "suspendWorkforceMember",
+  ]);
 });

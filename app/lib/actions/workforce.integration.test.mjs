@@ -147,13 +147,21 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
       },
     });
 
-    // listWorkforceMembers/addWorkforceMember/changeWorkforceMemberRole are
-    // the ONLY runtime-capable exports of this module (see
-    // RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1,
-    // RBAC-RUNTIME-R2B-WORKFORCE-MUTATION-FOUNDATION-1 and
-    // RBAC-RUNTIME-R2C-WORKFORCE-ROLE-CHANGE) — every assertion below goes
+    // listWorkforceMembers/addWorkforceMember/changeWorkforceMemberRole plus
+    // the R2D-A lifecycle trio are the ONLY runtime-capable exports of this
+    // module (see RBAC-RUNTIME-R2A-API-SURFACE-HARDENING-1,
+    // RBAC-RUNTIME-R2B-WORKFORCE-MUTATION-FOUNDATION-1,
+    // RBAC-RUNTIME-R2C-WORKFORCE-ROLE-CHANGE and
+    // RBAC-RUNTIME-R2D-A-WORKFORCE-LIFECYCLE) — every assertion below goes
     // through them, exactly as any real caller must.
-    const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole } = await import(
+    const {
+      listWorkforceMembers,
+      addWorkforceMember,
+      changeWorkforceMemberRole,
+      suspendWorkforceMember,
+      reactivateWorkforceMember,
+      offboardWorkforceMember,
+    } = await import(
       "/Users/arnoldbenzaie/Documents/projects.md/digitalnova/.claude/worktrees/chantier1-phase2-quote-public-page/app/lib/actions/workforce.ts"
     );
 
@@ -512,6 +520,241 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
 
     // R2C-xiii. cross-workspace isolation held throughout R2C.
     assert.equal(await roleIdOf(r2cNonInternalId, nonInternalOrgId), roleId.MANAGER, "the non-internal member's role never changed");
+
+    // ================================================================
+    // R2D-A: suspend / reactivate / offboard — MANAGER/EMPLOYEE only,
+    // OFFBOARDING terminal, real SELECT ... FOR UPDATE + same-tx audit.
+    // ================================================================
+    const statusOf = async (userId, workspace = orgId) =>
+      (await pool.query("select status from staff_members where user_id = $1 and workspace_org_id = $2", [userId, workspace])).rows[0]?.status;
+    const statusAuditCount = async (staffMemberId) =>
+      (
+        await pool.query(
+          "select count(*)::int as n from audit_log where action = 'workforce.member_status_changed' and target_id = $1",
+          [staffMemberId],
+        )
+      ).rows[0].n;
+
+    const r2dActiveMgrId = await seedUser("r2d-active-mgr@example.com");
+    const r2dActiveEmpId = await seedUser("r2d-active-emp@example.com");
+    const r2dSuspMgrId = await seedUser("r2d-susp-mgr@example.com");
+    const r2dOffboardedId = await seedUser("r2d-offboarded@example.com");
+    const r2dAdmin2Id = await seedUser("r2d-admin2@example.com");
+    const r2dRaceSameId = await seedUser("r2d-race-same@example.com");
+    const r2dRaceSuspOffId = await seedUser("r2d-race-suspoff@example.com");
+    const r2dRaceReactOffId = await seedUser("r2d-race-reactoff@example.com");
+    const r2dRaceR2cId = await seedUser("r2d-race-r2c@example.com");
+    const r2dNonInternalId = await seedUser("r2d-noninternal@example.com");
+    for (const [uid, rid, st] of [
+      [r2dActiveMgrId, roleId.MANAGER, "ACTIVE"],
+      [r2dActiveEmpId, roleId.EMPLOYEE, "ACTIVE"],
+      [r2dSuspMgrId, roleId.MANAGER, "SUSPENDED"],
+      [r2dOffboardedId, roleId.MANAGER, "OFFBOARDING"],
+      [r2dAdmin2Id, roleId.ADMIN, "ACTIVE"],
+      [r2dRaceSameId, roleId.MANAGER, "ACTIVE"],
+      [r2dRaceSuspOffId, roleId.MANAGER, "ACTIVE"],
+      [r2dRaceReactOffId, roleId.MANAGER, "SUSPENDED"],
+      [r2dRaceR2cId, roleId.MANAGER, "ACTIVE"],
+    ]) {
+      await pool.query("insert into staff_members (user_id, workspace_org_id, role_id, status) values ($1,$2,$3,$4)", [uid, orgId, rid, st]);
+    }
+    await pool.query("insert into staff_members (user_id, workspace_org_id, role_id, status) values ($1,$2,$3,'ACTIVE')", [
+      r2dNonInternalId,
+      nonInternalOrgId,
+      roleId.MANAGER,
+    ]);
+
+    asUser(adminUserId);
+
+    // R2D-i. MANAGER (non-WORKFORCE_MANAGE) caller cannot reach lifecycle mutations.
+    asUser(managerUserId);
+    await assert.rejects(() => suspendWorkforceMember(r2dActiveEmpId), /NEXT_REDIRECT/);
+    asUser(adminUserId);
+
+    // R2D-ii. the seeded OWNER cannot be lifecycle-changed (advisory + under-lock).
+    for (const fn of [suspendWorkforceMember, reactivateWorkforceMember, offboardWorkforceMember]) {
+      await assert.rejects(() => fn(ownerUserId), /target is the workspace owner and cannot be modified here/);
+    }
+    assert.equal(await statusOf(ownerUserId), "ACTIVE", "OWNER status unchanged");
+    assert.equal(await statusAuditCount(await smIdOf(ownerUserId)), 0, "no status audit for the OWNER");
+
+    // R2D-iii. an ADMIN target cannot be lifecycle-changed through ordinary R2D-A.
+    for (const fn of [suspendWorkforceMember, offboardWorkforceMember]) {
+      await assert.rejects(() => fn(r2dAdmin2Id), /an administrator's lifecycle requires owner privileges/);
+    }
+    assert.equal(await statusOf(r2dAdmin2Id), "ACTIVE", "ADMIN status unchanged");
+    assert.equal(await statusAuditCount(await smIdOf(r2dAdmin2Id)), 0);
+
+    // R2D-iv. self lifecycle change rejected (admin caller targeting themselves).
+    await assert.rejects(() => suspendWorkforceMember(adminUserId), /cannot change their own lifecycle status/);
+    assert.equal(await statusOf(adminUserId), "ACTIVE");
+
+    // R2D-v. a member of a NON-internal workspace is invisible to R2D.
+    await assert.rejects(() => suspendWorkforceMember(r2dNonInternalId), /workforce member not found/);
+    assert.equal(await statusOf(r2dNonInternalId, nonInternalOrgId), "ACTIVE", "non-internal member untouched");
+
+    // R2D-vi. ACTIVE -> SUSPENDED: only status + updated_at change; one truthful audit.
+    const beforeSusp = (
+      await pool.query(
+        "select id, role_id, workspace_org_id, user_id, invited_by_user_id, updated_at from staff_members where user_id = $1",
+        [r2dActiveMgrId],
+      )
+    ).rows[0];
+    await new Promise((r) => setTimeout(r, 5));
+    const suspResult = await suspendWorkforceMember(r2dActiveMgrId);
+    assert.deepEqual(suspResult, { userId: r2dActiveMgrId, email: "r2d-active-mgr@example.com", role: "MANAGER", status: "SUSPENDED" });
+    const afterSusp = (
+      await pool.query(
+        "select role_id, workspace_org_id, user_id, invited_by_user_id, status, updated_at from staff_members where user_id = $1",
+        [r2dActiveMgrId],
+      )
+    ).rows[0];
+    assert.equal(afterSusp.status, "SUSPENDED");
+    assert.equal(afterSusp.role_id, beforeSusp.role_id, "role_id unchanged");
+    assert.equal(afterSusp.workspace_org_id, beforeSusp.workspace_org_id, "workspace_org_id unchanged");
+    assert.equal(afterSusp.user_id, beforeSusp.user_id, "user_id unchanged");
+    assert.equal(afterSusp.invited_by_user_id, beforeSusp.invited_by_user_id, "invited_by_user_id unchanged");
+    assert.ok(new Date(afterSusp.updated_at) > new Date(beforeSusp.updated_at), "updated_at must strictly advance");
+    assert.equal(await statusAuditCount(beforeSusp.id), 1, "exactly one status-change audit");
+    const [suspAudit] = (
+      await pool.query(
+        "select actor_user_id, organization_id, metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1",
+        [beforeSusp.id],
+      )
+    ).rows;
+    assert.equal(suspAudit.actor_user_id, adminUserId);
+    assert.equal(suspAudit.organization_id, orgId);
+    assert.deepEqual(suspAudit.metadata, { targetUserId: r2dActiveMgrId, previousStatus: "ACTIVE", newStatus: "SUSPENDED" });
+
+    // R2D-vii. SUSPENDED -> ACTIVE (reactivate), symmetric.
+    const reactResult = await reactivateWorkforceMember(r2dActiveMgrId);
+    assert.equal(reactResult.status, "ACTIVE");
+    assert.equal(await statusOf(r2dActiveMgrId), "ACTIVE");
+    const reactAudits = (
+      await pool.query(
+        "select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1 order by (metadata->>'newStatus')",
+        [beforeSusp.id],
+      )
+    ).rows.map((r) => r.metadata);
+    assert.ok(
+      reactAudits.some((m) => m.previousStatus === "SUSPENDED" && m.newStatus === "ACTIVE"),
+      "a SUSPENDED->ACTIVE audit row exists",
+    );
+
+    // R2D-viii. ACTIVE -> OFFBOARDING and SUSPENDED -> OFFBOARDING.
+    const offA = await offboardWorkforceMember(r2dActiveEmpId);
+    assert.equal(offA.status, "OFFBOARDING");
+    assert.equal(await statusOf(r2dActiveEmpId), "OFFBOARDING");
+    const offS = await offboardWorkforceMember(r2dSuspMgrId);
+    assert.equal(offS.status, "OFFBOARDING");
+    assert.equal(await statusOf(r2dSuspMgrId), "OFFBOARDING");
+    const [offSAudit] = (
+      await pool.query(
+        "select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1",
+        [await smIdOf(r2dSuspMgrId)],
+      )
+    ).rows;
+    assert.deepEqual(offSAudit.metadata, { targetUserId: r2dSuspMgrId, previousStatus: "SUSPENDED", newStatus: "OFFBOARDING" });
+
+    // R2D-ix. OFFBOARDING is terminal — suspend/reactivate on an offboarded member rejected, unchanged, no audit.
+    const offSmId = await smIdOf(r2dOffboardedId);
+    for (const fn of [suspendWorkforceMember, reactivateWorkforceMember]) {
+      await assert.rejects(() => fn(r2dOffboardedId), /this lifecycle transition is not allowed/);
+    }
+    assert.equal(await statusOf(r2dOffboardedId), "OFFBOARDING", "offboarded member unchanged");
+    assert.equal(await statusAuditCount(offSmId), 0, "no audit for a rejected terminal transition");
+
+    // R2D-x. no-op: reactivate an ACTIVE / suspend a SUSPENDED -> STATUS_UNCHANGED, no audit.
+    // r2dActiveMgrId is ACTIVE here (SUSPENDED then reactivated above); r2dRaceReactOffId is a seeded SUSPENDED member.
+    await assert.rejects(() => reactivateWorkforceMember(r2dActiveMgrId), /already has this status/);
+    await assert.rejects(() => suspendWorkforceMember(r2dRaceReactOffId), /already has this status/);
+    assert.equal(await statusOf(r2dRaceReactOffId), "SUSPENDED", "a rejected no-op left status untouched");
+
+    // R2D-xi. R2C is blocked once a member is SUSPENDED, and once OFFBOARDING.
+    await suspendWorkforceMember(r2dRaceSameId); // ACTIVE -> SUSPENDED (reused below for concurrency; suspend it here first)
+    await assert.rejects(() => changeWorkforceMemberRole(r2dRaceSameId, "EMPLOYEE"), /not active and cannot be modified/);
+    assert.equal(await roleIdOf(r2dRaceSameId), roleId.MANAGER, "R2C must not have changed the role of a suspended member");
+    await reactivateWorkforceMember(r2dRaceSameId); // restore ACTIVE for the concurrency test below
+    await offboardWorkforceMember(r2dActiveMgrId); // ACTIVE -> OFFBOARDING
+    await assert.rejects(() => changeWorkforceMemberRole(r2dActiveMgrId, "EMPLOYEE"), /not active and cannot be modified/);
+
+    // R2D-xii. concurrency, SAME intent: two suspends on an ACTIVE member.
+    const sameSmId2 = await smIdOf(r2dRaceSameId);
+    const sameAuditsBefore = await statusAuditCount(sameSmId2);
+    const dSame = await Promise.allSettled([suspendWorkforceMember(r2dRaceSameId), suspendWorkforceMember(r2dRaceSameId)]);
+    assert.equal(dSame.filter((r) => r.status === "fulfilled").length, 1, "exactly one suspend fulfils");
+    const dSameRejected = dSame.filter((r) => r.status === "rejected");
+    assert.equal(dSameRejected.length, 1);
+    assert.match(String(dSameRejected[0].reason), /already has this status/);
+    assert.equal(await statusOf(r2dRaceSameId), "SUSPENDED", "final status SUSPENDED");
+    assert.equal((await statusAuditCount(sameSmId2)) - sameAuditsBefore, 1, "exactly one new status audit under same-intent concurrency");
+
+    // R2D-xiii. concurrency, suspend vs offboard from ACTIVE — ORDER-INDEPENDENT invariants.
+    const soSmId = await smIdOf(r2dRaceSuspOffId);
+    const dSuspOff = await Promise.allSettled([suspendWorkforceMember(r2dRaceSuspOffId), offboardWorkforceMember(r2dRaceSuspOffId)]);
+    const soFulfilled = dSuspOff.filter((r) => r.status === "fulfilled");
+    const soRejected = dSuspOff.filter((r) => r.status === "rejected");
+    assert.equal(soFulfilled.length + soRejected.length, 2);
+    for (const r of soRejected) {
+      assert.doesNotMatch(String(r.reason), /state changed/, "no MEMBER_STATE_CHANGED for serialized lifecycle concurrency");
+      assert.match(String(r.reason), /already has this status|this lifecycle transition is not allowed/);
+    }
+    const soAudits = (
+      await pool.query(
+        "select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1",
+        [soSmId],
+      )
+    ).rows.map((r) => r.metadata);
+    assert.equal(soAudits.length, soFulfilled.length, "one status audit per fulfilled call");
+    for (const m of soAudits) {
+      assert.ok(["ACTIVE", "SUSPENDED", "OFFBOARDING"].includes(m.previousStatus));
+      assert.ok(["ACTIVE", "SUSPENDED", "OFFBOARDING"].includes(m.newStatus));
+      assert.notEqual(m.previousStatus, m.newStatus);
+      assert.equal(m.targetUserId, r2dRaceSuspOffId);
+    }
+    // Whatever the interleaving, the member ends OFFBOARDING and a legal chain from ACTIVE explains the audits.
+    assert.equal(await statusOf(r2dRaceSuspOffId), "OFFBOARDING", "suspend-vs-offboard always ends OFFBOARDING");
+    assert.equal(soAudits.filter((m) => m.newStatus === "OFFBOARDING").length, 1, "exactly one transition into OFFBOARDING");
+
+    // R2D-xiv. concurrency, reactivate vs offboard from SUSPENDED.
+    const roSmId = await smIdOf(r2dRaceReactOffId);
+    const dReactOff = await Promise.allSettled([reactivateWorkforceMember(r2dRaceReactOffId), offboardWorkforceMember(r2dRaceReactOffId)]);
+    const roFulfilled = dReactOff.filter((r) => r.status === "fulfilled");
+    for (const r of dReactOff.filter((x) => x.status === "rejected")) {
+      assert.doesNotMatch(String(r.reason), /state changed/);
+      assert.match(String(r.reason), /already has this status|this lifecycle transition is not allowed/);
+    }
+    const roAudits = (
+      await pool.query("select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1", [roSmId])
+    ).rows.map((r) => r.metadata);
+    assert.equal(roAudits.length, roFulfilled.length);
+    assert.equal(await statusOf(r2dRaceReactOffId), "OFFBOARDING", "reactivate-vs-offboard always ends OFFBOARDING");
+    assert.equal(roAudits.filter((m) => m.newStatus === "OFFBOARDING").length, 1);
+
+    // R2D-xv. R2C vs R2D race on the same ACTIVE MANAGER — both serialized on the row lock.
+    const r2cr2dSmId = await smIdOf(r2dRaceR2cId);
+    const dRace = await Promise.allSettled([changeWorkforceMemberRole(r2dRaceR2cId, "EMPLOYEE"), suspendWorkforceMember(r2dRaceR2cId)]);
+    for (const r of dRace.filter((x) => x.status === "rejected")) {
+      assert.doesNotMatch(String(r.reason), /state changed/, "no MEMBER_STATE_CHANGED in the R2C/R2D race");
+      assert.match(String(r.reason), /not active and cannot be modified|already has this|not allowed/);
+    }
+    const finalRoleId = await roleIdOf(r2dRaceR2cId);
+    const finalStatus = await statusOf(r2dRaceR2cId);
+    assert.ok([roleId.MANAGER, roleId.EMPLOYEE].includes(finalRoleId), "role_id is coherent");
+    assert.ok(["ACTIVE", "SUSPENDED"].includes(finalStatus), "status is coherent");
+    // Every audit row for this member (role-change and/or status-change) is truthful.
+    const raceRoleAudits = (
+      await pool.query("select metadata from audit_log where action = 'workforce.member_role_changed' and target_id = $1", [r2cr2dSmId])
+    ).rows.map((r) => r.metadata);
+    for (const m of raceRoleAudits) assert.equal(m.previousRole, "MANAGER");
+    const raceStatusAudits = (
+      await pool.query("select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1", [r2cr2dSmId])
+    ).rows.map((r) => r.metadata);
+    for (const m of raceStatusAudits) assert.equal(m.previousStatus, "ACTIVE");
+
+    // R2D-xvi. cross-workspace isolation held throughout R2D.
+    assert.equal(await statusOf(r2dNonInternalId, nonInternalOrgId), "ACTIVE", "the non-internal member's status never changed");
+    assert.equal(await roleIdOf(r2dNonInternalId, nonInternalOrgId), roleId.MANAGER);
 
     // Audit rollback (UPDATE reverts if the in-transaction logAudit throws)
     // is proven by the unit suite (R2C-22) + the single db.transaction()
