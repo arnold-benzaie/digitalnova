@@ -39,6 +39,15 @@ function sanitizeAssigneeParam(value: string | undefined): AssigneeParam {
   return value && (VALID_ASSIGNEE_PARAMS as readonly string[]).includes(value) ? (value as AssigneeParam) : "all";
 }
 
+// RADAR-CORE-3B — follow-up view filter. Same "unknown token behaves as
+// no filter" convention as priority / assignee above.
+type FollowupParam = "all" | "overdue" | "due-today" | "needs";
+const VALID_FOLLOWUP_PARAMS: readonly FollowupParam[] = ["all", "overdue", "due-today", "needs"];
+
+function sanitizeFollowupParam(value: string | undefined): FollowupParam {
+  return value && (VALID_FOLLOWUP_PARAMS as readonly string[]).includes(value) ? (value as FollowupParam) : "all";
+}
+
 // Canonical positive integer only — no leading zero, no sign, no decimal,
 // no exponent, no surrounding whitespace — then range-checked against
 // Number.isSafeInteger so a syntactically valid but too-large string (e.g.
@@ -54,16 +63,22 @@ function sanitizePageParam(value: string | undefined): number {
   return Number.isSafeInteger(parsed) ? parsed : 1;
 }
 
-function buildHref(priority: Priority | undefined, assignee: AssigneeParam, page: number | undefined) {
+function buildHref(
+  priority: Priority | undefined,
+  assignee: AssigneeParam,
+  followup: FollowupParam,
+  page: number | undefined,
+) {
   const qs = new URLSearchParams();
   if (priority) qs.set("priority", priority);
   if (assignee !== "all") qs.set("assignee", assignee);
+  if (followup !== "all") qs.set("followup", followup);
   if (page && page > 1) qs.set("page", String(page));
   const s = qs.toString();
   return s ? `/admin/crm/radar?${s}` : "/admin/crm/radar";
 }
 
-type Params = { priority?: string; assignee?: string; page?: string };
+type Params = { priority?: string; assignee?: string; followup?: string; page?: string };
 
 export default async function CrmRadarPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireStaffRole();
@@ -78,6 +93,7 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
 
   const priority = sanitizePriorityParam(params.priority);
   const assignee = sanitizeAssigneeParam(params.assignee);
+  const followup = sanitizeFollowupParam(params.followup);
   const page = sanitizePageParam(params.page);
 
   // "me" is resolved to the server session id here — getRadarQueue never
@@ -90,7 +106,7 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
         : { mode: "all" };
 
   const [result, assignables] = await Promise.all([
-    getRadarQueue({ page, priority: priority ? [priority] : undefined, assignee: assigneeFilter }),
+    getRadarQueue({ page, priority: priority ? [priority] : undefined, assignee: assigneeFilter, followup }),
     caps.canAssignOthers ? listAssignableRadarMembers() : Promise.resolve([]),
   ]);
 
@@ -103,17 +119,16 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
   // RadarAssignmentControls (Claim / assignee select / Release) — never
   // whether the assignment data is visible.
 
-  // totalQualified is computed BEFORE any filter (see
-  // lib/actions/radar-queue.ts) — safe to use for "Page X of Y" only when
-  // NO filter (priority OR assignee) narrows the displayed population. With
-  // a filter active, the API cannot truthfully report a filtered total page
-  // count, so pagination falls back to a Previous/Next-only heuristic (Next
-  // enabled only when a full page came back) rather than guessing.
-  const anyFilter = Boolean(priority) || assignee !== "all";
-  const totalPages = Math.max(1, Math.ceil(result.totalQualified / result.pageSize));
-  const showPageCount = !anyFilter;
+  // RADAR-CORE-3B — result.filteredTotal is the exact count of ranked rows
+  // surviving every active row filter (priority + assignee + followup),
+  // so "Page X of Y" and hasNext are always truthful, filters or not. The
+  // old items.length === pageSize heuristic is gone: it advertised a
+  // phantom empty next page whenever filteredTotal was an exact multiple
+  // of pageSize. The action never clamps page, so a stale URL past the end
+  // yields empty items with hasNext false and Previous still available.
+  const totalPages = Math.max(1, Math.ceil(result.filteredTotal / result.pageSize));
   const hasPrevious = page > 1;
-  const hasNext = anyFilter ? result.items.length === result.pageSize : page < totalPages;
+  const hasNext = page * result.pageSize < result.filteredTotal;
 
   return (
     <>
@@ -147,13 +162,27 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
           <option value="me">{t.assigneeMine}</option>
           <option value="unassigned">{t.assigneeUnassigned}</option>
         </select>
+        <label htmlFor="followup" className="sr-only">
+          {t.followupFilterLabel}
+        </label>
+        <select
+          id="followup"
+          name="followup"
+          defaultValue={followup === "all" ? "" : followup}
+          className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir"
+        >
+          <option value="">{t.followupAll}</option>
+          <option value="overdue">{t.followupOverdue}</option>
+          <option value="due-today">{t.followupDueToday}</option>
+          <option value="needs">{t.followupNeeds}</option>
+        </select>
         <button
           type="submit"
           className="rounded-lg bg-pm-noir px-4 py-2 text-sm font-medium text-white transition hover:bg-pm-noir-2"
         >
           {dictionaries[locale].common.filter}
         </button>
-        {(priority || assignee !== "all") && (
+        {(priority || assignee !== "all" || followup !== "all") && (
           <Link href="/admin/crm/radar" className="text-xs text-pm-gris underline">
             {t.reset}
           </Link>
@@ -193,6 +222,7 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                   <th className="px-5 py-3">{t.columns.nextAction}</th>
                   <th className="px-5 py-3">{t.columns.stage}</th>
                   <th className="px-5 py-3">{t.columns.lastInteraction}</th>
+                  <th className="px-5 py-3">{t.columns.nextFollowUp}</th>
                   <th className="px-5 py-3 text-right">{t.columns.owner}</th>
                 </tr>
               </thead>
@@ -232,6 +262,23 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                       <td className="px-5 py-3 text-pm-gris">
                         {item.lastInteractionAt ? formatDate(item.lastInteractionAt, locale) : t.noInteraction}
                       </td>
+                      <td className="px-5 py-3">
+                        {item.nextFollowUpDueAt === null ? (
+                          <span className="text-pm-gris">{t.noFollowUp}</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <span className={item.nextFollowUpOverdue ? "font-medium text-pm-rouge-2" : "text-pm-noir"}>
+                              {formatDate(item.nextFollowUpDueAt, locale)}
+                            </span>
+                            {item.nextFollowUpOverdue && (
+                              <Badge label={t.followUpOverdue} className="bg-pm-rouge/10 text-pm-rouge-2" />
+                            )}
+                            {item.nextFollowUpDueToday && (
+                              <Badge label={t.followUpDueToday} className="bg-pm-or/10 text-pm-or-2" />
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3 align-top">
                         <RadarAssignmentControls
                           clientId={item.clientId}
@@ -255,14 +302,14 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
           {(hasPrevious || hasNext) && (
             <div className="mt-4 flex items-center justify-between text-sm">
               <Link
-                href={buildHref(priority, assignee, page > 1 ? page - 1 : undefined)}
+                href={buildHref(priority, assignee, followup, page > 1 ? page - 1 : undefined)}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${hasPrevious ? "hover:bg-pm-gris-2/30" : "pointer-events-none opacity-40"}`}
               >
                 {dictionaries[locale].common.previous}
               </Link>
-              {showPageCount && <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>}
+              <span className="text-pm-gris">{t.pageOf(page, totalPages)}</span>
               <Link
-                href={buildHref(priority, assignee, hasNext ? page + 1 : undefined)}
+                href={buildHref(priority, assignee, followup, hasNext ? page + 1 : undefined)}
                 className={`rounded-lg border border-pm-gris-2 px-3 py-1.5 ${hasNext ? "hover:bg-pm-gris-2/30" : "pointer-events-none opacity-40"}`}
               >
                 {dictionaries[locale].common.next}

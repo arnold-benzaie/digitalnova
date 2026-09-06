@@ -1,8 +1,8 @@
 "use server";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, users } from "@/db/schema";
+import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, tasks, users } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
@@ -40,6 +40,18 @@ export type RankedProspect = {
   // row in the internal workspace. A stale/removed assignee stays assigned
   // (assignedUserId kept) but reads as inactive.
   assignedUserActive: boolean;
+  // RADAR-CORE-3B — the earliest OPEN dated follow-up for this prospect.
+  // A "follow-up" is a task with this client_id, status IN
+  // ("todo","in_progress"), and due_date IS NOT NULL — the 3A lifecycle
+  // truth, independent of who created the task or how. done / cancelled /
+  // null-due tasks never contribute. null === no such follow-up. NEVER a
+  // scoring / ranking signal; resolved in the same pre-slice batch as
+  // deals / interactions / quotes / invoices. overdue / dueToday are
+  // derived once, server-side, from UTC calendar-day boundaries so the
+  // queue filter and the page badge share one definition.
+  nextFollowUpDueAt: Date | null;
+  nextFollowUpOverdue: boolean;
+  nextFollowUpDueToday: boolean;
 };
 
 // RADAR-CORE-1B — assignment filter. Resolved by the page layer: the raw
@@ -47,10 +59,18 @@ export type RankedProspect = {
 // server session before it reaches here; getRadarQueue never sees "me".
 export type RadarAssigneeFilter = { mode: "all" } | { mode: "unassigned" } | { mode: "user"; userId: string };
 
+// RADAR-CORE-3B — followup is the raw URL token; sanitized here to a
+// closed enum. `now` is injectable ONLY for the follow-up UTC day-window
+// computation (mirrors lib/radar/score.ts::OpportunityInput.now) — it is
+// never threaded into qualification, scoring, or ranking.
+export type RadarFollowUpFilter = "all" | "overdue" | "due-today" | "needs";
+
 export type RadarQueueParams = {
   page?: number;
   priority?: Priority[];
   assignee?: RadarAssigneeFilter;
+  followup?: string;
+  now?: Date;
 };
 
 export type RadarQueueResult = {
@@ -62,6 +82,12 @@ export type RadarQueueResult = {
   // literal meaning of "total qualified", not "total matching the current
   // filter".
   totalQualified: number;
+  // RADAR-CORE-3B — exact number of ranked rows surviving ALL active row
+  // filters (priority + assignee + followup), computed in memory before
+  // the page slice. Equals totalQualified when no row filter is active.
+  // Never a second DB count; it is filtered.length. This is the sole
+  // source of pagination truth on the page.
+  filteredTotal: number;
   insufficientDataCount: number;
   notEligibleCount: number;
 };
@@ -89,6 +115,31 @@ function sanitizeAssigneeFilter(assignee: RadarAssigneeFilter | undefined): Rada
     return { mode: "user", userId: assignee.userId };
   }
   return { mode: "all" };
+}
+
+// RADAR-CORE-3B — same "unknown value behaves as no filter" convention as
+// the priority / assignee filters above: any token other than the three
+// active modes falls back to "all".
+const FOLLOWUP_VALUES: readonly RadarFollowUpFilter[] = ["all", "overdue", "due-today", "needs"];
+
+function sanitizeFollowUpFilter(followup: string | undefined): RadarFollowUpFilter {
+  return followup && (FOLLOWUP_VALUES as readonly string[]).includes(followup)
+    ? (followup as RadarFollowUpFilter)
+    : "all";
+}
+
+/**
+ * RADAR-CORE-3B — UTC calendar-day boundaries from the server `now`. The
+ * 3A follow-up create form stores date-only `due_date` values as UTC
+ * midnight (`new Date("YYYY-MM-DD")`), so the day window is computed in
+ * UTC to stay consistent with the stored data — never the browser
+ * timezone, and no timezone redesign. `overdue` = due < startOfToday;
+ * `dueToday` = startOfToday <= due < startOfTomorrow; `upcoming` =
+ * due >= startOfTomorrow.
+ */
+function utcDayWindow(now: Date): { startOfToday: number; startOfTomorrow: number } {
+  const startOfToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return { startOfToday, startOfTomorrow: startOfToday + 24 * 60 * 60 * 1000 };
 }
 
 /**
@@ -178,6 +229,10 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   const page = sanitizePage(params.page);
   const priorityFilter = sanitizePriorityFilter(params.priority);
   const assigneeFilter = sanitizeAssigneeFilter(params.assignee);
+  const followUpFilter = sanitizeFollowUpFilter(params.followup);
+  // Server-side only. Injectable purely so the follow-up day-window tests
+  // are deterministic — identical role to score.ts::OpportunityInput.now.
+  const { startOfToday, startOfTomorrow } = utcDayWindow(params.now ?? new Date());
 
   const candidates = await db
     .select({
@@ -227,7 +282,7 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   const totalQualified = qualified.length;
 
   if (qualified.length === 0) {
-    return { items: [], page, pageSize: PAGE_SIZE, totalQualified, insufficientDataCount, notEligibleCount };
+    return { items: [], page, pageSize: PAGE_SIZE, totalQualified, filteredTotal: 0, insufficientDataCount, notEligibleCount };
   }
 
   const qualifiedIds = qualified.map((c) => c.id);
@@ -236,7 +291,7 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   // over the QUALIFIED subset only, mirroring the existing precedent in
   // lib/api-v1/audits.ts's getIssueCountsForAudits(). Never loop over the
   // qualified subset calling the single-client Phase 1C action here.
-  const [clientDeals, clientInteractions, clientQuotes, clientInvoices] = await Promise.all([
+  const [clientDeals, clientInteractions, clientQuotes, clientInvoices, clientOpenFollowUps] = await Promise.all([
     db
       .select({ clientId: deals.clientId, stage: deals.stage })
       .from(deals)
@@ -253,11 +308,35 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       .select({ clientId: crmInvoices.clientId, paidAt: crmInvoices.paidAt })
       .from(crmInvoices)
       .where(inArray(crmInvoices.clientId, qualifiedIds)),
+    // RADAR-CORE-3B — OPEN dated follow-ups for the qualified subset. One
+    // bounded read, same batched shape as the four above; earliest
+    // due_date per client is reduced in JS below (never relying on DB row
+    // order). done / cancelled / null-due are excluded in the predicate,
+    // so a terminal or undated task can never surface as a follow-up.
+    db
+      .select({ clientId: tasks.clientId, dueDate: tasks.dueDate })
+      .from(tasks)
+      .where(
+        and(
+          inArray(tasks.clientId, qualifiedIds),
+          inArray(tasks.status, ["todo", "in_progress"]),
+          isNotNull(tasks.dueDate),
+        ),
+      ),
   ]);
 
   const dealsByClient = groupByClientId(clientDeals);
   const interactionsByClient = groupByClientId(clientInteractions);
   const quotesByClient = groupByClientId(clientQuotes);
+  // RADAR-CORE-3B — earliest OPEN dated follow-up per qualified client.
+  // clientId is non-null for every row (the inArray predicate guarantees
+  // it); the type-narrowing filter only satisfies groupByClientId's
+  // { clientId: string } bound, exactly like invoicesByClient below.
+  const followUpsByClient = groupByClientId(
+    clientOpenFollowUps.filter(
+      (t): t is typeof t & { clientId: string; dueDate: Date } => t.clientId !== null && t.dueDate !== null,
+    ),
+  );
   // crmInvoices.clientId is nullable at the schema level (manual invoices
   // with no CRM client), but the inArray() filter above already guarantees
   // every returned row's clientId is one of our known qualifiedIds — this
@@ -285,6 +364,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       (latest, i) => (!latest || i.occurredAt > latest ? i.occurredAt : latest),
       null,
     );
+    const nextFollowUpDueAt = (followUpsByClient.get(client.id) ?? []).reduce<Date | null>(
+      (earliest, t) => (!earliest || t.dueDate < earliest ? t.dueDate : earliest),
+      null,
+    );
+    const dueMs = nextFollowUpDueAt?.getTime();
     return {
       clientId: client.id,
       name: client.name,
@@ -303,6 +387,12 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       assignedUserId: client.assignedUserId,
       assignedUserName: null,
       assignedUserActive: false,
+      // RADAR-CORE-3B — display / filter context only. overdue and
+      // dueToday are derived from the single server-side UTC day window so
+      // the followup filter and the page badge never disagree.
+      nextFollowUpDueAt,
+      nextFollowUpOverdue: dueMs !== undefined && dueMs < startOfToday,
+      nextFollowUpDueToday: dueMs !== undefined && dueMs >= startOfToday && dueMs < startOfTomorrow,
       _createdAt: client.createdAt,
       _id: client.id,
     };
@@ -328,22 +418,34 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
     return a._id < b._id ? -1 : a._id > b._id ? 1 : 0; // absolute deterministic final tie-break
   });
 
-  // Both filters are applied to the ALREADY-RANKED array, after sort and
-  // before pagination, so relative Radar order is preserved within the
-  // filtered subset. They compose by intersection. totalQualified /
-  // insufficientDataCount / notEligibleCount are NOT touched — they keep
-  // their pre-filter meaning.
+  // All three filters are applied to the ALREADY-RANKED array, after sort
+  // and before pagination, so relative Radar order is preserved within the
+  // filtered subset. They compose by pure predicate intersection.
+  // totalQualified / insufficientDataCount / notEligibleCount are NOT
+  // touched — they keep their pre-filter meaning.
   const priorityFiltered =
     priorityFilter.length > 0 ? ranked.filter((r) => priorityFilter.includes(r.priority)) : ranked;
-  const filtered =
+  const assigneeFiltered =
     assigneeFilter.mode === "unassigned"
       ? priorityFiltered.filter((r) => r.assignedUserId === null)
       : assigneeFilter.mode === "user"
         ? priorityFiltered.filter((r) => r.assignedUserId === assigneeFilter.userId)
         : priorityFiltered;
+  const filtered =
+    followUpFilter === "overdue"
+      ? assigneeFiltered.filter((r) => r.nextFollowUpOverdue)
+      : followUpFilter === "due-today"
+        ? assigneeFiltered.filter((r) => r.nextFollowUpDueToday)
+        : followUpFilter === "needs"
+          ? assigneeFiltered.filter((r) => r.nextFollowUpDueAt === null)
+          : assigneeFiltered;
+
+  // Exact post-filter count — the sole source of pagination truth on the
+  // page. Computed in memory before the slice; never a second DB count.
+  const filteredTotal = filtered.length;
 
   const start = (page - 1) * PAGE_SIZE;
-  const pageSlice = filtered.slice(start, start + PAGE_SIZE);
+  const pageSlice = filtered.slice(start, page * PAGE_SIZE);
 
   const assigneeInfo = await resolveAssignees([
     ...new Set(pageSlice.map((r) => r.assignedUserId).filter((id): id is string => id !== null)),
@@ -367,8 +469,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       assignedUserId: r.assignedUserId,
       assignedUserName: info?.name ?? null,
       assignedUserActive: info?.active ?? false,
+      nextFollowUpDueAt: r.nextFollowUpDueAt,
+      nextFollowUpOverdue: r.nextFollowUpOverdue,
+      nextFollowUpDueToday: r.nextFollowUpDueToday,
     };
   });
 
-  return { items, page, pageSize: PAGE_SIZE, totalQualified, insufficientDataCount, notEligibleCount };
+  return { items, page, pageSize: PAGE_SIZE, totalQualified, filteredTotal, insufficientDataCount, notEligibleCount };
 }

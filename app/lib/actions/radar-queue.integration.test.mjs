@@ -96,7 +96,7 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { crmClients, deals, interactions, crmQuotes, crmInvoices, users, staffMembers, staffRoles, organizations } =
+const { crmClients, deals, interactions, crmQuotes, crmInvoices, tasks, users, staffMembers, staffRoles, organizations } =
   await import("@/db/schema");
 const { inArray, eq } = await import("drizzle-orm");
 const { getRadarQueue } = await import("./radar-queue.ts");
@@ -115,6 +115,8 @@ after(async () => {
   if (createdClientIds.size) await db.delete(interactions).where(inArray(interactions.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmInvoices).where(inArray(crmInvoices.clientId, [...createdClientIds]));
+  // RADAR-CORE-3B — follow-up fixtures are always hung off a created client.
+  if (createdClientIds.size) await db.delete(tasks).where(inArray(tasks.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmClients).where(inArray(crmClients.id, [...createdClientIds]));
   if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
   await db.$client.end();
@@ -200,6 +202,15 @@ async function makeInvoice(clientId, { paidAt = null }) {
 
 async function makeInteraction(clientId, occurredAt) {
   await db.insert(interactions).values({ clientId, type: "note", summary: "Test interaction", occurredAt });
+}
+
+// RADAR-CORE-3B — a task row. status defaults to an OPEN state; dueDate
+// defaults to null (NOT a follow-up). Tests pass explicit values to
+// exercise the "open + dated" follow-up truth. assigned_user_id /
+// created_by_user_id are left NULL to also prove creator type is
+// irrelevant to follow-up truth.
+async function makeTask(clientId, { status = "todo", dueDate = null } = {}) {
+  await db.insert(tasks).values({ clientId, title: `Task ${randomUUID()}`, status, dueDate });
 }
 
 // Concatenates every page of getRadarQueue(params) in returned order, up
@@ -722,4 +733,365 @@ test("1B: structural — assignee identity is resolved in ONE batched query (no 
   assert.match(IMPLEMENTATION_SOURCE, /inArray\(users\.id, userIds\)/, "one batched users lookup keyed by the page's assignee ids");
   assert.ok(!/for \(const .* of pageSlice\)[\s\S]{0,200}await db/.test(IMPLEMENTATION_SOURCE), "no per-row await inside a pageSlice loop");
   assert.match(IMPLEMENTATION_SOURCE, /resolveAssignees\(/, "a single dedicated resolver, called once");
+});
+
+// =========================================================
+// RADAR-CORE-3B — next follow-up on the RADAR queue
+// =========================================================
+// A RADAR next follow-up = a task with this client_id, status IN
+// ("todo","in_progress"), due_date IS NOT NULL. Earliest due_date wins.
+// done / cancelled / null-due never contribute. All assertions are
+// per-fixture or delta-based (the shared local DB carries E2E leftovers).
+
+const FIXED_NOW = new Date("2026-06-15T12:00:00Z");
+const START_OF_TODAY = Date.UTC(2026, 5, 15); // 2026-06-15T00:00:00Z
+const START_OF_TOMORROW = START_OF_TODAY + 24 * 60 * 60 * 1000;
+
+async function followUpFieldsFor(clientId, params = {}) {
+  const items = await scanAllPages(params);
+  return items.find((i) => i.clientId === clientId) ?? null;
+}
+
+test("3B: two open dated tasks — the earliest due_date is nextFollowUpDueAt", async () => {
+  const c = await makeClient();
+  const early = new Date("2026-07-01T00:00:00Z");
+  const late = new Date("2026-07-20T00:00:00Z");
+  await makeTask(c.id, { status: "in_progress", dueDate: late });
+  await makeTask(c.id, { status: "todo", dueDate: early });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(row, "prospect is in the queue");
+  assert.equal(row.nextFollowUpDueAt.getTime(), early.getTime());
+});
+
+test("3B: a done task earlier than the open one is ignored", async () => {
+  const c = await makeClient();
+  const open = new Date("2026-07-15T00:00:00Z");
+  await makeTask(c.id, { status: "done", dueDate: new Date("2026-07-01T00:00:00Z") });
+  await makeTask(c.id, { status: "todo", dueDate: open });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt.getTime(), open.getTime());
+});
+
+test("3B: a cancelled task earlier than the open one is ignored", async () => {
+  const c = await makeClient();
+  const open = new Date("2026-07-15T00:00:00Z");
+  await makeTask(c.id, { status: "cancelled", dueDate: new Date("2026-07-01T00:00:00Z") });
+  await makeTask(c.id, { status: "in_progress", dueDate: open });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt.getTime(), open.getTime());
+});
+
+test("3B: an open task with a NULL due_date is not a follow-up", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: null });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt, null);
+  assert.equal(row.nextFollowUpOverdue, false);
+  assert.equal(row.nextFollowUpDueToday, false);
+});
+
+test("3B: a prospect with no tasks at all has nextFollowUpDueAt null", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt, null);
+});
+
+test("3B: a machine-style open dated task (structured FKs left NULL) still counts as a follow-up", async () => {
+  const c = await makeClient();
+  const due = new Date("2026-08-01T00:00:00Z");
+  await makeTask(c.id, { status: "todo", dueDate: due }); // assigned_user_id / created_by_user_id NULL
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt.getTime(), due.getTime(), "follow-up truth is task state + date, not creator type");
+});
+
+test("3B: with several open dated tasks the earliest is deterministic across repeated calls", async () => {
+  const c = await makeClient();
+  const dates = ["2026-09-10", "2026-09-02", "2026-09-25"].map((d) => new Date(`${d}T00:00:00Z`));
+  for (const d of dates) await makeTask(c.id, { status: "todo", dueDate: d });
+  const a = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const b = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(a.nextFollowUpDueAt.getTime(), Date.UTC(2026, 8, 2));
+  assert.equal(b.nextFollowUpDueAt.getTime(), a.nextFollowUpDueAt.getTime());
+});
+
+// ---- UTC day-window boundaries (fixed now) ----
+
+test("3B: due = startOfToday - 1ms -> overdue true, dueToday false", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpOverdue, true);
+  assert.equal(row.nextFollowUpDueToday, false);
+});
+
+test("3B: due = startOfToday -> overdue false, dueToday true", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpOverdue, false);
+  assert.equal(row.nextFollowUpDueToday, true);
+});
+
+test("3B: due = startOfTomorrow - 1ms -> dueToday true, overdue false", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW - 1) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueToday, true);
+  assert.equal(row.nextFollowUpOverdue, false);
+});
+
+test("3B: due = startOfTomorrow -> overdue false, dueToday false (upcoming)", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpOverdue, false);
+  assert.equal(row.nextFollowUpDueToday, false);
+  assert.ok(row.nextFollowUpDueAt instanceof Date);
+});
+
+// ---- followup filter ----
+
+test("3B: followup=needs returns rows with no open dated follow-up and excludes rows that have one", async () => {
+  const withFollowUp = await makeClient();
+  await makeTask(withFollowUp.id, { status: "todo", dueDate: new Date("2026-07-10T00:00:00Z") });
+  const withoutFollowUp = await makeClient();
+
+  const needs = await scanAllPages({ followup: "needs", now: FIXED_NOW });
+  assert.ok(needs.some((i) => i.clientId === withoutFollowUp.id), "a prospect with no follow-up is included");
+  assert.ok(!needs.some((i) => i.clientId === withFollowUp.id), "a prospect with an open dated follow-up is excluded");
+  assert.ok(needs.every((i) => i.nextFollowUpDueAt === null));
+});
+
+test("3B: followup=overdue returns only overdue rows", async () => {
+  const overdue = await makeClient();
+  await makeTask(overdue.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+  const today = await makeClient();
+  await makeTask(today.id, { status: "todo", dueDate: new Date(START_OF_TODAY) });
+  const upcoming = await makeClient();
+  await makeTask(upcoming.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW) });
+
+  const rows = await scanAllPages({ followup: "overdue", now: FIXED_NOW });
+  assert.ok(rows.some((i) => i.clientId === overdue.id));
+  assert.ok(!rows.some((i) => i.clientId === today.id));
+  assert.ok(!rows.some((i) => i.clientId === upcoming.id));
+  assert.ok(rows.every((i) => i.nextFollowUpOverdue === true));
+});
+
+test("3B: followup=due-today returns only rows due within today's UTC window", async () => {
+  const today = await makeClient();
+  await makeTask(today.id, { status: "todo", dueDate: new Date(START_OF_TODAY) });
+  const overdue = await makeClient();
+  await makeTask(overdue.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+
+  const rows = await scanAllPages({ followup: "due-today", now: FIXED_NOW });
+  assert.ok(rows.some((i) => i.clientId === today.id));
+  assert.ok(!rows.some((i) => i.clientId === overdue.id));
+  assert.ok(rows.every((i) => i.nextFollowUpDueToday === true));
+});
+
+test("3B: followup=all does not filter (delta count unchanged vs. no param)", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-10T00:00:00Z") });
+  const none = await getRadarQueue({ now: FIXED_NOW });
+  const all = await getRadarQueue({ followup: "all", now: FIXED_NOW });
+  assert.equal(all.filteredTotal, none.filteredTotal);
+  assert.equal(all.totalQualified, none.totalQualified);
+});
+
+test("3B: an invalid followup token behaves exactly like all", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-10T00:00:00Z") });
+  const all = await getRadarQueue({ followup: "all", now: FIXED_NOW });
+  const bogus = await getRadarQueue({ followup: "not-a-real-value", now: FIXED_NOW });
+  assert.equal(bogus.filteredTotal, all.filteredTotal);
+});
+
+test("3B: the followup filter is applied AFTER ranking — relative order of surviving rows is preserved", async () => {
+  const high = await makeClient();
+  await makeDeal(high.id, "proposal"); // HIGH
+  await makeTask(high.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+  const low = await makeClient();
+  await makeDeal(low.id, "new"); // LOW
+  await makeTask(low.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+
+  const rows = await scanAllPages({ followup: "overdue", now: FIXED_NOW });
+  const iHigh = indexOfClient(rows, high.id);
+  const iLow = indexOfClient(rows, low.id);
+  assert.ok(iHigh !== -1 && iLow !== -1);
+  assert.ok(iHigh < iLow, "HIGH still ranks before LOW inside the overdue-filtered subset");
+});
+
+test("3B: followup composes with priority + assignee as a pure predicate intersection", async () => {
+  const u = await makeUser({ fullName: "3B Intersection User" });
+  const match = await makeClient({ assignedUserId: u.id });
+  await makeDeal(match.id, "proposal"); // HIGH
+  await makeTask(match.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) }); // overdue
+  const wrongFollowup = await makeClient({ assignedUserId: u.id });
+  await makeDeal(wrongFollowup.id, "proposal"); // HIGH + mine, but not overdue
+  await makeTask(wrongFollowup.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW) });
+
+  const base = { priority: ["HIGH"], assignee: { mode: "user", userId: u.id }, followup: "overdue", now: FIXED_NOW };
+  const all3 = await scanAllPages(base);
+  assert.ok(all3.some((i) => i.clientId === match.id));
+  assert.ok(!all3.some((i) => i.clientId === wrongFollowup.id), "fails the followup half of the intersection");
+
+  // dropping any one dimension lets `match` through too, proving intersection (not bypass)
+  for (const drop of ["priority", "assignee", "followup"]) {
+    const params = { ...base };
+    delete params[drop];
+    const rows = await scanAllPages(params);
+    assert.ok(rows.some((i) => i.clientId === match.id), `still present when ${drop} filter is removed`);
+  }
+});
+
+// ---- filteredTotal ----
+
+test("3B: no row filter -> filteredTotal === totalQualified", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "proposal");
+  const r = await getRadarQueue({ now: FIXED_NOW });
+  assert.equal(r.filteredTotal, r.totalQualified);
+});
+
+test("3B: each row filter changes filteredTotal by exactly its own delta; totalQualified / counts stay put", async () => {
+  const u = await makeUser({ fullName: "3B Delta User" });
+  const base = await getRadarQueue({ now: FIXED_NOW });
+
+  // +1 qualified HIGH prospect, assigned to u, with an overdue follow-up.
+  const c = await makeClient({ assignedUserId: u.id });
+  await makeDeal(c.id, "proposal");
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+
+  const afterAdd = await getRadarQueue({ now: FIXED_NOW });
+  assert.equal(afterAdd.totalQualified, base.totalQualified + 1);
+  assert.equal(afterAdd.filteredTotal, base.filteredTotal + 1, "no filter: filteredTotal tracks totalQualified");
+  assert.equal(afterAdd.insufficientDataCount, base.insufficientDataCount);
+  assert.equal(afterAdd.notEligibleCount, base.notEligibleCount);
+
+  // priority filter: HIGH includes it, LOW excludes it — totalQualified unchanged either way
+  const high = await getRadarQueue({ priority: ["HIGH"], now: FIXED_NOW });
+  const low = await getRadarQueue({ priority: ["LOW"], now: FIXED_NOW });
+  assert.equal(high.totalQualified, afterAdd.totalQualified);
+  assert.equal(low.totalQualified, afterAdd.totalQualified);
+  assert.ok(high.filteredTotal <= afterAdd.filteredTotal);
+  assert.ok(low.filteredTotal <= afterAdd.filteredTotal);
+
+  // assignee filter: only u's rows
+  const mine = await getRadarQueue({ assignee: { mode: "user", userId: u.id }, now: FIXED_NOW });
+  assert.equal(mine.totalQualified, afterAdd.totalQualified);
+  assert.ok(mine.filteredTotal >= 1 && mine.filteredTotal <= afterAdd.filteredTotal);
+
+  // followup filter: overdue
+  const overdue = await getRadarQueue({ followup: "overdue", now: FIXED_NOW });
+  assert.equal(overdue.totalQualified, afterAdd.totalQualified);
+  assert.ok(overdue.filteredTotal >= 1 && overdue.filteredTotal <= afterAdd.filteredTotal);
+
+  // all three composed — at least our one fixture, never more than any single filter
+  const composed = await getRadarQueue({
+    priority: ["HIGH"],
+    assignee: { mode: "user", userId: u.id },
+    followup: "overdue",
+    now: FIXED_NOW,
+  });
+  assert.equal(composed.totalQualified, afterAdd.totalQualified);
+  assert.ok(composed.filteredTotal >= 1);
+  assert.ok(composed.filteredTotal <= Math.min(high.filteredTotal, mine.filteredTotal, overdue.filteredTotal));
+});
+
+// ---- pagination truth (exact arithmetic — page-layer formula) ----
+// hasNext / totalPages are page.tsx logic; the frozen contract (§29)
+// authorizes asserting the exact formula rather than adding a helper
+// module. These reproduce app/admin/crm/radar/page.tsx verbatim.
+const PAGE_LAYER = {
+  totalPages: (filteredTotal, pageSize) => Math.max(1, Math.ceil(filteredTotal / pageSize)),
+  hasNext: (page, pageSize, filteredTotal) => page * pageSize < filteredTotal,
+  hasPrevious: (page) => page > 1,
+};
+
+test("3B: pagination formula — no phantom next page at exact multiples of PAGE_SIZE (20)", () => {
+  const P = 20;
+  assert.equal(PAGE_LAYER.hasNext(1, P, 0), false);
+  assert.equal(PAGE_LAYER.hasNext(1, P, 1), false);
+  assert.equal(PAGE_LAYER.hasNext(1, P, 19), false);
+  assert.equal(PAGE_LAYER.hasNext(1, P, 20), false, "exactly one full page — NO next");
+  assert.equal(PAGE_LAYER.hasNext(1, P, 21), true);
+  assert.equal(PAGE_LAYER.hasNext(2, P, 21), false);
+  assert.equal(PAGE_LAYER.hasNext(1, P, 40), true);
+  assert.equal(PAGE_LAYER.hasNext(2, P, 40), false, "exactly two full pages — NO phantom page 3");
+  assert.equal(PAGE_LAYER.hasNext(1, P, 41), true);
+  assert.equal(PAGE_LAYER.hasNext(2, P, 41), true);
+  assert.equal(PAGE_LAYER.hasNext(3, P, 41), false);
+});
+
+test("3B: pagination formula — totalPages from filteredTotal", () => {
+  const P = 20;
+  assert.equal(PAGE_LAYER.totalPages(0, P), 1);
+  assert.equal(PAGE_LAYER.totalPages(20, P), 1);
+  assert.equal(PAGE_LAYER.totalPages(21, P), 2);
+  assert.equal(PAGE_LAYER.totalPages(40, P), 2);
+  assert.equal(PAGE_LAYER.totalPages(41, P), 3);
+});
+
+test("3B: out-of-range page under a filter returns empty items, correct filteredTotal, hasNext false, Previous available", async () => {
+  const c = await makeClient({ assignedUserId: (await makeUser({ fullName: "3B OOR User" })).id });
+  await makeDeal(c.id, "proposal");
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+  const r = await getRadarQueue({ page: 999, followup: "overdue", now: FIXED_NOW });
+  assert.equal(r.page, 999, "the sanitized page is retained, never clamped inside the action");
+  assert.deepEqual(r.items, []);
+  assert.ok(r.filteredTotal >= 1);
+  assert.equal(PAGE_LAYER.hasNext(r.page, r.pageSize, r.filteredTotal), false, "never advertises a next page past the end");
+  assert.equal(PAGE_LAYER.hasPrevious(r.page), true);
+});
+
+test("3B: result shape includes filteredTotal on every path (incl. the zero-qualified early return, read structurally)", async () => {
+  const r = await getRadarQueue({ now: FIXED_NOW });
+  assert.ok(Number.isInteger(r.filteredTotal));
+  assert.ok("totalQualified" in r && "insufficientDataCount" in r && "notEligibleCount" in r);
+  assert.match(
+    IMPLEMENTATION_SOURCE,
+    /qualified\.length === 0[\s\S]{0,160}filteredTotal: 0/,
+    "the zero-qualified early return also carries filteredTotal: 0",
+  );
+});
+
+// ---- structural invariants ----
+
+test("3B: structural — exactly one batched tasks query, not inside a per-client loop", () => {
+  const taskSelects = IMPLEMENTATION_SOURCE.match(/\.from\(tasks\)/g) ?? [];
+  assert.equal(taskSelects.length, 1, "one and only one tasks read");
+  assert.match(IMPLEMENTATION_SOURCE, /inArray\(tasks\.clientId, qualifiedIds\)/, "bounded to the qualified subset");
+  assert.match(IMPLEMENTATION_SOURCE, /inArray\(tasks\.status, \["todo", "in_progress"\]\)/, "open statuses only");
+  assert.match(IMPLEMENTATION_SOURCE, /isNotNull\(tasks\.dueDate\)/, "dated tasks only");
+  assert.ok(
+    !/for \(const [\s\S]{0,80}\)[\s\S]{0,200}\.from\(tasks\)/.test(IMPLEMENTATION_SOURCE),
+    "the tasks query is not inside a loop",
+  );
+});
+
+test("3B: structural — followup filter and filteredTotal both happen before the page slice", () => {
+  const filterIdx = IMPLEMENTATION_SOURCE.indexOf("followUpFilter ===");
+  const filteredTotalIdx = IMPLEMENTATION_SOURCE.indexOf("const filteredTotal = filtered.length");
+  const sliceIdx = IMPLEMENTATION_SOURCE.indexOf("filtered.slice(");
+  assert.ok(filterIdx !== -1 && filteredTotalIdx !== -1 && sliceIdx !== -1);
+  assert.ok(filterIdx < sliceIdx, "followup filter precedes the slice");
+  assert.ok(filteredTotalIdx < sliceIdx, "filteredTotal is computed before the slice");
+});
+
+test("3B: structural — no follow-up data reaches scoring / ranking, comparator untouched", () => {
+  const assessCall = IMPLEMENTATION_SOURCE.match(/assessOpportunity\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  assert.ok(assessCall.length > 0, "assessOpportunity call located");
+  assert.ok(!/followUp/i.test(assessCall), "no follow-up field passed into assessOpportunity");
+  assert.match(IMPLEMENTATION_SOURCE, /ranked\.sort\(\(a, b\) => \{/, "the ranking comparator is still present");
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  assert.ok(!/followUp/i.test(sortBody), "no follow-up term inside the comparator");
+});
+
+test("3B: structural — no schema / migration file is imported or referenced", () => {
+  assert.ok(!/db\/migrations/.test(IMPLEMENTATION_SOURCE));
+  assert.ok(!/drizzle-kit/.test(IMPLEMENTATION_SOURCE));
+  assert.match(IMPLEMENTATION_SOURCE, /from "@\/db\/schema"/, "schema is imported as a type/table source only, unchanged");
 });
