@@ -207,6 +207,21 @@ export const crm = {
       noValue: "—",
       duePrefix: "échéance",
       pageOf: (page: number, total: number) => `Page ${page} / ${total}`,
+      // RADAR-CORE-3D — structured follow-up awareness on the global tasks
+      // workspace. A follow-up = client-linked + dated task; the type
+      // filter is STATUS-INDEPENDENT (no "open" / "active" wording).
+      followUp: {
+        owner: "Responsable",
+        unassigned: "Non attribuée",
+        inactiveSuffix: "(inactif)",
+        formerUser: "Ancien utilisateur",
+        typeFollowUp: "Relance",
+        typeTask: "Tâche",
+        typeFilterLabel: "Filtrer par type",
+        typeAll: "Toutes",
+        typeFollowUps: "Relances",
+        typeTasks: "Tâches",
+      },
       create: {
         internalOption: "Interne (aucun client)",
         titlePlaceholder: "Titre de la tâche *",
@@ -984,6 +999,20 @@ export const crm = {
       noValue: "—",
       duePrefix: "due",
       pageOf: (page: number, total: number) => `Page ${page} of ${total}`,
+      // RADAR-CORE-3D — see the FR block above. Type filter is
+      // status-independent; no "open"/"active" wording.
+      followUp: {
+        owner: "Owner",
+        unassigned: "Unassigned",
+        inactiveSuffix: "(inactive)",
+        formerUser: "Former user",
+        typeFollowUp: "Follow-up",
+        typeTask: "Task",
+        typeFilterLabel: "Filter by type",
+        typeAll: "All",
+        typeFollowUps: "Follow-ups",
+        typeTasks: "Tasks",
+      },
       create: {
         internalOption: "Internal (no client)",
         titlePlaceholder: "Task title *",
