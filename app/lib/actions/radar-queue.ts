@@ -52,7 +52,54 @@ export type RankedProspect = {
   nextFollowUpDueAt: Date | null;
   nextFollowUpOverdue: boolean;
   nextFollowUpDueToday: boolean;
+  // RADAR-CORE-3E — the id + structured assignee of that SAME next
+  // follow-up, so a queue quick action (Claim / Complete) mutates one
+  // unambiguous task. The row is picked deterministically: due_date ASC,
+  // then created_at ASC, then id ASC (pickNextFollowUp below) — never DB
+  // row order. Both null when there is no such follow-up;
+  // nextFollowUpAssignedUserId is also null when the follow-up is
+  // unassigned. Display / action context ONLY — never fed to
+  // qualification, scoring, ranking, or the filter predicates. The
+  // assignee is NOT resolved to a name here: the queue's Owner column is
+  // the PROSPECT owner, and a second owner name would compete with it.
+  nextFollowUpTaskId: string | null;
+  nextFollowUpAssignedUserId: string | null;
 };
+
+/**
+ * RADAR-CORE-3E — total order over a prospect's OPEN dated follow-ups so a
+ * queue quick action targets ONE unambiguous task: earlier due_date wins;
+ * on a tie, earlier created_at; on a further tie, the lexicographically
+ * smaller id. Mirrors the ranking comparator's createdAt -> id final
+ * tie-break. Pure and independent of DB row order (the caller passes the
+ * already-fetched batch rows). Not exported — a "use server" module may
+ * only export async server actions.
+ */
+function pickNextFollowUp<T extends { id: string; dueDate: Date; createdAt: Date }>(
+  rows: readonly T[],
+): T | null {
+  let best: T | null = null;
+  for (const row of rows) {
+    if (best === null) {
+      best = row;
+      continue;
+    }
+    const dueDiff = row.dueDate.getTime() - best.dueDate.getTime();
+    if (dueDiff < 0) {
+      best = row;
+      continue;
+    }
+    if (dueDiff > 0) continue;
+    const createdDiff = row.createdAt.getTime() - best.createdAt.getTime();
+    if (createdDiff < 0) {
+      best = row;
+      continue;
+    }
+    if (createdDiff > 0) continue;
+    if (row.id < best.id) best = row;
+  }
+  return best;
+}
 
 // RADAR-CORE-1B — assignment filter. Resolved by the page layer: the raw
 // "?assignee=me" URL token is turned into { mode: "user", userId } from the
@@ -309,12 +356,21 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       .from(crmInvoices)
       .where(inArray(crmInvoices.clientId, qualifiedIds)),
     // RADAR-CORE-3B — OPEN dated follow-ups for the qualified subset. One
-    // bounded read, same batched shape as the four above; earliest
-    // due_date per client is reduced in JS below (never relying on DB row
+    // bounded read, same batched shape as the four above; the exact next
+    // follow-up per client is reduced in JS below (never relying on DB row
     // order). done / cancelled / null-due are excluded in the predicate,
     // so a terminal or undated task can never surface as a follow-up.
+    // RADAR-CORE-3E — the select also carries id / created_at /
+    // assigned_user_id so pickNextFollowUp can choose ONE deterministic
+    // row for the queue quick actions. Still ONE query, same WHERE.
     db
-      .select({ clientId: tasks.clientId, dueDate: tasks.dueDate })
+      .select({
+        clientId: tasks.clientId,
+        id: tasks.id,
+        dueDate: tasks.dueDate,
+        createdAt: tasks.createdAt,
+        assignedUserId: tasks.assignedUserId,
+      })
       .from(tasks)
       .where(
         and(
@@ -328,7 +384,8 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   const dealsByClient = groupByClientId(clientDeals);
   const interactionsByClient = groupByClientId(clientInteractions);
   const quotesByClient = groupByClientId(clientQuotes);
-  // RADAR-CORE-3B — earliest OPEN dated follow-up per qualified client.
+  // RADAR-CORE-3B/3E — OPEN dated follow-ups per qualified client;
+  // pickNextFollowUp chooses the one deterministic next row below.
   // clientId is non-null for every row (the inArray predicate guarantees
   // it); the type-narrowing filter only satisfies groupByClientId's
   // { clientId: string } bound, exactly like invoicesByClient below.
@@ -364,10 +421,12 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       (latest, i) => (!latest || i.occurredAt > latest ? i.occurredAt : latest),
       null,
     );
-    const nextFollowUpDueAt = (followUpsByClient.get(client.id) ?? []).reduce<Date | null>(
-      (earliest, t) => (!earliest || t.dueDate < earliest ? t.dueDate : earliest),
-      null,
-    );
+    // RADAR-CORE-3E — one deterministic next follow-up (due_date ASC,
+    // created_at ASC, id ASC). nextFollowUpDueAt stays exactly
+    // bestRow.dueDate, so overdue / dueToday / the followup filter are
+    // behaviourally unchanged from 3B.
+    const nextFollowUp = pickNextFollowUp(followUpsByClient.get(client.id) ?? []);
+    const nextFollowUpDueAt = nextFollowUp?.dueDate ?? null;
     const dueMs = nextFollowUpDueAt?.getTime();
     return {
       clientId: client.id,
@@ -393,6 +452,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       nextFollowUpDueAt,
       nextFollowUpOverdue: dueMs !== undefined && dueMs < startOfToday,
       nextFollowUpDueToday: dueMs !== undefined && dueMs >= startOfToday && dueMs < startOfTomorrow,
+      // RADAR-CORE-3E — action context only; never scored / ranked /
+      // filtered. null when there is no next follow-up (id + assignee) or
+      // when it is unassigned (assignee only).
+      nextFollowUpTaskId: nextFollowUp?.id ?? null,
+      nextFollowUpAssignedUserId: nextFollowUp?.assignedUserId ?? null,
       _createdAt: client.createdAt,
       _id: client.id,
     };
@@ -472,6 +536,8 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       nextFollowUpDueAt: r.nextFollowUpDueAt,
       nextFollowUpOverdue: r.nextFollowUpOverdue,
       nextFollowUpDueToday: r.nextFollowUpDueToday,
+      nextFollowUpTaskId: r.nextFollowUpTaskId,
+      nextFollowUpAssignedUserId: r.nextFollowUpAssignedUserId,
     };
   });
 

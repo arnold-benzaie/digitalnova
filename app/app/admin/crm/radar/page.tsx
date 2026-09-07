@@ -4,6 +4,7 @@ import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
 import type { Confidence, Priority } from "@/lib/radar/score";
 import { Badge, CLIENT_STAGE_CLASS, getClientStageOptions } from "@/components/crm/badges";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
+import { RadarFollowUpQuickActions } from "@/components/crm/radar-follow-up-quick-actions";
 import { AdminPageHero, panelClass, tableWrapperClass } from "@/components/admin/page-hero";
 import { requireStaffRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
@@ -276,6 +277,17 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                             {item.nextFollowUpDueToday && (
                               <Badge label={t.followUpDueToday} className="bg-pm-or/10 text-pm-or-2" />
                             )}
+                            {/* RADAR-CORE-3E — Claim / Complete on this same
+                                deterministic next follow-up. currentUserId /
+                                caps are already resolved above; no new query. */}
+                            <RadarFollowUpQuickActions
+                              taskId={item.nextFollowUpTaskId}
+                              followUpAssignedUserId={item.nextFollowUpAssignedUserId}
+                              currentUserId={currentUserId}
+                              caps={caps}
+                              locale={locale}
+                              t={t.quickFollowUp}
+                            />
                           </div>
                         )}
                       </td>

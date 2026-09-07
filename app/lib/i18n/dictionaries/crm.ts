@@ -135,6 +135,21 @@ export const crm = {
       assigneeAll: "Tous les responsables",
       assigneeMine: "Mes prospects",
       assigneeUnassigned: "Non attribués",
+      // RADAR-CORE-3E — quick actions on the next follow-up, directly from
+      // the queue. The Owner column above is the PROSPECT owner; these act
+      // on the structured follow-up (RADAR-CORE-3A) and never render a
+      // second owner name.
+      quickFollowUp: {
+        claim: "Prendre",
+        complete: "Terminer",
+        pending: "En cours…",
+        actionsLabel: "Actions de relance",
+        errNotFound: "Cette relance n'existe plus.",
+        errNotAllowed: "Vous n'êtes pas autorisé à effectuer cette action.",
+        errAlreadyTerminal: "Cette relance est déjà terminée.",
+        errChangedRetry: "Cette relance a changé. Actualisez et réessayez.",
+        errAssigneeNotEligible: "Cette attribution n'est plus valide.",
+      },
       assignment: {
         claim: "Me l'attribuer",
         assign: "Attribuer à",
@@ -927,6 +942,18 @@ export const crm = {
       assigneeAll: "All owners",
       assigneeMine: "My prospects",
       assigneeUnassigned: "Unassigned",
+      // RADAR-CORE-3E — see the FR block above.
+      quickFollowUp: {
+        claim: "Claim",
+        complete: "Complete",
+        pending: "Working…",
+        actionsLabel: "Follow-up actions",
+        errNotFound: "This follow-up no longer exists.",
+        errNotAllowed: "You are not allowed to perform this action.",
+        errAlreadyTerminal: "This follow-up is already closed.",
+        errChangedRetry: "This follow-up changed. Refresh and try again.",
+        errAssigneeNotEligible: "This assignment is no longer valid.",
+      },
       assignment: {
         claim: "Claim",
         assign: "Assign to",

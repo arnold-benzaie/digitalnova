@@ -209,8 +209,18 @@ async function makeInteraction(clientId, occurredAt) {
 // exercise the "open + dated" follow-up truth. assigned_user_id /
 // created_by_user_id are left NULL to also prove creator type is
 // irrelevant to follow-up truth.
-async function makeTask(clientId, { status = "todo", dueDate = null } = {}) {
-  await db.insert(tasks).values({ clientId, title: `Task ${randomUUID()}`, status, dueDate });
+// RADAR-CORE-3E — `id`, `createdAt`, `assignedUserId` overrides let the
+// deterministic next-follow-up tie-break (due_date -> created_at -> id) be
+// exercised precisely; returns the inserted row so a test can compare ids.
+async function makeTask(
+  clientId,
+  { status = "todo", dueDate = null, id, createdAt, assignedUserId = null } = {},
+) {
+  const values = { clientId, title: `Task ${randomUUID()}`, status, dueDate, assignedUserId };
+  if (id !== undefined) values.id = id;
+  if (createdAt !== undefined) values.createdAt = createdAt;
+  const [row] = await db.insert(tasks).values(values).returning();
+  return row;
 }
 
 // Concatenates every page of getRadarQueue(params) in returned order, up
@@ -1094,4 +1104,171 @@ test("3B: structural — no schema / migration file is imported or referenced", 
   assert.ok(!/db\/migrations/.test(IMPLEMENTATION_SOURCE));
   assert.ok(!/drizzle-kit/.test(IMPLEMENTATION_SOURCE));
   assert.match(IMPLEMENTATION_SOURCE, /from "@\/db\/schema"/, "schema is imported as a type/table source only, unchanged");
+});
+
+// =========================================================
+// RADAR-CORE-3E — deterministic next-follow-up IDENTITY
+// (nextFollowUpTaskId / nextFollowUpAssignedUserId) surfaced for the
+// queue quick actions. Same shared-DB discipline: per-fixture assertions.
+// =========================================================
+
+test("3E: a prospect with no open dated follow-up has nextFollowUpTaskId null and nextFollowUpAssignedUserId null", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpDueAt, null);
+  assert.equal(row.nextFollowUpTaskId, null);
+  assert.equal(row.nextFollowUpAssignedUserId, null);
+});
+
+test("3E: nextFollowUpTaskId is the id of the earliest-due OPEN dated follow-up", async () => {
+  const c = await makeClient();
+  const late = await makeTask(c.id, { status: "in_progress", dueDate: new Date("2026-07-20T00:00:00Z") });
+  const early = await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-01T00:00:00Z") });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, early.id);
+  assert.notEqual(row.nextFollowUpTaskId, late.id);
+  assert.equal(row.nextFollowUpDueAt.getTime(), new Date("2026-07-01T00:00:00Z").getTime());
+});
+
+test("3E: a done/cancelled task earlier than the open one never becomes nextFollowUpTaskId", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "done", dueDate: new Date("2026-06-01T00:00:00Z") });
+  await makeTask(c.id, { status: "cancelled", dueDate: new Date("2026-06-02T00:00:00Z") });
+  const open = await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-01T00:00:00Z") });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, open.id);
+});
+
+test("3E: an OPEN task with a NULL due_date is excluded from next-follow-up identity (G2-equivalent)", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: null }); // not a follow-up
+  const dated = await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-05T00:00:00Z") });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, dated.id);
+});
+
+test("3E: equal due_date -> the earlier created_at wins the tie", async () => {
+  const c = await makeClient();
+  const due = new Date("2026-07-10T00:00:00Z");
+  const older = await makeTask(c.id, { status: "todo", dueDate: due, createdAt: new Date("2026-01-01T00:00:00Z") });
+  const newer = await makeTask(c.id, { status: "todo", dueDate: due, createdAt: new Date("2026-02-01T00:00:00Z") });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, older.id);
+  assert.notEqual(row.nextFollowUpTaskId, newer.id);
+});
+
+test("3E: equal due_date AND equal created_at -> the lexicographically smaller id wins the tie", async () => {
+  const c = await makeClient();
+  const due = new Date("2026-07-11T00:00:00Z");
+  const createdAt = new Date("2026-03-03T00:00:00Z");
+  const idLo = "00000000-0000-4000-8000-00000000aa01";
+  const idHi = "00000000-0000-4000-8000-00000000aa02";
+  // insert the HIGHER id first so DB row order cannot be what picks the winner
+  await makeTask(c.id, { status: "todo", dueDate: due, createdAt, id: idHi });
+  await makeTask(c.id, { status: "todo", dueDate: due, createdAt, id: idLo });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, idLo);
+});
+
+test("3E: the selected next follow-up's assigned_user_id is surfaced exactly", async () => {
+  const u = await makeUser({ fullName: "3E Assigned FU User" });
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-15T00:00:00Z"), assignedUserId: u.id });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpAssignedUserId, u.id);
+});
+
+test("3E: an unassigned next follow-up surfaces nextFollowUpAssignedUserId null (task id still set)", async () => {
+  const c = await makeClient();
+  const t = await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-16T00:00:00Z") }); // assignedUserId null
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, t.id);
+  assert.equal(row.nextFollowUpAssignedUserId, null);
+});
+
+test("3E: assignee id of the follow-up is picked from the SAME best row, not any other open task", async () => {
+  const u = await makeUser({ fullName: "3E Wrong-row User" });
+  const c = await makeClient();
+  // later task is assigned; earlier (winning) task is not
+  await makeTask(c.id, { status: "todo", dueDate: new Date("2026-08-01T00:00:00Z"), assignedUserId: u.id });
+  const winner = await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-01T00:00:00Z") });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpTaskId, winner.id);
+  assert.equal(row.nextFollowUpAssignedUserId, null, "assignee comes from the winning row only");
+});
+
+test("3E: identity fields are ranking-inert — HIGH still ranks before LOW when both carry a follow-up", async () => {
+  const high = await makeClient();
+  await makeDeal(high.id, "proposal"); // HIGH
+  await makeTask(high.id, { status: "todo", dueDate: new Date("2026-07-02T00:00:00Z") });
+  const low = await makeClient();
+  await makeDeal(low.id, "new"); // LOW
+  await makeTask(low.id, { status: "todo", dueDate: new Date("2026-07-02T00:00:00Z") });
+
+  const rows = await scanAllPages({ now: FIXED_NOW });
+  const iHigh = indexOfClient(rows, high.id);
+  const iLow = indexOfClient(rows, low.id);
+  assert.ok(iHigh !== -1 && iLow !== -1);
+  assert.ok(iHigh < iLow, "next-follow-up identity must not perturb the Radar order");
+});
+
+test("3E: adding the identity fields leaves totalQualified / counts / filteredTotal unchanged for a follow-up added to an already-qualified prospect", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "proposal");
+  const before = await getRadarQueue({ now: FIXED_NOW });
+  await makeTask(c.id, { status: "todo", dueDate: new Date("2026-07-03T00:00:00Z") });
+  const after = await getRadarQueue({ now: FIXED_NOW });
+  assert.equal(after.totalQualified, before.totalQualified, "a follow-up never re-qualifies a prospect");
+  assert.equal(after.filteredTotal, before.filteredTotal);
+  assert.equal(after.insufficientDataCount, before.insufficientDataCount);
+  assert.equal(after.notEligibleCount, before.notEligibleCount);
+  assert.equal(after.pageSize, before.pageSize);
+});
+
+test("3E: followup filter behaviour is unchanged — nextFollowUpDueAt still equals the winning row's due_date", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) }); // overdue winner
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW) }); // upcoming
+  const overdue = await scanAllPages({ followup: "overdue", now: FIXED_NOW });
+  const hit = overdue.find((i) => i.clientId === c.id);
+  assert.ok(hit, "still surfaces under followup=overdue");
+  assert.equal(hit.nextFollowUpOverdue, true);
+  assert.equal(hit.nextFollowUpDueAt.getTime(), START_OF_TODAY - 1);
+});
+
+test("3E: structural — the fifth batched query carries id / created_at / assigned_user_id and there is still exactly ONE tasks read", () => {
+  const taskFroms = IMPLEMENTATION_SOURCE.match(/\.from\(tasks\)/g) ?? [];
+  assert.equal(taskFroms.length, 1, "no second tasks query, no per-row task lookup");
+  const followUpSelect =
+    IMPLEMENTATION_SOURCE.slice(
+      IMPLEMENTATION_SOURCE.indexOf("clientOpenFollowUps"),
+      IMPLEMENTATION_SOURCE.indexOf(".from(tasks)"),
+    ) + IMPLEMENTATION_SOURCE.slice(IMPLEMENTATION_SOURCE.indexOf(".from(tasks)"), IMPLEMENTATION_SOURCE.indexOf(".from(tasks)") + 400);
+  assert.match(followUpSelect, /id:\s*tasks\.id/);
+  assert.match(followUpSelect, /createdAt:\s*tasks\.createdAt/);
+  assert.match(followUpSelect, /assignedUserId:\s*tasks\.assignedUserId/);
+  // WHERE semantics preserved verbatim
+  assert.match(IMPLEMENTATION_SOURCE, /inArray\(tasks\.status, \["todo", "in_progress"\]\)/);
+  assert.match(IMPLEMENTATION_SOURCE, /isNotNull\(tasks\.dueDate\)/);
+});
+
+test("3E: structural — identity fields never reach assessOpportunity or the ranking comparator", () => {
+  const assessCall = IMPLEMENTATION_SOURCE.match(/assessOpportunity\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  assert.ok(!/nextFollowUp/.test(assessCall), "no nextFollowUp* field passed to assessOpportunity");
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  assert.ok(!/nextFollowUp/.test(sortBody), "no nextFollowUp* term inside the comparator");
+});
+
+test("3E: structural — pickNextFollowUp is a pure, non-exported helper with the documented due->created->id order", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /function pickNextFollowUp</);
+  assert.ok(!/export function pickNextFollowUp/.test(IMPLEMENTATION_SOURCE), 'a "use server" module cannot export a sync helper');
+  const body = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("function pickNextFollowUp<"),
+    IMPLEMENTATION_SOURCE.indexOf("function pickNextFollowUp<") + 900,
+  );
+  assert.ok(body.indexOf("dueDate.getTime()") < body.indexOf("createdAt.getTime()"), "due_date compared before created_at");
+  assert.ok(body.indexOf("createdAt.getTime()") < body.indexOf("row.id < best.id"), "created_at compared before id");
 });
