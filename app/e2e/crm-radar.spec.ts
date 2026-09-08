@@ -316,6 +316,42 @@ test.describe.serial("Radar Queue — /admin/crm/radar", () => {
     expect(page.url()).toBe(clientDetailUrl);
   });
 
+  test("RADAR-CORE-3G: create a follow-up from the client's #suivis section; it surfaces on the queue", async ({ page }) => {
+    // Precondition: the fixture prospect has no follow-up yet, so its Radar
+    // row shows the "＋ Ajouter un suivi" link (RADAR-CORE-3G), not a date.
+    await page.goto("/admin/crm/radar?assignee=me");
+    const beforeRow = fixtureRow(page);
+    await expect(beforeRow).toHaveCount(1);
+    await expect(beforeRow.getByRole("link", { name: "＋ Ajouter un suivi" })).toBeVisible();
+
+    // Create the follow-up through the real CreateFollowUpForm on the
+    // client-detail page (EMPLOYEE holds RADAR_WORK -> allowed; the action
+    // self-assigns and stamps the session user as creator).
+    const followUpTitle = `E2E Suivi ${FIXTURE_STAMP}`;
+    await page.goto(`${clientDetailUrl}#suivis`);
+    const suivis = page.locator("#suivis");
+    await suivis.getByLabel("Objet du suivi *").fill(followUpTitle);
+    await suivis.getByLabel("Date de suivi").fill("2027-03-15");
+    await suivis.getByRole("button", { name: "Créer le suivi" }).click();
+
+    // It renders as a Class-A follow-up row: the title, the "échéance"
+    // due-date line, and the self-owned open-follow-up lifecycle control set
+    // ("Terminer" only shows for a follow-up assigned to the current user).
+    const fuRow = suivis.locator("div.rounded-2xl").filter({ hasText: followUpTitle });
+    await expect(fuRow).toHaveCount(1);
+    await expect(fuRow.getByText(/^échéance /)).toBeVisible();
+    await expect(fuRow.getByRole("button", { name: "Terminer" })).toBeVisible();
+
+    // Back on the queue: the same prospect row now shows a next-follow-up
+    // state instead of the add-follow-up link, and its queue quick action
+    // ("Terminer") is available because the follow-up is self-owned + open.
+    await page.goto("/admin/crm/radar?assignee=me");
+    const afterRow = fixtureRow(page);
+    await expect(afterRow).toHaveCount(1);
+    await expect(afterRow.getByRole("link", { name: "＋ Ajouter un suivi" })).toHaveCount(0);
+    await expect(afterRow.getByRole("button", { name: "Terminer" })).toBeVisible();
+  });
+
   test("pagination Previous/Next behave correctly at both bounds", async ({ page }) => {
     await page.goto("/admin/crm/radar");
     const previousLink = page.getByRole("link", { name: "Précédent" });

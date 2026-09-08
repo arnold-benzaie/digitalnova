@@ -68,6 +68,7 @@ const { crmClients, organizations, staffMembers, staffRoles, tasks, users } = aw
 const { eq, inArray } = await import("drizzle-orm");
 const {
   createTask,
+  createFollowUp,
   updateTaskStatus,
   updateTask,
   deleteTask,
@@ -465,4 +466,131 @@ test("3A-UI. create-task-form.tsx and task-actions.tsx no longer submit a free-t
   assert.ok(!/name=["']assignee["']/.test(form), "create form has no assignee input");
   assert.ok(!/name=["']assignee["']/.test(actions), "edit form has no assignee input");
   assert.ok(!/name=["'](assignedUserId|createdByUserId)["']/.test(form + actions), "no hidden structured-id input");
+});
+
+// ============================ RADAR-CORE-3G — explicit follow-up creation ============================
+// createFollowUp() is an ADDITIVE sibling of createTask(): it always
+// produces a Class-A follow-up (client_id AND due_date non-null) SELF-OWNED
+// by its creator, rejects an OWNER caller, and never trusts FormData for
+// any identity. The existing 3A createTask tests above are untouched.
+
+const FU_DUE = "2026-12-01"; // date-only -> stored UTC-midnight, per parseDueAt
+
+test("3G-1. ACTIVE EMPLOYEE creates a self-owned Class-A follow-up", async () => {
+  const client = await makeClient();
+  await createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE }));
+  const rows = await onlyTaskFor(client.id);
+  assert.equal(rows.length, 1);
+  const [row] = rows;
+  assert.equal(row.clientId, client.id);
+  assert.ok(row.dueDate instanceof Date && !Number.isNaN(row.dueDate.getTime()));
+  assert.equal(row.dueDate.toISOString(), "2026-12-01T00:00:00.000Z", "date-only input is stored as UTC midnight");
+  assert.equal(row.status, "todo");
+  assert.equal(row.createdByUserId, EMPLOYEE_ID);
+  assert.equal(row.assignedUserId, EMPLOYEE_ID, "the creator is the owner");
+});
+
+test("3G-2. Class-A invariant: the created row has client_id != null AND due_date != null", async () => {
+  const client = await makeClient();
+  await createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE }));
+  const [row] = await onlyTaskFor(client.id);
+  assert.ok(row.clientId !== null && row.dueDate !== null, "must be a true follow-up, never a generic task");
+});
+
+test("3G-3. spoofed assignee / assignedUserId / createdByUserId / actorUserId FormData is ignored", async () => {
+  const client = await makeClient();
+  actAs(MANAGER_ID);
+  await createFollowUp(
+    createForm({
+      clientId: client.id,
+      dueDate: FU_DUE,
+      assignee: "Fake Owner",
+      assignedUserId: EMPLOYEE_ID,
+      createdByUserId: EMPLOYEE_ID,
+      actorUserId: NON_STAFF_ID,
+    }),
+  );
+  const [row] = await onlyTaskFor(client.id);
+  assert.equal(row.assignee, null, "legacy free-text assignee is never written");
+  assert.equal(row.createdByUserId, MANAGER_ID, "creator is the session user");
+  assert.equal(row.assignedUserId, MANAGER_ID, "owner is the session user");
+});
+
+test("3G-4. missing / blank due date is rejected — no row", async () => {
+  const client = await makeClient();
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id }))); // no dueDate field
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: "" })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-5. unparseable due date is rejected — no row", async () => {
+  const client = await makeClient();
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: "not-a-date" })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-6. missing / non-existent client is rejected — no row", async () => {
+  await assert.rejects(() => createFollowUp(createForm({ dueDate: FU_DUE }))); // no clientId field
+  const ghost = randomUUID();
+  await assert.rejects(() => createFollowUp(createForm({ clientId: ghost, dueDate: FU_DUE })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, ghost))).length, 0);
+});
+
+test("3G-7. blank title is rejected — no row", async () => {
+  const client = await makeClient();
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE, title: "" })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-8. SUSPENDED staff member is DENIED — no row", async () => {
+  const client = await makeClient();
+  actAs(SUSPENDED_ID);
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-9. user with NO staff_members row is DENIED — no row", async () => {
+  const client = await makeClient();
+  actAs(NON_STAFF_ID);
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-10. unauthenticated createFollowUp is rejected — no row", async () => {
+  const client = await makeClient();
+  actAsUnauthenticated();
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE })));
+  assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+test("3G-11. ACTIVE MANAGER creates a self-owned follow-up", async () => {
+  const client = await makeClient();
+  actAs(MANAGER_ID);
+  await createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE }));
+  const [row] = await onlyTaskFor(client.id);
+  assert.equal(row.createdByUserId, MANAGER_ID);
+  assert.equal(row.assignedUserId, MANAGER_ID);
+});
+
+test("3G-12. OWNER is REJECTED — a governance seat is never a follow-up owner — no row", async () => {
+  const client = await makeClient();
+  actAs(OWNER_ID);
+  await assert.rejects(() => createFollowUp(createForm({ clientId: client.id, dueDate: FU_DUE })));
+  assert.equal(
+    (await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length,
+    0,
+    "no unassigned or OWNER-owned row is silently created",
+  );
+});
+
+test("3G-13. source structural: RADAR_WORK gate, session-derived creator AND owner, OWNER rejected, no FormData identity", () => {
+  const src = readFileSync(fileURLToPath(new URL("./crm-tasks.ts", import.meta.url)), "utf8");
+  const start = src.indexOf("export async function createFollowUp");
+  assert.ok(start !== -1, "createFollowUp exists");
+  const after = src.indexOf("\nexport async function", start + 1);
+  const fn = src.slice(start, after === -1 ? undefined : after);
+  assert.ok(fn.includes('requireStaffMember("RADAR_WORK")'), "RADAR_WORK gate");
+  assert.ok(/role === "OWNER"/.test(fn) && /ownerCannotOwnFollowUp/.test(fn), "OWNER caller rejected");
+  assert.ok(fn.includes("createdByUserId: actorUserId") && fn.includes("assignedUserId: actorUserId"), "creator AND owner are the session user");
+  assert.ok(!/formData\.get\(["'](assignee|assignedUserId|createdByUserId|actorUserId|role)["']\)/.test(fn), "no caller identity field is read");
 });

@@ -277,7 +277,16 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td className="px-5 py-3">
                         {item.nextFollowUpDueAt === null ? (
-                          <span className="text-pm-gris">{t.noFollowUp}</span>
+                          // RADAR-CORE-3G — no next follow-up: link to the
+                          // client's follow-up section rather than a passive
+                          // "Aucune relance". Creation itself stays on the
+                          // client-detail page (CreateFollowUpForm).
+                          <Link
+                            href={`/admin/crm/clients/${item.clientId}#suivis`}
+                            className="text-xs text-pm-gris underline hover:text-pm-noir"
+                          >
+                            {t.addFollowUp}
+                          </Link>
                         ) : (
                           <div className="flex flex-col gap-1">
                             <span className={item.nextFollowUpOverdue ? "font-medium text-pm-rouge-2" : "text-pm-noir"}>

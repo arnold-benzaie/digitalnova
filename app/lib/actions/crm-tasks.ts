@@ -53,6 +53,8 @@ type FollowUpResult = { error: FollowUpErrorCode } | undefined;
 const MESSAGES = {
   fr: {
     titleRequired: "Titre requis.",
+    dueDateRequired: "La date de suivi est obligatoire.",
+    ownerCannotOwnFollowUp: "Le propriétaire du compte ne peut pas être responsable d'un suivi.",
     invalidStatus: "Statut invalide.",
     invalidDueAt: "Date d'échéance invalide.",
     taskNotFound: "Tâche introuvable.",
@@ -64,6 +66,8 @@ const MESSAGES = {
   },
   en: {
     titleRequired: "Title required.",
+    dueDateRequired: "A follow-up date is required.",
+    ownerCannotOwnFollowUp: "The account owner cannot be assigned a follow-up.",
     invalidStatus: "Invalid status.",
     invalidDueAt: "Invalid due date.",
     taskNotFound: "Task not found.",
@@ -314,6 +318,70 @@ export async function createTask(formData: FormData) {
     .returning();
 
   await auditAndRevalidate(task.clientId, "crm.task_created", { title: task.title }, task.id);
+}
+
+/**
+ * RADAR-CORE-3G — explicit follow-up creation. Additive sibling of
+ * createTask(): it ALWAYS produces a Class-A follow-up (client_id AND
+ * due_date both non-null) that is SELF-OWNED by its creator, so "add a
+ * follow-up I will do" is a single step instead of create-then-claim.
+ *
+ * - Gate: requireStaffMember("RADAR_WORK") — same Axis-C path as every
+ *   other follow-up mutation.
+ * - OWNER caller: REJECTED. OWNER holds RADAR_WORK but is a governance
+ *   seat, deliberately excluded from isEligibleAssignee /
+ *   getRadarCapabilities' canClaimToSelf. Since a 3G follow-up is always
+ *   self-owned, an OWNER caller cannot be its owner — reject outright
+ *   rather than silently create an unassigned (or OWNER-owned) row. The
+ *   role comes from requireStaffMember()'s own return value, never from
+ *   the client.
+ * - clientId, title, dueDate are all REQUIRED; a blank/invalid dueDate is
+ *   rejected so this call can never fall through to a Class-B generic
+ *   task.
+ * - created_by_user_id AND assigned_user_id are both the authenticated
+ *   session user; any caller-supplied assignee / assignedUserId /
+ *   createdByUserId / actorUserId FormData field is ignored, exactly like
+ *   createTask.
+ * - Audit / revalidation reuse the existing crm.task_created path.
+ */
+export async function createFollowUp(formData: FormData) {
+  const role = await requireStaffMember("RADAR_WORK");
+  const { userId: actorUserId } = await requireSession();
+  const locale = await getLocale();
+
+  if (role === "OWNER") {
+    throw new Error(MESSAGES[locale].ownerCannotOwnFollowUp);
+  }
+
+  const title = formData.get("title");
+  if (typeof title !== "string" || !title.trim()) {
+    throw new Error(MESSAGES[locale].titleRequired);
+  }
+
+  const clientIdRaw = formData.get("clientId");
+  const clientId = typeof clientIdRaw === "string" && clientIdRaw.trim() ? clientIdRaw : null;
+  if (clientId === null) {
+    throw new Error(MESSAGES[locale].clientNotFound);
+  }
+  const [client] = await db.select({ id: crmClients.id }).from(crmClients).where(eq(crmClients.id, clientId)).limit(1);
+  if (!client) throw new Error(MESSAGES[locale].clientNotFound);
+
+  const dueAt = parseDueAt(formData.get("dueDate"));
+  if (dueAt === "invalid") throw new Error(MESSAGES[locale].invalidDueAt);
+  if (dueAt === null) throw new Error(MESSAGES[locale].dueDateRequired);
+
+  const [task] = await db
+    .insert(tasks)
+    .values({
+      title: title.trim(),
+      clientId,
+      dueDate: dueAt,
+      createdByUserId: actorUserId,
+      assignedUserId: actorUserId,
+    })
+    .returning();
+
+  await auditAndRevalidate(task.clientId, "crm.task_created", { title: task.title, followUp: true }, task.id);
 }
 
 // ============================ FOLLOW-UP VERBS ============================

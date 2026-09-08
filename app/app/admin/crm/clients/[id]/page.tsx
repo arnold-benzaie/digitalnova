@@ -46,6 +46,7 @@ import { CreateEventForm } from "@/components/crm/create-event-form";
 import { CreateInteractionForm } from "@/components/crm/create-interaction-form";
 import { CreateProjectForm } from "@/components/crm/create-project-form";
 import { CreateTaskForm } from "@/components/crm/create-task-form";
+import { CreateFollowUpForm } from "@/components/crm/create-follow-up-form";
 import { CreateTicketForm } from "@/components/crm/create-ticket-form";
 import { EditClientForm } from "@/components/crm/edit-client-form";
 import { DeleteCrmDocumentButton, UploadCrmDocumentForm } from "@/components/crm/crm-document-actions";
@@ -599,7 +600,7 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
         </div>
       </section>
 
-      <section className="mt-8">
+      <section id="suivis" className="mt-8 scroll-mt-24">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.tasks}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {clientTasks.map((task) =>
@@ -656,8 +657,26 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
           )}
           {clientTasks.length === 0 && <p className="text-sm text-pm-gris">{t.empty.tasks}</p>}
         </div>
-        <div className="mt-3">
-          <CreateTaskForm fixedClientId={client.id} locale={locale} />
+        {/* RADAR-CORE-3G — explicit follow-up creation (always Class-A,
+            self-owned) above the generic task form. Two distinct captions
+            so the two are not confused. */}
+        <div className="mt-4 flex flex-col gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">
+              {dictionaries[locale].crm.tasks.createFollowUp.heading}
+            </p>
+            <div className="mt-2">
+              <CreateFollowUpForm fixedClientId={client.id} locale={locale} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">
+              {dictionaries[locale].crm.tasks.create.heading}
+            </p>
+            <div className="mt-2">
+              <CreateTaskForm fixedClientId={client.id} locale={locale} />
+            </div>
+          </div>
         </div>
       </section>
 

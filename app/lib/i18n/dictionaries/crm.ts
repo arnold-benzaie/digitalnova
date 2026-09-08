@@ -146,6 +146,9 @@ export const crm = {
       viewClient: "Voir le client",
       noInteraction: "Aucune interaction enregistrée",
       noFollowUp: "Aucune relance",
+      // RADAR-CORE-3G — when a prospect has no next follow-up, link to the
+      // client's follow-up section instead of a passive "Aucune relance".
+      addFollowUp: "＋ Ajouter un suivi",
       followUpOverdue: "En retard",
       followUpDueToday: "Aujourd'hui",
       followupFilterLabel: "Filtrer par relance",
@@ -269,10 +272,20 @@ export const crm = {
         typeTasks: "Tâches",
       },
       create: {
+        heading: "Ajouter une tâche",
         internalOption: "Interne (aucun client)",
         titlePlaceholder: "Titre de la tâche *",
         addButton: "Ajouter",
         adding: "Ajout...",
+      },
+      // RADAR-CORE-3G — explicit "add follow-up" affordance. A follow-up is
+      // always client-linked, dated and self-owned by its creator.
+      createFollowUp: {
+        heading: "Ajouter un suivi",
+        subjectPlaceholder: "Objet du suivi *",
+        dueDateLabel: "Date de suivi",
+        submit: "Créer le suivi",
+        submitting: "Création…",
       },
       edit: {
         modifyButton: "Modifier",
@@ -980,6 +993,8 @@ export const crm = {
       viewClient: "View client",
       noInteraction: "No interaction on record",
       noFollowUp: "No follow-up",
+      // RADAR-CORE-3G — see the FR block above.
+      addFollowUp: "＋ Add follow-up",
       followUpOverdue: "Overdue",
       followUpDueToday: "Due today",
       followupFilterLabel: "Filter by follow-up",
@@ -1099,10 +1114,19 @@ export const crm = {
         typeTasks: "Tasks",
       },
       create: {
+        heading: "Add a task",
         internalOption: "Internal (no client)",
         titlePlaceholder: "Task title *",
         addButton: "Add",
         adding: "Adding...",
+      },
+      // RADAR-CORE-3G — see the FR block above.
+      createFollowUp: {
+        heading: "Add follow-up",
+        subjectPlaceholder: "Follow-up subject *",
+        dueDateLabel: "Follow-up date",
+        submit: "Create follow-up",
+        submitting: "Creating…",
       },
       edit: {
         modifyButton: "Edit",
