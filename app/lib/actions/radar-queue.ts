@@ -6,7 +6,13 @@ import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, 
 import { requireStaffRole } from "@/lib/dev-role";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
-import { assessOpportunity, type Confidence, type Priority } from "@/lib/radar/score";
+import {
+  assessOpportunity,
+  type Confidence,
+  type Priority,
+  type RadarNextActionCode,
+  type RadarReason,
+} from "@/lib/radar/score";
 
 const PAGE_SIZE = 20;
 const HARD_CAP = 500;
@@ -25,8 +31,11 @@ export type RankedProspect = {
   stage: string;
   priority: Priority;
   confidence: Confidence;
-  reasons: string[];
-  recommendedNextAction: string;
+  // RADAR-CORE-3F — semantic reason descriptors + a next-action code, not
+  // localized prose. The RADAR page maps these to FR/EN copy; the read
+  // model stays locale-free. NEVER a scoring / ranking / filter signal.
+  reasons: RadarReason[];
+  recommendedNextAction: RadarNextActionCode;
   lastInteractionAt: Date | null;
   // RADAR-CORE-1B — authoritative assignment (crm_clients.assigned_user_id).
   // NEVER a scoring / ranking signal; resolved only for the paginated slice

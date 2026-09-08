@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getRadarQueue, type RadarAssigneeFilter } from "@/lib/actions/radar-queue";
 import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
-import type { Confidence, Priority } from "@/lib/radar/score";
+import type { Confidence, Priority, RadarReason } from "@/lib/radar/score";
 import { Badge, CLIENT_STAGE_CLASS, getClientStageOptions } from "@/components/crm/badges";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
 import { RadarFollowUpQuickActions } from "@/components/crm/radar-follow-up-quick-actions";
@@ -91,6 +91,18 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
   ]);
   const t = dictionaries[locale].crm.radar;
   const stageLabel = Object.fromEntries(getClientStageOptions(locale).map((o) => [o.value, o.label]));
+
+  // RADAR-CORE-3F — the deterministic engine emits semantic RadarReason
+  // descriptors; localize them here (RSC, server-rendered). The two
+  // "recorded" codes carry a free-text value passed to their dictionary
+  // function; every other code maps to a fixed string. The discriminated
+  // union makes this exhaustive with no raw-code fallback.
+  const reasonText = (reason: RadarReason): string => {
+    if (reason.code === "INDUSTRY_RECORDED" || reason.code === "LOCATION_RECORDED") {
+      return t.reasons[reason.code](reason.value);
+    }
+    return t.reasons[reason.code];
+  };
 
   const priority = sanitizePriorityParam(params.priority);
   const assignee = sanitizeAssigneeParam(params.assignee);
@@ -248,11 +260,11 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td className="px-5 py-3 text-pm-gris">
                         {item.reasons.slice(0, 2).map((reason, i) => (
-                          <div key={i}>{reason}</div>
+                          <div key={i}>{reasonText(reason)}</div>
                         ))}
                       </td>
                       <td className="px-5 py-3">
-                        <div className="font-medium text-pm-noir">{item.recommendedNextAction}</div>
+                        <div className="font-medium text-pm-noir">{t.nextActions[item.recommendedNextAction]}</div>
                         <Link href={`/admin/crm/clients/${item.clientId}`} className="text-xs text-pm-gris underline hover:text-pm-noir">
                           {t.viewClient}
                         </Link>

@@ -209,7 +209,8 @@ test("a real proposal-stage deal produces HIGH priority end-to-end", async () =>
   const result = await getProspectQualification(client.id);
   assert.equal(result.qualificationStatus, "QUALIFIED");
   assert.equal(result.opportunity.priority, "HIGH");
-  assert.ok(result.opportunity.reasons.includes("Deal in progress at stage: proposal"));
+  // RADAR-CORE-3F — reasons are semantic descriptors, not prose.
+  assert.ok(result.opportunity.reasons.some((r) => r.code === "DEAL_STAGE_PROPOSAL"));
 });
 
 test("HIGH priority + LOW confidence is representable end-to-end (proposal deal, no other profile data)", async () => {
@@ -224,44 +225,51 @@ test("HIGH priority + LOW confidence is representable end-to-end (proposal deal,
 // Anti-hallucination — real DB round trip
 // =========================================================
 
+// RADAR-CORE-3F — the engine emits semantic RadarReason descriptors
+// (`{ code }`, plus `value` on the two "recorded" codes) and a
+// RadarNextActionCode, never prose. The anti-hallucination intent below is
+// preserved at the code level; the FR/EN prose "no predictive language"
+// guarantee lives in lib/radar/radar-copy.test.mjs.
+const CODE_SHAPE = /^[A-Z][A-Z_]*$/;
+
 test("null industry produces no industry-based reason (real row)", async () => {
   const client = await makeClient({ industry: null });
   const result = await getProspectQualification(client.id);
-  assert.ok(!result.opportunity.reasons.some((r) => r.toLowerCase().includes("industry")));
+  assert.ok(!result.opportunity.reasons.some((r) => r.code === "INDUSTRY_RECORDED"));
 });
 
 test("null geography produces no location-based reason (real row)", async () => {
   const client = await makeClient({ country: null, region: null, city: null });
   const result = await getProspectQualification(client.id);
-  assert.ok(!result.opportunity.reasons.some((r) => r.toLowerCase().includes("location")));
+  assert.ok(!result.opportunity.reasons.some((r) => r.code === "LOCATION_RECORDED"));
 });
 
 test("no interactions never produces a 'not interested' style claim (real row)", async () => {
   const client = await makeClient();
   const result = await getProspectQualification(client.id);
-  assert.ok(result.opportunity.reasons.includes("No logged interactions"));
-  assert.ok(!result.opportunity.reasons.some((r) => /not interested|uninterested/i.test(r)));
+  assert.ok(result.opportunity.reasons.some((r) => r.code === "INTERACTION_NONE"));
+  assert.ok(!result.opportunity.reasons.some((r) => /INTERESTED|INTENT|UNLIKELY/.test(r.code)));
 });
 
 test("no deal never produces a 'low intent' style claim (real row)", async () => {
   const client = await makeClient();
   const result = await getProspectQualification(client.id);
-  assert.ok(!result.opportunity.reasons.some((r) => /low intent|not interested|unlikely/i.test(r)));
+  assert.ok(!result.opportunity.reasons.some((r) => r.code.startsWith("DEAL_")));
 });
 
 test("no quote never produces a fabricated proposal/accepted reason (real row)", async () => {
   const client = await makeClient();
   const result = await getProspectQualification(client.id);
-  assert.ok(!result.opportunity.reasons.some((r) => /accepted|awaiting a response/i.test(r)));
+  assert.ok(!result.opportunity.reasons.some((r) => r.code.startsWith("QUOTE_")));
 });
 
 test("no invoice never produces a fabricated conversion reason (real row)", async () => {
   const client = await makeClient();
   const result = await getProspectQualification(client.id);
-  assert.ok(!result.opportunity.reasons.some((r) => /paid invoice/i.test(r)));
+  assert.ok(!result.opportunity.reasons.some((r) => r.code === "PAID_INVOICE"));
 });
 
-test("no service recommendation or predictive/probability language ever appears, across a fully-populated real prospect", async () => {
+test("the engine emits ONLY semantic codes across a fully-populated real prospect — never prose or a service recommendation", async () => {
   const client = await makeClient({ industry: "Boulangerie", country: "France", city: "Lyon" });
   await makeDeal(client.id, "qualified");
   await makeQuote(client.id, { status: "sent", sentAt: new Date(), respondedAt: null });
@@ -269,10 +277,11 @@ test("no service recommendation or predictive/probability language ever appears,
   await makeInvoice(client.id, { paidAt: null });
 
   const result = await getProspectQualification(client.id);
-  const allText = [result.opportunity.recommendedNextAction, ...result.opportunity.reasons].join(" ");
 
-  assert.ok(!/potential fit|recommended service|local seo|google ads/i.test(allText), "no service recommendation may ever appear");
-  assert.ok(!/%|percent|probability|likely to|will convert|expected to/i.test(allText), "no predictive/probability language may ever appear");
+  for (const r of result.opportunity.reasons) {
+    assert.match(r.code, CODE_SHAPE, `reason "${r.code}" must be an ALL_CAPS code, never prose`);
+  }
+  assert.match(result.opportunity.recommendedNextAction, CODE_SHAPE);
 });
 
 // =========================================================

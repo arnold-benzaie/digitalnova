@@ -10,6 +10,8 @@
  * page/component chrome only: headings, buttons, form labels, empty
  * states, confirmations.
  */
+import type { RadarNextActionCode, RadarReasonCode } from "@/lib/radar/score";
+
 export const crm = {
   fr: {
     auditLog: {
@@ -112,6 +114,35 @@ export const crm = {
       confidenceLow: "faible",
       confidenceCaption: "reflète les informations de profil disponibles (secteur, localisation), pas une probabilité de conversion.",
       columns: { prospect: "Prospect", priority: "Priorité", why: "Pourquoi", nextAction: "Prochaine étape", stage: "Étape", lastInteraction: "Dernière interaction", nextFollowUp: "Prochaine relance", owner: "Responsable" },
+      // RADAR-CORE-3F — the deterministic scoring engine (lib/radar/score.ts)
+      // emits stable semantic codes; these entries are the only place the
+      // "Pourquoi" and "Prochaine étape" columns are localized. Every
+      // RADAR_REASON_CODES / RADAR_NEXT_ACTION_CODES member has exactly one
+      // entry here and in the EN block (asserted by lib/radar/radar-copy.test.mjs).
+      reasons: ({
+        DEAL_WON: "Une affaire a déjà été gagnée",
+        DEAL_STAGE_NEW: "Affaire en cours — étape : nouveau",
+        DEAL_STAGE_CONTACTED: "Affaire en cours — étape : premier contact",
+        DEAL_STAGE_QUALIFIED: "Affaire en cours — étape : qualifiée",
+        DEAL_STAGE_PROPOSAL: "Affaire en cours — étape : proposition",
+        QUOTE_ACCEPTED: "Un devis a été accepté",
+        QUOTE_PENDING: "Un devis a été envoyé et attend une réponse",
+        QUOTE_RECORDED: "Activité de devis enregistrée, aucune proposition active",
+        INTERACTION_RECENT: "Interaction récente enregistrée",
+        INTERACTION_STALE: "La dernière interaction enregistrée n'est pas récente",
+        INTERACTION_NONE: "Aucune interaction n'est enregistrée",
+        INDUSTRY_RECORDED: (v: string) => `Secteur renseigné : ${v}`,
+        LOCATION_RECORDED: (v: string) => `Localisation renseignée : ${v}`,
+        PAID_INVOICE: "Facture déjà réglée au dossier",
+        ORG_LINKED: "Déjà rattaché à une organisation de la plateforme",
+      } satisfies Record<RadarReasonCode, string | ((v: string) => string)>),
+      nextActions: ({
+        FOLLOW_UP_PROPOSAL: "Relancer la proposition en cours",
+        REVIEW_DEAL: "Examiner l'affaire existante",
+        REVIEW_INTERACTION: "Revoir l'interaction récente",
+        COMPLETE_CONTACT_DATA: "Compléter les coordonnées du prospect",
+        REVIEW_PROSPECT: "Examiner les informations du prospect",
+      } satisfies Record<RadarNextActionCode, string>),
       viewClient: "Voir le client",
       noInteraction: "Aucune interaction enregistrée",
       noFollowUp: "Aucune relance",
@@ -919,6 +950,33 @@ export const crm = {
       confidenceLow: "low",
       confidenceCaption: "reflects available profile information (industry, location), not a conversion probability.",
       columns: { prospect: "Prospect", priority: "Priority", why: "Why", nextAction: "Next step", stage: "Stage", lastInteraction: "Last interaction", nextFollowUp: "Next follow-up", owner: "Owner" },
+      // RADAR-CORE-3F — see the FR block above. One entry per
+      // RADAR_REASON_CODES / RADAR_NEXT_ACTION_CODES member; FR/EN key sets
+      // kept identical (asserted by lib/radar/radar-copy.test.mjs).
+      reasons: ({
+        DEAL_WON: "A deal on record has been won",
+        DEAL_STAGE_NEW: "Deal in progress — stage: new",
+        DEAL_STAGE_CONTACTED: "Deal in progress — stage: contacted",
+        DEAL_STAGE_QUALIFIED: "Deal in progress — stage: qualified",
+        DEAL_STAGE_PROPOSAL: "Deal in progress — stage: proposal",
+        QUOTE_ACCEPTED: "A quote has been accepted",
+        QUOTE_PENDING: "A quote was sent and is awaiting a response",
+        QUOTE_RECORDED: "Quote activity recorded, no active proposal",
+        INTERACTION_RECENT: "Recent interaction logged",
+        INTERACTION_STALE: "Last logged interaction is not recent",
+        INTERACTION_NONE: "No interactions logged",
+        INDUSTRY_RECORDED: (v: string) => `Industry recorded: ${v}`,
+        LOCATION_RECORDED: (v: string) => `Location recorded: ${v}`,
+        PAID_INVOICE: "Existing paid invoice on record",
+        ORG_LINKED: "Already linked to a platform organization",
+      } satisfies Record<RadarReasonCode, string | ((v: string) => string)>),
+      nextActions: ({
+        FOLLOW_UP_PROPOSAL: "Follow up on the recorded proposal",
+        REVIEW_DEAL: "Review the existing deal",
+        REVIEW_INTERACTION: "Review the recent interaction",
+        COMPLETE_CONTACT_DATA: "Complete missing contact data",
+        REVIEW_PROSPECT: "Review prospect information",
+      } satisfies Record<RadarNextActionCode, string>),
       viewClient: "View client",
       noInteraction: "No interaction on record",
       noFollowUp: "No follow-up",

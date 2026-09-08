@@ -25,6 +25,63 @@
 export type Priority = "LOW" | "MEDIUM" | "HIGH";
 export type Confidence = "LOW" | "MEDIUM" | "HIGH";
 
+/**
+ * RADAR-CORE-3F — canonical semantic reason codes emitted by
+ * assessOpportunity(). The scoring engine stays pure, deterministic and
+ * locale-free: it emits these stable codes, and the RADAR presentation
+ * layer (lib/i18n/dictionaries/crm.ts + app/admin/crm/radar/page.tsx)
+ * maps them to FR/EN copy. This is also the machine-readable interchange
+ * format a future non-AI baseline / AI-gateway consumer would read.
+ * Only INDUSTRY_RECORDED and LOCATION_RECORDED carry a free-text `value`;
+ * every other code is data-free. Runtime array is the single source of
+ * truth; the union type is derived from it.
+ */
+export const RADAR_REASON_CODES = [
+  "DEAL_WON",
+  "DEAL_STAGE_NEW",
+  "DEAL_STAGE_CONTACTED",
+  "DEAL_STAGE_QUALIFIED",
+  "DEAL_STAGE_PROPOSAL",
+  "QUOTE_ACCEPTED",
+  "QUOTE_PENDING",
+  "QUOTE_RECORDED",
+  "INTERACTION_RECENT",
+  "INTERACTION_STALE",
+  "INTERACTION_NONE",
+  "INDUSTRY_RECORDED",
+  "LOCATION_RECORDED",
+  "PAID_INVOICE",
+  "ORG_LINKED",
+] as const;
+
+export type RadarReasonCode = (typeof RADAR_REASON_CODES)[number];
+
+/**
+ * Discriminated union — only the two "recorded" codes carry a `value`
+ * (the raw client industry, and knownGeographyLabel(input) respectively).
+ * No generic params bag: nothing else in the reason set is parametric.
+ */
+export type RadarReason =
+  | { code: Exclude<RadarReasonCode, "INDUSTRY_RECORDED" | "LOCATION_RECORDED"> }
+  | { code: "INDUSTRY_RECORDED"; value: string }
+  | { code: "LOCATION_RECORDED"; value: string };
+
+/**
+ * RADAR-CORE-3F — canonical deterministic next-action codes. Runtime
+ * array is the single source of truth; the union type is derived. No AI,
+ * no provider call — the same rule-based branch order as before, only the
+ * emitted value changed from prose to a code.
+ */
+export const RADAR_NEXT_ACTION_CODES = [
+  "FOLLOW_UP_PROPOSAL",
+  "REVIEW_DEAL",
+  "REVIEW_INTERACTION",
+  "COMPLETE_CONTACT_DATA",
+  "REVIEW_PROSPECT",
+] as const;
+
+export type RadarNextActionCode = (typeof RADAR_NEXT_ACTION_CODES)[number];
+
 export type DealFact = { stage: string };
 export type QuoteFact = { status: string; sentAt: Date | null; respondedAt: Date | null };
 export type InteractionFact = { occurredAt: Date };
@@ -47,8 +104,8 @@ export type OpportunityInput = {
 export type OpportunityResult = {
   priority: Priority;
   confidence: Confidence;
-  reasons: string[];
-  recommendedNextAction: string;
+  reasons: RadarReason[];
+  recommendedNextAction: RadarNextActionCode;
 };
 
 /** Days since the most recent logged interaction is treated as "recent" —
@@ -150,57 +207,67 @@ export function assessOpportunity(input: OpportunityInput): OpportunityResult {
   const priority = higherTier(dealContribution(input.deals), quoteContribution(input.quotes)) ?? "LOW";
   const confidence = computeConfidence(input);
 
-  const reasons: string[] = [];
+  // RADAR-CORE-3F — same conditions, same emission order, same parametric
+  // values as before; only the representation changed from English prose
+  // to stable semantic codes. Localization happens at the RADAR
+  // presentation layer, never here.
+  const reasons: RadarReason[] = [];
 
   const stage = bestDealStage(input.deals);
   if (stage === "won") {
-    reasons.push("A deal on record has been won");
-  } else if (stage) {
-    reasons.push(`Deal in progress at stage: ${stage}`);
+    reasons.push({ code: "DEAL_WON" });
+  } else if (stage === "new") {
+    reasons.push({ code: "DEAL_STAGE_NEW" });
+  } else if (stage === "contacted") {
+    reasons.push({ code: "DEAL_STAGE_CONTACTED" });
+  } else if (stage === "qualified") {
+    reasons.push({ code: "DEAL_STAGE_QUALIFIED" });
+  } else if (stage === "proposal") {
+    reasons.push({ code: "DEAL_STAGE_PROPOSAL" });
   }
 
   if (hasAcceptedQuote(input.quotes)) {
-    reasons.push("A quote has been accepted");
+    reasons.push({ code: "QUOTE_ACCEPTED" });
   } else if (hasPendingQuote(input.quotes)) {
-    reasons.push("A quote was sent and is awaiting a response");
+    reasons.push({ code: "QUOTE_PENDING" });
   } else if (input.quotes.length > 0) {
-    reasons.push("Quote activity recorded, no active proposal");
+    reasons.push({ code: "QUOTE_RECORDED" });
   }
 
   const latest = latestInteraction(input.interactions);
   if (latest) {
-    reasons.push(isRecent(latest.occurredAt, now) ? "Recent interaction logged" : "Last logged interaction is not recent");
+    reasons.push({ code: isRecent(latest.occurredAt, now) ? "INTERACTION_RECENT" : "INTERACTION_STALE" });
   } else {
-    reasons.push("No logged interactions");
+    reasons.push({ code: "INTERACTION_NONE" });
   }
 
   if (isNonEmptyString(input.industry)) {
-    reasons.push(`Industry recorded: ${input.industry}`);
+    reasons.push({ code: "INDUSTRY_RECORDED", value: input.industry });
   }
 
   if (hasKnownGeography(input)) {
-    reasons.push(`Location recorded: ${knownGeographyLabel(input)}`);
+    reasons.push({ code: "LOCATION_RECORDED", value: knownGeographyLabel(input) });
   }
 
   const hasPaidInvoice = input.invoices.some((inv) => inv.paidAt != null);
   if (hasPaidInvoice) {
-    reasons.push("Existing paid invoice on record");
+    reasons.push({ code: "PAID_INVOICE" });
   }
   if (input.organizationId != null) {
-    reasons.push("Already linked to a platform organization");
+    reasons.push({ code: "ORG_LINKED" });
   }
 
-  let recommendedNextAction: string;
+  let recommendedNextAction: RadarNextActionCode;
   if (hasPendingQuote(input.quotes) || stage === "proposal") {
-    recommendedNextAction = "Follow up on recorded proposal";
+    recommendedNextAction = "FOLLOW_UP_PROPOSAL";
   } else if (hasAcceptedQuote(input.quotes) || stage != null) {
-    recommendedNextAction = "Review existing deal";
+    recommendedNextAction = "REVIEW_DEAL";
   } else if (latest) {
-    recommendedNextAction = "Review recent interaction";
+    recommendedNextAction = "REVIEW_INTERACTION";
   } else if (confidence === "LOW") {
-    recommendedNextAction = "Complete missing contact data";
+    recommendedNextAction = "COMPLETE_CONTACT_DATA";
   } else {
-    recommendedNextAction = "Review prospect information";
+    recommendedNextAction = "REVIEW_PROSPECT";
   }
 
   return { priority, confidence, reasons, recommendedNextAction };

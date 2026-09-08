@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { crmClients, crmInvoices, crmQuotes, deals, interactions } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
 import { assessQualification, type Eligibility, type QualificationStatus } from "@/lib/radar/qualification";
-import { assessOpportunity, type Confidence, type Priority } from "@/lib/radar/score";
+import { assessOpportunity, type OpportunityResult } from "@/lib/radar/score";
 
 export type ProspectQualificationResult = {
   qualificationStatus: QualificationStatus;
@@ -15,12 +15,10 @@ export type ProspectQualificationResult = {
   // hasn't passed qualification/eligibility, per the Phase 1C design: a
   // doNotContact/archived/insufficient-data prospect's deal/quote/
   // interaction/invoice history isn't even fetched, let alone scored.
-  opportunity: null | {
-    priority: Priority;
-    confidence: Confidence;
-    reasons: string[];
-    recommendedNextAction: string;
-  };
+  // RADAR-CORE-3F — mirrors assessOpportunity() exactly: `reasons` are
+  // semantic RadarReason descriptors and `recommendedNextAction` is a
+  // RadarNextActionCode, never localized prose.
+  opportunity: OpportunityResult | null;
 };
 
 /**

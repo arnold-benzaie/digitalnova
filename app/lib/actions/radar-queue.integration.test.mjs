@@ -445,11 +445,12 @@ test("multiple qualified prospects are each scored from their own facts, never a
   const itemA = items[indexOfClient(items, a.id)];
   const itemB = items[indexOfClient(items, b.id)];
   assert.equal(itemA.priority, "HIGH");
-  assert.ok(itemA.reasons.includes("Deal in progress at stage: proposal"));
-  assert.ok(!itemA.reasons.includes("Deal in progress at stage: qualified"), "prospect A must not see prospect B's deal stage");
+  // RADAR-CORE-3F — reasons are semantic descriptors (`{ code }`), not prose.
+  assert.ok(itemA.reasons.some((r) => r.code === "DEAL_STAGE_PROPOSAL"));
+  assert.ok(!itemA.reasons.some((r) => r.code === "DEAL_STAGE_QUALIFIED"), "prospect A must not see prospect B's deal stage");
   assert.equal(itemB.priority, "MEDIUM");
-  assert.ok(itemB.reasons.includes("Deal in progress at stage: qualified"));
-  assert.ok(!itemB.reasons.includes("Deal in progress at stage: proposal"), "prospect B must not see prospect A's deal stage");
+  assert.ok(itemB.reasons.some((r) => r.code === "DEAL_STAGE_QUALIFIED"));
+  assert.ok(!itemB.reasons.some((r) => r.code === "DEAL_STAGE_PROPOSAL"), "prospect B must not see prospect A's deal stage");
 });
 
 test("structural: getRadarQueue never calls the per-client getProspectQualification action in a loop", () => {
@@ -551,18 +552,25 @@ test("insufficientDataCount and notEligibleCount are independent counters", asyn
 // Anti-hallucination — real DB round trip
 // =========================================================
 
+// RADAR-CORE-3F — the read model carries semantic RadarReason descriptors
+// (`{ code }`, plus `value` on the two "recorded" codes) and a
+// RadarNextActionCode. The anti-hallucination intent is preserved at the
+// code level; the FR/EN prose "no predictive / no service-recommendation"
+// guarantee now lives in lib/radar/radar-copy.test.mjs.
+const RQ_CODE_SHAPE = /^[A-Z][A-Z_]*$/;
+
 test("a prospect with no signals at all never produces a fabricated claim", async () => {
   const client = await makeClient();
   const items = await scanAllPages();
   const item = items[indexOfClient(items, client.id)];
   assert.ok(item, "expected the fixture to be found");
-  const allText = [item.recommendedNextAction, ...item.reasons].join(" ");
-  assert.ok(!/industry/i.test(allText.replace(/Industry recorded/i, "")), "no industry claim without a stored industry");
-  assert.ok(!/location/i.test(allText.replace(/Location recorded/i, "")), "no location claim without stored geography");
-  assert.ok(!/not interested|uninterested|low intent|unlikely/i.test(allText));
+  assert.ok(!item.reasons.some((r) => r.code === "INDUSTRY_RECORDED"), "no industry claim without a stored industry");
+  assert.ok(!item.reasons.some((r) => r.code === "LOCATION_RECORDED"), "no location claim without stored geography");
+  assert.ok(!item.reasons.some((r) => /INTERESTED|INTENT|UNLIKELY/.test(r.code)));
+  for (const r of item.reasons) assert.match(r.code, RQ_CODE_SHAPE);
 });
 
-test("no service recommendation or predictive/probability language ever appears, across a fully-populated fixture", async () => {
+test("the read model carries ONLY semantic codes across a fully-populated fixture — never prose or a service recommendation", async () => {
   const client = await makeClient({ industry: "Boulangerie", country: "France", city: "Lyon" });
   await makeDeal(client.id, "qualified");
   await makeQuote(client.id, { status: "sent", sentAt: new Date(), respondedAt: null });
@@ -572,9 +580,15 @@ test("no service recommendation or predictive/probability language ever appears,
   const items = await scanAllPages();
   const item = items[indexOfClient(items, client.id)];
   assert.ok(item);
-  const allText = [item.recommendedNextAction, ...item.reasons].join(" ");
-  assert.ok(!/potential fit|recommended service|local seo|google ads/i.test(allText));
-  assert.ok(!/%|percent|probability|likely to|will convert|expected to/i.test(allText));
+  for (const r of item.reasons) {
+    assert.match(r.code, RQ_CODE_SHAPE, `reason "${r.code}" must be an ALL_CAPS code, never prose`);
+    if (r.code === "INDUSTRY_RECORDED" || r.code === "LOCATION_RECORDED") {
+      assert.equal(typeof r.value, "string");
+    } else {
+      assert.deepEqual(Object.keys(r), ["code"]);
+    }
+  }
+  assert.match(item.recommendedNextAction, RQ_CODE_SHAPE);
 });
 
 // =========================================================
