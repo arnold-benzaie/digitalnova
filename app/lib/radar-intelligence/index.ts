@@ -17,3 +17,7 @@ export * from "./gateway";
 export * from "./integration-domains";
 export * from "./telemetry";
 export * from "./snapshot";
+export * from "./adapters";
+// NOTE: ./get-radar-intelligence is intentionally NOT re-exported here — it
+// pulls in the RBAC/DB chain (requireStaffMember). Import it directly from
+// server code that needs it.
