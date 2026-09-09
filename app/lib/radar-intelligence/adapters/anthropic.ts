@@ -20,7 +20,7 @@ import type { IntelligenceProviderStatus, IntelligenceRequest, IntelligenceRespo
 import { makeIntelligenceError, toIntelligenceError } from "../errors";
 import { assertNoForbiddenKeys, isSanitizedIntelligenceContext } from "../sanitize-context";
 import type { IntelligenceProviderAdapter } from "../provider-registry";
-import { ANTHROPIC_PROVIDER_ID, resolveAnthropicConfig, type AnthropicAdapterConfig } from "./config";
+import { ANTHROPIC_PROVIDER_ID, payloadByteSize, resolveAnthropicConfig, type AnthropicAdapterConfig } from "./config";
 import { buildAnthropicSummarizePayload } from "./anthropic-request-builder";
 import { normalizeAnthropicResponse } from "./anthropic-response";
 import { notWiredAnthropicTransport, type AnthropicTransport } from "./anthropic-transport";
@@ -75,6 +75,11 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps = {}): Intelli
       try {
         assertNoForbiddenKeys(request.context);
         const payload = buildAnthropicSummarizePayload(request.context, config);
+        // Final defensive request-size cap, on top of the sanitizer's
+        // per-field caps — never send a giant prompt.
+        if (payloadByteSize(payload) > config.maxRequestBytes) {
+          return { ok: false, error: makeIntelligenceError("INVALID_INTELLIGENCE_REQUEST", ANTHROPIC_PROVIDER_ID) };
+        }
         const result = await transport.generate(payload);
         if (typeof result.status === "number") {
           if (result.status === 429) return { ok: false, error: makeIntelligenceError("PROVIDER_RATE_LIMITED", ANTHROPIC_PROVIDER_ID) };
