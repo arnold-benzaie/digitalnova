@@ -58,6 +58,14 @@ mock.module("@/lib/actions/employee-work", {
   },
 });
 
+// Slice 3: the section components import the client island, which pulls in
+// "use client" hooks + the radar/crm-tasks action modules. The page itself
+// never renders those children (this test asserts the element tree is
+// built, not its markup), so stub the island at the boundary.
+mock.module("@/components/employee/my-work-actions", {
+  namedExports: { ClaimProspectButton: () => null, MyFollowUpActions: () => null },
+});
+
 const { default: MyWorkPage } = await import("./page.tsx");
 
 function reset() {

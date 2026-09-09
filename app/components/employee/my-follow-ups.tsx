@@ -3,6 +3,7 @@ import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 import { prospectSearchHref } from "@/components/employee/my-work-shared";
+import { MyFollowUpActions } from "@/components/employee/my-work-actions";
 
 /**
  * PHASE EMPLOYEE-OPS (Slice 2) — "Mes relances" on /admin/crm/my-work.
@@ -47,14 +48,19 @@ export function MyFollowUps({ groups, locale }: { groups: Groups; locale: Locale
                 </p>
                 <ul className="mt-2 divide-y divide-pm-gris-2">
                   {rows.map((r) => (
-                    <li key={r.taskId} className="flex items-baseline justify-between gap-3 py-2">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-pm-noir">{r.title}</span>
-                        <a href={prospectSearchHref(r.clientName)} className="block truncate text-xs text-pm-bleu-eu hover:underline">
-                          {r.clientName}
-                        </a>
-                      </span>
-                      <span className="shrink-0 text-xs text-pm-gris">{formatDate(r.dueAt, locale)}</span>
+                    <li key={r.taskId} className="py-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-pm-noir">{r.title}</span>
+                          <a href={prospectSearchHref(r.clientName)} className="block truncate text-xs text-pm-bleu-eu hover:underline">
+                            {r.clientName}
+                          </a>
+                        </span>
+                        <span className="shrink-0 text-xs text-pm-gris">{formatDate(r.dueAt, locale)}</span>
+                      </div>
+                      <div className="mt-1">
+                        <MyFollowUpActions taskId={r.taskId} dueAt={r.dueAt} locale={locale} />
+                      </div>
                     </li>
                   ))}
                 </ul>

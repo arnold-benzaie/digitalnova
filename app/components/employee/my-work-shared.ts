@@ -17,6 +17,19 @@ export function prospectSearchHref(name: string): string {
   return `/admin/crm/clients?q=${encodeURIComponent(name)}`;
 }
 
+/**
+ * Deep link to the canonical client-detail route — the ONE place in the My
+ * Work UI where a client id appears, and only inside an href to the
+ * established, self-guarded `/admin/crm/clients/[id]` navigation model
+ * (mission §11). Used for the "add a follow-up" / "add an interaction"
+ * shortcuts so the operator lands on the existing secure authoring
+ * workflow instead of a duplicated form. `section` targets an on-page
+ * anchor ("suivis" for the follow-up section).
+ */
+export function clientDetailHref(clientId: string, section?: string): string {
+  return `/admin/crm/clients/${clientId}${section ? `#${section}` : ""}`;
+}
+
 function labelFrom(options: ReadonlyArray<{ value: string; label: string }>, value: string): string {
   return options.find((o) => o.value === value)?.label ?? value;
 }

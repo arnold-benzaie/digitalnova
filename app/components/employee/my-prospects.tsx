@@ -3,15 +3,17 @@ import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
 import { Badge, CLIENT_STAGE_CLASS } from "@/components/crm/badges";
 import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
-import { prospectSearchHref, stageLabel } from "@/components/employee/my-work-shared";
+import { clientDetailHref, prospectSearchHref, stageLabel } from "@/components/employee/my-work-shared";
 
 /**
- * PHASE EMPLOYEE-OPS (Slice 2) — "Mes prospects" on /admin/crm/my-work:
- * every non-archived crm_clients row assigned to the caller
- * (getMyWork().assignedProspects, self-scoped), plus a short callout of the
- * ones with no next follow-up. Rows carry a clientId that is never
- * rendered; the prospect link uses the name-based /admin/crm/clients
- * filter (see my-work-shared.ts).
+ * PHASE EMPLOYEE-OPS (Slice 2 / Slice 3) — "Mes prospects" on
+ * /admin/crm/my-work: every non-archived crm_clients row assigned to the
+ * caller (getMyWork().assignedProspects, self-scoped), plus a short callout
+ * of the ones with no next follow-up. The prospect NAME link stays
+ * name-based (/admin/crm/clients?q=). Slice 3 adds "add a follow-up" /
+ * "add an interaction" shortcuts that deep-link to the canonical
+ * self-guarded /admin/crm/clients/[id] route (§11) — reusing the existing
+ * secure authoring workflow, never a duplicated form.
  */
 export function MyProspects({
   prospects,
@@ -47,6 +49,9 @@ export function MyProspects({
                     <a href={prospectSearchHref(p.name)} className="font-medium text-pm-bleu-eu hover:underline">
                       {p.name}
                     </a>
+                    <a href={clientDetailHref(p.clientId)} className="mt-0.5 block text-xs text-pm-gris hover:text-pm-noir hover:underline">
+                      {t.addInteractionCta}
+                    </a>
                   </td>
                   <td className="py-2 pr-3">
                     <Badge label={stageLabel(p.stage, locale)} className={CLIENT_STAGE_CLASS[p.stage] ?? ""} />
@@ -55,7 +60,9 @@ export function MyProspects({
                     {p.nextFollowUpDueAt ? (
                       formatDate(p.nextFollowUpDueAt, locale)
                     ) : (
-                      <span className="text-pm-or-2">{t.noNextFollowUp}</span>
+                      <a href={clientDetailHref(p.clientId, "suivis")} className="text-pm-or-2 hover:underline">
+                        {t.noNextFollowUp} · {t.addFollowUpCta}
+                      </a>
                     )}
                   </td>
                 </tr>
@@ -72,12 +79,12 @@ export function MyProspects({
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {withoutFollowUp.map((p) => (
-              <li key={p.clientId}>
-                <a
-                  href={prospectSearchHref(p.name)}
-                  className="inline-block rounded-full border border-pm-or/40 bg-pm-or/10 px-3 py-1 text-xs font-medium text-pm-or-2 hover:underline"
-                >
+              <li key={p.clientId} className="inline-flex items-center overflow-hidden rounded-full border border-pm-or/40 bg-pm-or/10 text-xs font-medium text-pm-or-2">
+                <a href={prospectSearchHref(p.name)} className="px-3 py-1 hover:underline">
                   {p.name}
+                </a>
+                <a href={clientDetailHref(p.clientId, "suivis")} className="border-l border-pm-or/40 px-2 py-1 hover:bg-pm-or/20 hover:underline">
+                  {t.addFollowUpCta}
                 </a>
               </li>
             ))}

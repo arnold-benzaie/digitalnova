@@ -1,24 +1,40 @@
-// PHASE EMPLOYEE-OPS (Slice 2) — render tests for the components/employee/*
-// sections of /admin/crm/my-work. Every section is a plain server
-// component (no hooks, no "use client"), so each renders to static markup
-// directly. The load-bearing contract, asserted for ALL of them:
-//   - NO raw userId / client / task / interaction UUID reaches the markup,
-//     even though every fixture row carries a UUID-shaped id in its props;
+// PHASE EMPLOYEE-OPS (Slice 2 / Slice 3) — render tests for the
+// components/employee/* sections of /admin/crm/my-work. Every section is a
+// plain server component (no hooks); the ONLY client island
+// (my-work-actions.tsx: ClaimProspectButton / MyFollowUpActions) is stubbed
+// here at the module boundary — it has its own focused test
+// (components/employee/my-work-actions.test.mjs).
+//
+// Load-bearing contract asserted for ALL sections:
+//   - NO UUID reaches the markup as VISIBLE TEXT, ever;
+//   - the ONLY place a UUID may appear at all is inside an href to the
+//     canonical, self-guarded /admin/crm/clients/[id] route (mission §11) —
+//     the "add a follow-up" / "add an interaction" deep links. Everywhere
+//     else stays strictly id-free (name-based /admin/crm/clients?q= links).
 //   - counts / groups / empty states / FR+EN labels are correct.
 //
-// Run with: npx tsx --test components/employee/my-work.test.mjs
-import { test } from "node:test";
+// Run with: npx tsx --test --experimental-test-module-mocks components/employee/my-work.test.mjs
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { MyWorkSummary } from "./my-work-summary.tsx";
-import { MyToday } from "./my-today.tsx";
-import { MyProspects } from "./my-prospects.tsx";
-import { MyFollowUps } from "./my-follow-ups.tsx";
-import { MyTasks } from "./my-tasks.tsx";
-import { MyRecentInteractions } from "./my-recent-interactions.tsx";
-import { AvailableProspects } from "./available-prospects.tsx";
+// The single client island — stubbed so the server sections render without
+// a Next.js request context (useRouter / useTransition).
+mock.module("@/components/employee/my-work-actions", {
+  namedExports: {
+    ClaimProspectButton: () => null,
+    MyFollowUpActions: () => null,
+  },
+});
+
+const { MyWorkSummary } = await import("./my-work-summary.tsx");
+const { MyToday } = await import("./my-today.tsx");
+const { MyProspects } = await import("./my-prospects.tsx");
+const { MyFollowUps } = await import("./my-follow-ups.tsx");
+const { MyTasks } = await import("./my-tasks.tsx");
+const { MyRecentInteractions } = await import("./my-recent-interactions.tsx");
+const { AvailableProspects } = await import("./available-prospects.tsx");
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const U = (n) => `${n}${n}${n}${n}${n}${n}${n}${n}-${n}${n}${n}${n}-4${n}${n}${n}-8${n}${n}${n}-${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}`;
@@ -31,7 +47,17 @@ const TID3 = U("c");
 const IID1 = U("d");
 
 const render = (Comp, props, locale) => renderToStaticMarkup(createElement(Comp, { ...props, locale }));
-const noUuid = (html) => assert.equal(UUID_RE.test(html), false, "a UUID-shaped string leaked into the markup");
+
+/** Strip the value of every `/admin/crm/clients/<id>[#anchor]` href — the
+ * one sanctioned place an id may appear — then assert nothing UUID-shaped
+ * is left anywhere in the markup. */
+const CLIENT_DETAIL_HREF_RE = /\/admin\/crm\/clients\/[0-9a-f-]{36}(?:#[a-z-]+)?/gi;
+const noUuid = (html) =>
+  assert.equal(UUID_RE.test(html.replace(CLIENT_DETAIL_HREF_RE, "/admin/crm/clients/_")), false, "a UUID-shaped string leaked outside a client-detail href");
+
+/** Visible text only (tags stripped) — a UUID must NEVER be here. */
+const visibleText = (html) => html.replace(/<[^>]*>/g, " ");
+const noUuidVisible = (html) => assert.equal(UUID_RE.test(visibleText(html)), false, "a UUID-shaped string was rendered as visible text");
 
 // ---------------- MyWorkSummary ----------------
 const counts = {
@@ -83,6 +109,7 @@ test("MyFollowUps: three groups with counts + titles + client links (FR)", () =>
   assert.match(html, /Rappeler le gérant/);
   assert.match(html, /href="\/admin\/crm\/clients\?q=Boulangerie/);
   noUuid(html);
+  noUuidVisible(html);
 });
 
 test("MyFollowUps: empty -> single empty line, no group headings", () => {
@@ -117,6 +144,7 @@ test("MyToday: only overdue + due-today items appear, upcoming excluded (FR)", (
   assert.equal(html.includes("Tâche future"), false, "upcoming task must not appear in today");
   assert.equal(html.includes("Relance trimestrielle"), false, "upcoming follow-up must not appear in today");
   noUuid(html);
+  noUuidVisible(html);
 });
 
 test("MyToday: nothing due -> empty state", () => {
@@ -144,7 +172,22 @@ test("MyProspects: table rows + stage labels + missing-follow-up tag + gap callo
   assert.match(html, />Lead</);
   assert.match(html, /Aucune relance/); // noNextFollowUp tag for Garage Moreau
   assert.match(html, /Prospects sans prochaine relance/);
+  noUuidVisible(html);
   noUuid(html);
+});
+
+test("MyProspects: Slice-3 deep links land on the canonical client-detail route (FR)", () => {
+  const html = render(MyProspects, { prospects, withoutFollowUp: [prospects[1]] }, "fr");
+  // add-interaction shortcut, per assigned row -> /admin/crm/clients/<id>
+  assert.match(html, /Ajouter une interaction/);
+  assert.match(html, new RegExp(`href="/admin/crm/clients/${CID1}"`));
+  // add-follow-up shortcut -> /admin/crm/clients/<id>#suivis (row + gap callout)
+  assert.match(html, /Ajouter une relance/);
+  assert.match(html, new RegExp(`href="/admin/crm/clients/${CID2}#suivis"`));
+  // the ONLY uuids present are inside those client-detail hrefs
+  const stripped = html.replace(CLIENT_DETAIL_HREF_RE, "/admin/crm/clients/_");
+  assert.equal(UUID_RE.test(stripped), false);
+  noUuidVisible(html);
 });
 
 test("MyProspects: no assigned prospects -> empty state, gap callout still shows its own empty line", () => {
@@ -158,6 +201,7 @@ test("MyProspects: EN labels", () => {
   const html = render(MyProspects, { prospects, withoutFollowUp: [] }, "en");
   assert.match(html, /My prospects/);
   assert.match(html, /Next follow-up/);
+  assert.match(html, /Add an interaction/);
 });
 
 // ---------------- MyTasks ----------------
@@ -168,6 +212,12 @@ test("MyTasks: standalone task renders a dash for prospect + status badge (FR)",
   assert.match(html, /—/); // standalone task, no client
   assert.match(html, />À faire</); // task status label
   noUuid(html);
+});
+
+test("MyTasks: stays read-only — no action controls, no client island (§15)", () => {
+  const html = render(MyTasks, { tasks: openTasks }, "fr");
+  assert.equal(html.includes("<button"), false, "Mes tâches must not expose mutation controls");
+  assert.equal(html.includes("<form"), false);
 });
 
 test("MyTasks: empty -> empty state", () => {
@@ -188,6 +238,7 @@ test("MyRecentInteractions: type label + client link + summary (FR)", () => {
   assert.match(html, /Point sur la proposition commerciale\./);
   assert.match(html, /href="\/admin\/crm\/clients\?q=Boulangerie/);
   noUuid(html);
+  noUuidVisible(html);
 });
 
 test("MyRecentInteractions: empty -> empty state", () => {
@@ -207,14 +258,16 @@ const claimable = [
   { clientId: CID1, name: "Institut Beauté Zen", stage: "lead", createdAt: "2026-09-05T09:00:00.000Z" },
 ];
 
-test("AvailableProspects: read-only list + link to RADAR, no claim control (FR)", () => {
+test("AvailableProspects: list + link to RADAR; claim affordance is the stubbed island (FR)", () => {
   const html = render(AvailableProspects, { prospects: claimable }, "fr");
   assert.match(html, /Prospects disponibles/);
   assert.match(html, /Institut Beauté Zen/);
   assert.match(html, /href="\/admin\/crm\/radar"/);
-  assert.equal(html.includes("<button"), false, "the available list exposes no mutating control");
-  assert.equal(html.includes("<form"), false, "the available list exposes no mutating control");
+  // the section itself authors no form; the claim button lives in the
+  // separately-tested my-work-actions island (stubbed to null here).
+  assert.equal(html.includes("<form"), false, "the available list authors no form");
   noUuid(html);
+  noUuidVisible(html);
 });
 
 test("AvailableProspects: empty -> empty state, RADAR link still present", () => {

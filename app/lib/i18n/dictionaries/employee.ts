@@ -57,6 +57,26 @@ export const employee = {
     viewProspect: "Ouvrir le prospect",
     openRadar: "Ouvrir le Radar",
     availableHint: "Attribuez-vous un prospect depuis le Radar.",
+
+    // quick actions (Slice 3)
+    quickActionsLabel: "Actions rapides",
+    claimCta: "Me l'attribuer",
+    claiming: "Attribution…",
+    actionComplete: "Terminer",
+    actionCancel: "Annuler",
+    actionReschedule: "Replanifier",
+    actionSave: "OK",
+    actionPending: "…",
+    addFollowUpCta: "Ajouter une relance",
+    addInteractionCta: "Ajouter une interaction",
+
+    // safe error copy (Slice 3) — never a raw backend message
+    errProspectUnavailable: "Ce prospect n'est plus disponible.",
+    errFollowUpNotYours: "Cette relance ne vous est plus attribuée.",
+    errFollowUpStatusChanged: "Le statut de cette relance a changé.",
+    errActionNotAllowed: "Cette action n'est plus autorisée.",
+    errInvalidDate: "Date invalide.",
+    errGeneric: "Une erreur est survenue.",
   },
   en: {
     myWorkTitle: "My work",
@@ -103,5 +123,25 @@ export const employee = {
     viewProspect: "Open prospect",
     openRadar: "Open Radar",
     availableHint: "Claim a prospect for yourself from the Radar.",
+
+    // quick actions (Slice 3)
+    quickActionsLabel: "Quick actions",
+    claimCta: "Claim for me",
+    claiming: "Claiming…",
+    actionComplete: "Complete",
+    actionCancel: "Cancel",
+    actionReschedule: "Reschedule",
+    actionSave: "OK",
+    actionPending: "…",
+    addFollowUpCta: "Add a follow-up",
+    addInteractionCta: "Add an interaction",
+
+    // safe error copy (Slice 3) — never a raw backend message
+    errProspectUnavailable: "This prospect is no longer available.",
+    errFollowUpNotYours: "This follow-up is no longer assigned to you.",
+    errFollowUpStatusChanged: "This follow-up's status has changed.",
+    errActionNotAllowed: "This action is no longer allowed.",
+    errInvalidDate: "Invalid date.",
+    errGeneric: "Something went wrong.",
   },
 } as const;

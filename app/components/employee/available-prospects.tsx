@@ -4,6 +4,7 @@ import { formatDate } from "@/lib/i18n/format";
 import { Badge, CLIENT_STAGE_CLASS } from "@/components/crm/badges";
 import { panelClass, panelTitleClass } from "@/components/admin/page-hero";
 import { stageLabel } from "@/components/employee/my-work-shared";
+import { ClaimProspectButton } from "@/components/employee/my-work-actions";
 
 /**
  * PHASE EMPLOYEE-OPS (Slice 2) — "Prospects disponibles" on
@@ -38,7 +39,10 @@ export function AvailableProspects({ prospects, locale }: { prospects: Claimable
                   <Badge label={stageLabel(p.stage, locale)} className={CLIENT_STAGE_CLASS[p.stage] ?? ""} />
                 </span>
               </span>
-              <span className="shrink-0 text-xs text-pm-gris">{formatDate(p.createdAt, locale)}</span>
+              <span className="flex shrink-0 items-center gap-3">
+                <ClaimProspectButton clientId={p.clientId} locale={locale} />
+                <span className="text-xs text-pm-gris">{formatDate(p.createdAt, locale)}</span>
+              </span>
             </li>
           ))}
         </ul>
