@@ -1,9 +1,10 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
-import { listAdminGovernanceRoster } from "@/lib/actions/workforce-admin-ui";
+import { listAdminGovernanceRoster, listGovernanceHistory } from "@/lib/actions/workforce-admin-ui";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero } from "@/components/admin/page-hero";
 import { AdminRoster } from "@/components/owner/admin-roster";
+import { GovernanceHistory } from "@/components/owner/governance-history";
 
 /**
  * PHASE OWNER-UI (Slice 2) — the OWNER ADMIN-governance panel.
@@ -30,13 +31,18 @@ import { AdminRoster } from "@/components/owner/admin-roster";
 export default async function OwnerControlPage() {
   await requireStaffMember("OWNER_MANAGE");
 
-  const [roster, locale] = await Promise.all([listAdminGovernanceRoster(), getLocale()]);
+  const [roster, history, locale] = await Promise.all([
+    listAdminGovernanceRoster(),
+    listGovernanceHistory(),
+    getLocale(),
+  ]);
   const t = dictionaries[locale].ownerControl;
 
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
       <AdminRoster rows={roster} locale={locale} />
+      <GovernanceHistory rows={history} locale={locale} />
     </>
   );
 }

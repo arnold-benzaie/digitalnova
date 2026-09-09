@@ -71,6 +71,12 @@ export const ownerControl = {
     errStateChanged: "Le statut de cet administrateur a changé. Rechargez la page.",
     errInvalidTransition: "Cette transition n’est plus autorisée.",
     errGeneric: "Une erreur est survenue.",
+
+    historyTitle: "Historique de gouvernance",
+    historyEmpty: "Aucun évènement de gouvernance récent.",
+    historyBy: (actor: string) => `Effectué par ${actor}`,
+    historyUnknownActor: "Système",
+    historyUnknownTarget: "—",
   },
   en: {
     title: "Owner Control",
@@ -133,5 +139,11 @@ export const ownerControl = {
     errStateChanged: "This administrator's status has changed. Reload the page.",
     errInvalidTransition: "This transition is no longer allowed.",
     errGeneric: "Something went wrong.",
+
+    historyTitle: "Governance history",
+    historyEmpty: "No recent governance event.",
+    historyBy: (actor: string) => `Performed by ${actor}`,
+    historyUnknownActor: "System",
+    historyUnknownTarget: "—",
   },
 } as const;

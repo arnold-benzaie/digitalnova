@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 let permissionCalls = [];
 let denyMode = false;
 let rosterCalls = 0;
+let historyCalls = 0;
 
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
@@ -39,6 +40,10 @@ mock.module("@/lib/actions/workforce-admin-ui", {
         { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", fullName: "A", email: "a@ex.com", status: "ACTIVE", joinedAt: "2026-01-01T00:00:00.000Z", invitedByEmail: null },
       ];
     },
+    listGovernanceHistory: async () => {
+      historyCalls += 1;
+      return [];
+    },
     demoteAdminAction: async () => undefined,
     suspendAdminAction: async () => undefined,
     reactivateAdminAction: async () => undefined,
@@ -52,22 +57,25 @@ function reset() {
   permissionCalls = [];
   denyMode = false;
   rosterCalls = 0;
+  historyCalls = 0;
 }
 
-test("OWNER-UI page: authorized -> renders; guard called exactly once with 'OWNER_MANAGE'; roster read via the OWNER-gated wrapper", async () => {
+test("OWNER-UI page: authorized -> renders; guard called exactly once with 'OWNER_MANAGE'; roster + history read via the OWNER-gated wrappers", async () => {
   reset();
   const el = await OwnerControlPage();
   assert.deepEqual(permissionCalls, ["OWNER_MANAGE"]);
   assert.equal(rosterCalls, 1, "the page reads the ADMIN roster through listAdminGovernanceRoster()");
+  assert.equal(historyCalls, 1, "the page reads the governance history through listGovernanceHistory()");
   assert.ok(el, "expected a React element when authorized");
 });
 
-test("OWNER-UI page: a guard denial (NEXT_REDIRECT) propagates — no roster read, no page content", async () => {
+test("OWNER-UI page: a guard denial (NEXT_REDIRECT) propagates — no roster/history read, no page content", async () => {
   reset();
   denyMode = true;
   await assert.rejects(() => OwnerControlPage(), /NEXT_REDIRECT/);
   assert.deepEqual(permissionCalls, ["OWNER_MANAGE"], "the guard still ran, with exactly OWNER_MANAGE, before any read");
   assert.equal(rosterCalls, 0, "a denied caller never reaches the roster read");
+  assert.equal(historyCalls, 0, "a denied caller never reaches the history read");
 });
 
 test("OWNER-UI page: authorization ignores caller-supplied input — a forged { searchParams } / { params } changes nothing", async () => {

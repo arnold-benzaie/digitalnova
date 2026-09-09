@@ -60,6 +60,7 @@ export const AUDIT_CATEGORY_LABEL: Record<string, string> = {
   onboarding: "Accueil client",
   report: "Rapports",
   audit: "Audit IA",
+  owner: "Propriétaire",
 };
 
 export const AUDIT_CATEGORY_LABEL_EN: Record<string, string> = {
@@ -74,6 +75,7 @@ export const AUDIT_CATEGORY_LABEL_EN: Record<string, string> = {
   onboarding: "Onboarding",
   report: "Reports",
   audit: "AI Audit",
+  owner: "Owner governance",
 };
 
 export function getAuditCategoryLabel(locale: Locale): Record<string, string> {
@@ -251,6 +253,18 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return `Utilisateur invité : ${m.email} (${m.role})`;
     case "user.role_changed":
       return `Rôle utilisateur modifié : ${m.newRole}`;
+    case "owner.admin_demoted":
+      return m.newRole === "MANAGER"
+        ? "Administrateur rétrogradé vers Manager"
+        : m.newRole === "EMPLOYEE"
+          ? "Administrateur rétrogradé vers Employé"
+          : "Administrateur rétrogradé";
+    case "owner.admin_suspended":
+      return "Administrateur suspendu";
+    case "owner.admin_reactivated":
+      return "Administrateur réactivé";
+    case "owner.admin_offboarded":
+      return "Administrateur retiré de l’administration";
     default:
       return entry.action;
   }
@@ -417,6 +431,18 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return `User invited: ${m.email} (${m.role})`;
     case "user.role_changed":
       return `User role changed: ${m.newRole}`;
+    case "owner.admin_demoted":
+      return m.newRole === "MANAGER"
+        ? "Administrator demoted to Manager"
+        : m.newRole === "EMPLOYEE"
+          ? "Administrator demoted to Employee"
+          : "Administrator demoted";
+    case "owner.admin_suspended":
+      return "Administrator suspended";
+    case "owner.admin_reactivated":
+      return "Administrator reactivated";
+    case "owner.admin_offboarded":
+      return "Administrator removed from administration";
     default:
       return entry.action;
   }

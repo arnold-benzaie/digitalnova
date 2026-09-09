@@ -25,11 +25,11 @@
  * functions. It never touches the legacy AppRole axis or the GBP-Audit
  * axis, and it never authorizes by email — email is display-only.
  */
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { db } from "@/db";
-import { staffMembers, staffRoles, users } from "@/db/schema";
+import { auditLog, staffMembers, staffRoles, users } from "@/db/schema";
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { isValidUuid } from "@/lib/api-v1/dto";
@@ -101,6 +101,113 @@ export async function listAdminGovernanceRoster(): Promise<AdminGovernanceRow[]>
     joinedAt: (r.joinedAt as Date).toISOString(),
     invitedByEmail: r.invitedByUserId ? (inviterEmailById.get(r.invitedByUserId) ?? null) : null,
   }));
+}
+
+/* ---------------------------------------------------------------------- *
+ * PHASE OWNER-UI (Slice 3) — OWNER governance history (read-only).
+ * ---------------------------------------------------------------------- */
+
+/** The audit_log actions this history surfaces — exactly the four emitted
+ * by lib/actions/workforce-admin.ts (R2D-C). Never a prefix wildcard: a
+ * future `owner.*` event must be added here deliberately.
+ *
+ * Module-private on purpose: a "use server" file may only export async
+ * functions, so this stays unexported and the list is verified through
+ * listGovernanceHistory()'s behavior, not by importing the constant. */
+const GOVERNANCE_HISTORY_ACTIONS = [
+  "owner.admin_demoted",
+  "owner.admin_suspended",
+  "owner.admin_reactivated",
+  "owner.admin_offboarded",
+] as const;
+
+const GOVERNANCE_HISTORY_LIMIT = 25;
+
+export type GovernanceHistoryRow = {
+  /** Raw action string — the client feeds it to describeAuditEntry(). */
+  action: string;
+  actorName: string | null;
+  actorEmail: string | null;
+  targetName: string | null;
+  targetEmail: string | null;
+  previousRole: string | null;
+  newRole: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  /** ISO 8601. */
+  at: string;
+};
+
+/**
+ * Recent OWNER-governance events for the internal workspace, newest first,
+ * capped at 25. OWNER-only (requireStaffMember("OWNER_MANAGE")). Reads the
+ * shared audit_log — filtered to exactly GOVERNANCE_HISTORY_ACTIONS AND
+ * organization_id = <internal workspace> — and resolves actor +
+ * metadata.targetUserId to a human identity (fullName / email) server-side.
+ * No raw UUID / workspace id / Clerk id / token / secret ever leaves this
+ * function. Email is display-only, never an authorization key.
+ */
+export async function listGovernanceHistory(): Promise<GovernanceHistoryRow[]> {
+  await requireStaffMember("OWNER_MANAGE");
+
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const rows = await db
+    .select({
+      action: auditLog.action,
+      actorUserId: auditLog.actorUserId,
+      metadata: auditLog.metadata,
+      createdAt: auditLog.createdAt,
+    })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.organizationId, internalOrgId),
+        inArray(auditLog.action, GOVERNANCE_HISTORY_ACTIONS as unknown as string[]),
+      ),
+    )
+    .orderBy(desc(auditLog.createdAt))
+    .limit(GOVERNANCE_HISTORY_LIMIT);
+
+  const meta = (m: unknown) => (m ?? {}) as Record<string, unknown>;
+  const asStr = (v: unknown) => (typeof v === "string" ? v : null);
+
+  const identityIds = new Set<string>();
+  for (const r of rows) {
+    if (r.actorUserId) identityIds.add(r.actorUserId);
+    const t = asStr(meta(r.metadata).targetUserId);
+    if (t) identityIds.add(t);
+  }
+  const identityById = new Map<string, { fullName: string | null; email: string }>();
+  if (identityIds.size > 0) {
+    const people = await db
+      .select({ id: users.id, fullName: users.fullName, email: users.email })
+      .from(users)
+      .where(inArray(users.id, [...identityIds]));
+    for (const p of people) identityById.set(p.id, { fullName: p.fullName, email: p.email });
+  }
+
+  return rows.map((r) => {
+    const m = meta(r.metadata);
+    const actor = r.actorUserId ? identityById.get(r.actorUserId) : undefined;
+    const targetId = asStr(m.targetUserId);
+    const target = targetId ? identityById.get(targetId) : undefined;
+    return {
+      action: r.action,
+      actorName: actor?.fullName ?? null,
+      actorEmail: actor?.email ?? null,
+      targetName: target?.fullName ?? null,
+      targetEmail: target?.email ?? null,
+      previousRole: asStr(m.previousRole),
+      newRole: asStr(m.newRole),
+      previousStatus: asStr(m.previousStatus),
+      newStatus: asStr(m.newStatus),
+      at: (r.createdAt as Date).toISOString(),
+    };
+  });
 }
 
 /* ---------------------------------------------------------------------- *
