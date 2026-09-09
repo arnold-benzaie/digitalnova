@@ -12,7 +12,7 @@ type NavDict = {
   sections: { auditGbp: string; clientRelation: string; crm: string; business: string };
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
-    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string;
+    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; myWork: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
@@ -28,7 +28,7 @@ type NavDict = {
  * Labels are resolved from the active locale's `navigation` dictionary at
  * call time (not baked into a static array) — see components/app-shell-
  * client.tsx, which calls these with `dictionaries[locale].navigation`. */
-export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canManageWorkforce?: boolean }): NavSection[] {
+export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canManageWorkforce?: boolean; canWorkRadar?: boolean }): NavSection[] {
   // PHASE OWNER-UI-2 (`ownerControl`) and PHASE OWNER-UI-3B (`workforce`) —
   // conditional `relation`-section nav entries, each appended ONLY on an
   // explicit `=== true` of its server-derived flag (isCurrentUserOwner() /
@@ -40,6 +40,11 @@ export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canM
   // server-side.
   const workforceItem: NavItem = { label: t.items.workforce, href: "/admin/workforce", icon: "briefcase" };
   const ownerControlItem: NavItem = { label: t.items.ownerControl, href: "/admin/owner", icon: "userCircle" };
+  // PHASE EMPLOYEE-OPS (Slice 2) — the operational self-view. Emitted ONLY
+  // on an explicit `opts.canWorkRadar === true` (server-derived
+  // canCurrentUserWorkRadar(), RADAR_WORK). Never a gate: /admin/crm/my-work
+  // calls requireStaffMember("RADAR_WORK") server-side itself.
+  const myWorkItem: NavItem = { label: t.items.myWork, href: "/admin/crm/my-work", icon: "checkSquare" };
   return [
     {
       key: "audit",
@@ -77,6 +82,7 @@ export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canM
       label: t.sections.crm,
       defaultOpen: false,
       items: [
+        ...(opts?.canWorkRadar === true ? [myWorkItem] : []),
         { label: t.items.crmDashboard, href: "/admin/crm", icon: "briefcase" },
         { label: t.items.clients, href: "/admin/crm/clients", icon: "userCircle" },
         { label: t.items.radar, href: "/admin/crm/radar", icon: "star" },

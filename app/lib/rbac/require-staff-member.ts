@@ -191,6 +191,28 @@ export async function canCurrentUserManageWorkforce(): Promise<boolean> {
 }
 
 /**
+ * PHASE EMPLOYEE-OPS (Slice 2) — non-redirecting RADAR_WORK visibility
+ * signal, for deciding whether to RENDER the "Mon travail" / "My work" nav
+ * entry. Same contract as isCurrentUserOwner() /
+ * canCurrentUserManageWorkforce() above: NEVER an authorization gate —
+ * /admin/crm/my-work independently calls requireStaffMember("RADAR_WORK")
+ * as its own first statement, and getMyWork() re-checks it too. Follows
+ * the "RADAR_WORK" permission catalogue entry (OWNER/ADMIN/MANAGER/EMPLOYEE
+ * today) as the sole source of truth, via the exact same
+ * evaluateStaffPermission() core, and returns its `ok` verbatim — no role
+ * names hardcoded, no email, no client-suppliable state. Errors propagate
+ * exactly as in isCurrentUserOwner().
+ *
+ * Takes NO parameters — same reviewed API invariant as the functions
+ * above.
+ */
+export async function canCurrentUserWorkRadar(): Promise<boolean> {
+  const session = await requireSession();
+  const result = await evaluateStaffPermission({ userId: session.userId, permission: "RADAR_WORK" });
+  return result.ok;
+}
+
+/**
  * PHASE RADAR-CORE-1A / RADAR-CORE-1B — non-redirecting RADAR capability
  * signal, for deciding which per-row assignment affordances the RADAR queue
  * should RENDER (Claim-to-self button, assignee <select>, Release link).

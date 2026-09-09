@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { requireInternalStaff } from "@/lib/admin-access";
-import { isCurrentUserOwner, canCurrentUserManageWorkforce } from "@/lib/rbac/require-staff-member";
+import { isCurrentUserOwner, canCurrentUserManageWorkforce, canCurrentUserWorkRadar } from "@/lib/rbac/require-staff-member";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   // PHASE 2A.0 — segment-level backstop. requireInternalStaff() keeps the
@@ -12,19 +12,24 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // keeps its own requireStaffRole()/requireAdminRole() — this does not
   // replace them. Returns the same non-client role AppShell needs.
   const role = await requireInternalStaff();
-  // PHASE OWNER-UI-1 / OWNER-UI-3B — additional, non-authorizing visibility
-  // signals for conditional nav entries. Purely additive: neither changes
-  // requireInternalStaff()'s own access behavior above, and neither is
-  // itself a gate — /admin/owner and /admin/workforce each re-check their
-  // own permission server-side (requireStaffMember("OWNER_MANAGE") /
-  // requireStaffMember("WORKFORCE_MANAGE")). Both are resolved on the new
+  // PHASE OWNER-UI-1 / OWNER-UI-3B / EMPLOYEE-OPS — additional,
+  // non-authorizing visibility signals for conditional nav entries. Purely
+  // additive: none changes requireInternalStaff()'s own access behavior
+  // above, and none is itself a gate — /admin/owner, /admin/workforce and
+  // /admin/crm/my-work each re-check their own permission server-side
+  // (requireStaffMember("OWNER_MANAGE") / requireStaffMember("WORKFORCE_MANAGE")
+  // / requireStaffMember("RADAR_WORK")). All are resolved on the new
   // internal-staff RBAC axis (staff_members/staff_roles), independent of
-  // the legacy role requireInternalStaff() returns. `canManageWorkforce`
-  // is derived from the WORKFORCE_MANAGE permission catalogue only — never
-  // from `role`, `isOwner`, an email, or any client value.
-  const [isOwner, canManageWorkforce] = await Promise.all([isCurrentUserOwner(), canCurrentUserManageWorkforce()]);
+  // the legacy role requireInternalStaff() returns, and each is derived
+  // from its permission-catalogue entry only — never from `role`,
+  // `isOwner`, an email, or any client value.
+  const [isOwner, canManageWorkforce, canWorkRadar] = await Promise.all([
+    isCurrentUserOwner(),
+    canCurrentUserManageWorkforce(),
+    canCurrentUserWorkRadar(),
+  ]);
   return (
-    <AppShell role={role} isOwner={isOwner} canManageWorkforce={canManageWorkforce}>
+    <AppShell role={role} isOwner={isOwner} canManageWorkforce={canManageWorkforce} canWorkRadar={canWorkRadar}>
       {children}
     </AppShell>
   );

@@ -180,3 +180,74 @@ test("OWNER-UI-3B: getClientNavSections() never contains /admin/workforce, and n
     "no item labeled like the Workforce nav entry",
   );
 });
+
+// ---------------- PHASE EMPLOYEE-OPS (Slice 2) — "Mon travail" nav visibility ----------------
+// The /admin/crm/my-work item is generated ONLY on an explicit
+// { canWorkRadar: true }; every other shape leaves the sidebar with no
+// such item. It sits FIRST in the crm section, and is independent of the
+// { isOwner } / { canManageWorkforce } flags.
+
+const myWorkItems = (sections) => sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/crm/my-work");
+
+test("EMPLOYEE-OPS: { canWorkRadar: true } -> exactly one /admin/crm/my-work item, first in the crm section, with the dictionary label", () => {
+  const sections = getStaffNavSections(t, { canWorkRadar: true });
+  const matches = myWorkItems(sections);
+  assert.equal(matches.length, 1, "expected exactly one My Work item");
+  assert.equal(matches[0].label, t.items.myWork);
+  assert.equal(matches[0].href, "/admin/crm/my-work");
+
+  const crm = sections.find((s) => s.key === "crm");
+  assert.ok(crm, "expected a 'crm' section");
+  assert.equal(crm.items[0].href, "/admin/crm/my-work", "My Work must be the first item of the crm section");
+});
+
+test("EMPLOYEE-OPS: the My Work item is never duplicated under { canWorkRadar: true }", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t, { canWorkRadar: true })).length, 1);
+});
+
+test("EMPLOYEE-OPS: { canWorkRadar: false } -> no /admin/crm/my-work item", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t, { canWorkRadar: false })).length, 0);
+});
+
+test("EMPLOYEE-OPS: { canWorkRadar: undefined } -> no /admin/crm/my-work item", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t, { canWorkRadar: undefined })).length, 0);
+});
+
+test("EMPLOYEE-OPS: options omitted entirely -> no /admin/crm/my-work item (all existing single-arg callers unaffected)", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t)).length, 0);
+});
+
+test("EMPLOYEE-OPS: empty options object -> no /admin/crm/my-work item", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t, {})).length, 0);
+});
+
+test("EMPLOYEE-OPS: a truthy-but-not-true canWorkRadar (string / number) does NOT reveal the item — strict === true only", () => {
+  assert.equal(myWorkItems(getStaffNavSections(t, { canWorkRadar: "true" })).length, 0);
+  assert.equal(myWorkItems(getStaffNavSections(t, { canWorkRadar: 1 })).length, 0);
+});
+
+test("EMPLOYEE-OPS: canWorkRadar is independent of Owner Control / Workforce visibility", () => {
+  // EMPLOYEE-like: can work radar, but neither owner nor workforce manager.
+  let sections = getStaffNavSections(t, { canWorkRadar: true, isOwner: false, canManageWorkforce: false });
+  assert.equal(myWorkItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 0);
+  assert.equal(workforceItems(sections).length, 0);
+
+  // OWNER-like: owner + workforce visible, and (RADAR_WORK is granted to
+  // OWNER too) My Work visible as well — the flags do not suppress each other.
+  sections = getStaffNavSections(t, { canWorkRadar: true, isOwner: true, canManageWorkforce: true });
+  assert.equal(myWorkItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 1);
+  assert.equal(workforceItems(sections).length, 1);
+
+  // A workforce manager who cannot work radar: Workforce visible, My Work absent.
+  sections = getStaffNavSections(t, { canWorkRadar: false, canManageWorkforce: true });
+  assert.equal(myWorkItems(sections).length, 0);
+  assert.equal(workforceItems(sections).length, 1);
+});
+
+test("EMPLOYEE-OPS: getClientNavSections() never contains /admin/crm/my-work, and no item labeled like it", () => {
+  const sections = getClientNavSections(t);
+  assert.equal(myWorkItems(sections).length, 0);
+  assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.myWork).length, 0);
+});

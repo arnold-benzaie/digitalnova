@@ -37,11 +37,13 @@ export async function AppShell({
   role,
   isOwner = false,
   canManageWorkforce = false,
+  canWorkRadar = false,
 }: {
   children: ReactNode;
   role: DevRole;
   isOwner?: boolean;
   canManageWorkforce?: boolean;
+  canWorkRadar?: boolean;
 }) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const visibility = notificationVisibilityWhere(org.id, session.userId, session.role);
@@ -67,6 +69,7 @@ export async function AppShell({
       role={role}
       isOwner={isOwner}
       canManageWorkforce={canManageWorkforce}
+      canWorkRadar={canWorkRadar}
       badges={badges}
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}
