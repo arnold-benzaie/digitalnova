@@ -40,6 +40,9 @@ export type RadarIntelligenceAdvisoryDict = {
   genericError: string;
   notApplicable: string;
   disclaimer: string;
+  /** Label before the SYSTEM_ADMIN-only coarse failure class, when the
+   * server chose to include one. Never shown otherwise. */
+  diagnosticPrefix: string;
 };
 
 const ctaButtonClass =
@@ -72,7 +75,17 @@ export function AdvisoryResultView({
   t: RadarIntelligenceAdvisoryDict;
 }) {
   if (result.status !== "ok") {
-    return <p className="text-sm text-pm-gris">{messageFor(result, t)}</p>;
+    const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
+    return (
+      <>
+        <p className="text-sm text-pm-gris">{messageFor(result, t)}</p>
+        {diagnostic ? (
+          <p className="mt-1 text-xs font-medium text-pm-gris">
+            {t.diagnosticPrefix} {diagnostic}
+          </p>
+        ) : null}
+      </>
+    );
   }
   return (
     <div className="grid gap-4 md:grid-cols-2">

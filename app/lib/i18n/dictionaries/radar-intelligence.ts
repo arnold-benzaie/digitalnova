@@ -26,6 +26,7 @@ export const radarIntelligence = {
     genericError: "Impossible de générer un avis IA pour le moment.",
     notApplicable: "Aucun avis IA : ce prospect n'est pas encore qualifié pour une analyse.",
     disclaimer: "L'avis IA est consultatif. Il ne modifie ni la priorité, ni le score, ni la qualification, ni l'attribution, ni les relances.",
+    diagnosticPrefix: "Diagnostic :",
   },
   en: {
     sectionTitle: "AI advisory",
@@ -47,5 +48,6 @@ export const radarIntelligence = {
     genericError: "Unable to generate an AI advisory right now.",
     notApplicable: "No AI advisory: this prospect is not yet qualified for analysis.",
     disclaimer: "The AI advisory is advisory only. It does not change priority, score, qualification, assignment, or follow-ups.",
+    diagnosticPrefix: "Diagnostic:",
   },
 } as const;

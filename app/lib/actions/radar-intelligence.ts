@@ -24,7 +24,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, interactions, tasks } from "@/db/schema";
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getProspectQualification } from "@/lib/actions/radar";
 import { createConfiguredRadarIntelligenceRegistry } from "@/lib/radar-intelligence/configured-registry";
@@ -92,9 +92,24 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
   }
   lastAdvisoryRequestByUser.set(userId, now);
 
-  return produceRadarAdvisory(clientId, {
+  const result = await produceRadarAdvisory(clientId, {
     loadQualification: getProspectQualification,
     loadDisplayContext,
     createRegistry: createConfiguredRadarIntelligenceRegistry,
   });
+
+  // The coarse failure class is an OPERATOR diagnostic. It is present only
+  // on a genuine provider failure; when it is, it goes out ONLY to a caller
+  // who holds SYSTEM_ADMIN (OWNER / ADMIN today — the same permission that
+  // gates the provider-status service). Every other caller gets the exact
+  // pre-patch safe result. The check uses the session identity resolved
+  // above, never a client-supplied argument. permissions.ts is unchanged.
+  if ("diagnostic" in result && result.diagnostic !== undefined) {
+    const admin = await evaluateStaffPermission({ userId, permission: "SYSTEM_ADMIN" });
+    if (!admin.ok) {
+      return { status: result.status };
+    }
+  }
+
+  return result;
 }

@@ -128,6 +128,62 @@ for (const [status, frNeedle, enNeedle] of [
   });
 }
 
+// ---------------- operator diagnostic suffix (SYSTEM_ADMIN-only, server-decided) ----------------
+
+test("diagnostic: when the result carries a `diagnostic`, a small labelled suffix is rendered (FR)", () => {
+  const html = view({ status: "error", diagnostic: "PROVIDER_4XX" }, "fr");
+  assert.ok(html.includes(tFr.genericError), "the safe message is still shown");
+  assert.ok(html.includes(tFr.diagnosticPrefix), "the diagnostic label is shown");
+  assert.ok(html.includes("PROVIDER_4XX"), "the coarse class is shown");
+  assert.equal(html.includes("<section"), false, "still no deterministic/AI blocks on a failure status");
+  noProviderName(html);
+  noUuid(html);
+});
+
+test("diagnostic: EN suffix", () => {
+  const html = view({ status: "unavailable", diagnostic: "PROVIDER_5XX" }, "en");
+  assert.ok(html.includes(tEn.unavailable));
+  assert.ok(html.includes(tEn.diagnosticPrefix));
+  assert.ok(html.includes("PROVIDER_5XX"));
+});
+
+test("diagnostic: every coarse class renders as a plain token, nothing else", () => {
+  for (const cls of ["PROVIDER_4XX", "PROVIDER_5XX", "PROVIDER_TIMEOUT", "PROVIDER_NETWORK", "PROVIDER_PARSE", "PROVIDER_UNKNOWN"]) {
+    const html = view({ status: "error", diagnostic: cls }, "fr");
+    assert.ok(html.includes(cls));
+    noUuid(html);
+    noProviderName(html);
+    assert.equal(/\b(4\d\d|5\d\d)\b/.test(html.replace(/PROVIDER_[45]XX/g, "")), false, "no raw HTTP status number");
+  }
+});
+
+test("diagnostic: with NO `diagnostic` on the result, no suffix and no 'PROVIDER_' text is emitted", () => {
+  for (const status of ["unavailable", "rate_limited", "timeout", "error", "not_applicable"]) {
+    const html = view({ status }, "fr");
+    assert.equal(html.includes(tFr.diagnosticPrefix), false, `${status}: no diagnostic label`);
+    assert.equal(html.includes("PROVIDER_"), false, `${status}: no raw class token`);
+  }
+});
+
+test("diagnostic: the component itself does no RBAC — the server action is the sole authority", () => {
+  // no permission evaluation, no role catalogue, no session read, no
+  // gateway/registry/transport call in the client component
+  assert.equal(SOURCE.includes("evaluateStaffPermission"), false);
+  assert.equal(SOURCE.includes("requireSession"), false);
+  assert.equal(/hasPermission|staffMembers|staff_roles/.test(SOURCE), false);
+  assert.equal(/createRadarIntelligenceGateway|createConfiguredRadarIntelligenceRegistry|AnthropicHttpTransport/.test(SOURCE), false);
+  // the ONLY server touchpoint is the one gated action
+  assert.equal((SOURCE.match(/requestRadarIntelligenceAdvisory\(/g) || []).length, 1);
+});
+
+test("diagnostic: diagnosticPrefix exists in FR + EN, non-empty, provider-neutral", () => {
+  for (const t of [tFr, tEn]) {
+    assert.equal(typeof t.diagnosticPrefix, "string");
+    assert.ok(t.diagnosticPrefix.length > 0);
+    assert.equal(/claude|anthropic/i.test(t.diagnosticPrefix), false);
+  }
+});
+
 // ---------------- disclaimer / non-authoritative ----------------
 
 test("disclaimer names the things the advisory does NOT change (FR + EN)", () => {

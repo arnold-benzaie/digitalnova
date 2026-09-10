@@ -14,6 +14,7 @@ import "server-only";
  */
 import type { ProspectQualificationResult } from "@/lib/actions/radar";
 import { isValidUuid } from "@/lib/api-v1/dto";
+import type { ProviderFailureClass } from "./errors";
 import { createRadarIntelligenceGateway } from "./gateway";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
@@ -28,10 +29,10 @@ export type RadarAdvisoryUiResult =
       /** The AUTHORITATIVE deterministic values, shown in a separate block. */
       deterministic: { priority: string; confidence: string; recommendedNextAction: string };
     }
-  | { status: "unavailable" }
-  | { status: "rate_limited" }
-  | { status: "timeout" }
-  | { status: "error" }
+  | { status: "unavailable"; diagnostic?: ProviderFailureClass }
+  | { status: "rate_limited"; diagnostic?: ProviderFailureClass }
+  | { status: "timeout"; diagnostic?: ProviderFailureClass }
+  | { status: "error"; diagnostic?: ProviderFailureClass }
   /** The prospect is not QUALIFIED — no deterministic basis to advise on. */
   | { status: "not_applicable" };
 
@@ -114,17 +115,24 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
     };
   }
 
+  // Only a real provider transport/response failure carries a failureClass
+  // (429/5xx/timeout/network/parse); the designed no-provider states
+  // (NO_CAPABLE_PROVIDER, disabled/disconnected) do not, so those results
+  // stay byte-identical to before this patch.
+  const diagnostic = outcome.error?.failureClass;
+
   switch (outcome.error?.code) {
     case "PROVIDER_RATE_LIMITED":
-      return { status: "rate_limited" };
+      return diagnostic ? { status: "rate_limited", diagnostic } : { status: "rate_limited" };
     case "PROVIDER_TIMEOUT":
-      return { status: "timeout" };
+      return diagnostic ? { status: "timeout", diagnostic } : { status: "timeout" };
     case "NO_CAPABLE_PROVIDER":
     case "PROVIDER_UNAVAILABLE":
     case "PROVIDER_DISABLED":
     case "PROVIDER_DISCONNECTED":
-      return { status: "unavailable" };
+      return diagnostic ? { status: "unavailable", diagnostic } : { status: "unavailable" };
     default:
-      return outcome.providerUnavailable && !outcome.error ? { status: "unavailable" } : { status: "error" };
+      if (outcome.providerUnavailable && !outcome.error) return { status: "unavailable" };
+      return diagnostic ? { status: "error", diagnostic } : { status: "error" };
   }
 }

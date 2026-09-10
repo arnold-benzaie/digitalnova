@@ -17,7 +17,7 @@
  * adapter adds none of its own. No SDK import, no network, no secret.
  */
 import type { IntelligenceProviderStatus, IntelligenceRequest, IntelligenceResponse, IntelligenceCapability } from "../types";
-import { makeIntelligenceError, toIntelligenceError } from "../errors";
+import { classifyHttpStatus, makeIntelligenceError, toIntelligenceError } from "../errors";
 import { assertNoForbiddenKeys, isSanitizedIntelligenceContext } from "../sanitize-context";
 import type { IntelligenceProviderAdapter } from "../provider-registry";
 import { ANTHROPIC_PROVIDER_ID, payloadByteSize, resolveAnthropicConfig, type AnthropicAdapterConfig } from "./config";
@@ -82,11 +82,19 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps = {}): Intelli
         }
         const result = await transport.generate(payload);
         if (typeof result.status === "number") {
-          if (result.status === 429) return { ok: false, error: makeIntelligenceError("PROVIDER_RATE_LIMITED", ANTHROPIC_PROVIDER_ID) };
-          if (result.status === 503 || result.status === 502 || result.status === 504) {
-            return { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", ANTHROPIC_PROVIDER_ID) };
+          const status = result.status;
+          if (status === 429) {
+            return { ok: false, error: makeIntelligenceError("PROVIDER_RATE_LIMITED", ANTHROPIC_PROVIDER_ID, "PROVIDER_4XX") };
           }
-          if (result.status >= 400) return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID) };
+          if (status === 503 || status === 502 || status === 504) {
+            return { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", ANTHROPIC_PROVIDER_ID, "PROVIDER_5XX") };
+          }
+          if (status >= 400) {
+            return {
+              ok: false,
+              error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, classifyHttpStatus(status) ?? "PROVIDER_UNKNOWN"),
+            };
+          }
         }
         return normalizeAnthropicResponse(result.body, clock().toISOString());
       } catch (thrown) {

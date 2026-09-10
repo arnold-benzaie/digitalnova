@@ -71,7 +71,7 @@ function normalizeUsage(raw: unknown): IntelligenceUsage {
  */
 export function normalizeAnthropicResponse(body: unknown, generatedAt: string): IntelligenceResponse {
   if (typeof body !== "object" || body === null) {
-    return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID) };
+    return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, "PROVIDER_PARSE") };
   }
   const b = body as Record<string, unknown>;
 
@@ -86,7 +86,7 @@ export function normalizeAnthropicResponse(body: unknown, generatedAt: string): 
   }
 
   if (summary === undefined) {
-    return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID) };
+    return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, "PROVIDER_PARSE") };
   }
 
   const status: IntelligenceConnectionStatus = "CONNECTED";

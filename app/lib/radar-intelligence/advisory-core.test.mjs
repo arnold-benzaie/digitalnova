@@ -63,6 +63,8 @@ function fakeTransport(script = {}) {
       const status = script.status ?? 200;
       if (status !== 200) return { body: null, status };
       if (script.invalidJson) return { body: "not-json" };
+      // A 200 with an arbitrary/unexpected body shape (no extractable summary).
+      if (script.body !== undefined) return { body: script.body, status };
       return { body: { summary: "Advisory for a proposal-stage prospect.", suggestedNextAction: "Send a recap email", usage: { input_tokens: 20, output_tokens: 12 } }, status };
     },
     describeHealth() {
@@ -98,7 +100,10 @@ test("display context missing -> error", async () => {
 
 test("no configured provider -> unavailable, NOT an error, deterministic still available upstream", async () => {
   const r = await produceRadarAdvisory(CLIENT, deps());
-  assert.deepEqual(r, { status: "unavailable" });
+  assert.equal(r.status, "unavailable");
+  // The designed no-provider state is NOT a failure — it carries no
+  // operator diagnostic (byte-identical to the pre-patch result).
+  assert.equal("diagnostic" in r, false);
 });
 
 // ---------------- success ----------------
@@ -131,20 +136,86 @@ test("success result has EXACTLY the safe keys", async () => {
 
 // ---------------- provider failures ----------------
 
-for (const [label, script, expected] of [
-  ["429", { status: 429 }, "rate_limited"],
-  ["503", { status: 503 }, "unavailable"],
-  ["AbortError", { reject: Object.assign(new Error(`t ${FAKE_KEY}`), { name: "AbortError" }) }, "timeout"],
-  ["malformed body", { status: 200, invalidJson: true }, "error"],
+for (const [label, script, expected, diagnostic] of [
+  ["429", { status: 429 }, "rate_limited", "PROVIDER_4XX"],
+  ["503", { status: 503 }, "unavailable", "PROVIDER_5XX"],
+  ["AbortError", { reject: Object.assign(new Error(`t ${FAKE_KEY}`), { name: "AbortError" }) }, "timeout", "PROVIDER_TIMEOUT"],
+  ["malformed body", { status: 200, invalidJson: true }, "error", "PROVIDER_PARSE"],
 ]) {
-  test(`provider ${label} -> ${expected}; exactly one attempt; no secret / raw detail`, async () => {
+  test(`provider ${label} -> ${expected} (diagnostic ${diagnostic}); exactly one attempt; no secret / raw detail`, async () => {
     const t = fakeTransport(script);
     const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
     assert.equal(t.hits, 1, "one attempt, no core-level retry");
-    assert.deepEqual(r, { status: expected });
+    assert.equal(r.status, expected);
+    assert.equal(r.diagnostic, diagnostic);
     assert.equal(JSON.stringify(r).includes(FAKE_KEY), false);
   });
 }
+
+// ---------------- provider failures: the coarse diagnostic class ----------------
+//
+// The advisory core carries a coarse `diagnostic` bucket on a GENUINE
+// provider transport/response failure only. RBAC (SYSTEM_ADMIN-only
+// exposure) lives in the server action, not here — this proves the class
+// is derived correctly and never smuggles a secret / status number / body.
+
+const NET_ERR = Object.assign(new Error(`net ${FAKE_KEY}`), { name: "TransportNetworkError" });
+const JSON_ERR = Object.assign(new Error(`json ${FAKE_KEY}`), { name: "InvalidJsonError" });
+
+for (const [label, script, expectedStatus, expectedClass] of [
+  ["HTTP 400", { status: 400 }, "error", "PROVIDER_4XX"],
+  ["HTTP 401", { status: 401 }, "error", "PROVIDER_4XX"],
+  ["HTTP 403", { status: 403 }, "error", "PROVIDER_4XX"],
+  ["HTTP 429", { status: 429 }, "rate_limited", "PROVIDER_4XX"],
+  ["HTTP 500", { status: 500 }, "error", "PROVIDER_5XX"],
+  ["HTTP 502", { status: 502 }, "unavailable", "PROVIDER_5XX"],
+  ["HTTP 503", { status: 503 }, "unavailable", "PROVIDER_5XX"],
+  ["HTTP 504", { status: 504 }, "unavailable", "PROVIDER_5XX"],
+  ["AbortError (timeout)", { reject: Object.assign(new Error("x"), { name: "AbortError" }) }, "timeout", "PROVIDER_TIMEOUT"],
+  ["network fault", { reject: NET_ERR }, "error", "PROVIDER_NETWORK"],
+  ["invalid JSON on 200", { reject: JSON_ERR }, "error", "PROVIDER_PARSE"],
+  ["unexpected 200 body shape", { status: 200, body: { nonsense: true, note: "no summary here" } }, "error", "PROVIDER_PARSE"],
+]) {
+  test(`diagnostic: ${label} -> status ${expectedStatus}, diagnostic ${expectedClass}`, async () => {
+    const t = fakeTransport(script);
+    const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+    assert.equal(t.hits, 1, "exactly one provider attempt");
+    assert.equal(r.status, expectedStatus);
+    assert.equal(r.diagnostic, expectedClass);
+    assert.equal(["PROVIDER_4XX", "PROVIDER_5XX", "PROVIDER_TIMEOUT", "PROVIDER_NETWORK", "PROVIDER_PARSE", "PROVIDER_UNKNOWN"].includes(r.diagnostic), true);
+    const s = JSON.stringify(r);
+    assert.equal(s.includes(FAKE_KEY), false, "no api key");
+    assert.equal(s.includes("sk-ant-"), false);
+    assert.equal(/x-api-key|authorization|bearer/i.test(s), false, "no auth header name/value");
+    assert.equal(/\b(4\d\d|5\d\d)\b/.test(s.replace(/PROVIDER_[45]XX/g, "")), false, "no raw HTTP status number");
+    assert.equal(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(s), false, "no UUID");
+    assert.equal("errorCode" in r, false);
+    assert.equal(s.includes("providerId"), false);
+    assert.equal(/anthropic|claude/i.test(s), false, "no provider name");
+  });
+}
+
+test("diagnostic: a SUCCESS result carries no diagnostic key at all", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(fakeTransport({ status: 200 })) }));
+  assert.equal(r.status, "ok");
+  assert.equal("diagnostic" in r, false);
+});
+
+test("diagnostic: a pre-gateway error (bad uuid / missing display) carries NO diagnostic — it is not a provider failure", async () => {
+  const bad = await produceRadarAdvisory("not-a-uuid", deps());
+  assert.deepEqual(bad, { status: "error" });
+
+  const noDisplay = await produceRadarAdvisory(CLIENT, deps({ display: null }));
+  assert.deepEqual(noDisplay, { status: "error" });
+});
+
+test("diagnostic: not_applicable (prospect not qualified) carries NO diagnostic", async () => {
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ qualification: { qualificationStatus: "INSUFFICIENT_DATA", eligibility: { contactable: true }, opportunity: null } }),
+  );
+  assert.deepEqual(r, { status: "not_applicable" });
+});
 
 // ---------------- non-authoritative / no mutation ----------------
 

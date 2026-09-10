@@ -20,6 +20,8 @@ mock.module("@/db", { namedExports: { db: {} } });
 
 let permissionCalls = [];
 let denyMode = false;
+let evalCalls = [];
+let evalOk = false;
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
     requireStaffMember: async (permission) => {
@@ -30,6 +32,12 @@ mock.module("@/lib/rbac/require-staff-member", {
         throw err;
       }
       return "EMPLOYEE";
+    },
+    // Non-redirecting SYSTEM_ADMIN check used to gate the operator
+    // diagnostic. The action passes the SESSION userId (never a client arg).
+    evaluateStaffPermission: async ({ userId, permission }) => {
+      evalCalls.push({ userId, permission });
+      return evalOk ? { ok: true, role: "ADMIN" } : { ok: false, reason: "permission-denied" };
     },
   },
 });
@@ -46,11 +54,12 @@ mock.module("@/lib/radar-intelligence/configured-registry", {
 });
 
 let coreCalls = [];
+let coreResult = { status: "unavailable" };
 mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
     produceRadarAdvisory: async (clientId, deps) => {
       coreCalls.push({ clientId, depKeys: Object.keys(deps).sort() });
-      return { status: "unavailable" };
+      return coreResult;
     },
   },
 });
@@ -63,6 +72,9 @@ function reset() {
   permissionCalls = [];
   denyMode = false;
   coreCalls = [];
+  evalCalls = [];
+  evalOk = false;
+  coreResult = { status: "unavailable" };
   sessionUserId = `user-${Math.random().toString(36).slice(2)}`;
 }
 
@@ -107,4 +119,66 @@ test("action: a different session user is not throttled by another user's recent
   const r = await requestRadarIntelligenceAdvisory(CLIENT);
   assert.deepEqual(r, { status: "unavailable" });
   assert.equal(coreCalls.length, 2);
+});
+
+// ---------------- operator diagnostic: SYSTEM_ADMIN-only exposure ----------------
+
+test("diagnostic: a SYSTEM_ADMIN caller receives the coarse failure class verbatim", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, { status: "error", diagnostic: "PROVIDER_4XX" });
+  // gated by the SYSTEM_ADMIN permission, checked against the SESSION id
+  assert.equal(evalCalls.length, 1);
+  assert.equal(evalCalls[0].permission, "SYSTEM_ADMIN");
+  assert.equal(evalCalls[0].userId, sessionUserId);
+});
+
+for (const label of ["MANAGER", "EMPLOYEE", "any non-admin"]) {
+  test(`diagnostic: a ${label} caller gets the safe result with the diagnostic STRIPPED`, async () => {
+    reset();
+    evalOk = false; // evaluateStaffPermission denies SYSTEM_ADMIN
+    coreResult = { status: "error", diagnostic: "PROVIDER_5XX" };
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "error" });
+    assert.equal("diagnostic" in r, false);
+    assert.equal(evalCalls.length, 1, "the SYSTEM_ADMIN check still ran");
+    assert.equal(evalCalls[0].permission, "SYSTEM_ADMIN");
+  });
+}
+
+test("diagnostic: the SYSTEM_ADMIN check is SKIPPED when the core result has no diagnostic (common path, no extra RBAC hit)", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "unavailable" };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, { status: "unavailable" });
+  assert.equal(evalCalls.length, 0);
+});
+
+test("diagnostic: an OK advisory is passed straight through — never carries or triggers a diagnostic", async () => {
+  reset();
+  evalOk = true;
+  coreResult = {
+    status: "ok",
+    summary: "text",
+    suggestedNextAction: null,
+    generatedAt: "2026-09-13T10:00:00.000Z",
+    deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" },
+  };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(r.status, "ok");
+  assert.equal("diagnostic" in r, false);
+  assert.equal(evalCalls.length, 0);
+});
+
+test("diagnostic: RADAR_QUEUE_VIEW is still the FIRST gate; the SYSTEM_ADMIN check is additive and never widens access", async () => {
+  reset();
+  denyMode = true; // requireStaffMember("RADAR_QUEUE_VIEW") denies
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  await assert.rejects(() => requestRadarIntelligenceAdvisory(CLIENT), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
+  assert.equal(coreCalls.length, 0, "core never ran");
+  assert.equal(evalCalls.length, 0, "no diagnostic gating on a denied request");
 });
