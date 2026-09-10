@@ -35,6 +35,7 @@ import { commercialAnalytics } from "./commercial-analytics";
 import { invoiceVerification } from "./invoice-verification";
 import { quoteVerification } from "./quote-verification";
 import { chat } from "./chat";
+import { radarIntelligence } from "./radar-intelligence";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -67,6 +68,7 @@ export const dictionaries = {
     invoiceVerification: invoiceVerification.fr,
     quoteVerification: quoteVerification.fr,
     chat: chat.fr,
+    radarIntelligence: radarIntelligence.fr,
   },
   en: {
     common: common.en,
@@ -95,5 +97,6 @@ export const dictionaries = {
     invoiceVerification: invoiceVerification.en,
     quoteVerification: quoteVerification.en,
     chat: chat.en,
+    radarIntelligence: radarIntelligence.en,
   },
 } as const;

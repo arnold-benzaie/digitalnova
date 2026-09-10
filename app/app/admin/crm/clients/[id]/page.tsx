@@ -66,6 +66,7 @@ import { getRadarCapabilities } from "@/lib/rbac/require-staff-member";
 import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
+import { RadarIntelligenceAdvisory } from "@/components/crm/radar-intelligence-advisory";
 import { FollowUpActions } from "@/components/crm/follow-up-actions";
 import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
@@ -333,6 +334,11 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
           t={dictionaries[locale].crm.radar.assignment}
         />
       </div>
+
+      {/* RADAR INTELLIGENCE (Slice 5) — opt-in AI advisory. Renders a
+          button only; nothing calls the provider on load. The advisory is
+          indicative and never changes deterministic RADAR values. */}
+      <RadarIntelligenceAdvisory clientId={client.id} locale={locale} />
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>
