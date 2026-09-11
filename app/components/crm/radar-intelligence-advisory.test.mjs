@@ -180,6 +180,33 @@ test("providerMeta: an unrecognized future provider id falls back to rendering t
   assert.match(html, /Provider:\s*future-provider/);
 });
 
+// ---------------- V2: fallbackUsed line, same SYSTEM_ADMIN-only footer ----------------
+
+test("V2: fallbackUsed:false renders 'Fallback used: No' alongside Provider/Model", () => {
+  const html = view({ ...OK, providerMeta: { provider: "anthropic", model: "claude-sonnet-5", fallbackUsed: false } }, "fr");
+  assert.match(html, /Provider:\s*Anthropic/);
+  assert.match(html, /Model:\s*claude-sonnet-5/);
+  assert.match(html, /Fallback used:\s*No/);
+});
+
+test("V2: fallbackUsed:true + provider openai renders 'Provider: OpenAI' and 'Fallback used: Yes'", () => {
+  const html = view({ ...OK, providerMeta: { provider: "openai", model: "gpt-4o-mini", fallbackUsed: true } }, "fr");
+  assert.match(html, /Provider:\s*OpenAI/);
+  assert.match(html, /Model:\s*gpt-4o-mini/);
+  assert.match(html, /Fallback used:\s*Yes/);
+});
+
+test("V2: a pre-V2 providerMeta shape with no fallbackUsed field at all renders no 'Fallback used' line — backward compatible", () => {
+  const html = view({ ...OK, providerMeta: { provider: "anthropic", model: "claude-sonnet-5" } }, "fr");
+  assert.equal(/Fallback used/.test(html), false);
+});
+
+test("V2: providerMeta absent -> still no 'Fallback used' text anywhere, provider-neutral rule holds", () => {
+  const html = view(OK, "fr");
+  assert.equal(/Fallback used/.test(html), false);
+  noProviderName(html);
+});
+
 // ---------------- result: failure/unavailable statuses ----------------
 
 for (const [status, frNeedle, enNeedle] of [

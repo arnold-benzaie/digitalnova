@@ -16,7 +16,7 @@ import type { ProspectQualificationResult } from "@/lib/actions/radar";
 import { isValidUuid } from "@/lib/api-v1/dto";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { ProviderFailureClass } from "./errors";
-import { createRadarIntelligenceGateway } from "./gateway";
+import { createProviderRouter, DEFAULT_ROUTING_POLICY, type RoutingPolicy } from "./provider-router";
 import { logRadarIntelligenceEvent } from "./observability";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
@@ -42,7 +42,7 @@ export type RadarAdvisoryUiResult =
        * `diagnostic`/`httpStatus` below. Never an api key, header, or
        * anything else about the request/response.
        */
-      providerMeta?: { provider: string; model: string };
+      providerMeta?: { provider: string; model: string; fallbackUsed: boolean };
     }
   | { status: "unavailable"; diagnostic?: ProviderFailureClass; httpStatus?: number }
   | { status: "rate_limited"; diagnostic?: ProviderFailureClass; httpStatus?: number }
@@ -93,6 +93,10 @@ export type AdvisoryCoreDeps = {
    * "fr" when omitted, matching getLocale()'s own default.
    */
   locale?: Locale;
+  /** Test-only override of the primary/fallback provider policy —
+   * defaults to DEFAULT_ROUTING_POLICY (Anthropic primary, OpenAI
+   * fallback). Real callers never set this. */
+  routingPolicy?: RoutingPolicy;
 };
 
 export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
@@ -142,13 +146,15 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
 
   let outcome;
   try {
-    const gateway = createRadarIntelligenceGateway({
+    const router = createProviderRouter({
       registry: deps.createRegistry(),
+      policy: deps.routingPolicy ?? DEFAULT_ROUTING_POLICY,
       ...(deps.clock ? { clock: deps.clock } : {}),
-      // exactly one provider attempt for a user-triggered advisory
-      policy: { timeoutMs: 8_000, maxRetries: 0, retryBaseDelayMs: 0, retryableCodes: new Set() },
+      // Per-ATTEMPT timeout — the router calls this at most twice
+      // (primary, then an eligible fallback), never in a loop.
+      timeoutMs: 8_000,
     });
-    outcome = await gateway.run({ kind: "summarize", requiredCapabilities: ["summarize"], context, locale: deps.locale ?? "fr" });
+    outcome = await router.run({ kind: "summarize", requiredCapabilities: ["summarize"], context, locale: deps.locale ?? "fr" });
   } catch {
     logRadarIntelligenceEvent({ source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
     return { status: "error" };
@@ -161,6 +167,13 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   };
 
   if (outcome.advisory) {
+    // A successful FALLBACK is the one success-path event worth a safe
+    // log line (mission section 17) — everything logged is already
+    // non-secret provider identity + a boolean, same allowlist as the
+    // failure log below.
+    if (outcome.fallbackUsed) {
+      logRadarIntelligenceEvent({ source: "advisory_core", code: "FALLBACK_SUCCEEDED", provider: outcome.advisory.provider, fallbackUsed: true, status: "ok" });
+    }
     return {
       status: "ok",
       summary: outcome.advisory.summary ?? "",
@@ -169,7 +182,9 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
       reasoning: outcome.advisory.reasoning ?? null,
       generatedAt: outcome.advisory.generatedAt ?? outcome.generatedAt,
       deterministic,
-      ...(outcome.advisory.model ? { providerMeta: { provider: outcome.advisory.provider, model: outcome.advisory.model } } : {}),
+      ...(outcome.advisory.model
+        ? { providerMeta: { provider: outcome.advisory.provider, model: outcome.advisory.model, fallbackUsed: outcome.fallbackUsed } }
+        : {}),
     };
   }
 
@@ -211,6 +226,8 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
       code: outcome.error.code,
       ...(diagnostic ? { failureClass: diagnostic } : {}),
       ...(httpStatus !== undefined ? { httpStatus } : {}),
+      ...(outcome.providerId ? { provider: outcome.providerId } : {}),
+      ...(outcome.fallbackUsed ? { fallbackUsed: true, attempt: outcome.attemptCount } : {}),
       status: uiResult.status,
     });
   }

@@ -128,3 +128,70 @@ test("status: connected transport -> CONNECTED / HEALTHY / summarize capability"
   assert.equal(anthropic.health, "HEALTHY");
   assert.deepEqual(anthropic.capabilities, ["summarize"]);
 });
+
+// ---------------- V2: `configured`, real-config path only ----------------
+
+test("V2: an injected registry (every test above) NEVER gets a `configured` field — it has no associated env config", async () => {
+  reset();
+  const view = await getRadarIntelligenceProviderStatus({
+    registry: registryWith({ config: { enabled: true }, transport: fakeTransport({ reachable: true, degraded: false }) }),
+  });
+  for (const p of view.providers) {
+    assert.equal("configured" in p, false);
+  }
+});
+
+test("V2: real-config path, both providers unset -> anthropic+openai appear as synthetic DISABLED/unconfigured entries alongside deterministic", async () => {
+  reset();
+  const loadedConfig = {
+    anthropic: { enabledFlag: false, hasCredential: false, effectiveEnabled: false, model: "m", apiKey: null, maxOutputTokens: 1, maxRequestBytes: 1 },
+    openai: { enabledFlag: false, hasCredential: false, effectiveEnabled: false, model: "m", apiKey: null, maxOutputTokens: 1, maxRequestBytes: 1 },
+  };
+  const view = await getRadarIntelligenceProviderStatus({ configuredRegistryDeps: { loadedConfig } });
+  assert.deepEqual(view.providers.map((p) => p.provider).sort(), ["anthropic", "deterministic", "openai"]);
+  const anthropic = view.providers.find((p) => p.provider === "anthropic");
+  const openai = view.providers.find((p) => p.provider === "openai");
+  for (const p of [anthropic, openai]) {
+    assert.equal(p.connection, "DISABLED");
+    assert.equal(p.health, "HEALTHY");
+    assert.equal(p.enabled, false);
+    assert.equal(p.configured, false);
+    assert.deepEqual(p.capabilities, []);
+  }
+});
+
+test("V2: real-config path — enabled AND keyed provider is registered for real and carries configured:true", async () => {
+  reset();
+  const loadedConfig = {
+    anthropic: { enabledFlag: true, hasCredential: true, effectiveEnabled: true, model: "m", apiKey: FAKE_KEY, maxOutputTokens: 1, maxRequestBytes: 1 },
+    openai: { enabledFlag: false, hasCredential: false, effectiveEnabled: false, model: "m", apiKey: null, maxOutputTokens: 1, maxRequestBytes: 1 },
+  };
+  const view = await getRadarIntelligenceProviderStatus({
+    configuredRegistryDeps: { loadedConfig, anthropicFetchImpl: async () => new Response(JSON.stringify({}), { status: 200 }) },
+  });
+  const anthropic = view.providers.find((p) => p.provider === "anthropic");
+  assert.equal(anthropic.enabled, true);
+  assert.equal(anthropic.configured, true);
+  const openai = view.providers.find((p) => p.provider === "openai");
+  assert.equal(openai.configured, false);
+  assert.equal(openai.enabled, false);
+  const s = JSON.stringify(view);
+  assert.ok(!s.includes(FAKE_KEY));
+});
+
+test("V2: `configured` distinguishes 'flag on, key missing' from 'flag off' — both surface as DISABLED but with different configured values", async () => {
+  reset();
+  const loadedConfig = {
+    anthropic: { enabledFlag: true, hasCredential: false, effectiveEnabled: false, model: "m", apiKey: null, maxOutputTokens: 1, maxRequestBytes: 1 },
+    openai: { enabledFlag: false, hasCredential: true, effectiveEnabled: false, model: "m", apiKey: "sk-proj-fake", maxOutputTokens: 1, maxRequestBytes: 1 },
+  };
+  const view = await getRadarIntelligenceProviderStatus({ configuredRegistryDeps: { loadedConfig } });
+  const anthropic = view.providers.find((p) => p.provider === "anthropic");
+  const openai = view.providers.find((p) => p.provider === "openai");
+  // flag on, no key -> effectiveEnabled false, so still not registered/DISABLED, but visibly "configured: false"
+  assert.equal(anthropic.enabled, false);
+  assert.equal(anthropic.configured, false);
+  // flag off, key present -> not registered/DISABLED, but visibly "configured: true"
+  assert.equal(openai.enabled, false);
+  assert.equal(openai.configured, true);
+});

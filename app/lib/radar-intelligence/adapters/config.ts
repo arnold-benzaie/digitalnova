@@ -65,9 +65,12 @@ export function payloadByteSize(payload: { system: string; userMessage: string; 
   return typeof Buffer !== "undefined" ? Buffer.byteLength(wire, "utf8") : new TextEncoder().encode(wire).length;
 }
 
-/** The whole intelligence-layer server config. Extend per provider later. */
+/** The whole intelligence-layer server config. Extend per provider later —
+ * see docs/radar-intelligence-multi-provider-architecture.md for the
+ * extension point. */
 export type RadarIntelligenceConfig = {
   anthropic?: Partial<AnthropicAdapterConfig>;
+  openai?: Partial<import("./openai-config").OpenAiAdapterConfig>;
 };
 
 export function resolveAnthropicConfig(overrides?: Partial<AnthropicAdapterConfig>): AnthropicAdapterConfig {

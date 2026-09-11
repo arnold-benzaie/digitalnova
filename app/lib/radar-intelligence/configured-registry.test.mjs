@@ -159,3 +159,139 @@ test("error mapping: 429 -> PROVIDER_RATE_LIMITED, 503 -> PROVIDER_UNAVAILABLE, 
   assert.equal((await run(503)).error.code, "PROVIDER_UNAVAILABLE");
   assert.equal((await run(401)).error.code, "PROVIDER_ERROR");
 });
+
+// ---------------- V2: dual-provider registration ----------------
+//
+// `loadedConfig()` above (predating OpenAI) never includes an `openai` key
+// at all — that is the EXACT fixture shape that forced configured-registry.ts
+// to defensively optional-chain `config.openai?.effectiveEnabled` rather
+// than assume the field exists. These new tests exercise the field
+// deliberately, alongside anthropic, independently.
+
+const OPENAI_FAKE_KEY = "sk-proj-THIS-MUST-NEVER-LEAK";
+
+function openAiConfig({ enabled = true, hasKey = true, model = "gpt-4o-mini" } = {}) {
+  const effective = enabled && hasKey;
+  return {
+    enabledFlag: enabled,
+    hasCredential: hasKey,
+    effectiveEnabled: effective,
+    model,
+    apiKey: hasKey ? OPENAI_FAKE_KEY : null,
+    maxOutputTokens: 512,
+    maxRequestBytes: 24000,
+  };
+}
+
+function openAiChatCompletionsFetch(script = {}) {
+  const calls = [];
+  const fn = async (url, init) => {
+    calls.push({ url, init });
+    if (script.reject) throw script.reject;
+    const status = script.status ?? 200;
+    return {
+      status,
+      async json() {
+        if (script.invalidJson) throw new SyntaxError("bad");
+        return script.body ?? { choices: [{ message: { content: JSON.stringify({ summary: "OpenAI advisory." }) } }], usage: { prompt_tokens: 10, completion_tokens: 6 } };
+      },
+    };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+test("V2: only anthropic key present (no openai field at all, the pre-V2 fixture shape) -> registry unaffected, no crash", async () => {
+  const reg = createConfiguredRadarIntelligenceRegistry({ loadedConfig: loadedConfig(), fetchImpl: fakeFetch(), clock });
+  assert.deepEqual(reg.list().map((a) => a.id).sort(), ["anthropic", "deterministic"].sort());
+});
+
+test("V2: OpenAI-only enabled (anthropic absent from loadedConfig) -> openai registered, anthropic is not", async () => {
+  const ff = openAiChatCompletionsFetch();
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { openai: openAiConfig() },
+    openaiFetchImpl: ff,
+    clock,
+  });
+  assert.deepEqual(reg.list().map((a) => a.id).sort(), ["deterministic", "openai"].sort());
+  const snap = await snapWith(reg);
+  assert.equal(snap.intelligence.provider, "openai");
+  assert.ok(!JSON.stringify(snap).includes(OPENAI_FAKE_KEY));
+});
+
+test("V2: both providers enabled+keyed -> both registered independently, each with its OWN fetch/key", async () => {
+  const anthropicFetch = fakeFetch({ status: 200 });
+  const openaiFetch = openAiChatCompletionsFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { ...loadedConfig(), openai: openAiConfig() },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  assert.deepEqual(reg.list().map((a) => a.id).sort(), ["anthropic", "deterministic", "openai"].sort());
+});
+
+test("V2: both providers disabled -> neither registered, Slice-1 parity, zero fetch calls on either fake", async () => {
+  const anthropicFetch = fakeFetch();
+  const openaiFetch = openAiChatCompletionsFetch();
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { anthropic: loadedConfig({ enabled: false }).anthropic, openai: openAiConfig({ enabled: false }) },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  assert.deepEqual(reg.list().map((a) => a.id), ["deterministic"]);
+  await snapWith(reg);
+  assert.equal(anthropicFetch.calls.length, 0);
+  assert.equal(openaiFetch.calls.length, 0);
+});
+
+test("V2: end-to-end fallback at the configured-registry level — Anthropic 503 (eligible), OpenAI 200 -> the router serves the OpenAI advisory", async () => {
+  const { createProviderRouter } = await import("./provider-router.ts");
+  const { sanitizeProspectContext } = await import("./sanitize-context.ts");
+  const anthropicFetch = fakeFetch({ status: 503 });
+  const openaiFetch = openAiChatCompletionsFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { ...loadedConfig(), openai: openAiConfig() },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  const router = createProviderRouter({ registry: reg, clock, timeoutMs: 8000 });
+  const outcome = await router.run({
+    kind: "summarize",
+    requiredCapabilities: ["summarize"],
+    context: sanitizeProspectContext({ prospectName: "X", stage: "prospect" }),
+  });
+  assert.equal(outcome.advisory.provider, "openai");
+  assert.equal(outcome.fallbackUsed, true);
+  assert.equal(outcome.attemptCount, 2);
+  assert.equal(anthropicFetch.calls.length, 1);
+  assert.equal(openaiFetch.calls.length, 1);
+  assert.ok(!JSON.stringify(outcome).includes(FAKE_KEY));
+  assert.ok(!JSON.stringify(outcome).includes(OPENAI_FAKE_KEY));
+});
+
+test("V2: end-to-end NON-fallback at the configured-registry level — Anthropic 401 -> OpenAI is never dispatched, even though it's configured", async () => {
+  const { createProviderRouter } = await import("./provider-router.ts");
+  const { sanitizeProspectContext } = await import("./sanitize-context.ts");
+  const anthropicFetch = fakeFetch({ status: 401 });
+  const openaiFetch = openAiChatCompletionsFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { ...loadedConfig(), openai: openAiConfig() },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  const router = createProviderRouter({ registry: reg, clock, timeoutMs: 8000 });
+  const outcome = await router.run({
+    kind: "summarize",
+    requiredCapabilities: ["summarize"],
+    context: sanitizeProspectContext({ prospectName: "X", stage: "prospect" }),
+  });
+  assert.equal(outcome.advisory, null);
+  assert.equal(outcome.error.code, "PROVIDER_ERROR");
+  assert.equal(outcome.error.providerId, "anthropic");
+  assert.equal(outcome.fallbackUsed, false);
+  assert.equal(openaiFetch.calls.length, 0);
+});

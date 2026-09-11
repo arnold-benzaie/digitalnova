@@ -2,17 +2,22 @@ import "server-only";
 
 /**
  * RADAR INTELLIGENCE — safe, secret-free server-side observability.
+ * RADAR INTELLIGENCE V2 — extended with three MULTI-PROVIDER-ROUTING
+ * fields (provider / fallbackUsed / attempt), each independently
+ * re-validated, and one new blind-path code (FALLBACK_SUCCEEDED) for the
+ * one success-path event worth a log line.
  *
  * ONE narrow choke point for every diagnostic log line the intelligence
  * layer emits, so a future failure can be told apart by WHICH internal
  * branch it took — without ever recording WHO asked or WHAT was asked.
  *
- * `logRadarIntelligenceEvent` accepts ONLY the five allowlisted fields
- * below (source / code / failureClass / httpStatus / status) and rebuilds
- * a brand-new object by reading just those keys — it never logs the
- * caller's object itself, so an accidental extra field (a clientId, a
- * userId, a raw error) is silently dropped rather than reaching console
- * output. This is deliberately NOT a general-purpose logger.
+ * `logRadarIntelligenceEvent` accepts ONLY the eight allowlisted fields
+ * below (source / code / failureClass / httpStatus / provider /
+ * fallbackUsed / attempt / status) and rebuilds a brand-new object by
+ * reading just those keys — it never logs the caller's object itself, so
+ * an accidental extra field (a clientId, a userId, a raw error) is
+ * silently dropped rather than reaching console output. This is
+ * deliberately NOT a general-purpose logger.
  *
  * NEVER logged, by construction: an API key, x-api-key, Authorization, a
  * prompt or system instruction, a raw provider response / HTTP body,
@@ -24,18 +29,25 @@ import "server-only";
  * `httpStatus`, if present at all, is RE-VALIDATED here (400–599, a real
  * integer, never coerced from a string) before it can reach console
  * output — a second, independent gate on top of the one in errors.ts.
+ * `provider` is RE-VALIDATED as a known IntelligenceProviderId (the same
+ * closed set the whole layer already uses — "anthropic" / "openai" /
+ * "deterministic" / a documented future id — never an arbitrary string).
+ * `fallbackUsed` is coerced to a strict boolean. `attempt` is
+ * RE-VALIDATED as a small non-negative integer (0, 1, or 2 in practice).
  * None of these is ever a free-text string built from user/provider input.
  */
 import { validateHttpStatus, type IntelligenceErrorCode, type ProviderFailureClass } from "./errors";
+import { isIntelligenceProviderId } from "./types";
 
 export type RadarIntelligenceLogSource = "advisory_core" | "diagnostic_permission_check" | "server_action_boundary";
 
 /**
- * Internal codes for the diagnostic-BLIND paths — i.e. failures that
- * carry no ProviderFailureClass and would otherwise be indistinguishable
- * from one another in `{ status: "error" }`. Never surfaced to the UI;
- * SYSTEM_ADMIN-only exposure is unchanged (this module only ever writes
- * to the server log, never to a returned result).
+ * Internal codes for the diagnostic-BLIND paths — i.e. failures (or, for
+ * FALLBACK_SUCCEEDED, the one success-path event worth a log line) that
+ * would otherwise be indistinguishable from one another in the plain
+ * `{ status: "..." }` UI result. Never surfaced to the UI; SYSTEM_ADMIN-only
+ * exposure is unchanged (this module only ever writes to the server log,
+ * never to a returned result).
  */
 export const RADAR_INTELLIGENCE_BLIND_PATH_CODES = [
   "INVALID_CLIENT_ID",
@@ -44,6 +56,7 @@ export const RADAR_INTELLIGENCE_BLIND_PATH_CODES = [
   "REGISTRY_GATEWAY_THROW",
   "SYSTEM_ADMIN_CHECK_FAILED",
   "SERVER_ACTION_UNHANDLED_ERROR",
+  "FALLBACK_SUCCEEDED",
 ] as const;
 
 export type RadarIntelligenceBlindPathCode = (typeof RADAR_INTELLIGENCE_BLIND_PATH_CODES)[number];
@@ -58,19 +71,28 @@ export type RadarIntelligenceLogEvent = {
   /** Only present alongside failureClass, for a genuine provider HTTP
    * response — re-validated (400–599) below regardless. */
   httpStatus?: number;
+  /** The canonical provider id that actually ran (e.g. "anthropic" /
+   * "openai") — re-validated against the closed IntelligenceProviderId
+   * set below. Never a raw/arbitrary string. */
+  provider?: string;
+  /** Whether the FALLBACK provider ended up serving this request. */
+  fallbackUsed?: boolean;
+  /** How many providers were dispatched to (0, 1, or 2) — routing
+   * metadata only, never a retry count. */
+  attempt?: number;
   /** The safe RadarAdvisoryUiResult["status"] the caller is about to
    * return — a fixed enum string, never provider/user text. */
   status?: string;
 };
 
-const ALLOWED_LOG_KEYS = ["source", "code", "failureClass", "httpStatus", "status"] as const;
+const ALLOWED_LOG_KEYS = ["source", "code", "failureClass", "httpStatus", "provider", "fallbackUsed", "attempt", "status"] as const;
 
 /**
  * The ONLY export that writes anywhere. Re-reads just the allowlisted
  * keys off `event` into a fresh object before logging — nothing else on
  * `event`, however it was constructed by the caller, can reach this line.
- * `httpStatus` gets one extra check: it is dropped, not passed through,
- * unless it independently re-validates as a real 400–599 integer.
+ * `httpStatus`, `provider`, and `attempt` each get one extra check: they
+ * are dropped, not passed through, unless they independently re-validate.
  */
 export function logRadarIntelligenceEvent(event: RadarIntelligenceLogEvent): void {
   const safe: Record<string, unknown> = {};
@@ -80,6 +102,18 @@ export function logRadarIntelligenceEvent(event: RadarIntelligenceLogEvent): voi
     if (key === "httpStatus") {
       const validated = validateHttpStatus(value);
       if (validated !== undefined) safe.httpStatus = validated;
+      continue;
+    }
+    if (key === "provider") {
+      if (isIntelligenceProviderId(value)) safe.provider = value;
+      continue;
+    }
+    if (key === "fallbackUsed") {
+      if (typeof value === "boolean") safe.fallbackUsed = value;
+      continue;
+    }
+    if (key === "attempt") {
+      if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 2) safe.attempt = value;
       continue;
     }
     safe[key] = value;

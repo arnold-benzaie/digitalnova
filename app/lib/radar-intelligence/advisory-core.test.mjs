@@ -145,7 +145,91 @@ test("success result has EXACTLY the safe keys", async () => {
     ["deterministic", "generatedAt", "providerMeta", "reasoning", "risks", "status", "suggestedNextAction", "summary"].sort(),
   );
   assert.deepEqual(Object.keys(r.deterministic).sort(), ["confidence", "priority", "recommendedNextAction"].sort());
-  assert.deepEqual(Object.keys(r.providerMeta).sort(), ["model", "provider"].sort());
+  assert.deepEqual(Object.keys(r.providerMeta).sort(), ["fallbackUsed", "model", "provider"].sort());
+  assert.equal(r.providerMeta.fallbackUsed, false, "the primary succeeded — no fallback occurred");
+});
+
+// ---------------- V2: end-to-end multi-provider fallback ----------------
+//
+// The full produceRadarAdvisory -> createProviderRouter -> dual-adapter
+// flow, with BOTH a real Anthropic adapter and a real OpenAI adapter
+// registered (via createRadarIntelligenceRegistry — not the router unit
+// directly), each backed by its own fake transport. Proves the router is
+// correctly wired all the way through advisory-core, including
+// providerMeta.fallbackUsed on a genuine end-to-end fallback success.
+
+const dualRegistry = (anthropicTransport, openaiTransport) => () =>
+  createRadarIntelligenceRegistry({
+    config: { anthropic: { enabled: true }, openai: { enabled: true } },
+    anthropicTransport,
+    openaiTransport,
+    clock,
+  });
+
+test("V2 e2e: Anthropic succeeds -> OpenAI is never dispatched, providerMeta.fallbackUsed is false", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiHits, 0);
+});
+
+test("V2 e2e: Anthropic returns 503 (eligible) -> OpenAI is dispatched and its advisory is returned with providerMeta.fallbackUsed true", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = {
+    async generate() {
+      openaiHits += 1;
+      return { body: { summary: "OpenAI saved the day.", suggestedNextAction: "Call now" }, status: 200 };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.match(r.summary, /OpenAI saved the day/);
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, true);
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiHits, 1);
+  // deterministic RADAR is still authoritative, unaffected by which
+  // provider ultimately served the advisory
+  assert.deepEqual(r.deterministic, { priority: OPPORTUNITY.priority, confidence: OPPORTUNITY.confidence, recommendedNextAction: OPPORTUNITY.recommendedNextAction });
+});
+
+test("V2 e2e: Anthropic returns 401 -> OpenAI is NEVER dispatched even though it is enabled+healthy; the auth mistake stays visible", async () => {
+  const anthropicT = fakeTransport({ status: 401 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "error");
+  assert.equal(r.diagnostic, "PROVIDER_4XX");
+  assert.equal(r.httpStatus, 401);
+  assert.equal("providerMeta" in r, false);
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiHits, 0, "OpenAI must never be called after a 401 — this would hide a real auth/config mistake");
+});
+
+test("V2 e2e: both Anthropic and OpenAI fail -> existing safe failure semantics, the fallback's own error surfaces", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = { async generate() { return { body: null, status: 500 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "unavailable");
+  assert.equal(r.diagnostic, "PROVIDER_5XX");
+  assert.equal("providerMeta" in r, false);
+});
+
+test("V2 e2e: a successful fallback logs exactly one FALLBACK_SUCCEEDED event with provider/fallbackUsed, no secret", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = { async generate() { return { body: { summary: "ok" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  // withCapturedWarn is a hoisted function declaration further below in
+  // this same module — safe to call from here.
+  const calls = await withCapturedWarn(() => produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) })));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "FALLBACK_SUCCEEDED", provider: "openai", fallbackUsed: true, status: "ok" });
 });
 
 // ---------------- provider failures ----------------
@@ -495,7 +579,14 @@ test("observability: a provider HTTP 4xx failure logs code + failureClass + http
   });
   assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 400 });
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", httpStatus: 400, status: "error" });
+  assert.deepEqual(calls[0][1], {
+    source: "advisory_core",
+    code: "PROVIDER_ERROR",
+    failureClass: "PROVIDER_4XX",
+    httpStatus: 400,
+    provider: "anthropic",
+    status: "error",
+  });
 });
 
 test("observability: a provider failure with NO genuine HTTP response (network fault) logs no httpStatus", async () => {
@@ -506,7 +597,7 @@ test("observability: a provider failure with NO genuine HTTP response (network f
   });
   assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_NETWORK" });
   assert.equal("httpStatus" in result, false);
-  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", status: "error" });
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", provider: "anthropic", status: "error" });
   assert.equal("httpStatus" in calls[0][1], false);
 });
 
@@ -517,7 +608,7 @@ test("observability: a network fault logs PROVIDER_NETWORK as the class, PROVIDE
     result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
   });
   assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_NETWORK" });
-  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", status: "error" });
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", provider: "anthropic", status: "error" });
 });
 
 test("observability: the designed no-provider state (no adapter configured) logs NOTHING — it is not a failure to distinguish", async () => {
@@ -582,7 +673,7 @@ test("observability: no log line, across every failure path above, ever contains
     assert.deepEqual(
       Object.keys(call[1]).sort(),
       Object.keys(call[1])
-        .filter((k) => ["source", "code", "failureClass", "httpStatus", "status"].includes(k))
+        .filter((k) => ["source", "code", "failureClass", "httpStatus", "provider", "fallbackUsed", "attempt", "status"].includes(k))
         .sort(),
     );
   }

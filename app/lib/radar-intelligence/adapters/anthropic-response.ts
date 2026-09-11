@@ -2,94 +2,26 @@
  * RADAR INTELLIGENCE V1 — Slice 2 — pure Anthropic response normalization.
  * RADAR INTELLIGENCE V1.1 — structured (summary/risks/nextAction/reasoning)
  * output, with graceful degradation to plain-text summary.
+ * RADAR INTELLIGENCE V2 — the structured-output contract, its caps, and
+ * its graceful-degradation rule now live in the provider-agnostic
+ * structured-advisory-parser.ts, shared with every other provider's
+ * normalizer. This file keeps ONLY what is genuinely Anthropic-specific:
+ * the Messages-API envelope shape ({content:[{type:"text",text}]}) and
+ * Anthropic's own usage field names (inputTokens/input_tokens/...).
  *
- * Provider output is UNTRUSTED. This module validates the runtime shape,
- * drops unknown fields, truncates oversized fields, and turns anything
- * unexpected into a safe PROVIDER_ERROR. It never treats model text as a
- * URL, command, assignment, HTML, SQL, or server-action call — the result
- * is advisory DISPLAY DATA only. No eval, no dynamic code, no tool call.
+ * Provider output is UNTRUSTED. This module validates the runtime shape
+ * and turns anything unexpected into a safe PROVIDER_ERROR. It never
+ * treats model text as a URL, command, assignment, HTML, SQL, or
+ * server-action call — the result is advisory DISPLAY DATA only. No eval,
+ * no dynamic code, no tool call.
  *
  * The produced IntelligenceAdvisory always has `advisory: true` and never
  * carries a deterministic priority / score / assignee.
  */
-import { EMPTY_USAGE, type IntelligenceAdvisory, type IntelligenceConnectionStatus, type IntelligenceResponse, type IntelligenceUsage } from "../types";
+import type { IntelligenceAdvisory, IntelligenceConnectionStatus, IntelligenceResponse } from "../types";
 import { makeIntelligenceError } from "../errors";
-import { redactUuids } from "../sanitize-context";
+import { cleanText, cleanStructuredFields, normalizeUsageTokens, resolveStructuredFields } from "./structured-advisory-parser";
 import { ANTHROPIC_PROVIDER_ID } from "./config";
-
-const MAX_SUMMARY_LEN = 1_200;
-const MAX_NEXT_ACTION_LEN = 160;
-const MAX_TAGS = 8;
-const MAX_TAG_LEN = 40;
-const MAX_WARNINGS = 6;
-const MAX_WARNING_LEN = 200;
-const MAX_RISKS = 6;
-const MAX_RISK_LEN = 120;
-const MAX_REASONING_LEN = 400;
-
-function cleanText(value: unknown, maxLen: number): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const t = redactUuids(value).trim().slice(0, maxLen);
-  return t.length > 0 ? t : undefined;
-}
-
-function cleanStringArray(value: unknown, maxItems: number, maxLen: number): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const out: string[] = [];
-  for (const item of value) {
-    const t = cleanText(item, maxLen);
-    if (t) out.push(t);
-    if (out.length >= maxItems) break;
-  }
-  return out.length > 0 ? out : undefined;
-}
-
-function nonNegInt(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
-}
-
-/** Map an untyped provider usage object into IntelligenceUsage. No pricing
- * table — estimatedCost stays 0 unless the provider itself supplied a
- * finite non-negative number. */
-function normalizeUsage(raw: unknown): IntelligenceUsage {
-  if (typeof raw !== "object" || raw === null) return { ...EMPTY_USAGE };
-  const u = raw as Record<string, unknown>;
-  const inputTokens = nonNegInt(u.inputTokens ?? u.input_tokens);
-  const outputTokens = nonNegInt(u.outputTokens ?? u.output_tokens);
-  const estimatedCost =
-    typeof u.estimatedCost === "number" && Number.isFinite(u.estimatedCost) && u.estimatedCost >= 0 ? u.estimatedCost : 0;
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    estimatedCost,
-    currency: typeof u.currency === "string" && u.currency.length === 3 ? u.currency.toUpperCase() : "USD",
-    providerRequestId: typeof u.providerRequestId === "string" ? redactUuids(u.providerRequestId).slice(0, 128) : null,
-  };
-}
-
-/** Strip a ```json ... ``` (or bare ``` ... ```) fence around `text`, if
- * the model wrapped its JSON in one despite being asked not to. */
-function stripJsonFence(text: string): string {
-  const trimmed = text.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-/**
- * Best-effort parse of the model's own text as the requested
- * { summary, risks, nextAction, reasoning } JSON object. Returns
- * undefined on ANY failure (not valid JSON, or not a plain object) —
- * the caller degrades to plain-text summary in that case. Never throws.
- */
-function tryParseStructuredText(text: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(stripJsonFence(text));
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Accept a provider body in a couple of tolerant shapes:
@@ -123,11 +55,11 @@ export function normalizeAnthropicResponse(body: unknown, generatedAt: string, m
       .map((c) => (typeof c.text === "string" ? c.text : ""))
       .join(" ")
       .trim();
-    fields = tryParseStructuredText(text) ?? { summary: text };
+    fields = resolveStructuredFields(text);
   }
 
-  const summary = cleanText(fields.summary, MAX_SUMMARY_LEN);
-  if (summary === undefined) {
+  const cleaned = cleanStructuredFields(fields);
+  if (cleaned === undefined) {
     return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, "PROVIDER_PARSE") };
   }
 
@@ -137,30 +69,13 @@ export function normalizeAnthropicResponse(body: unknown, generatedAt: string, m
     provider: ANTHROPIC_PROVIDER_ID,
     status,
     generatedAt,
-    summary,
+    ...cleaned,
   };
-
-  // Accept either key name — the system instruction asks for "nextAction",
-  // older fakes/tests may still use "suggestedNextAction".
-  const suggestedNextAction = cleanText(fields.suggestedNextAction ?? fields.nextAction, MAX_NEXT_ACTION_LEN);
-  if (suggestedNextAction) advisory.suggestedNextAction = suggestedNextAction;
-
-  const risks = cleanStringArray(fields.risks, MAX_RISKS, MAX_RISK_LEN);
-  if (risks) advisory.risks = risks;
-
-  const reasoning = cleanText(fields.reasoning, MAX_REASONING_LEN);
-  if (reasoning) advisory.reasoning = reasoning;
-
-  const tags = cleanStringArray(fields.tags, MAX_TAGS, MAX_TAG_LEN);
-  if (tags) advisory.tags = tags;
-
-  const warnings = cleanStringArray(fields.warnings, MAX_WARNINGS, MAX_WARNING_LEN);
-  if (warnings) advisory.warnings = warnings;
 
   // usage is always a SIBLING of `content` in the real Messages API
   // response, never something the model's own generated text could set —
   // always read off the raw top-level body, never off `fields`.
-  advisory.usage = normalizeUsage(b.usage);
+  advisory.usage = normalizeUsageTokens(b.usage);
 
   // The configured model id — non-secret configuration (see
   // adapters/config.ts), never anything from the response itself.

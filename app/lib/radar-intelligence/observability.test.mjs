@@ -96,7 +96,7 @@ test("no log line, however constructed, ever contains a UUID shape or an auth he
   assert.equal(/x-api-key|authorization|bearer|sk-ant-/i.test(s), false);
 });
 
-test("the blind-path code catalogue is exactly the six documented codes", () => {
+test("the blind-path code catalogue is exactly the seven documented codes", () => {
   assert.deepEqual(
     [...RADAR_INTELLIGENCE_BLIND_PATH_CODES].sort(),
     [
@@ -106,6 +106,7 @@ test("the blind-path code catalogue is exactly the six documented codes", () => 
       "REGISTRY_GATEWAY_THROW",
       "SERVER_ACTION_UNHANDLED_ERROR",
       "SYSTEM_ADMIN_CHECK_FAILED",
+      "FALLBACK_SUCCEEDED",
     ].sort(),
   );
 });

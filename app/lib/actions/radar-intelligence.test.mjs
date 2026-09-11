@@ -434,6 +434,37 @@ test("providerMeta: the SYSTEM_ADMIN check is SKIPPED when the ok result has no 
   assert.equal(evalCalls.length, 0);
 });
 
+// ---------------- V2: providerMeta.fallbackUsed follows the exact same boundary ----------------
+
+const OK_WITH_FALLBACK_META = {
+  ...OK_WITH_META,
+  providerMeta: { provider: "openai", model: "gpt-4o-mini", fallbackUsed: true },
+};
+
+test("V2: SYSTEM_ADMIN sees fallbackUsed inside providerMeta verbatim (no production code needed — the field passes through the existing allowlist boundary)", async () => {
+  reset();
+  evalOk = true;
+  coreResult = OK_WITH_FALLBACK_META;
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, OK_WITH_FALLBACK_META);
+  assert.equal(r.providerMeta.fallbackUsed, true);
+  assert.equal(r.providerMeta.provider, "openai");
+});
+
+for (const label of ["MANAGER", "EMPLOYEE", "any non-admin"]) {
+  test(`V2: a ${label} caller never sees fallbackUsed (or provider/model) — providerMeta is stripped entirely regardless of its shape`, async () => {
+    reset();
+    evalOk = false;
+    coreResult = OK_WITH_FALLBACK_META;
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.equal("providerMeta" in r, false);
+    const s = JSON.stringify(r);
+    assert.equal(s.includes("fallbackUsed"), false);
+    assert.equal(s.includes("openai"), false);
+    assert.equal(s.includes("gpt-4o-mini"), false);
+  });
+}
+
 test("providerMeta: a permission-check THROW strips providerMeta but keeps every other ok field (not just the diagnostic path)", async () => {
   reset();
   evalThrows = true;

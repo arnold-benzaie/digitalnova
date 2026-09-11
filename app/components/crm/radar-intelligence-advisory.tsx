@@ -53,7 +53,7 @@ export type RadarIntelligenceAdvisoryDict = {
  * exception, gated by the server: providerMeta never reaches a
  * non-SYSTEM_ADMIN caller in the first place). Falls back to the raw id
  * for any future provider not yet in this map. */
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = { anthropic: "Anthropic" };
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI" };
 
 const ctaButtonClass =
   "rounded-lg border border-pm-bleu-eu/30 bg-white px-3 py-1.5 text-sm font-medium text-pm-bleu-eu transition hover:border-pm-bleu-eu/60 hover:bg-pm-bleu-eu/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-bleu-eu/40 disabled:cursor-not-allowed disabled:opacity-60";
@@ -166,6 +166,17 @@ export function AdvisoryResultView({
             Provider: {PROVIDER_DISPLAY_NAMES[result.providerMeta.provider] ?? result.providerMeta.provider}
             <br />
             Model: {result.providerMeta.model}
+            {/* RADAR INTELLIGENCE V2: same SYSTEM_ADMIN-only footer,
+                extended with whether the FALLBACK provider ended up
+                serving this request. Rendered ONLY when the field is
+                actually present, so a stale/pre-V2 fixture without it
+                (fallbackUsed === undefined) never shows "Fallback used:". */}
+            {typeof result.providerMeta.fallbackUsed === "boolean" ? (
+              <>
+                <br />
+                Fallback used: {result.providerMeta.fallbackUsed ? "Yes" : "No"}
+              </>
+            ) : null}
           </p>
         ) : null}
       </section>
