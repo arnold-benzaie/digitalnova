@@ -16,10 +16,12 @@ import type { ProspectQualificationResult } from "@/lib/actions/radar";
 import { isValidUuid } from "@/lib/api-v1/dto";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { ProviderFailureClass } from "./errors";
-import { createProviderRouter, DEFAULT_ROUTING_POLICY, type RoutingPolicy } from "./provider-router";
+import { createProviderRouter } from "./provider-router";
+import { DEFAULT_PROVIDER_POLICY, resolveProviderPolicy, type ProviderPolicy } from "./provider-policy";
 import { logRadarIntelligenceEvent } from "./observability";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
+import type { IntelligenceProviderId } from "./types";
 
 export type RadarAdvisoryUiResult =
   | {
@@ -93,10 +95,15 @@ export type AdvisoryCoreDeps = {
    * "fr" when omitted, matching getLocale()'s own default.
    */
   locale?: Locale;
-  /** Test-only override of the primary/fallback provider policy —
-   * defaults to DEFAULT_ROUTING_POLICY (Anthropic primary, OpenAI
-   * fallback). Real callers never set this. */
-  routingPolicy?: RoutingPolicy;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase A. Test-only override of the
+   * OWNER-level Provider Policy — defaults to DEFAULT_PROVIDER_POLICY
+   * (AUTO, Anthropic primary, OpenAI fallback, no user selection),
+   * which resolves to the exact same routing Production has always
+   * used. No real caller sets this in Phase A: there is no DB-backed
+   * policy and no user-selection UI yet — see provider-policy.ts.
+   */
+  providerPolicy?: ProviderPolicy;
 };
 
 export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
@@ -146,12 +153,31 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
 
   let outcome;
   try {
+    const registry = deps.createRegistry();
+    // RADAR INTELLIGENCE V2.1 — Phase A: the router's routing decision
+    // now comes from resolveProviderPolicy() (provider-policy.ts)
+    // instead of a hardcoded {primary, fallback} pair. `registry.list()`
+    // is REGISTRATION truth ("can this provider technically run" —
+    // config/credential state, unchanged); `deps.providerPolicy` is
+    // PERMISSION truth ("is this provider allowed, and in what order").
+    // The resolver intersects both; it never conflates them. Phase A
+    // passes `requestedProviderId: null` unconditionally — there is no
+    // user-selection caller yet, so this always resolves the exact same
+    // AUTO routing Production has always used (DEFAULT_PROVIDER_POLICY
+    // reproduces DEFAULT_ROUTING_POLICY's shape exactly).
+    const registeredProviders = new Set<IntelligenceProviderId>(registry.list().map((adapter) => adapter.id));
+    const resolvedPolicy = resolveProviderPolicy({
+      ownerPolicy: deps.providerPolicy ?? DEFAULT_PROVIDER_POLICY,
+      registeredProviders,
+      requestedProviderId: null,
+    });
     const router = createProviderRouter({
-      registry: deps.createRegistry(),
-      policy: deps.routingPolicy ?? DEFAULT_ROUTING_POLICY,
+      registry,
+      policy: resolvedPolicy,
       ...(deps.clock ? { clock: deps.clock } : {}),
-      // Per-ATTEMPT timeout — the router calls this at most twice
-      // (primary, then an eligible fallback), never in a loop.
+      // Per-ATTEMPT timeout — the router calls this at most
+      // MAX_PROVIDER_ATTEMPTS times (primary, then eligible fallback
+      // chain entries), never in a loop.
       timeoutMs: 8_000,
     });
     outcome = await router.run({ kind: "summarize", requiredCapabilities: ["summarize"], context, locale: deps.locale ?? "fr" });

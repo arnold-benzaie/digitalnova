@@ -49,6 +49,7 @@ function deps(overrides = {}) {
     createRegistry: overrides.createRegistry ?? (() => createRadarIntelligenceRegistry({})),
     clock,
     ...(overrides.locale ? { locale: overrides.locale } : {}),
+    ...(overrides.providerPolicy ? { providerPolicy: overrides.providerPolicy } : {}),
   };
 }
 
@@ -277,6 +278,91 @@ test("V2 e2e: an unrecognized providerErrorType/Code from OpenAI's transport nev
   assert.equal(calls[0][1].providerErrorParam, "max_tokens", "param independently validated and kept even when type/code are dropped");
   const s = JSON.stringify(calls[0][1]);
   assert.equal(s.includes("some_future"), false);
+});
+
+// ---------------- V2.1 Phase A: Provider Policy resolver integration ----------------
+//
+// produceRadarAdvisory now resolves its routing via
+// resolveProviderPolicy(DEFAULT_PROVIDER_POLICY, ...) instead of a
+// hardcoded {primary,fallback} pair. These tests prove that integration
+// end-to-end WITHOUT changing any externally observable behavior: the
+// default policy must reproduce exactly today's Anthropic-primary/
+// OpenAI-fallback routing, and the new deps.providerPolicy test seam
+// must correctly override it.
+
+test("V2.1: default policy end-to-end -- Anthropic succeeds, OpenAI never dispatched (byte-identical to pre-Phase-A behavior)", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiHits, 0);
+});
+
+test("V2.1: default policy end-to-end -- Anthropic fails eligible, OpenAI serves as fallback (byte-identical to pre-Phase-A behavior)", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = { async generate() { return { body: { summary: "fallback via resolver" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.match(r.summary, /fallback via resolver/);
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, true);
+});
+
+test("V2.1: a custom providerPolicy override (test seam) is honored -- e.g. fallbackEnabled:false suppresses the fallback entirely", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: dualRegistry(anthropicT, openaiT),
+      providerPolicy: {
+        mode: "AUTO",
+        defaultProvider: "anthropic",
+        fallbackOrder: ["anthropic", "openai"],
+        enabledProviders: ["anthropic", "openai"],
+        userSelectableProviders: [],
+        allowUserSelection: false,
+        fallbackEnabled: false,
+      },
+    }),
+  );
+  assert.equal(r.status, "unavailable");
+  assert.equal(openaiHits, 0, "fallbackEnabled:false must suppress the fallback attempt entirely");
+});
+
+test("V2.1: a custom providerPolicy can globally disable a provider even though it is registered/configured (enabledProviders excludes it)", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- disabled by policy" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: dualRegistry(anthropicT, openaiT),
+      providerPolicy: {
+        mode: "AUTO",
+        defaultProvider: "anthropic",
+        fallbackOrder: ["anthropic", "openai"],
+        enabledProviders: ["anthropic"], // openai is registered/configured but NOT owner-enabled
+        userSelectableProviders: [],
+        allowUserSelection: false,
+        fallbackEnabled: true,
+      },
+    }),
+  );
+  assert.equal(r.status, "unavailable", "openai is registered but policy-disabled -- must never be attempted");
+  assert.equal(openaiHits, 0);
+});
+
+test("V2.1: zero-provider invariant reproduced through the resolver -- both absent, deterministic-safe, no crash, no providerMeta", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps());
+  assert.equal(r.status, "unavailable");
+  assert.equal("providerMeta" in r, false);
+  assert.equal("diagnostic" in r, false, "the resolver's no-provider-available case is not a failure to distinguish");
 });
 
 // ---------------- provider failures ----------------

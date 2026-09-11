@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createProviderRouter, isFallbackEligible, DEFAULT_ROUTING_POLICY } from "./provider-router.ts";
+import { createProviderRouter, isFallbackEligible, DEFAULT_ROUTING_POLICY, MAX_PROVIDER_ATTEMPTS } from "./provider-router.ts";
 import { createProviderRegistry } from "./provider-registry.ts";
 import { makeIntelligenceError } from "./errors.ts";
 import { sanitizeProspectContext } from "./sanitize-context.ts";
@@ -350,20 +350,91 @@ test("BUGFIX G: attempt cap is structurally unaffected -- absent-primary fallbac
   assert.equal(openai.calls(), 2, "exactly one OpenAI call per run(), across two independent run() calls");
 });
 
-// ---------------- REGRESSION: policy.fallback === null disables routing entirely ----------------
+// ---------------- REGRESSION: an empty fallbackChain disables routing entirely ----------------
 
-test("a routing policy with fallback:null never attempts a second provider, however the primary fails", async () => {
+test("a routing policy with an EMPTY fallbackChain never attempts a second provider, however the primary fails", async () => {
   const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic") });
   const openai = fakeAdapter("openai", { ok: true });
-  const r = router(registryOf(anthropic, openai), { primary: "anthropic", fallback: null });
+  const r = router(registryOf(anthropic, openai), { primary: "anthropic", fallbackChain: [] });
   const outcome = await r.run(REQUEST);
   assert.equal(outcome.fallbackUsed, false);
   assert.equal(openai.calls(), 0);
 });
 
-test("DEFAULT_ROUTING_POLICY is frozen and is exactly {primary: anthropic, fallback: openai}", () => {
-  assert.deepEqual(DEFAULT_ROUTING_POLICY, { primary: "anthropic", fallback: "openai" });
+test("DEFAULT_ROUTING_POLICY is frozen and is exactly {primary: anthropic, fallbackChain: [openai]}", () => {
+  assert.deepEqual(DEFAULT_ROUTING_POLICY, { primary: "anthropic", fallbackChain: ["openai"] });
   assert.throws(() => {
     DEFAULT_ROUTING_POLICY.primary = "openai";
   }, TypeError);
+});
+
+// ---------------- V2.1: N-provider generalization (Phase A) ----------------
+
+test("V2.1: primary === null (the resolver's 'no provider usable at all' case) -> deterministic-safe outcome, zero dispatches, zero throws", async () => {
+  const anthropic = fakeAdapter("anthropic", { ok: true, summary: "must never run" });
+  const openai = fakeAdapter("openai", { ok: true, summary: "must never run" });
+  const r = router(registryOf(anthropic, openai), { primary: null, fallbackChain: [] });
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory, null);
+  assert.equal(outcome.error, null, "the designed no-provider state, not a fabricated error");
+  assert.equal(outcome.providerUnavailable, true);
+  assert.equal(outcome.fallbackUsed, false);
+  assert.equal(outcome.attemptCount, 0);
+  assert.equal(anthropic.calls(), 0);
+  assert.equal(openai.calls(), 0);
+});
+
+test("V2.1: a 3-entry fallbackChain (anthropic -> openai -> a third, test-only provider double) is capped at MAX_PROVIDER_ATTEMPTS=2 -- the third entry is NEVER dispatched to", async () => {
+  // "gemini" is already a first-class member of IntelligenceProviderId
+  // (types.ts's own documented future-provider list) -- using a FAKE
+  // test-only adapter registered under it here is a pure, isolated unit
+  // test of the router's attempt cap, not an integration of a real
+  // Gemini provider (no adapter, no config, no env var, no real
+  // registration anywhere outside this one test).
+  const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic") });
+  const openai = fakeAdapter("openai", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "openai") });
+  const geminiDouble = fakeAdapter("gemini", { ok: true, summary: "must never run -- beyond the attempt cap" });
+  const r = router(registryOf(anthropic, openai, geminiDouble), { primary: "anthropic", fallbackChain: ["openai", "gemini"] });
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.attemptCount, MAX_PROVIDER_ATTEMPTS);
+  assert.equal(anthropic.calls(), 1);
+  assert.equal(openai.calls(), 1);
+  assert.equal(geminiDouble.calls(), 0, "the third provider must never be dispatched to -- the cap is 2");
+  assert.equal(outcome.advisory, null); // both attempted providers failed
+});
+
+test("V2.1: duplicate ids in fallbackChain are de-duplicated -- never attempted twice, never consuming an extra cap slot", async () => {
+  const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic") });
+  const openai = fakeAdapter("openai", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "openai") });
+  const r = router(registryOf(anthropic, openai), { primary: "anthropic", fallbackChain: ["openai", "openai", "openai"] });
+  const outcome = await r.run(REQUEST);
+  assert.equal(openai.calls(), 1, "openai is attempted exactly once despite appearing three times in fallbackChain");
+  assert.equal(outcome.attemptCount, 2);
+});
+
+test("V2.1: the primary repeated inside fallbackChain is never attempted a second time", async () => {
+  const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic") });
+  const openai = fakeAdapter("openai", { ok: true, summary: "fallback ok" });
+  const r = router(registryOf(anthropic, openai), { primary: "anthropic", fallbackChain: ["anthropic", "openai"] });
+  const outcome = await r.run(REQUEST);
+  assert.equal(anthropic.calls(), 1, "the primary is never re-attempted via its own presence in fallbackChain");
+  assert.equal(outcome.advisory.provider, "openai");
+  assert.equal(outcome.attemptCount, 2);
+});
+
+test("V2.1: a 3-provider chain where the middle entry is unregistered skips it for free (zero cap cost) and still reaches the third", async () => {
+  // anthropic fails eligible -> "openai" is NOT registered (skipped, no
+  // cap cost) -> the third entry ("gemini" test double) IS registered
+  // and is attempted as the 2nd real dispatch.
+  const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic") });
+  const geminiDouble = fakeAdapter("gemini", { ok: true, summary: "third-in-chain fallback" });
+  const r = router(registryOf(anthropic, geminiDouble), { primary: "anthropic", fallbackChain: ["openai", "gemini"] });
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory.provider, "gemini");
+  assert.equal(outcome.attemptCount, 2, "the unregistered middle entry cost nothing; only anthropic + gemini were real dispatches");
+  assert.equal(outcome.fallbackUsed, true);
+});
+
+test("V2.1: MAX_PROVIDER_ATTEMPTS is exactly 2", () => {
+  assert.equal(MAX_PROVIDER_ATTEMPTS, 2);
 });

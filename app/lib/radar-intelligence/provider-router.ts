@@ -67,6 +67,32 @@
  * whatever `primaryOutcome.error` happens to be. A primary that WAS
  * registered still goes through `isFallbackEligible(primaryOutcome.error)`
  * exactly as before — this change never affects that branch.
+ *
+ * V2.1 — N-PROVIDER GENERALIZATION (Phase A — Provider Policy domain
+ * foundation, see provider-policy.ts): the 2-slot `{primary, fallback}`
+ * pair generalizes to `{primary, fallbackChain}` — an ordered list the
+ * router walks in sequence, reusing the EXACT SAME per-attempt mechanism
+ * (`isolateProvider` + a single-attempt gateway) and the EXACT SAME
+ * `isFallbackEligible` rule at every step, never broadened. Three
+ * structural guarantees survive the generalization unchanged:
+ *  - HARD CAP: at most `MAX_PROVIDER_ATTEMPTS` (2) providers are ever
+ *    dispatched to, however long `fallbackChain` is — a longer chain
+ *    only ever matters if an EARLIER entry was itself never registered
+ *    (costing zero attempts, per the primary-absent fix above).
+ *  - NO DUPLICATE ATTEMPTS: `primary` and every already-attempted
+ *    `fallbackChain` entry are tracked in a `Set` and skipped if seen
+ *    again — a chain that repeats an id (deliberately or via a naive
+ *    OWNER-authored list) can never be dispatched to twice.
+ *  - `primary: null` (the resolver's "no provider usable at all" case)
+ *    flows through the SAME `isolateProvider(registry, id)` path an
+ *    absent-but-non-null id already used — `isolateProvider` already
+ *    tolerated `id: IntelligenceProviderId | null` before this change —
+ *    so it collapses to the identical safe `deterministicOutcome()`
+ *    shape with zero new special-case code and zero duplicated logic.
+ * `ResolvedProviderPolicy` (provider-policy.ts) is a structural SUPERSET
+ * of the `RoutingPolicy` shape below — a resolver result can be passed
+ * directly as this router's `policy`, so there is exactly one routing
+ * decision, never two shapes that could disagree.
  */
 import { createRadarIntelligenceGateway, type GatewayClock } from "./gateway";
 import type { IntelligenceError } from "./errors";
@@ -74,21 +100,42 @@ import type { IntelligenceOutcome, IntelligenceProviderId, IntelligenceRequest }
 import { createProviderRegistry, type ProviderRegistry } from "./provider-registry";
 
 /**
- * The default V1/V2 routing policy: try Anthropic first; only OpenAI may
- * ever serve as its fallback. A future provider is added to the registry
- * (adapters/index.ts) and, if desired, wired into a NEW named policy here
- * — this default is not the only one `createProviderRouter` can express,
- * but it is the only one this mission activates.
+ * The routing shape the router itself consumes. `primary: null` means
+ * "no usable provider at all" (see the V2.1 docstring note above) —
+ * distinct from "a real id that happens not to be registered yet",
+ * which the primary-absent fix already handles via `primaryRegistered`.
+ * `fallbackChain` generalizes the old single `fallback: ProviderId|null`
+ * slot to an ordered list of any length; `MAX_PROVIDER_ATTEMPTS` below
+ * is what actually bounds cost, not the chain's length.
  */
 export type RoutingPolicy = {
-  primary: IntelligenceProviderId;
-  fallback: IntelligenceProviderId | null;
+  primary: IntelligenceProviderId | null;
+  fallbackChain: readonly IntelligenceProviderId[];
 };
 
+/**
+ * The default V1/V2 routing policy: try Anthropic first; OpenAI is the
+ * only entry in the fallback chain. A future provider is added to the
+ * registry (adapters/index.ts) and, if desired, appended to a NEW named
+ * policy's `fallbackChain` — this default is not the only one
+ * `createProviderRouter` can express, but it is the only one Production
+ * activates as of V2.1 Phase A (via provider-policy.ts's
+ * DEFAULT_PROVIDER_POLICY, which resolves to this exact shape).
+ */
 export const DEFAULT_ROUTING_POLICY: RoutingPolicy = Object.freeze({
   primary: "anthropic",
-  fallback: "openai",
+  fallbackChain: Object.freeze<IntelligenceProviderId[]>(["openai"]),
 });
+
+/**
+ * HARD CEILING on provider dispatches per `run()` call, regardless of
+ * `fallbackChain`'s length — "no hidden retries" stays structural, not a
+ * caller convention, even as N-provider fallback chains grow. Today's
+ * 2-provider flow (Anthropic + OpenAI) already saturates this cap
+ * exactly; a longer future chain (Gemini, DeepSeek, ...) never gets a
+ * 3rd dispatch in the same request.
+ */
+export const MAX_PROVIDER_ATTEMPTS = 2;
 
 /** The gateway's own IntelligenceOutcome, augmented with non-secret
  * routing metadata. Every existing consumer of IntelligenceOutcome
@@ -148,7 +195,12 @@ export type ProviderRouterDeps = {
 
 async function runOneAttempt(
   registry: ProviderRegistry,
-  id: IntelligenceProviderId,
+  // `null` is accepted so the resolver's "no provider usable at all"
+  // case (ResolvedProviderPolicy.primary === null) can flow through the
+  // EXACT SAME isolateProvider() path an absent-but-non-null id already
+  // used, resolving to the identical safe deterministicOutcome() shape
+  // with zero new special-case code.
+  id: IntelligenceProviderId | null,
   request: IntelligenceRequest,
   timeoutMs: number,
   clock: GatewayClock | undefined,
@@ -167,44 +219,71 @@ async function runOneAttempt(
 }
 
 /**
- * Build the router. `run(request)` performs AT MOST two provider
- * dispatches — the primary, then (only if eligible) the fallback — and
- * resolves the SAME IntelligenceOutcome shape the gateway already
- * produces, plus `fallbackUsed` / `attemptCount`.
+ * Build the router. `run(request)` performs AT MOST `MAX_PROVIDER_ATTEMPTS`
+ * provider dispatches — the primary, then (only while eligible, in
+ * OWNER-defined order, de-duplicated, and hard-capped) entries from
+ * `fallbackChain` — and resolves the SAME IntelligenceOutcome shape the
+ * gateway already produces, plus `fallbackUsed` / `attemptCount`.
  */
 export function createProviderRouter(deps: ProviderRouterDeps) {
   const policy = deps.policy ?? DEFAULT_ROUTING_POLICY;
 
   return {
     async run(request: IntelligenceRequest): Promise<RoutedIntelligenceOutcome> {
-      const primaryRegistered = deps.registry.has(policy.primary);
+      // `primaryRegistered` is an independent, direct signal — "this
+      // provider does not even exist in the registry" — checked BEFORE
+      // trusting `primaryOutcome.error` alone. A registered primary still
+      // goes through the ordinary isFallbackEligible(...) check
+      // unchanged; only a genuinely absent (or null) primary
+      // short-circuits straight to eligible, since the gateway's own
+      // no-provider collapse (deterministicOutcome -> error: null) would
+      // otherwise make isFallbackEligible(null) report false and hide it.
+      const primaryRegistered = policy.primary !== null && deps.registry.has(policy.primary);
       const primaryOutcome = await runOneAttempt(deps.registry, policy.primary, request, deps.timeoutMs, deps.clock, deps.generateRequestId);
 
       if (primaryOutcome.advisory) {
         return { ...primaryOutcome, fallbackUsed: false, attemptCount: primaryRegistered ? 1 : 0 };
       }
 
-      const fallbackRegistered = policy.fallback !== null && deps.registry.has(policy.fallback);
-      // `primaryRegistered` (above) is an independent, direct signal —
-      // "this provider does not even exist in the registry" — checked
-      // BEFORE trusting `primaryOutcome.error` alone. A registered
-      // primary still goes through the ordinary isFallbackEligible(...)
-      // check unchanged; only a genuinely absent primary short-circuits
-      // straight to eligible, since the gateway's own no-provider
-      // collapse (deterministicOutcome -> error: null) would otherwise
-      // make isFallbackEligible(null) report false and hide it.
-      const eligible = !primaryRegistered || isFallbackEligible(primaryOutcome.error);
+      let eligible = !primaryRegistered || isFallbackEligible(primaryOutcome.error);
+      let lastOutcome: IntelligenceOutcome = primaryOutcome;
+      let attemptCount = primaryRegistered ? 1 : 0;
+      let fallbackUsed = false;
+      // Seeded with the primary (when non-null) so it can never be
+      // re-attempted if it also appears inside fallbackChain.
+      const attempted = new Set<IntelligenceProviderId>(policy.primary !== null ? [policy.primary] : []);
 
-      if (!eligible || !fallbackRegistered || policy.fallback === null) {
-        return { ...primaryOutcome, fallbackUsed: false, attemptCount: primaryRegistered ? 1 : 0 };
+      for (const candidate of policy.fallbackChain) {
+        // HARD CAP — never more than MAX_PROVIDER_ATTEMPTS dispatches,
+        // however long fallbackChain is.
+        if (attemptCount >= MAX_PROVIDER_ATTEMPTS) break;
+        // NO DUPLICATE ATTEMPTS — skip an id already attempted (the
+        // primary, or an earlier fallbackChain entry), without
+        // consuming a cap slot or a loop iteration's "give up" check.
+        if (attempted.has(candidate)) continue;
+        // The primary's (or the previous candidate's) failure must
+        // remain fallback-eligible for the NEXT candidate to be tried
+        // at all — this is the exact same rule at every step, never
+        // broadened for a longer chain.
+        if (!eligible) break;
+        // Mirrors the old `fallbackRegistered` gate exactly: an
+        // unregistered candidate is never dispatched to and never
+        // consumes an attempt — try the next chain entry instead.
+        if (!deps.registry.has(candidate)) continue;
+
+        attempted.add(candidate);
+        const outcome = await runOneAttempt(deps.registry, candidate, request, deps.timeoutMs, deps.clock, deps.generateRequestId);
+        attemptCount += 1;
+        fallbackUsed = true;
+        lastOutcome = outcome;
+
+        if (outcome.advisory) {
+          return { ...outcome, fallbackUsed: true, attemptCount };
+        }
+        eligible = isFallbackEligible(outcome.error);
       }
 
-      const fallbackOutcome = await runOneAttempt(deps.registry, policy.fallback, request, deps.timeoutMs, deps.clock, deps.generateRequestId);
-      return {
-        ...fallbackOutcome,
-        fallbackUsed: true,
-        attemptCount: (primaryRegistered ? 1 : 0) + 1,
-      };
+      return { ...lastOutcome, fallbackUsed, attemptCount };
     },
   };
 }
