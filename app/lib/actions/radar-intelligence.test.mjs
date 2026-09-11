@@ -22,6 +22,7 @@ let permissionCalls = [];
 let denyMode = false;
 let evalCalls = [];
 let evalOk = false;
+let evalThrows = false;
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
     requireStaffMember: async (permission) => {
@@ -37,6 +38,9 @@ mock.module("@/lib/rbac/require-staff-member", {
     // diagnostic. The action passes the SESSION userId (never a client arg).
     evaluateStaffPermission: async ({ userId, permission }) => {
       evalCalls.push({ userId, permission });
+      if (evalThrows) {
+        throw new Error("transient db error while re-checking SYSTEM_ADMIN");
+      }
       return evalOk ? { ok: true, role: "ADMIN" } : { ok: false, reason: "permission-denied" };
     },
   },
@@ -55,10 +59,14 @@ mock.module("@/lib/radar-intelligence/configured-registry", {
 
 let coreCalls = [];
 let coreResult = { status: "unavailable" };
+let coreThrows = false;
 mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
     produceRadarAdvisory: async (clientId, deps) => {
       coreCalls.push({ clientId, depKeys: Object.keys(deps).sort() });
+      if (coreThrows) {
+        throw new Error("unexpected core failure with a secret inside sk-ant-LEAK");
+      }
       return coreResult;
     },
   },
@@ -74,8 +82,24 @@ function reset() {
   coreCalls = [];
   evalCalls = [];
   evalOk = false;
+  evalThrows = false;
   coreResult = { status: "unavailable" };
+  coreThrows = false;
   sessionUserId = `user-${Math.random().toString(36).slice(2)}`;
+}
+
+async function withCapturedWarn(fn) {
+  const calls = [];
+  const original = console.warn;
+  console.warn = (...args) => {
+    calls.push(args);
+  };
+  try {
+    await fn();
+  } finally {
+    console.warn = original;
+  }
+  return calls;
 }
 
 test("action: requireStaffMember('RADAR_QUEUE_VIEW') runs first; delegates to the core with production deps", async () => {
@@ -181,4 +205,96 @@ test("diagnostic: RADAR_QUEUE_VIEW is still the FIRST gate; the SYSTEM_ADMIN che
   assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
   assert.equal(coreCalls.length, 0, "core never ran");
   assert.equal(evalCalls.length, 0, "no diagnostic gating on a denied request");
+});
+
+// ---------------- observability hardening: the SYSTEM_ADMIN re-check itself failing ----------------
+
+test("hardening: the SYSTEM_ADMIN check THROWING returns the safe status, never the diagnostic", async () => {
+  reset();
+  evalThrows = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  const calls = await withCapturedWarn(async () => {
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "error" });
+    assert.equal("diagnostic" in r, false);
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: "error" });
+});
+
+test("hardening: the SYSTEM_ADMIN check THROWING does not reject the whole server action (goal 4)", async () => {
+  reset();
+  evalThrows = true;
+  coreResult = { status: "unavailable", diagnostic: "PROVIDER_5XX" };
+  // assert.doesNotReject proves requestRadarIntelligenceAdvisory resolves
+  // — the promise is fulfilled with a safe value, not rejected.
+  await assert.doesNotReject(async () => {
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "unavailable" });
+  });
+});
+
+test("hardening: the SYSTEM_ADMIN-check-failure log carries only the allowlisted fields, no userId/clientId/stack", async () => {
+  reset();
+  evalThrows = true;
+  sessionUserId = "user-should-not-appear-in-any-log";
+  coreResult = { status: "timeout", diagnostic: "PROVIDER_TIMEOUT" };
+  const calls = await withCapturedWarn(() => requestRadarIntelligenceAdvisory(CLIENT));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(Object.keys(calls[0][1]).sort(), ["code", "source", "status"]);
+  const s = JSON.stringify(calls[0]);
+  assert.equal(s.includes("user-should-not-appear-in-any-log"), false);
+  assert.equal(s.includes(CLIENT), false);
+  assert.equal(s.includes("transient db error"), false, "the raw thrown error message must never be logged");
+  assert.equal(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(s), false);
+});
+
+test("hardening: when evaluateStaffPermission does NOT throw, no server_action_boundary/permission-check log is emitted", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  const calls = await withCapturedWarn(async () => {
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "error", diagnostic: "PROVIDER_4XX" });
+  });
+  assert.equal(calls.length, 0);
+});
+
+test("hardening: existing OWNER/ADMIN (SYSTEM_ADMIN=true) vs MANAGER/EMPLOYEE (SYSTEM_ADMIN=false) exposure is unchanged", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  const admin = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(admin, { status: "error", diagnostic: "PROVIDER_4XX" });
+
+  reset();
+  evalOk = false;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX" };
+  const nonAdmin = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(nonAdmin, { status: "error" });
+});
+
+test("hardening: an unexpected throw from the core itself resolves to the safe error status (never rejects), logged via server_action_boundary, no raw exception text", async () => {
+  reset();
+  coreThrows = true;
+  const calls = await withCapturedWarn(async () => {
+    await assert.doesNotReject(async () => {
+      const r = await requestRadarIntelligenceAdvisory(CLIENT);
+      assert.deepEqual(r, { status: "error" });
+    });
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "server_action_boundary", code: "SERVER_ACTION_UNHANDLED_ERROR", status: "error" });
+  const s = JSON.stringify(calls);
+  assert.equal(s.includes("sk-ant-LEAK"), false);
+  assert.equal(s.includes("unexpected core failure"), false);
+});
+
+test("hardening: a REDIRECT throw from requireStaffMember still propagates untouched — the outer catch never swallows an auth redirect", async () => {
+  reset();
+  denyMode = true;
+  const calls = await withCapturedWarn(async () => {
+    await assert.rejects(() => requestRadarIntelligenceAdvisory(CLIENT), /NEXT_REDIRECT/);
+  });
+  assert.equal(calls.length, 0, "no observability log fires for a normal auth redirect");
 });

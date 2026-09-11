@@ -16,6 +16,7 @@ import type { ProspectQualificationResult } from "@/lib/actions/radar";
 import { isValidUuid } from "@/lib/api-v1/dto";
 import type { ProviderFailureClass } from "./errors";
 import { createRadarIntelligenceGateway } from "./gateway";
+import { logRadarIntelligenceEvent } from "./observability";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
 
@@ -57,17 +58,31 @@ export type AdvisoryCoreDeps = {
 
 export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
   if (typeof clientId !== "string" || !isValidUuid(clientId)) {
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "INVALID_CLIENT_ID", status: "error" });
     return { status: "error" };
   }
 
-  const qualification = await deps.loadQualification(clientId);
+  let qualification: ProspectQualificationResult;
+  try {
+    qualification = await deps.loadQualification(clientId);
+  } catch {
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "PRE_GATEWAY_LOADER_FAILURE", status: "error" });
+    return { status: "error" };
+  }
   if (qualification.qualificationStatus !== "QUALIFIED" || qualification.opportunity === null) {
     return { status: "not_applicable" };
   }
   const opportunity = qualification.opportunity;
 
-  const display = await deps.loadDisplayContext(clientId);
+  let display: AdvisoryDisplayContext | null;
+  try {
+    display = await deps.loadDisplayContext(clientId);
+  } catch {
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "PRE_GATEWAY_LOADER_FAILURE", status: "error" });
+    return { status: "error" };
+  }
   if (!display) {
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "DISPLAY_CONTEXT_NOT_FOUND", status: "error" });
     return { status: "error" };
   }
 
@@ -96,6 +111,7 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
     });
     outcome = await gateway.run({ kind: "summarize", requiredCapabilities: ["summarize"], context });
   } catch {
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
     return { status: "error" };
   }
 
@@ -121,18 +137,40 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   // stay byte-identical to before this patch.
   const diagnostic = outcome.error?.failureClass;
 
+  let uiResult: RadarAdvisoryUiResult;
   switch (outcome.error?.code) {
     case "PROVIDER_RATE_LIMITED":
-      return diagnostic ? { status: "rate_limited", diagnostic } : { status: "rate_limited" };
+      uiResult = diagnostic ? { status: "rate_limited", diagnostic } : { status: "rate_limited" };
+      break;
     case "PROVIDER_TIMEOUT":
-      return diagnostic ? { status: "timeout", diagnostic } : { status: "timeout" };
+      uiResult = diagnostic ? { status: "timeout", diagnostic } : { status: "timeout" };
+      break;
     case "NO_CAPABLE_PROVIDER":
     case "PROVIDER_UNAVAILABLE":
     case "PROVIDER_DISABLED":
     case "PROVIDER_DISCONNECTED":
-      return diagnostic ? { status: "unavailable", diagnostic } : { status: "unavailable" };
+      uiResult = diagnostic ? { status: "unavailable", diagnostic } : { status: "unavailable" };
+      break;
     default:
-      if (outcome.providerUnavailable && !outcome.error) return { status: "unavailable" };
-      return diagnostic ? { status: "error", diagnostic } : { status: "error" };
+      uiResult =
+        outcome.providerUnavailable && !outcome.error
+          ? { status: "unavailable" }
+          : diagnostic
+            ? { status: "error", diagnostic }
+            : { status: "error" };
   }
+
+  // Single log seam for every provider-side outcome: the safe enum code,
+  // the coarse class (only when one exists), and the status about to be
+  // returned. Never the provider name, request id, prompt, or raw body.
+  if (outcome.error) {
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: outcome.error.code,
+      ...(diagnostic ? { failureClass: diagnostic } : {}),
+      status: uiResult.status,
+    });
+  }
+
+  return uiResult;
 }

@@ -240,3 +240,184 @@ test("a success advisory never overrides the deterministic values (they mirror t
   assert.equal(r.deterministic.priority, "HIGH");
   assert.equal(r.deterministic.recommendedNextAction, "FOLLOW_UP_PROPOSAL");
 });
+
+// ---------------- server observability: safe, secret-free logging ----------------
+//
+// Every log line goes through logRadarIntelligenceEvent (observability.ts),
+// which is proved secret-free in its own test file. Here we prove WHICH
+// branch logs WHAT: distinguishable codes for every diagnostic-blind path,
+// and the coarse class only for a genuine provider failure. Zero network.
+
+async function withCapturedWarn(fn) {
+  const calls = [];
+  const original = console.warn;
+  console.warn = (...args) => {
+    calls.push(args);
+  };
+  try {
+    await fn();
+  } finally {
+    console.warn = original;
+  }
+  return calls;
+}
+
+test("observability: an invalid clientId logs INVALID_CLIENT_ID and nothing else", async () => {
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory("not-a-uuid", deps());
+  });
+  assert.deepEqual(result, { status: "error" });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "[RADAR_INTELLIGENCE]");
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "INVALID_CLIENT_ID", status: "error" });
+});
+
+test("observability: loadQualification throwing logs PRE_GATEWAY_LOADER_FAILURE (user-facing result unchanged)", async () => {
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, {
+      loadQualification: async () => {
+        throw new Error(`db unreachable ${FAKE_KEY}`);
+      },
+      loadDisplayContext: async () => DISPLAY,
+      createRegistry: () => createRadarIntelligenceRegistry({}),
+      clock,
+    });
+  });
+  assert.deepEqual(result, { status: "error" });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PRE_GATEWAY_LOADER_FAILURE", status: "error" });
+});
+
+test("observability: loadDisplayContext throwing ALSO logs PRE_GATEWAY_LOADER_FAILURE", async () => {
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, {
+      loadQualification: async () => QUALIFIED,
+      loadDisplayContext: async () => {
+        throw new Error("db unreachable");
+      },
+      createRegistry: () => createRadarIntelligenceRegistry({}),
+      clock,
+    });
+  });
+  assert.deepEqual(result, { status: "error" });
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PRE_GATEWAY_LOADER_FAILURE", status: "error" });
+});
+
+test("observability: a null display context logs the DISTINCT code DISPLAY_CONTEXT_NOT_FOUND", async () => {
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, deps({ display: null }));
+  });
+  assert.deepEqual(result, { status: "error" });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "DISPLAY_CONTEXT_NOT_FOUND", status: "error" });
+});
+
+test("observability: a synchronous registry/gateway throw logs REGISTRY_GATEWAY_THROW, no raw exception text", async () => {
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(
+      CLIENT,
+      deps({
+        createRegistry: () => {
+          throw new Error(`registry construction failed ${FAKE_KEY}`);
+        },
+      }),
+    );
+  });
+  assert.deepEqual(result, { status: "error" });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
+});
+
+test("observability: a provider HTTP 4xx failure logs code + failureClass + status ONLY", async () => {
+  const t = fakeTransport({ status: 400 });
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  });
+  assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_4XX" });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", status: "error" });
+});
+
+test("observability: a network fault logs PROVIDER_NETWORK as the class, PROVIDER_ERROR as the code", async () => {
+  const t = fakeTransport({ reject: Object.assign(new Error(`net ${FAKE_KEY}`), { name: "TransportNetworkError" }) });
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  });
+  assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_NETWORK" });
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", status: "error" });
+});
+
+test("observability: the designed no-provider state (no adapter configured) logs NOTHING — it is not a failure to distinguish", async () => {
+  // The gateway collapses NO_CAPABLE_PROVIDER to deterministicOutcome()
+  // (error: null) precisely BECAUSE it is the ubiquitous, non-error
+  // "AI not configured" state — advisory-core's `if (outcome.error)`
+  // guard correctly treats it the same as a success: no log noise.
+  const calls = await withCapturedWarn(() => produceRadarAdvisory(CLIENT, deps()));
+  assert.equal(calls.length, 0);
+});
+
+test("observability: a successful advisory logs nothing", async () => {
+  const calls = await withCapturedWarn(() =>
+    produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(fakeTransport({ status: 200 })) })),
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("observability: not_applicable (unqualified prospect) logs nothing", async () => {
+  const calls = await withCapturedWarn(() =>
+    produceRadarAdvisory(
+      CLIENT,
+      deps({ qualification: { qualificationStatus: "INSUFFICIENT_DATA", eligibility: { contactable: true }, opportunity: null } }),
+    ),
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("observability: no log line, across every failure path above, ever contains the api key, the clientId, the prospect name, or a UUID", async () => {
+  const scenarios = [
+    () => produceRadarAdvisory("not-a-uuid", deps()),
+    () => produceRadarAdvisory(CLIENT, deps({ display: null })),
+    () =>
+      produceRadarAdvisory(
+        CLIENT,
+        deps({
+          createRegistry: () => {
+            throw new Error(`boom ${FAKE_KEY}`);
+          },
+        }),
+      ),
+    () =>
+      produceRadarAdvisory(
+        CLIENT,
+        deps({ createRegistry: enabledRegistry(fakeTransport({ reject: Object.assign(new Error(`x ${FAKE_KEY}`), { name: "TransportNetworkError" }) })) }),
+      ),
+    () => produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(fakeTransport({ status: 401 })) })),
+  ];
+  const allCalls = [];
+  for (const scenario of scenarios) {
+    const calls = await withCapturedWarn(scenario);
+    allCalls.push(...calls);
+  }
+  const s = JSON.stringify(allCalls);
+  assert.equal(s.includes(FAKE_KEY), false, "api key leaked into a log line");
+  assert.equal(s.includes(CLIENT), false, "clientId leaked into a log line");
+  assert.equal(s.includes(DISPLAY.name), false, "prospect name leaked into a log line");
+  assert.equal(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(s), false, "a UUID-shaped string is in a log line");
+  assert.equal(/x-api-key|authorization|bearer|sk-ant-/i.test(s), false, "an auth header name/value is in a log line");
+  // every log line carries only the allowlisted keys
+  for (const call of allCalls) {
+    assert.deepEqual(
+      Object.keys(call[1]).sort(),
+      Object.keys(call[1])
+        .filter((k) => ["source", "code", "failureClass", "status"].includes(k))
+        .sort(),
+    );
+  }
+});

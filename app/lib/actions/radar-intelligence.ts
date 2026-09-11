@@ -29,6 +29,7 @@ import { requireSession } from "@/lib/session";
 import { getProspectQualification } from "@/lib/actions/radar";
 import { createConfiguredRadarIntelligenceRegistry } from "@/lib/radar-intelligence/configured-registry";
 import { produceRadarAdvisory, type AdvisoryDisplayContext, type RadarAdvisoryUiResult } from "@/lib/radar-intelligence/advisory-core";
+import { logRadarIntelligenceEvent } from "@/lib/radar-intelligence/observability";
 
 /** Small, best-effort anti-spam: one advisory per user per window, per
  * server instance. In-memory ONLY — no Redis, no DB schema. The UI button
@@ -82,34 +83,60 @@ async function loadDisplayContext(clientId: string): Promise<AdvisoryDisplayCont
 }
 
 export async function requestRadarIntelligenceAdvisory(clientId: string): Promise<RadarAdvisoryUiResult> {
+  // Authorization stays OUTSIDE the try/catch below: requireStaffMember()
+  // signals a denial by THROWING a Next.js redirect, and that throw must
+  // propagate untouched for the redirect to happen. Nothing past this
+  // point ever swallows it.
   await requireStaffMember("RADAR_QUEUE_VIEW");
-
   const { userId } = await requireSession();
-  const now = Date.now();
-  const last = lastAdvisoryRequestByUser.get(userId);
-  if (typeof last === "number" && now - last < ADVISORY_COOLDOWN_MS) {
-    return { status: "rate_limited" };
-  }
-  lastAdvisoryRequestByUser.set(userId, now);
 
-  const result = await produceRadarAdvisory(clientId, {
-    loadQualification: getProspectQualification,
-    loadDisplayContext,
-    createRegistry: createConfiguredRadarIntelligenceRegistry,
-  });
-
-  // The coarse failure class is an OPERATOR diagnostic. It is present only
-  // on a genuine provider failure; when it is, it goes out ONLY to a caller
-  // who holds SYSTEM_ADMIN (OWNER / ADMIN today — the same permission that
-  // gates the provider-status service). Every other caller gets the exact
-  // pre-patch safe result. The check uses the session identity resolved
-  // above, never a client-supplied argument. permissions.ts is unchanged.
-  if ("diagnostic" in result && result.diagnostic !== undefined) {
-    const admin = await evaluateStaffPermission({ userId, permission: "SYSTEM_ADMIN" });
-    if (!admin.ok) {
-      return { status: result.status };
+  try {
+    const now = Date.now();
+    const last = lastAdvisoryRequestByUser.get(userId);
+    if (typeof last === "number" && now - last < ADVISORY_COOLDOWN_MS) {
+      return { status: "rate_limited" };
     }
-  }
+    lastAdvisoryRequestByUser.set(userId, now);
 
-  return result;
+    const result = await produceRadarAdvisory(clientId, {
+      loadQualification: getProspectQualification,
+      loadDisplayContext,
+      createRegistry: createConfiguredRadarIntelligenceRegistry,
+    });
+
+    // The coarse failure class is an OPERATOR diagnostic. It is present
+    // only on a genuine provider failure; when it is, it goes out ONLY to
+    // a caller who holds SYSTEM_ADMIN (OWNER / ADMIN today — the same
+    // permission that gates the provider-status service). Every other
+    // caller gets the exact pre-patch safe result. The check uses the
+    // session identity resolved above, never a client-supplied argument.
+    // permissions.ts is unchanged.
+    if ("diagnostic" in result && result.diagnostic !== undefined) {
+      let admin;
+      try {
+        admin = await evaluateStaffPermission({ userId, permission: "SYSTEM_ADMIN" });
+      } catch {
+        // The re-check itself failed (e.g. a transient DB hiccup on the
+        // SECOND permission lookup, after the FIRST one above already
+        // succeeded for this same request). Fail closed on exposure —
+        // never expose the diagnostic — but do NOT let this throw take
+        // down the whole advisory: the caller still gets the safe status
+        // they would have gotten anyway.
+        logRadarIntelligenceEvent({ source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: result.status });
+        return { status: result.status };
+      }
+      if (!admin.ok) {
+        return { status: result.status };
+      }
+    }
+
+    return result;
+  } catch {
+    // Any other unexpected failure in the business logic above (never an
+    // auth redirect — that already propagated before this try started).
+    // Convert it to the exact same safe result the client's own catch
+    // would have produced, but make it server-observable first.
+    logRadarIntelligenceEvent({ source: "server_action_boundary", code: "SERVER_ACTION_UNHANDLED_ERROR", status: "error" });
+    return { status: "error" };
+  }
 }
