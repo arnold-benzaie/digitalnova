@@ -158,3 +158,102 @@ test("the allowlist after this patch is EXACTLY source / code / failureClass / h
   assert.equal(s.includes("user-secret"), false);
   assert.equal(s.includes("provider response text"), false);
 });
+
+// ---------------- V2: safe OpenAI provider-error metadata ----------------
+
+test("logs a valid providerErrorType/providerErrorCode/providerErrorParam verbatim (already validated members/shapes)", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      failureClass: "PROVIDER_4XX",
+      httpStatus: 400,
+      provider: "openai",
+      providerErrorType: "invalid_request_error",
+      providerErrorCode: "unsupported_parameter",
+      providerErrorParam: "max_tokens",
+      status: "error",
+    }),
+  );
+  assert.deepEqual(calls[0][1], {
+    source: "advisory_core",
+    code: "PROVIDER_ERROR",
+    failureClass: "PROVIDER_4XX",
+    httpStatus: 400,
+    provider: "openai",
+    providerErrorType: "invalid_request_error",
+    providerErrorCode: "unsupported_parameter",
+    providerErrorParam: "max_tokens",
+    status: "error",
+  });
+});
+
+test("drops an unrecognized providerErrorType/Code (not a member of the closed set) — never logs it verbatim", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      status: "error",
+      providerErrorType: "some_future_type_nobody_reviewed",
+      providerErrorCode: "some_future_code_nobody_reviewed",
+    }),
+  );
+  assert.equal("providerErrorType" in calls[0][1], false);
+  assert.equal("providerErrorCode" in calls[0][1], false);
+  const s = JSON.stringify(calls[0][1]);
+  assert.equal(s.includes("some_future"), false);
+});
+
+test("drops a malformed/unsafe providerErrorParam — never logs it verbatim, even when it embeds a secret-shaped string", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      status: "error",
+      providerErrorParam: "max_tokens; Authorization: Bearer sk-ant-LEAK",
+    }),
+  );
+  assert.equal("providerErrorParam" in calls[0][1], false);
+  const s = JSON.stringify(calls[0][1]);
+  assert.equal(s.includes("sk-ant-"), false);
+  assert.equal(s.includes("Bearer"), false);
+});
+
+test("providerError* fields never carry error.message-shaped free text — a poisoned event object with an errorMessage field is still fully allowlist-filtered", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      status: "error",
+      providerErrorType: "invalid_request_error",
+      providerErrorCode: "unsupported_parameter",
+      providerErrorParam: "max_tokens",
+      // poisoned extra — not one of the three named fields, must be dropped
+      errorMessage: "DO NOT PROPAGATE THIS TEXT",
+    }),
+  );
+  assert.deepEqual(Object.keys(calls[0][1]).sort(), ["code", "providerErrorCode", "providerErrorParam", "providerErrorType", "source", "status"].sort());
+  assert.equal(JSON.stringify(calls[0][1]).includes("DO NOT PROPAGATE"), false);
+});
+
+test("the allowlist now includes providerErrorType/providerErrorCode/providerErrorParam alongside every existing field", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      failureClass: "PROVIDER_4XX",
+      httpStatus: 400,
+      provider: "openai",
+      fallbackUsed: true,
+      attempt: 2,
+      providerErrorType: "invalid_request_error",
+      providerErrorCode: "unsupported_parameter",
+      providerErrorParam: "max_tokens",
+      status: "error",
+    }),
+  );
+  assert.deepEqual(
+    Object.keys(calls[0][1]).sort(),
+    ["source", "code", "failureClass", "httpStatus", "provider", "fallbackUsed", "attempt", "providerErrorType", "providerErrorCode", "providerErrorParam", "status"].sort(),
+  );
+});

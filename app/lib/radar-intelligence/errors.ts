@@ -77,6 +77,87 @@ export function validateHttpStatus(value: unknown): number | undefined {
 }
 
 /**
+ * SAFE PROVIDER-ERROR METADATA (OpenAI diagnostics — RADAR INTELLIGENCE V2).
+ *
+ * A provider's JSON error envelope (`{ error: { type, code, param,
+ * message } }`) is UNTRUSTED input. `message` can echo request content
+ * (a prompt fragment, a field value) and must NEVER be captured anywhere
+ * in this layer. `type` and `code` are drawn from OpenAI's own small,
+ * documented, fixed vocabulary — never free text — so they are validated
+ * against a CLOSED SET here: a value that isn't a member is dropped
+ * entirely (never passed through, never logged verbatim), exactly like
+ * `validateHttpStatus` above rejects anything outside 400–599. `param`
+ * has no practical closed set (it names one of many possible request
+ * fields), so it is instead validated by SHAPE: a short string built only
+ * from characters that can appear in a JSON/request field path
+ * (letters, digits, `_`, `.`, `[`, `]`) — never punctuation, whitespace,
+ * or the field's own value. A `param` that doesn't match this pattern is
+ * dropped, not truncated-and-kept.
+ *
+ * Expanding either closed set is a deliberate, reviewed code change —
+ * never something driven by runtime data — matching the "allowlist, not
+ * denylist" convention used throughout this file and observability.ts.
+ */
+export const KNOWN_OPENAI_ERROR_TYPES = [
+  "invalid_request_error",
+  "authentication_error",
+  "permission_error",
+  "not_found_error",
+  "rate_limit_error",
+  "api_error",
+  "overloaded_error",
+] as const;
+
+export type OpenAiErrorType = (typeof KNOWN_OPENAI_ERROR_TYPES)[number];
+
+export const KNOWN_OPENAI_ERROR_CODES = [
+  "invalid_api_key",
+  "insufficient_quota",
+  "rate_limit_exceeded",
+  "model_not_found",
+  "context_length_exceeded",
+  "invalid_value",
+  "unsupported_parameter",
+  "unknown_parameter",
+  "invalid_type",
+  "missing_required_parameter",
+  "string_above_max_length",
+  "content_policy_violation",
+] as const;
+
+export type OpenAiErrorCode = (typeof KNOWN_OPENAI_ERROR_CODES)[number];
+
+/** Max length for a `param` name — real OpenAI field paths (even nested,
+ * e.g. `messages[0].role`) are always well under this. */
+const MAX_PROVIDER_ERROR_PARAM_LEN = 64;
+/** Field-path shape only: letters, digits, underscore, dot, brackets —
+ * never punctuation, whitespace, or arbitrary text. */
+const SAFE_PROVIDER_ERROR_PARAM_PATTERN = /^[A-Za-z0-9_.[\]]{1,64}$/;
+
+/** A value from a provider's `error.type` is safe to keep ONLY if it is a
+ * string AND a member of the closed set above. Anything else (wrong
+ * type, unrecognized string, oversized) -> undefined, never logged. */
+export function validateProviderErrorType(value: unknown): OpenAiErrorType | undefined {
+  if (typeof value !== "string") return undefined;
+  return (KNOWN_OPENAI_ERROR_TYPES as readonly string[]).includes(value) ? (value as OpenAiErrorType) : undefined;
+}
+
+/** Same discipline as validateProviderErrorType, for `error.code`. */
+export function validateProviderErrorCode(value: unknown): OpenAiErrorCode | undefined {
+  if (typeof value !== "string") return undefined;
+  return (KNOWN_OPENAI_ERROR_CODES as readonly string[]).includes(value) ? (value as OpenAiErrorCode) : undefined;
+}
+
+/** `error.param` has no practical closed set — validated by SHAPE
+ * (field-path characters only, length-bounded) instead. Never the raw
+ * value if it fails the pattern; never truncated-and-kept. */
+export function validateProviderErrorParam(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value.length === 0 || value.length > MAX_PROVIDER_ERROR_PARAM_LEN) return undefined;
+  return SAFE_PROVIDER_ERROR_PARAM_PATTERN.test(value) ? value : undefined;
+}
+
+/**
  * Fixed, generic copy per code. Deliberately provider-neutral and free of
  * any interpolation — a UI would localize by CODE, not by rendering these.
  * They must never contain an id, a raw exception, or a secret.
@@ -121,6 +202,19 @@ export type IntelligenceError = {
    * see makeIntelligenceError below, the sole place that sets it.
    */
   httpStatus?: number;
+  /**
+   * OPTIONAL safe provider-error metadata (RADAR INTELLIGENCE V2,
+   * OpenAI diagnostics) — present ONLY when a genuine non-2xx provider
+   * HTTP response carried a well-formed `{error:{type,code,param}}`
+   * envelope AND each value independently passed validateProviderError*
+   * below. NEVER the provider's `error.message`, never the raw body,
+   * never anything else about the response. Explicit, named, string-only
+   * fields — deliberately NOT a generic metadata bag — so a caller can
+   * never smuggle an arbitrary provider field through this type.
+   */
+  providerErrorType?: string;
+  providerErrorCode?: string;
+  providerErrorParam?: string;
 };
 
 export function makeIntelligenceError(
@@ -128,6 +222,9 @@ export function makeIntelligenceError(
   providerId: IntelligenceProviderId | null = null,
   failureClass?: ProviderFailureClass,
   httpStatus?: number,
+  providerErrorType?: unknown,
+  providerErrorCode?: unknown,
+  providerErrorParam?: unknown,
 ): IntelligenceError {
   const error: IntelligenceError = {
     code,
@@ -135,11 +232,19 @@ export function makeIntelligenceError(
     retryable: RETRYABLE_ERROR_CODES.has(code),
     message: SAFE_ERROR_MESSAGES[code],
   };
-  // Attach only when supplied, so the 2-arg / 3-arg call keeps its exact
-  // pre-existing shape.
+  // Attach only when supplied, so the 2-arg / 3-arg / 4-arg call keeps
+  // its exact pre-existing shape.
   if (failureClass !== undefined) error.failureClass = failureClass;
   const validatedHttpStatus = validateHttpStatus(httpStatus);
   if (validatedHttpStatus !== undefined) error.httpStatus = validatedHttpStatus;
+  // Re-validated here regardless of what the caller already checked —
+  // the same "never trust the caller" discipline as httpStatus above.
+  const validatedType = validateProviderErrorType(providerErrorType);
+  if (validatedType !== undefined) error.providerErrorType = validatedType;
+  const validatedCode = validateProviderErrorCode(providerErrorCode);
+  if (validatedCode !== undefined) error.providerErrorCode = validatedCode;
+  const validatedParam = validateProviderErrorParam(providerErrorParam);
+  if (validatedParam !== undefined) error.providerErrorParam = validatedParam;
   return error;
 }
 

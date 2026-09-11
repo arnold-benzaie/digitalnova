@@ -93,16 +93,53 @@ export function createOpenAiAdapter(deps: OpenAiAdapterDeps = {}): IntelligenceP
           // has no fixed small set of "always unavailable" 5xx codes, so
           // EVERY 5xx maps to PROVIDER_UNAVAILABLE/PROVIDER_5XX, matching
           // Anthropic's 502/503/504 treatment; 429 stays RATE_LIMITED.
+          //
+          // result.providerErrorType/Code/Param (RADAR INTELLIGENCE V2):
+          // already independently validated once by the transport — and
+          // re-validated again here by makeIntelligenceError itself,
+          // which drops anything that doesn't pass. Never the provider's
+          // error.message, never the raw body — the transport never even
+          // returns those.
           if (status === 429) {
-            return { ok: false, error: makeIntelligenceError("PROVIDER_RATE_LIMITED", OPENAI_PROVIDER_ID, "PROVIDER_4XX", status) };
+            return {
+              ok: false,
+              error: makeIntelligenceError(
+                "PROVIDER_RATE_LIMITED",
+                OPENAI_PROVIDER_ID,
+                "PROVIDER_4XX",
+                status,
+                result.providerErrorType,
+                result.providerErrorCode,
+                result.providerErrorParam,
+              ),
+            };
           }
           if (status >= 500 && status <= 599) {
-            return { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", OPENAI_PROVIDER_ID, "PROVIDER_5XX", status) };
+            return {
+              ok: false,
+              error: makeIntelligenceError(
+                "PROVIDER_UNAVAILABLE",
+                OPENAI_PROVIDER_ID,
+                "PROVIDER_5XX",
+                status,
+                result.providerErrorType,
+                result.providerErrorCode,
+                result.providerErrorParam,
+              ),
+            };
           }
           if (status >= 400) {
             return {
               ok: false,
-              error: makeIntelligenceError("PROVIDER_ERROR", OPENAI_PROVIDER_ID, classifyHttpStatus(status) ?? "PROVIDER_UNKNOWN", status),
+              error: makeIntelligenceError(
+                "PROVIDER_ERROR",
+                OPENAI_PROVIDER_ID,
+                classifyHttpStatus(status) ?? "PROVIDER_UNKNOWN",
+                status,
+                result.providerErrorType,
+                result.providerErrorCode,
+                result.providerErrorParam,
+              ),
             };
           }
         }

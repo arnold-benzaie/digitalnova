@@ -232,6 +232,53 @@ test("V2 e2e: a successful fallback logs exactly one FALLBACK_SUCCEEDED event wi
   assert.deepEqual(calls[0][1], { source: "advisory_core", code: "FALLBACK_SUCCEEDED", provider: "openai", fallbackUsed: true, status: "ok" });
 });
 
+// ---------------- V2: safe OpenAI provider-error metadata reaches the advisory_core log ----------------
+
+test("V2 e2e: Anthropic unavailable -> OpenAI fallback ALSO fails with a realistic 400 -> the log carries safe providerErrorType/Code/Param, never error.message", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = {
+    async generate() {
+      return { body: null, status: 400, providerErrorType: "invalid_request_error", providerErrorCode: "unsupported_parameter", providerErrorParam: "max_tokens" };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  });
+  assert.equal(result.status, "error");
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][1], {
+    source: "advisory_core",
+    code: "PROVIDER_ERROR",
+    failureClass: "PROVIDER_4XX",
+    httpStatus: 400,
+    provider: "openai",
+    fallbackUsed: true,
+    attempt: 2,
+    providerErrorType: "invalid_request_error",
+    providerErrorCode: "unsupported_parameter",
+    providerErrorParam: "max_tokens",
+    status: "error",
+  });
+});
+
+test("V2 e2e: an unrecognized providerErrorType/Code from OpenAI's transport never reaches the log verbatim", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = {
+    async generate() {
+      return { body: null, status: 400, providerErrorType: "some_future_type", providerErrorCode: "some_future_code", providerErrorParam: "max_tokens" };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  const calls = await withCapturedWarn(() => produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) })));
+  assert.equal("providerErrorType" in calls[0][1], false);
+  assert.equal("providerErrorCode" in calls[0][1], false);
+  assert.equal(calls[0][1].providerErrorParam, "max_tokens", "param independently validated and kept even when type/code are dropped");
+  const s = JSON.stringify(calls[0][1]);
+  assert.equal(s.includes("some_future"), false);
+});
+
 // ---------------- provider failures ----------------
 
 for (const [label, script, expected, diagnostic] of [

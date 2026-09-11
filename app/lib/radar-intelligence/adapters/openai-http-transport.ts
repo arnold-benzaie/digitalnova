@@ -22,12 +22,22 @@ import "server-only";
  * it to PROVIDER_TIMEOUT) — the raw fetch error / response body is never
  * propagated.
  *
+ * SAFE PROVIDER-ERROR METADATA (RADAR INTELLIGENCE V2): a non-2xx
+ * response body IS read ONCE (see extractSafeOpenAiErrorMetadata below),
+ * but ONLY to pull three allowlisted, independently-validated fields —
+ * `error.type` / `error.code` / `error.param` — off OpenAI's documented
+ * error envelope. `error.message` (which can echo request/prompt
+ * content) and every other field are read only to be discarded; the raw
+ * parsed body is never kept or returned. `body` stays `null` on every
+ * non-2xx result, exactly as before this addition.
+ *
  * TIMEOUT: the gateway (via the provider router) owns the primary
  * timeout, raced in gateway.withTimeout. This transport adds a defensive
  * hard ceiling via its own AbortController so a real socket can never
  * hang forever even if that race is bypassed.
  */
 import type { OpenAiGeneratePayload, OpenAiTransport, OpenAiTransportResult } from "./openai-transport";
+import { validateProviderErrorType, validateProviderErrorCode, validateProviderErrorParam } from "../errors";
 
 const OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 /** Hard ceiling; the gateway's own race normally fires first. */
@@ -45,6 +55,47 @@ function genericTransportError(name: string): Error {
   const err = new Error("openai transport request failed");
   err.name = name;
   return err;
+}
+
+/**
+ * RADAR INTELLIGENCE V2 — safe provider-error metadata extraction.
+ *
+ * Called ONLY for a genuine non-2xx response, ONLY here (the one place
+ * that ever sees the raw error body). Attempts to parse the body as
+ * JSON EXACTLY ONCE; a parse failure (or any unexpected shape) yields an
+ * empty result, never a thrown error — a diagnostics best-effort must
+ * never itself break the existing safe-failure path. Extracts ONLY
+ * `error.type` / `error.code` / `error.param` from OpenAI's documented
+ * `{error:{type,code,param,message}}` envelope, each independently
+ * re-validated (closed-set for type/code, safe field-path shape for
+ * param — see errors.ts). `error.message` and every other field are
+ * read off the parsed value only to be ignored — never assigned
+ * anywhere, never returned, never logged. The raw parsed body itself is
+ * discarded once these three fields are extracted; it is never returned
+ * to the caller.
+ */
+async function extractSafeOpenAiErrorMetadata(res: Response): Promise<Pick<OpenAiTransportResult, "providerErrorType" | "providerErrorCode" | "providerErrorParam">> {
+  let parsed: unknown;
+  try {
+    parsed = await res.json();
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null) return {};
+  const envelope = (parsed as Record<string, unknown>).error;
+  if (typeof envelope !== "object" || envelope === null) return {};
+  const e = envelope as Record<string, unknown>;
+
+  const safe: Pick<OpenAiTransportResult, "providerErrorType" | "providerErrorCode" | "providerErrorParam"> = {};
+  const type = validateProviderErrorType(e.type);
+  if (type !== undefined) safe.providerErrorType = type;
+  const code = validateProviderErrorCode(e.code);
+  if (code !== undefined) safe.providerErrorCode = code;
+  const param = validateProviderErrorParam(e.param);
+  if (param !== undefined) safe.providerErrorParam = param;
+  // e.message (and any other field) is deliberately never read into
+  // `safe` — it simply falls out of scope here.
+  return safe;
 }
 
 export function createOpenAiHttpTransport(options: OpenAiHttpTransportOptions): OpenAiTransport {
@@ -104,9 +155,12 @@ export function createOpenAiHttpTransport(options: OpenAiHttpTransportOptions): 
       const status = res.status;
 
       // Non-2xx: return the status so the adapter maps it to a safe code.
-      // The response body is NOT read/propagated for error statuses.
+      // The response body is NOT read/propagated for error statuses —
+      // ONLY the three allowlisted, independently-validated fields below
+      // (never the raw body, never error.message) may accompany it.
       if (status < 200 || status >= 300) {
-        return { body: null, status };
+        const safeMeta = await extractSafeOpenAiErrorMetadata(res);
+        return { body: null, status, ...safeMeta };
       }
 
       let parsed: unknown;

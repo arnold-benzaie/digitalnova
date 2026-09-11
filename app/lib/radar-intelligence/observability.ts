@@ -4,25 +4,30 @@ import "server-only";
  * RADAR INTELLIGENCE — safe, secret-free server-side observability.
  * RADAR INTELLIGENCE V2 — extended with three MULTI-PROVIDER-ROUTING
  * fields (provider / fallbackUsed / attempt), each independently
- * re-validated, and one new blind-path code (FALLBACK_SUCCEEDED) for the
- * one success-path event worth a log line.
+ * re-validated, one new blind-path code (FALLBACK_SUCCEEDED) for the
+ * one success-path event worth a log line, and three SAFE OPENAI
+ * PROVIDER-ERROR fields (providerErrorType / providerErrorCode /
+ * providerErrorParam), each independently re-validated against the
+ * closed sets / shape rules in errors.ts.
  *
  * ONE narrow choke point for every diagnostic log line the intelligence
  * layer emits, so a future failure can be told apart by WHICH internal
  * branch it took — without ever recording WHO asked or WHAT was asked.
  *
- * `logRadarIntelligenceEvent` accepts ONLY the eight allowlisted fields
+ * `logRadarIntelligenceEvent` accepts ONLY the eleven allowlisted fields
  * below (source / code / failureClass / httpStatus / provider /
- * fallbackUsed / attempt / status) and rebuilds a brand-new object by
- * reading just those keys — it never logs the caller's object itself, so
- * an accidental extra field (a clientId, a userId, a raw error) is
- * silently dropped rather than reaching console output. This is
- * deliberately NOT a general-purpose logger.
+ * fallbackUsed / attempt / status / providerErrorType / providerErrorCode
+ * / providerErrorParam) and rebuilds a brand-new object by reading just
+ * those keys — it never logs the caller's object itself, so an
+ * accidental extra field (a clientId, a userId, a raw error) is silently
+ * dropped rather than reaching console output. This is deliberately NOT
+ * a general-purpose logger.
  *
  * NEVER logged, by construction: an API key, x-api-key, Authorization, a
- * prompt or system instruction, a raw provider response / HTTP body,
- * prospect/customer data, a clientId, a userId, an email, a UUID, a DB
- * URL, a stack trace, or a raw Error#message. `code` is always one of the
+ * prompt or system instruction, a raw provider response / HTTP body, a
+ * provider's error.message (which can echo request content), prospect/
+ * customer data, a clientId, a userId, an email, a UUID, a DB URL, a
+ * stack trace, or a raw Error#message. `code` is always one of the
  * fixed IntelligenceErrorCode values (already secret-free — see
  * errors.ts) or one of the internal diagnostic-blind-path codes declared
  * below; `failureClass` is always one of ProviderFailureClass;
@@ -34,9 +39,20 @@ import "server-only";
  * "deterministic" / a documented future id — never an arbitrary string).
  * `fallbackUsed` is coerced to a strict boolean. `attempt` is
  * RE-VALIDATED as a small non-negative integer (0, 1, or 2 in practice).
- * None of these is ever a free-text string built from user/provider input.
+ * `providerErrorType` / `providerErrorCode` are RE-VALIDATED against a
+ * small closed set of OpenAI's own documented error vocabulary;
+ * `providerErrorParam` is RE-VALIDATED as a short field-path-shaped
+ * string (never free text). None of these is ever a free-text string
+ * built from user/provider input.
  */
-import { validateHttpStatus, type IntelligenceErrorCode, type ProviderFailureClass } from "./errors";
+import {
+  validateHttpStatus,
+  validateProviderErrorType,
+  validateProviderErrorCode,
+  validateProviderErrorParam,
+  type IntelligenceErrorCode,
+  type ProviderFailureClass,
+} from "./errors";
 import { isIntelligenceProviderId } from "./types";
 
 export type RadarIntelligenceLogSource = "advisory_core" | "diagnostic_permission_check" | "server_action_boundary";
@@ -83,16 +99,40 @@ export type RadarIntelligenceLogEvent = {
   /** The safe RadarAdvisoryUiResult["status"] the caller is about to
    * return — a fixed enum string, never provider/user text. */
   status?: string;
+  /**
+   * RADAR INTELLIGENCE V2 — safe OpenAI provider-error metadata. Present
+   * only for a genuine non-2xx OpenAI HTTP response, and only when
+   * errors.ts's independent validators accepted the value (closed-set
+   * for type/code, safe field-path shape for param). NEVER the
+   * provider's error.message, never anything else about the response —
+   * see errors.ts's IntelligenceError docstring.
+   */
+  providerErrorType?: string;
+  providerErrorCode?: string;
+  providerErrorParam?: string;
 };
 
-const ALLOWED_LOG_KEYS = ["source", "code", "failureClass", "httpStatus", "provider", "fallbackUsed", "attempt", "status"] as const;
+const ALLOWED_LOG_KEYS = [
+  "source",
+  "code",
+  "failureClass",
+  "httpStatus",
+  "provider",
+  "fallbackUsed",
+  "attempt",
+  "status",
+  "providerErrorType",
+  "providerErrorCode",
+  "providerErrorParam",
+] as const;
 
 /**
  * The ONLY export that writes anywhere. Re-reads just the allowlisted
  * keys off `event` into a fresh object before logging — nothing else on
  * `event`, however it was constructed by the caller, can reach this line.
- * `httpStatus`, `provider`, and `attempt` each get one extra check: they
- * are dropped, not passed through, unless they independently re-validate.
+ * `httpStatus`, `provider`, `attempt`, and the three `providerError*`
+ * fields each get one extra check: they are dropped, not passed
+ * through, unless they independently re-validate.
  */
 export function logRadarIntelligenceEvent(event: RadarIntelligenceLogEvent): void {
   const safe: Record<string, unknown> = {};
@@ -114,6 +154,21 @@ export function logRadarIntelligenceEvent(event: RadarIntelligenceLogEvent): voi
     }
     if (key === "attempt") {
       if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 2) safe.attempt = value;
+      continue;
+    }
+    if (key === "providerErrorType") {
+      const validated = validateProviderErrorType(value);
+      if (validated !== undefined) safe.providerErrorType = validated;
+      continue;
+    }
+    if (key === "providerErrorCode") {
+      const validated = validateProviderErrorCode(value);
+      if (validated !== undefined) safe.providerErrorCode = validated;
+      continue;
+    }
+    if (key === "providerErrorParam") {
+      const validated = validateProviderErrorParam(value);
+      if (validated !== undefined) safe.providerErrorParam = validated;
       continue;
     }
     safe[key] = value;

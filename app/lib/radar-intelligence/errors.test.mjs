@@ -15,6 +15,11 @@ import {
   makeIntelligenceError,
   toIntelligenceError,
   validateHttpStatus,
+  validateProviderErrorType,
+  validateProviderErrorCode,
+  validateProviderErrorParam,
+  KNOWN_OPENAI_ERROR_TYPES,
+  KNOWN_OPENAI_ERROR_CODES,
 } from "./errors.ts";
 
 // ---------------- classifyHttpStatus ----------------
@@ -254,4 +259,85 @@ test("toIntelligenceError: httpStatus, when present, never rides alongside any r
   assert.equal(s.includes("Retry-After"), false);
   assert.equal(s.includes("Bearer"), false);
   assert.equal(s.includes("sk-ant-"), false);
+});
+
+// ---------------- V2: safe OpenAI provider-error metadata ----------------
+
+test("validateProviderErrorType: accepts only members of the closed set", () => {
+  for (const t of KNOWN_OPENAI_ERROR_TYPES) {
+    assert.equal(validateProviderErrorType(t), t);
+  }
+  assert.equal(validateProviderErrorType("some_future_type"), undefined);
+  assert.equal(validateProviderErrorType(""), undefined);
+});
+
+test("validateProviderErrorType: rejects non-string values without throwing", () => {
+  for (const v of [123, null, undefined, {}, [], true, { type: "invalid_request_error" }]) {
+    assert.equal(validateProviderErrorType(v), undefined);
+  }
+});
+
+test("validateProviderErrorCode: accepts only members of the closed set", () => {
+  for (const c of KNOWN_OPENAI_ERROR_CODES) {
+    assert.equal(validateProviderErrorCode(c), c);
+  }
+  assert.equal(validateProviderErrorCode("some_future_code"), undefined);
+});
+
+test("validateProviderErrorCode: rejects non-string values without throwing", () => {
+  for (const v of [123, null, undefined, {}, [], true]) {
+    assert.equal(validateProviderErrorCode(v), undefined);
+  }
+});
+
+test("validateProviderErrorParam: accepts a short field-path-shaped string", () => {
+  assert.equal(validateProviderErrorParam("max_tokens"), "max_tokens");
+  assert.equal(validateProviderErrorParam("messages[0].role"), "messages[0].role");
+  assert.equal(validateProviderErrorParam("temperature"), "temperature");
+});
+
+test("validateProviderErrorParam: rejects an empty string, an oversized string, and unsafe characters", () => {
+  assert.equal(validateProviderErrorParam(""), undefined);
+  assert.equal(validateProviderErrorParam("x".repeat(65)), undefined);
+  assert.equal(validateProviderErrorParam("x".repeat(64)).length, 64, "exactly 64 chars is still accepted");
+  assert.equal(validateProviderErrorParam("max_tokens; DROP TABLE"), undefined);
+  assert.equal(validateProviderErrorParam("max tokens"), undefined, "whitespace is rejected");
+  assert.equal(validateProviderErrorParam("Authorization: Bearer sk-ant-LEAK"), undefined);
+});
+
+test("validateProviderErrorParam: rejects non-string values without throwing", () => {
+  for (const v of [123, null, undefined, {}, [], true]) {
+    assert.equal(validateProviderErrorParam(v), undefined);
+  }
+});
+
+test("makeIntelligenceError: accepts and re-validates the 5th/6th/7th args (providerErrorType/Code/Param)", () => {
+  const e = makeIntelligenceError("PROVIDER_ERROR", "openai", "PROVIDER_4XX", 400, "invalid_request_error", "unsupported_parameter", "max_tokens");
+  assert.equal(e.providerErrorType, "invalid_request_error");
+  assert.equal(e.providerErrorCode, "unsupported_parameter");
+  assert.equal(e.providerErrorParam, "max_tokens");
+});
+
+test("makeIntelligenceError: SILENTLY drops unrecognized/malformed providerError* values — never throws, never attaches them", () => {
+  const e = makeIntelligenceError("PROVIDER_ERROR", "openai", "PROVIDER_4XX", 400, "not_a_real_type", "not_a_real_code", "unsafe param!!");
+  assert.equal("providerErrorType" in e, false);
+  assert.equal("providerErrorCode" in e, false);
+  assert.equal("providerErrorParam" in e, false);
+});
+
+test("makeIntelligenceError: 2-arg / 3-arg / 4-arg calls are still byte-identical (no providerError* keys at all)", () => {
+  const e2 = makeIntelligenceError("PROVIDER_ERROR", "anthropic");
+  const e4 = makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_5XX", 503);
+  for (const e of [e2, e4]) {
+    assert.equal("providerErrorType" in e, false);
+    assert.equal("providerErrorCode" in e, false);
+    assert.equal("providerErrorParam" in e, false);
+  }
+});
+
+test("makeIntelligenceError: never exposes error.message-shaped free text through providerError* — only the 3 explicit args are ever consulted", () => {
+  const e = makeIntelligenceError("PROVIDER_ERROR", "openai", "PROVIDER_4XX", 400, "invalid_request_error", "unsupported_parameter", "max_tokens");
+  const s = JSON.stringify(e);
+  assert.equal(s.includes("DO NOT PROPAGATE"), false);
+  assert.deepEqual(Object.keys(e).sort(), ["code", "failureClass", "httpStatus", "message", "providerErrorCode", "providerErrorParam", "providerErrorType", "providerId", "retryable"].sort());
 });

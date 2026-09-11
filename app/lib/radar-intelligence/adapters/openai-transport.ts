@@ -29,6 +29,19 @@ export type OpenAiTransportResult = {
   body: unknown;
   /** Optional HTTP-ish status a real transport may surface for mapping. */
   status?: number;
+  /**
+   * OPTIONAL safe provider-error metadata (RADAR INTELLIGENCE V2) — a
+   * real HTTP transport may populate these ONLY on a non-2xx response,
+   * ONLY after independently validating each value (see
+   * errors.ts::validateProviderErrorType/Code/Param). Never the raw
+   * error body, never `error.message`. The adapter forwards these
+   * verbatim into makeIntelligenceError(), which re-validates them
+   * again regardless — this type does not itself guarantee safety, the
+   * validators do.
+   */
+  providerErrorType?: string;
+  providerErrorCode?: string;
+  providerErrorParam?: string;
 };
 
 export interface OpenAiTransport {

@@ -72,7 +72,13 @@ function fakeTransport(script = {}) {
         case "throw":
           throw script.error ?? Object.assign(new Error(`kaboom ${secret} body=<html>`), { name: "TypeError" });
         case "status":
-          return { body: script.body ?? {}, status: script.status };
+          return {
+            body: script.body ?? {},
+            status: script.status,
+            ...(script.providerErrorType !== undefined ? { providerErrorType: script.providerErrorType } : {}),
+            ...(script.providerErrorCode !== undefined ? { providerErrorCode: script.providerErrorCode } : {}),
+            ...(script.providerErrorParam !== undefined ? { providerErrorParam: script.providerErrorParam } : {}),
+          };
         case "malformed":
           return { body: script.body ?? "totally not json" };
         case "leaky-body":
@@ -188,6 +194,43 @@ test("run: every real HTTP status the adapter classifies also attaches the EXACT
       ["code", "failureClass", "httpStatus", "message", "providerId", "retryable"].sort(),
     );
     assert.equal(JSON.stringify(res).includes(FAKE_SECRET), false);
+  }
+});
+
+// ---------------- V2: safe provider-error metadata reaches IntelligenceError ----------------
+
+test("run: a transport-supplied valid providerErrorType/Code/Param reaches the adapter's IntelligenceError verbatim (already validated by the transport, re-validated again by makeIntelligenceError)", async () => {
+  const a = createOpenAiAdapter({
+    config: { enabled: true },
+    transport: fakeTransport({ mode: "status", status: 400, providerErrorType: "invalid_request_error", providerErrorCode: "unsupported_parameter", providerErrorParam: "max_tokens" }),
+    clock: CLOCK,
+  });
+  const res = await a.run(req());
+  assert.equal(res.ok, false);
+  assert.equal(res.error.providerErrorType, "invalid_request_error");
+  assert.equal(res.error.providerErrorCode, "unsupported_parameter");
+  assert.equal(res.error.providerErrorParam, "max_tokens");
+});
+
+test("run: an unrecognized/malformed providerErrorType/Code/Param from the transport is dropped by the adapter's own re-validation, never passed through", async () => {
+  const a = createOpenAiAdapter({
+    config: { enabled: true },
+    transport: fakeTransport({ mode: "status", status: 400, providerErrorType: "some_future_type", providerErrorCode: 12345, providerErrorParam: "unsafe param!!" }),
+    clock: CLOCK,
+  });
+  const res = await a.run(req());
+  assert.equal("providerErrorType" in res.error, false);
+  assert.equal("providerErrorCode" in res.error, false);
+  assert.equal("providerErrorParam" in res.error, false);
+});
+
+test("run: providerErrorType/Code/Param are absent entirely when the transport doesn't supply them (5xx/429/other statuses unaffected)", async () => {
+  for (const status of [429, 500, 503]) {
+    const a = createOpenAiAdapter({ config: { enabled: true }, transport: fakeTransport({ mode: "status", status }), clock: CLOCK });
+    const res = await a.run(req());
+    assert.equal("providerErrorType" in res.error, false, `status ${status}`);
+    assert.equal("providerErrorCode" in res.error, false, `status ${status}`);
+    assert.equal("providerErrorParam" in res.error, false, `status ${status}`);
   }
 });
 

@@ -220,6 +220,13 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   // the coarse class + exact status (only when they exist), and the
   // status about to be returned. Never the provider name, request id,
   // prompt, or raw body.
+  //
+  // providerErrorType/Code/Param (RADAR INTELLIGENCE V2): already
+  // independently validated once inside makeIntelligenceError() when
+  // outcome.error was constructed, and re-validated AGAIN here by
+  // logRadarIntelligenceEvent itself — this call site never trusts
+  // outcome.error's fields at face value, same as every other field
+  // below. Never the provider's error.message, never the raw body.
   if (outcome.error) {
     logRadarIntelligenceEvent({
       source: "advisory_core",
@@ -228,6 +235,9 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
       ...(httpStatus !== undefined ? { httpStatus } : {}),
       ...(outcome.providerId ? { provider: outcome.providerId } : {}),
       ...(outcome.fallbackUsed ? { fallbackUsed: true, attempt: outcome.attemptCount } : {}),
+      ...(outcome.error.providerErrorType ? { providerErrorType: outcome.error.providerErrorType } : {}),
+      ...(outcome.error.providerErrorCode ? { providerErrorCode: outcome.error.providerErrorCode } : {}),
+      ...(outcome.error.providerErrorParam ? { providerErrorParam: outcome.error.providerErrorParam } : {}),
       status: uiResult.status,
     });
   }
