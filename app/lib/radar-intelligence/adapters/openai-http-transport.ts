@@ -35,6 +35,21 @@ import "server-only";
  * timeout, raced in gateway.withTimeout. This transport adds a defensive
  * hard ceiling via its own AbortController so a real socket can never
  * hang forever even if that race is bypassed.
+ *
+ * TOKEN-LIMIT FIELD (RADAR INTELLIGENCE V2 — fix for the proven
+ * Production 400): OpenAI's Chat Completions API rejects the legacy
+ * `max_tokens` field outright for GPT-5-family models ("Unsupported
+ * parameter: 'max_tokens' is not supported with this model. Use
+ * 'max_completion_tokens' instead." — an `invalid_request_error` /
+ * `unsupported_parameter` on `max_tokens`, exactly what Production's
+ * safe diagnostics captured for `gpt-5.6-terra`). `isGpt5FamilyModel`
+ * below is a narrow, conservative, testable predicate — it matches ONLY
+ * a `model` string starting with `gpt-5` followed by `.`, `-`, or the
+ * end of the string (so `gpt-5`, `gpt-5-mini`, `gpt-5.6-terra` all
+ * match; `gpt-50-turbo` and `gpt-4.5` do not). Every other model
+ * (`gpt-4o-mini`, a future non-GPT-5 id, etc.) keeps sending the
+ * pre-existing `max_tokens` field unchanged — this is a purely additive
+ * branch, not a rewrite of the request shape.
  */
 import type { OpenAiGeneratePayload, OpenAiTransport, OpenAiTransportResult } from "./openai-transport";
 import { validateProviderErrorType, validateProviderErrorCode, validateProviderErrorParam } from "../errors";
@@ -42,6 +57,15 @@ import { validateProviderErrorType, validateProviderErrorCode, validateProviderE
 const OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 /** Hard ceiling; the gateway's own race normally fires first. */
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+/** Matches "gpt-5", "gpt-5-mini", "gpt-5.6-terra", etc. — never
+ * "gpt-50-turbo" or "gpt-4.5". Deliberately narrow: only the GPT-5
+ * family the Production evidence actually implicated, never a guess at
+ * other reasoning-model families (o1/o3/...). Exported for direct unit
+ * testing. */
+export function isGpt5FamilyModel(model: string): boolean {
+  return /^gpt-5(?:[.-]|$)/i.test(model);
+}
 
 export type OpenAiHttpTransportOptions = {
   /** The credential. Lives ONLY in this closure. */
@@ -118,9 +142,14 @@ export function createOpenAiHttpTransport(options: OpenAiHttpTransportOptions): 
 
   return {
     async generate(payload: OpenAiGeneratePayload): Promise<OpenAiTransportResult> {
+      // GPT-5-family models reject `max_tokens` outright (400
+      // unsupported_parameter) and require `max_completion_tokens`
+      // instead; every other model keeps the pre-existing field name.
+      // Exactly one of the two keys is ever present — never both.
+      const tokenLimitField = isGpt5FamilyModel(payload.model) ? "max_completion_tokens" : "max_tokens";
       const body = JSON.stringify({
         model: payload.model,
-        max_tokens: payload.maxOutputTokens,
+        [tokenLimitField]: payload.maxOutputTokens,
         messages: [
           { role: "system", content: payload.system },
           { role: "user", content: payload.userMessage },

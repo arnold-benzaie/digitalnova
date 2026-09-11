@@ -12,9 +12,12 @@
 // 500 / invalid-JSON / AbortError / network-throw. Proves:
 //   - exact outbound request: URL, POST, content-type, Authorization
 //     Bearer = the fake key IN THE FAKE REQUEST, Chat Completions body
-//     shape (model / max_tokens / messages / response_format) — this
-//     mission deliberately does NOT change max_tokens; these assertions
-//     document the CURRENT shape, not a fixed one.
+//     shape (model / messages / response_format), and the token-limit
+//     FIELD NAME: `max_completion_tokens` for a GPT-5-family model
+//     (isGpt5FamilyModel) — the proven fix for Production's 400
+//     unsupported_parameter on `max_tokens` — and the pre-existing
+//     `max_tokens` unchanged for every other model. Exactly one of the
+//     two keys is ever present, never both.
 //   - the fake key NEVER appears in any value the transport RETURNS or
 //     THROWS
 //   - non-2xx returns { body: null, status, ...safe provider-error
@@ -34,7 +37,7 @@ import assert from "node:assert/strict";
 
 mock.module("server-only", { namedExports: {} });
 
-const { createOpenAiHttpTransport } = await import("./openai-http-transport.ts");
+const { createOpenAiHttpTransport, isGpt5FamilyModel } = await import("./openai-http-transport.ts");
 
 const FAKE_KEY = "sk-proj-THIS-MUST-NEVER-LEAK";
 const PAYLOAD = { model: "gpt-5.6-terra", maxOutputTokens: 512, system: "SYS instruction", userMessage: "<EVIDENCE>\nProspect: X\n</EVIDENCE>" };
@@ -65,13 +68,13 @@ function openAiErrorBody({ type = "invalid_request_error", code = "unsupported_p
 
 // ---------------- A-D: outbound request shape ----------------
 
-test("A/B/C/D: outbound request — URL, POST, headers, Chat Completions body shape (model/max_tokens/messages/response_format)", async () => {
+test("A: GPT-5.6 Terra — outbound request uses max_completion_tokens, NEVER max_tokens, everything else unchanged", async () => {
   const ff = fakeFetch({ status: 200 });
   const t = createOpenAiHttpTransport({ apiKey: FAKE_KEY, fetchImpl: ff });
-  await t.generate(PAYLOAD);
+  await t.generate(PAYLOAD); // PAYLOAD.model === "gpt-5.6-terra"
   assert.equal(ff.calls.length, 1);
   const { url, init } = ff.calls[0];
-  // A: URL
+  // D: endpoint unchanged
   assert.equal(url, "https://api.openai.com/v1/chat/completions");
   // B: method
   assert.equal(init.method, "POST");
@@ -80,16 +83,50 @@ test("A/B/C/D: outbound request — URL, POST, headers, Chat Completions body sh
   assert.ok("Authorization" in init.headers, "an Authorization header is present structurally");
   assert.equal(init.headers["Authorization"], `Bearer ${FAKE_KEY}`);
   assert.ok(init.signal, "an AbortSignal is wired");
-  // D: current request body (deliberately unchanged by this mission)
+  // the fix: max_completion_tokens present, max_tokens ABSENT, model/messages/response_format preserved
   const body = JSON.parse(init.body);
-  assert.deepEqual(Object.keys(body).sort(), ["max_tokens", "messages", "model", "response_format"].sort());
+  assert.deepEqual(Object.keys(body).sort(), ["max_completion_tokens", "messages", "model", "response_format"].sort());
+  assert.equal("max_tokens" in body, false, "max_tokens must NOT be sent for a GPT-5-family model");
+  assert.equal(body.max_completion_tokens, 512);
   assert.equal(body.model, "gpt-5.6-terra");
-  assert.equal(body.max_tokens, 512, "max_tokens is NOT changed by this mission — observability only");
   assert.deepEqual(body.messages, [
     { role: "system", content: PAYLOAD.system },
     { role: "user", content: PAYLOAD.userMessage },
   ]);
   assert.deepEqual(body.response_format, { type: "json_object" });
+});
+
+test("B: another GPT-5-family identifier (fake, test-only) also gets max_completion_tokens", async () => {
+  for (const model of ["gpt-5", "gpt-5-mini", "gpt-5.1-preview", "GPT-5-Turbo"]) {
+    const ff = fakeFetch({ status: 200 });
+    const t = createOpenAiHttpTransport({ apiKey: FAKE_KEY, fetchImpl: ff });
+    await t.generate({ ...PAYLOAD, model });
+    const body = JSON.parse(ff.calls[0].init.body);
+    assert.equal(body.max_completion_tokens, 512, `model ${model}`);
+    assert.equal("max_tokens" in body, false, `model ${model}`);
+    assert.equal(body.model, model);
+  }
+});
+
+test("C: a legacy/non-GPT-5 model keeps sending max_tokens — max_completion_tokens absent", async () => {
+  for (const model of ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-50-turbo", "gpt-4.5-preview"]) {
+    const ff = fakeFetch({ status: 200 });
+    const t = createOpenAiHttpTransport({ apiKey: FAKE_KEY, fetchImpl: ff });
+    await t.generate({ ...PAYLOAD, model });
+    const body = JSON.parse(ff.calls[0].init.body);
+    assert.equal(body.max_tokens, 512, `model ${model}`);
+    assert.equal("max_completion_tokens" in body, false, `model ${model}`);
+    assert.equal(body.model, model);
+  }
+});
+
+test("isGpt5FamilyModel: the exact predicate — matches gpt-5/gpt-5-*/gpt-5.*, never gpt-50-*/gpt-4.5/unrelated ids", () => {
+  for (const model of ["gpt-5", "gpt-5-mini", "gpt-5.6-terra", "GPT-5", "gpt-5-turbo-preview"]) {
+    assert.equal(isGpt5FamilyModel(model), true, `expected ${model} to match`);
+  }
+  for (const model of ["gpt-50-turbo", "gpt-4.5", "gpt-4o", "gpt-4o-mini", "o1", "o3-mini", "", "gpt5", "claude-sonnet-5"]) {
+    assert.equal(isGpt5FamilyModel(model), false, `expected ${model} NOT to match`);
+  }
 });
 
 test("baseUrl / requestTimeoutMs overrides are honored; the fake key never appears in the fake request's URL", async () => {
