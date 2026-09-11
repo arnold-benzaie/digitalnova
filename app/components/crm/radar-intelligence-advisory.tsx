@@ -76,12 +76,17 @@ export function AdvisoryResultView({
 }) {
   if (result.status !== "ok") {
     const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
+    // httpStatus is only ever present on the result alongside diagnostic
+    // (see advisory-core.ts::buildFailureResult) — this component adds no
+    // extra check of its own, it only decides how to render it.
+    const httpStatus = "httpStatus" in result ? result.httpStatus : undefined;
     return (
       <>
         <p className="text-sm text-pm-gris">{messageFor(result, t)}</p>
         {diagnostic ? (
           <p className="mt-1 text-xs font-medium text-pm-gris">
             {t.diagnosticPrefix} {diagnostic}
+            {httpStatus !== undefined ? ` (${httpStatus})` : ""}
           </p>
         ) : null}
       </>

@@ -117,3 +117,43 @@ test("logRadarIntelligenceEvent is a pure side-effecting function — no return 
   });
   assert.equal(returned, undefined);
 });
+
+// ---------------- httpStatus: allowlisted, but independently re-validated ----------------
+
+test("allows a validated httpStatus (400–599) through unchanged", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({ source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", httpStatus: 400, status: "error" }),
+  );
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", httpStatus: 400, status: "error" });
+});
+
+test("drops an httpStatus that fails independent re-validation — the logger does not trust its caller", async () => {
+  for (const bad of [200, 301, 600, 999, 400.5, "401", NaN]) {
+    const calls = await withCapturedWarn(() =>
+      logRadarIntelligenceEvent({ source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_UNKNOWN", httpStatus: bad, status: "error" }),
+    );
+    assert.equal("httpStatus" in calls[0][1], false, `should have dropped ${bad}`);
+    assert.deepEqual(Object.keys(calls[0][1]).sort(), ["code", "failureClass", "source", "status"]);
+  }
+});
+
+test("the allowlist after this patch is EXACTLY source / code / failureClass / httpStatus / status — nothing else", async () => {
+  const calls = await withCapturedWarn(() =>
+    logRadarIntelligenceEvent({
+      source: "advisory_core",
+      code: "PROVIDER_ERROR",
+      failureClass: "PROVIDER_5XX",
+      httpStatus: 503,
+      status: "unavailable",
+      // poisoned extras — must all be dropped, same as before this patch
+      clientId: "11111111-1111-4111-8111-111111111111",
+      userId: "user-secret",
+      body: "provider response text",
+    }),
+  );
+  assert.deepEqual(Object.keys(calls[0][1]).sort(), ["code", "failureClass", "httpStatus", "source", "status"].sort());
+  const s = JSON.stringify(calls[0][1]);
+  assert.equal(s.includes("11111111"), false);
+  assert.equal(s.includes("user-secret"), false);
+  assert.equal(s.includes("provider response text"), false);
+});

@@ -30,10 +30,10 @@ export type RadarAdvisoryUiResult =
       /** The AUTHORITATIVE deterministic values, shown in a separate block. */
       deterministic: { priority: string; confidence: string; recommendedNextAction: string };
     }
-  | { status: "unavailable"; diagnostic?: ProviderFailureClass }
-  | { status: "rate_limited"; diagnostic?: ProviderFailureClass }
-  | { status: "timeout"; diagnostic?: ProviderFailureClass }
-  | { status: "error"; diagnostic?: ProviderFailureClass }
+  | { status: "unavailable"; diagnostic?: ProviderFailureClass; httpStatus?: number }
+  | { status: "rate_limited"; diagnostic?: ProviderFailureClass; httpStatus?: number }
+  | { status: "timeout"; diagnostic?: ProviderFailureClass; httpStatus?: number }
+  | { status: "error"; diagnostic?: ProviderFailureClass; httpStatus?: number }
   /** The prospect is not QUALIFIED — no deterministic basis to advise on. */
   | { status: "not_applicable" };
 
@@ -45,6 +45,24 @@ export type AdvisoryDisplayContext = {
   recentInteractionSummaries: string[];
   openFollowUpCount: number;
 };
+
+type AdvisoryFailureStatus = "unavailable" | "rate_limited" | "timeout" | "error";
+
+/**
+ * Builds one failure variant of RadarAdvisoryUiResult. `diagnostic` and
+ * `httpStatus` are added ONLY together with each other and ONLY when a
+ * `diagnostic` (failureClass) actually exists — httpStatus is never
+ * exposed on its own, mirroring the exact same SYSTEM_ADMIN-only
+ * exposure boundary the action applies afterward.
+ */
+function buildFailureResult(
+  status: AdvisoryFailureStatus,
+  diagnostic: ProviderFailureClass | undefined,
+  httpStatus: number | undefined,
+): RadarAdvisoryUiResult {
+  if (!diagnostic) return { status };
+  return httpStatus !== undefined ? { status, diagnostic, httpStatus } : { status, diagnostic };
+}
 
 export type AdvisoryCoreDeps = {
   /** Existing authoritative engine — lib/actions/radar.ts::getProspectQualification. */
@@ -134,40 +152,41 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   // Only a real provider transport/response failure carries a failureClass
   // (429/5xx/timeout/network/parse); the designed no-provider states
   // (NO_CAPABLE_PROVIDER, disabled/disconnected) do not, so those results
-  // stay byte-identical to before this patch.
+  // stay byte-identical to before this patch. httpStatus, in turn, is
+  // exposed ONLY alongside a failureClass, and only when the provider
+  // failure was a genuine 400–599 HTTP response (never a fabricated,
+  // inferred, or coerced value — see errors.ts::validateHttpStatus).
   const diagnostic = outcome.error?.failureClass;
+  const httpStatus = diagnostic ? outcome.error?.httpStatus : undefined;
 
   let uiResult: RadarAdvisoryUiResult;
   switch (outcome.error?.code) {
     case "PROVIDER_RATE_LIMITED":
-      uiResult = diagnostic ? { status: "rate_limited", diagnostic } : { status: "rate_limited" };
+      uiResult = buildFailureResult("rate_limited", diagnostic, httpStatus);
       break;
     case "PROVIDER_TIMEOUT":
-      uiResult = diagnostic ? { status: "timeout", diagnostic } : { status: "timeout" };
+      uiResult = buildFailureResult("timeout", diagnostic, httpStatus);
       break;
     case "NO_CAPABLE_PROVIDER":
     case "PROVIDER_UNAVAILABLE":
     case "PROVIDER_DISABLED":
     case "PROVIDER_DISCONNECTED":
-      uiResult = diagnostic ? { status: "unavailable", diagnostic } : { status: "unavailable" };
+      uiResult = buildFailureResult("unavailable", diagnostic, httpStatus);
       break;
     default:
-      uiResult =
-        outcome.providerUnavailable && !outcome.error
-          ? { status: "unavailable" }
-          : diagnostic
-            ? { status: "error", diagnostic }
-            : { status: "error" };
+      uiResult = outcome.providerUnavailable && !outcome.error ? { status: "unavailable" } : buildFailureResult("error", diagnostic, httpStatus);
   }
 
   // Single log seam for every provider-side outcome: the safe enum code,
-  // the coarse class (only when one exists), and the status about to be
-  // returned. Never the provider name, request id, prompt, or raw body.
+  // the coarse class + exact status (only when they exist), and the
+  // status about to be returned. Never the provider name, request id,
+  // prompt, or raw body.
   if (outcome.error) {
     logRadarIntelligenceEvent({
       source: "advisory_core",
       code: outcome.error.code,
       ...(diagnostic ? { failureClass: diagnostic } : {}),
+      ...(httpStatus !== undefined ? { httpStatus } : {}),
       status: uiResult.status,
     });
   }

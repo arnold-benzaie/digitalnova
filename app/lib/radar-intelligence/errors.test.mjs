@@ -14,6 +14,7 @@ import {
   isProviderFailureClass,
   makeIntelligenceError,
   toIntelligenceError,
+  validateHttpStatus,
 } from "./errors.ts";
 
 // ---------------- classifyHttpStatus ----------------
@@ -139,7 +140,118 @@ test("toIntelligenceError: a raw string throw -> PROVIDER_ERROR + PROVIDER_UNKNO
   assert.equal(JSON.stringify(e).includes("sk-ant-"), false);
 });
 
-test("toIntelligenceError: the returned object exposes ONLY the safe keys", () => {
+test("toIntelligenceError: the returned object exposes ONLY the safe keys (401 now also validates as httpStatus)", () => {
   const e = toIntelligenceError({ status: 401, body: "secret" }, "anthropic");
-  assert.deepEqual(Object.keys(e).sort(), ["code", "failureClass", "message", "providerId", "retryable"].sort());
+  assert.deepEqual(Object.keys(e).sort(), ["code", "failureClass", "httpStatus", "message", "providerId", "retryable"].sort());
+  assert.equal(e.httpStatus, 401);
+});
+
+// ---------------- validateHttpStatus ----------------
+
+test("validateHttpStatus: accepts every integer in 400–599", () => {
+  for (const s of [400, 401, 403, 404, 429, 500, 502, 503, 504, 599]) {
+    assert.equal(validateHttpStatus(s), s, `status ${s}`);
+  }
+});
+
+test("validateHttpStatus: rejects out-of-range, non-integer, and non-number values", () => {
+  for (const bad of [0, 100, 199, 200, 204, 301, 399, 600, 700, -1, 401.5, NaN, Infinity, -Infinity]) {
+    assert.equal(validateHttpStatus(bad), undefined, `should reject ${bad}`);
+  }
+});
+
+test("validateHttpStatus: NEVER coerces a string — \"401\" is rejected, not parsed", () => {
+  assert.equal(validateHttpStatus("401"), undefined);
+  assert.equal(validateHttpStatus("400"), undefined);
+  assert.equal(validateHttpStatus(""), undefined);
+});
+
+test("validateHttpStatus: rejects null, undefined, booleans, objects, arrays", () => {
+  for (const bad of [null, undefined, true, false, {}, [], { status: 401 }]) {
+    assert.equal(validateHttpStatus(bad), undefined);
+  }
+});
+
+// ---------------- makeIntelligenceError: httpStatus attachment ----------------
+
+test("makeIntelligenceError: attaches a validated httpStatus as the 4th arg", () => {
+  const e = makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_4XX", 400);
+  assert.equal(e.httpStatus, 400);
+});
+
+test("makeIntelligenceError: SILENTLY drops an out-of-range or non-integer httpStatus — never attaches it", () => {
+  for (const bad of [200, 301, 600, 999, 400.5, "401", NaN]) {
+    const e = makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_UNKNOWN", bad);
+    assert.equal("httpStatus" in e, false, `should have dropped ${bad}`);
+  }
+});
+
+test("makeIntelligenceError: 2-arg and 3-arg calls are still byte-identical (no httpStatus key at all)", () => {
+  assert.equal("httpStatus" in makeIntelligenceError("PROVIDER_ERROR", "anthropic"), false);
+  assert.equal("httpStatus" in makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_UNKNOWN"), false);
+});
+
+// ---------------- toIntelligenceError: httpStatus by failure class ----------------
+
+test("toIntelligenceError: every genuine 4xx/5xx numeric status attaches the exact same httpStatus", () => {
+  for (const status of [400, 401, 403, 404, 429, 500, 502, 503, 504]) {
+    const e = toIntelligenceError({ status }, "anthropic");
+    assert.equal(e.httpStatus, status, `status ${status}`);
+  }
+});
+
+test("toIntelligenceError: AbortError / TimeoutError NEVER carries an httpStatus, even if a status field is also present", () => {
+  const e = toIntelligenceError(Object.assign(new Error("x"), { name: "AbortError", status: 500 }), "anthropic");
+  assert.equal(e.code, "PROVIDER_TIMEOUT");
+  assert.equal("httpStatus" in e, false, "a timeout must never carry a fabricated/incidental httpStatus");
+});
+
+test("toIntelligenceError: a network fault (TransportNetworkError) NEVER carries an httpStatus", () => {
+  const e = toIntelligenceError(Object.assign(new Error("x"), { name: "TransportNetworkError" }), "anthropic");
+  assert.equal(e.failureClass, "PROVIDER_NETWORK");
+  assert.equal("httpStatus" in e, false);
+});
+
+test("toIntelligenceError: an invalid-JSON fault (InvalidJsonError) NEVER carries an httpStatus (it followed a 2xx, outside 400–599)", () => {
+  const e = toIntelligenceError(Object.assign(new Error("x"), { name: "InvalidJsonError" }), "anthropic");
+  assert.equal(e.failureClass, "PROVIDER_PARSE");
+  assert.equal("httpStatus" in e, false);
+});
+
+test("toIntelligenceError: an arbitrary 2xx/3xx status is rejected — never exposed as httpStatus", () => {
+  for (const status of [200, 204, 301, 302]) {
+    const e = toIntelligenceError({ status }, "anthropic");
+    assert.equal("httpStatus" in e, false, `status ${status} must not be exposed`);
+  }
+});
+
+test("toIntelligenceError: an out-of-range status (e.g. 700) is rejected — never exposed as httpStatus", () => {
+  const e = toIntelligenceError({ status: 700 }, "anthropic");
+  assert.equal(e.failureClass, "PROVIDER_UNKNOWN");
+  assert.equal("httpStatus" in e, false);
+});
+
+test("toIntelligenceError: a string-shaped status (\"401\") is never coerced into an httpStatus", () => {
+  const e = toIntelligenceError({ status: "401" }, "anthropic");
+  // the existing `status` extraction itself only accepts typeof "number",
+  // so a string status is not even classified as 4xx/5xx — falls through
+  // to the generic fallback, and certainly never yields an httpStatus.
+  assert.equal(e.code, "PROVIDER_ERROR");
+  assert.equal(e.failureClass, "PROVIDER_UNKNOWN");
+  assert.equal("httpStatus" in e, false);
+});
+
+test("toIntelligenceError: the unrecognizable-thrown-value fallback never carries an httpStatus", () => {
+  const e = toIntelligenceError({ message: "boom" }, "anthropic");
+  assert.equal(e.failureClass, "PROVIDER_UNKNOWN");
+  assert.equal("httpStatus" in e, false);
+});
+
+test("toIntelligenceError: httpStatus, when present, never rides alongside any raw body/header text", () => {
+  const e = toIntelligenceError({ status: 429, body: "Retry-After: 60; Authorization: Bearer sk-ant-LEAK" }, "anthropic");
+  assert.equal(e.httpStatus, 429);
+  const s = JSON.stringify(e);
+  assert.equal(s.includes("Retry-After"), false);
+  assert.equal(s.includes("Bearer"), false);
+  assert.equal(s.includes("sk-ant-"), false);
 });

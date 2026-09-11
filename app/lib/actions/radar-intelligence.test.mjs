@@ -172,6 +172,59 @@ for (const label of ["MANAGER", "EMPLOYEE", "any non-admin"]) {
   });
 }
 
+// ---------------- exact HTTP status: same SYSTEM_ADMIN-only exposure boundary as diagnostic ----------------
+
+test("httpStatus: a SYSTEM_ADMIN caller receives BOTH diagnostic and httpStatus verbatim", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 400 };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 400 });
+});
+
+test("httpStatus: an ADMIN caller (SYSTEM_ADMIN=true, matching the current permission matrix) also receives both fields", async () => {
+  reset();
+  evalOk = true; // the mock returns { ok: true, role: "ADMIN" } — see the rbac mock above
+  coreResult = { status: "unavailable", diagnostic: "PROVIDER_5XX", httpStatus: 503 };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, { status: "unavailable", diagnostic: "PROVIDER_5XX", httpStatus: 503 });
+});
+
+for (const label of ["MANAGER", "EMPLOYEE", "any non-admin"]) {
+  test(`httpStatus: a ${label} caller gets the safe result with BOTH diagnostic and httpStatus STRIPPED`, async () => {
+    reset();
+    evalOk = false;
+    coreResult = { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 401 };
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "error" });
+    assert.equal("diagnostic" in r, false);
+    assert.equal("httpStatus" in r, false);
+  });
+}
+
+test("httpStatus: the permission-check THROWING strips BOTH diagnostic and httpStatus (goal 4 covers httpStatus too)", async () => {
+  reset();
+  evalThrows = true;
+  coreResult = { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 429 };
+  const calls = await withCapturedWarn(async () => {
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.deepEqual(r, { status: "error" });
+    assert.equal("diagnostic" in r, false);
+    assert.equal("httpStatus" in r, false);
+  });
+  assert.deepEqual(calls[0][1], { source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: "error" });
+  assert.equal("httpStatus" in calls[0][1], false, "the failure of the CHECK itself never carries a provider httpStatus");
+});
+
+test("httpStatus: a failure with NO genuine HTTP status (e.g. timeout) never fabricates one, even for SYSTEM_ADMIN", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "timeout", diagnostic: "PROVIDER_TIMEOUT" };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, { status: "timeout", diagnostic: "PROVIDER_TIMEOUT" });
+  assert.equal("httpStatus" in r, false);
+});
+
 test("diagnostic: the SYSTEM_ADMIN check is SKIPPED when the core result has no diagnostic (common path, no extra RBAC hit)", async () => {
   reset();
   evalOk = true;

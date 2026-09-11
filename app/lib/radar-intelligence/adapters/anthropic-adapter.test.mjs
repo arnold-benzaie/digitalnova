@@ -158,6 +158,42 @@ test("run: fake 429 -> PROVIDER_RATE_LIMITED; 503 -> PROVIDER_UNAVAILABLE; 400 -
   assert.equal((await mk(400).run(req())).error.code, "PROVIDER_ERROR");
 });
 
+test("run: every real HTTP status the adapter classifies also attaches the EXACT same httpStatus", async () => {
+  const mk = (status) => createAnthropicAdapter({ config: { enabled: true }, transport: fakeTransport({ mode: "status", status }), clock: CLOCK });
+  for (const [status, expectedCode, expectedClass] of [
+    [400, "PROVIDER_ERROR", "PROVIDER_4XX"],
+    [401, "PROVIDER_ERROR", "PROVIDER_4XX"],
+    [403, "PROVIDER_ERROR", "PROVIDER_4XX"],
+    [404, "PROVIDER_ERROR", "PROVIDER_4XX"],
+    [429, "PROVIDER_RATE_LIMITED", "PROVIDER_4XX"],
+    [500, "PROVIDER_ERROR", "PROVIDER_5XX"],
+    [502, "PROVIDER_UNAVAILABLE", "PROVIDER_5XX"],
+    [503, "PROVIDER_UNAVAILABLE", "PROVIDER_5XX"],
+    [504, "PROVIDER_UNAVAILABLE", "PROVIDER_5XX"],
+  ]) {
+    const res = await mk(status).run(req());
+    assert.equal(res.error.code, expectedCode, `status ${status}`);
+    assert.equal(res.error.failureClass, expectedClass, `status ${status}`);
+    assert.equal(res.error.httpStatus, status, `status ${status}`);
+    // never a body/header/secret alongside it — providerId ("anthropic")
+    // is this internal IntelligenceError's own identity field, filtered
+    // out before the UI/log boundary (proven in advisory-core tests).
+    assert.deepEqual(
+      Object.keys(res.error).sort(),
+      ["code", "failureClass", "httpStatus", "message", "providerId", "retryable"].sort(),
+    );
+    assert.equal(JSON.stringify(res).includes(FAKE_SECRET), false);
+  }
+});
+
+test("run: an out-of-range fake status (e.g. 700) never attaches an httpStatus, even though it still classifies as an error", async () => {
+  const a = createAnthropicAdapter({ config: { enabled: true }, transport: fakeTransport({ mode: "status", status: 700 }), clock: CLOCK });
+  const res = await a.run(req());
+  assert.equal(res.error.code, "PROVIDER_ERROR");
+  assert.equal(res.error.failureClass, "PROVIDER_UNKNOWN");
+  assert.equal("httpStatus" in res.error, false);
+});
+
 test("run: malformed provider body -> PROVIDER_ERROR (normalized, not thrown)", async () => {
   const a = createAnthropicAdapter({ config: { enabled: true }, transport: fakeTransport({ mode: "malformed" }), clock: CLOCK });
   const res = await a.run(req());

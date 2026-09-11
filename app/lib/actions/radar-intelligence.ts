@@ -104,13 +104,17 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
       createRegistry: createConfiguredRadarIntelligenceRegistry,
     });
 
-    // The coarse failure class is an OPERATOR diagnostic. It is present
-    // only on a genuine provider failure; when it is, it goes out ONLY to
-    // a caller who holds SYSTEM_ADMIN (OWNER / ADMIN today — the same
-    // permission that gates the provider-status service). Every other
-    // caller gets the exact pre-patch safe result. The check uses the
-    // session identity resolved above, never a client-supplied argument.
-    // permissions.ts is unchanged.
+    // The coarse failure class — and, when one genuinely exists, the
+    // exact provider HTTP status alongside it — is an OPERATOR
+    // diagnostic. Both are present only on a genuine provider failure;
+    // when they are, they go out ONLY to a caller who holds SYSTEM_ADMIN
+    // (OWNER / ADMIN today — the same permission that gates the
+    // provider-status service). Every other caller gets the exact
+    // pre-patch safe result — `{ status: result.status }` below is a
+    // FRESH object literal, so it structurally cannot carry `diagnostic`
+    // or `httpStatus` even if the caller forgot to check for either. The
+    // check uses the session identity resolved above, never a
+    // client-supplied argument. permissions.ts is unchanged.
     if ("diagnostic" in result && result.diagnostic !== undefined) {
       let admin;
       try {

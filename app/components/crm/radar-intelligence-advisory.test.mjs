@@ -165,6 +165,44 @@ test("diagnostic: with NO `diagnostic` on the result, no suffix and no 'PROVIDER
   }
 });
 
+// ---------------- httpStatus: renders as "(NNN)" appended to the same line, SYSTEM_ADMIN-only by construction ----------------
+
+test("httpStatus: renders as \"Diagnostic : PROVIDER_4XX (400)\" when the result carries both fields (FR)", () => {
+  const html = view({ status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 400 }, "fr");
+  assert.ok(html.includes(`${tFr.diagnosticPrefix} PROVIDER_4XX (400)`), "exact expected diagnostic line");
+  noUuid(html);
+  noProviderName(html);
+});
+
+test("httpStatus: renders for every genuine provider status class (401 / 403 / 429 / 500 / 503)", () => {
+  for (const [cls, status] of [
+    ["PROVIDER_4XX", 401],
+    ["PROVIDER_4XX", 403],
+    ["PROVIDER_4XX", 429],
+    ["PROVIDER_5XX", 500],
+    ["PROVIDER_5XX", 503],
+  ]) {
+    const html = view({ status: "error", diagnostic: cls, httpStatus: status }, "fr");
+    assert.ok(html.includes(`${cls} (${status})`), `expected ${cls} (${status})`);
+  }
+});
+
+test("httpStatus: WITHOUT httpStatus, the line still renders as the plain class only — e.g. \"Diagnostic : PROVIDER_NETWORK\"", () => {
+  const html = view({ status: "error", diagnostic: "PROVIDER_NETWORK" }, "fr");
+  assert.ok(html.includes(`${tFr.diagnosticPrefix} PROVIDER_NETWORK`));
+  assert.equal(/PROVIDER_NETWORK\s*\(/.test(html), false, "no parenthesised number appended when there is none");
+});
+
+test("httpStatus: EN rendering, no parentheses when absent", () => {
+  const withStatus = view({ status: "unavailable", diagnostic: "PROVIDER_5XX", httpStatus: 503 }, "en");
+  assert.ok(withStatus.includes(`${tEn.diagnosticPrefix} PROVIDER_5XX (503)`));
+
+  const withoutStatus = view({ status: "timeout", diagnostic: "PROVIDER_TIMEOUT" }, "en");
+  assert.ok(withoutStatus.includes(`${tEn.diagnosticPrefix} PROVIDER_TIMEOUT`));
+  assert.equal(withoutStatus.includes("("), false);
+});
+
+
 test("diagnostic: the component itself does no RBAC — the server action is the sole authority", () => {
   // no permission evaluation, no role catalogue, no session read, no
   // gateway/registry/transport call in the client component

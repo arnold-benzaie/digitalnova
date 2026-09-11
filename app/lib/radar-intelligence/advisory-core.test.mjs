@@ -162,32 +162,40 @@ for (const [label, script, expected, diagnostic] of [
 const NET_ERR = Object.assign(new Error(`net ${FAKE_KEY}`), { name: "TransportNetworkError" });
 const JSON_ERR = Object.assign(new Error(`json ${FAKE_KEY}`), { name: "InvalidJsonError" });
 
-for (const [label, script, expectedStatus, expectedClass] of [
-  ["HTTP 400", { status: 400 }, "error", "PROVIDER_4XX"],
-  ["HTTP 401", { status: 401 }, "error", "PROVIDER_4XX"],
-  ["HTTP 403", { status: 403 }, "error", "PROVIDER_4XX"],
-  ["HTTP 429", { status: 429 }, "rate_limited", "PROVIDER_4XX"],
-  ["HTTP 500", { status: 500 }, "error", "PROVIDER_5XX"],
-  ["HTTP 502", { status: 502 }, "unavailable", "PROVIDER_5XX"],
-  ["HTTP 503", { status: 503 }, "unavailable", "PROVIDER_5XX"],
-  ["HTTP 504", { status: 504 }, "unavailable", "PROVIDER_5XX"],
-  ["AbortError (timeout)", { reject: Object.assign(new Error("x"), { name: "AbortError" }) }, "timeout", "PROVIDER_TIMEOUT"],
-  ["network fault", { reject: NET_ERR }, "error", "PROVIDER_NETWORK"],
-  ["invalid JSON on 200", { reject: JSON_ERR }, "error", "PROVIDER_PARSE"],
-  ["unexpected 200 body shape", { status: 200, body: { nonsense: true, note: "no summary here" } }, "error", "PROVIDER_PARSE"],
+for (const [label, script, expectedStatus, expectedClass, expectedHttpStatus] of [
+  ["HTTP 400", { status: 400 }, "error", "PROVIDER_4XX", 400],
+  ["HTTP 401", { status: 401 }, "error", "PROVIDER_4XX", 401],
+  ["HTTP 403", { status: 403 }, "error", "PROVIDER_4XX", 403],
+  ["HTTP 429", { status: 429 }, "rate_limited", "PROVIDER_4XX", 429],
+  ["HTTP 500", { status: 500 }, "error", "PROVIDER_5XX", 500],
+  ["HTTP 502", { status: 502 }, "unavailable", "PROVIDER_5XX", 502],
+  ["HTTP 503", { status: 503 }, "unavailable", "PROVIDER_5XX", 503],
+  ["HTTP 504", { status: 504 }, "unavailable", "PROVIDER_5XX", 504],
+  ["AbortError (timeout)", { reject: Object.assign(new Error("x"), { name: "AbortError" }) }, "timeout", "PROVIDER_TIMEOUT", undefined],
+  ["network fault", { reject: NET_ERR }, "error", "PROVIDER_NETWORK", undefined],
+  ["invalid JSON on 200", { reject: JSON_ERR }, "error", "PROVIDER_PARSE", undefined],
+  ["unexpected 200 body shape", { status: 200, body: { nonsense: true, note: "no summary here" } }, "error", "PROVIDER_PARSE", undefined],
 ]) {
-  test(`diagnostic: ${label} -> status ${expectedStatus}, diagnostic ${expectedClass}`, async () => {
+  test(`diagnostic: ${label} -> status ${expectedStatus}, diagnostic ${expectedClass}, httpStatus ${expectedHttpStatus}`, async () => {
     const t = fakeTransport(script);
     const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
     assert.equal(t.hits, 1, "exactly one provider attempt");
     assert.equal(r.status, expectedStatus);
     assert.equal(r.diagnostic, expectedClass);
     assert.equal(["PROVIDER_4XX", "PROVIDER_5XX", "PROVIDER_TIMEOUT", "PROVIDER_NETWORK", "PROVIDER_PARSE", "PROVIDER_UNKNOWN"].includes(r.diagnostic), true);
+    assert.equal(r.httpStatus, expectedHttpStatus);
+    if (expectedHttpStatus === undefined) {
+      assert.equal("httpStatus" in r, false, "no fabricated httpStatus for a non-HTTP failure");
+    }
     const s = JSON.stringify(r);
     assert.equal(s.includes(FAKE_KEY), false, "no api key");
     assert.equal(s.includes("sk-ant-"), false);
     assert.equal(/x-api-key|authorization|bearer/i.test(s), false, "no auth header name/value");
-    assert.equal(/\b(4\d\d|5\d\d)\b/.test(s.replace(/PROVIDER_[45]XX/g, "")), false, "no raw HTTP status number");
+    // Strip the two INTENTIONAL, validated numeric fields (the coarse
+    // class suffix and the exact httpStatus, if present) before checking
+    // that no OTHER raw 3-digit HTTP-looking number snuck in anywhere.
+    const stripped = s.replace(/PROVIDER_[45]XX/g, "").replace(/"httpStatus":\d+/, "");
+    assert.equal(/\b(4\d\d|5\d\d)\b/.test(stripped), false, "no raw HTTP status number outside the validated httpStatus field");
     assert.equal(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(s), false, "no UUID");
     assert.equal("errorCode" in r, false);
     assert.equal(s.includes("providerId"), false);
@@ -333,15 +341,27 @@ test("observability: a synchronous registry/gateway throw logs REGISTRY_GATEWAY_
   assert.deepEqual(calls[0][1], { source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
 });
 
-test("observability: a provider HTTP 4xx failure logs code + failureClass + status ONLY", async () => {
+test("observability: a provider HTTP 4xx failure logs code + failureClass + httpStatus + status ONLY", async () => {
   const t = fakeTransport({ status: 400 });
   let result;
   const calls = await withCapturedWarn(async () => {
     result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
   });
-  assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_4XX" });
+  assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_4XX", httpStatus: 400 });
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", status: "error" });
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_4XX", httpStatus: 400, status: "error" });
+});
+
+test("observability: a provider failure with NO genuine HTTP response (network fault) logs no httpStatus", async () => {
+  const t = fakeTransport({ reject: Object.assign(new Error(`net ${FAKE_KEY}`), { name: "TransportNetworkError" }) });
+  let result;
+  const calls = await withCapturedWarn(async () => {
+    result = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  });
+  assert.deepEqual(result, { status: "error", diagnostic: "PROVIDER_NETWORK" });
+  assert.equal("httpStatus" in result, false);
+  assert.deepEqual(calls[0][1], { source: "advisory_core", code: "PROVIDER_ERROR", failureClass: "PROVIDER_NETWORK", status: "error" });
+  assert.equal("httpStatus" in calls[0][1], false);
 });
 
 test("observability: a network fault logs PROVIDER_NETWORK as the class, PROVIDER_ERROR as the code", async () => {
@@ -416,8 +436,12 @@ test("observability: no log line, across every failure path above, ever contains
     assert.deepEqual(
       Object.keys(call[1]).sort(),
       Object.keys(call[1])
-        .filter((k) => ["source", "code", "failureClass", "status"].includes(k))
+        .filter((k) => ["source", "code", "failureClass", "httpStatus", "status"].includes(k))
         .sort(),
     );
   }
+  // the one scenario with a genuine HTTP response (401) logs a validated httpStatus
+  const withHttpStatus = allCalls.filter((c) => "httpStatus" in c[1]);
+  assert.equal(withHttpStatus.length, 1);
+  assert.equal(withHttpStatus[0][1].httpStatus, 401);
 });

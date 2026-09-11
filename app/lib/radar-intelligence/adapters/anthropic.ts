@@ -83,16 +83,31 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps = {}): Intelli
         const result = await transport.generate(payload);
         if (typeof result.status === "number") {
           const status = result.status;
+          // The exact status is a genuine provider HTTP response — safe
+          // to carry as httpStatus (SYSTEM_ADMIN-only downstream);
+          // makeIntelligenceError re-validates it (400–599) regardless.
+          // Never the body, headers, or any other part of the response.
           if (status === 429) {
-            return { ok: false, error: makeIntelligenceError("PROVIDER_RATE_LIMITED", ANTHROPIC_PROVIDER_ID, "PROVIDER_4XX") };
+            return {
+              ok: false,
+              error: makeIntelligenceError("PROVIDER_RATE_LIMITED", ANTHROPIC_PROVIDER_ID, "PROVIDER_4XX", status),
+            };
           }
           if (status === 503 || status === 502 || status === 504) {
-            return { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", ANTHROPIC_PROVIDER_ID, "PROVIDER_5XX") };
+            return {
+              ok: false,
+              error: makeIntelligenceError("PROVIDER_UNAVAILABLE", ANTHROPIC_PROVIDER_ID, "PROVIDER_5XX", status),
+            };
           }
           if (status >= 400) {
             return {
               ok: false,
-              error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, classifyHttpStatus(status) ?? "PROVIDER_UNKNOWN"),
+              error: makeIntelligenceError(
+                "PROVIDER_ERROR",
+                ANTHROPIC_PROVIDER_ID,
+                classifyHttpStatus(status) ?? "PROVIDER_UNKNOWN",
+                status,
+              ),
             };
           }
         }

@@ -7,12 +7,12 @@ import "server-only";
  * layer emits, so a future failure can be told apart by WHICH internal
  * branch it took — without ever recording WHO asked or WHAT was asked.
  *
- * `logRadarIntelligenceEvent` accepts ONLY the four allowlisted fields
- * below (source / code / failureClass / status) and rebuilds a brand-new
- * object by reading just those keys — it never logs the caller's object
- * itself, so an accidental extra field (a clientId, a userId, a raw
- * error) is silently dropped rather than reaching console output. This is
- * deliberately NOT a general-purpose logger.
+ * `logRadarIntelligenceEvent` accepts ONLY the five allowlisted fields
+ * below (source / code / failureClass / httpStatus / status) and rebuilds
+ * a brand-new object by reading just those keys — it never logs the
+ * caller's object itself, so an accidental extra field (a clientId, a
+ * userId, a raw error) is silently dropped rather than reaching console
+ * output. This is deliberately NOT a general-purpose logger.
  *
  * NEVER logged, by construction: an API key, x-api-key, Authorization, a
  * prompt or system instruction, a raw provider response / HTTP body,
@@ -20,10 +20,13 @@ import "server-only";
  * URL, a stack trace, or a raw Error#message. `code` is always one of the
  * fixed IntelligenceErrorCode values (already secret-free — see
  * errors.ts) or one of the internal diagnostic-blind-path codes declared
- * below; `failureClass` is always one of ProviderFailureClass. Neither is
- * ever a free-text string built from user/provider input.
+ * below; `failureClass` is always one of ProviderFailureClass;
+ * `httpStatus`, if present at all, is RE-VALIDATED here (400–599, a real
+ * integer, never coerced from a string) before it can reach console
+ * output — a second, independent gate on top of the one in errors.ts.
+ * None of these is ever a free-text string built from user/provider input.
  */
-import type { IntelligenceErrorCode, ProviderFailureClass } from "./errors";
+import { validateHttpStatus, type IntelligenceErrorCode, type ProviderFailureClass } from "./errors";
 
 export type RadarIntelligenceLogSource = "advisory_core" | "diagnostic_permission_check" | "server_action_boundary";
 
@@ -52,23 +55,34 @@ export type RadarIntelligenceLogEvent = {
   code: RadarIntelligenceLogCode;
   /** Only present for a genuine provider transport/response failure. */
   failureClass?: ProviderFailureClass;
+  /** Only present alongside failureClass, for a genuine provider HTTP
+   * response — re-validated (400–599) below regardless. */
+  httpStatus?: number;
   /** The safe RadarAdvisoryUiResult["status"] the caller is about to
    * return — a fixed enum string, never provider/user text. */
   status?: string;
 };
 
-const ALLOWED_LOG_KEYS = ["source", "code", "failureClass", "status"] as const;
+const ALLOWED_LOG_KEYS = ["source", "code", "failureClass", "httpStatus", "status"] as const;
 
 /**
  * The ONLY export that writes anywhere. Re-reads just the allowlisted
  * keys off `event` into a fresh object before logging — nothing else on
  * `event`, however it was constructed by the caller, can reach this line.
+ * `httpStatus` gets one extra check: it is dropped, not passed through,
+ * unless it independently re-validates as a real 400–599 integer.
  */
 export function logRadarIntelligenceEvent(event: RadarIntelligenceLogEvent): void {
   const safe: Record<string, unknown> = {};
   for (const key of ALLOWED_LOG_KEYS) {
     const value = event[key];
-    if (value !== undefined) safe[key] = value;
+    if (value === undefined) continue;
+    if (key === "httpStatus") {
+      const validated = validateHttpStatus(value);
+      if (validated !== undefined) safe.httpStatus = validated;
+      continue;
+    }
+    safe[key] = value;
   }
   console.warn("[RADAR_INTELLIGENCE]", safe);
 }

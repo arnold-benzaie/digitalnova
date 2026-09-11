@@ -61,6 +61,22 @@ export function classifyHttpStatus(status: number): "PROVIDER_4XX" | "PROVIDER_5
 }
 
 /**
+ * Validates a candidate HTTP status for safe exposure alongside
+ * `failureClass`: it must be a plain JS `number` (never coerced from a
+ * string — "401" is rejected, not parsed), an integer, and inside the
+ * real HTTP error range 400–599. NaN, Infinity, floats, 2xx/3xx, and
+ * out-of-range values all -> undefined. This is the ONLY gate through
+ * which a raw provider status number may reach an IntelligenceError,
+ * a UI result, or a log line — never any other field of the response.
+ */
+export function validateHttpStatus(value: unknown): number | undefined {
+  if (typeof value !== "number") return undefined;
+  if (!Number.isInteger(value)) return undefined;
+  if (value < 400 || value > 599) return undefined;
+  return value;
+}
+
+/**
  * Fixed, generic copy per code. Deliberately provider-neutral and free of
  * any interpolation — a UI would localize by CODE, not by rendering these.
  * They must never contain an id, a raw exception, or a secret.
@@ -97,12 +113,21 @@ export type IntelligenceError = {
    * designed no-provider states. Only ever one of PROVIDER_FAILURE_CLASSES.
    */
   failureClass?: ProviderFailureClass;
+  /**
+   * OPTIONAL exact HTTP status, present ONLY when a real provider HTTP
+   * response carried one (never for a timeout / network / parse / local
+   * / pre-gateway failure, and never fabricated). Always validated
+   * 400–599 by validateHttpStatus before it ever reaches this field —
+   * see makeIntelligenceError below, the sole place that sets it.
+   */
+  httpStatus?: number;
 };
 
 export function makeIntelligenceError(
   code: IntelligenceErrorCode,
   providerId: IntelligenceProviderId | null = null,
   failureClass?: ProviderFailureClass,
+  httpStatus?: number,
 ): IntelligenceError {
   const error: IntelligenceError = {
     code,
@@ -110,8 +135,11 @@ export function makeIntelligenceError(
     retryable: RETRYABLE_ERROR_CODES.has(code),
     message: SAFE_ERROR_MESSAGES[code],
   };
-  // Attach only when supplied, so the 2-arg call keeps its exact shape.
+  // Attach only when supplied, so the 2-arg / 3-arg call keeps its exact
+  // pre-existing shape.
   if (failureClass !== undefined) error.failureClass = failureClass;
+  const validatedHttpStatus = validateHttpStatus(httpStatus);
+  if (validatedHttpStatus !== undefined) error.httpStatus = validatedHttpStatus;
   return error;
 }
 
@@ -131,16 +159,25 @@ export function toIntelligenceError(
     typeof thrown === "object" && thrown !== null && "status" in thrown && typeof (thrown as { status?: unknown }).status === "number"
       ? (thrown as { status: number }).status
       : undefined;
+  // Only ever a candidate for a GENUINE provider HTTP response — never
+  // attached to the timeout / network / parse / unknown branches below,
+  // even when `status` happens to be set on the thrown object, and
+  // always re-validated (400–599) by makeIntelligenceError itself.
+  const httpStatus = validateHttpStatus(status);
 
   if (name === "AbortError" || name === "TimeoutError") return makeIntelligenceError("PROVIDER_TIMEOUT", providerId, "PROVIDER_TIMEOUT");
-  if (status === 429) return makeIntelligenceError("PROVIDER_RATE_LIMITED", providerId, "PROVIDER_4XX");
-  if (status === 503 || status === 502 || status === 504) return makeIntelligenceError("PROVIDER_UNAVAILABLE", providerId, "PROVIDER_5XX");
+  if (status === 429) return makeIntelligenceError("PROVIDER_RATE_LIMITED", providerId, "PROVIDER_4XX", httpStatus);
+  if (status === 503 || status === 502 || status === 504) {
+    return makeIntelligenceError("PROVIDER_UNAVAILABLE", providerId, "PROVIDER_5XX", httpStatus);
+  }
   // Fixed transport error NAMES from anthropic-http-transport.ts. The
   // name is a constant we set ourselves — never attacker/provider text.
+  // Neither carries a real HTTP status (a network fault never reached a
+  // response; an invalid-JSON fault followed a 2xx, outside 400–599).
   if (name === "TransportNetworkError") return makeIntelligenceError("PROVIDER_ERROR", providerId, "PROVIDER_NETWORK");
   if (name === "InvalidJsonError") return makeIntelligenceError("PROVIDER_ERROR", providerId, "PROVIDER_PARSE");
   const httpClass = typeof status === "number" ? classifyHttpStatus(status) : undefined;
-  if (httpClass) return makeIntelligenceError("PROVIDER_ERROR", providerId, httpClass);
+  if (httpClass) return makeIntelligenceError("PROVIDER_ERROR", providerId, httpClass, httpStatus);
   return makeIntelligenceError("PROVIDER_ERROR", providerId, "PROVIDER_UNKNOWN");
 }
 
