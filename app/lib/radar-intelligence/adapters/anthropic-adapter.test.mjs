@@ -322,6 +322,150 @@ test("normalizeAnthropicResponse: content[] text shape is accepted", () => {
   assert.match(res.advisory.summary, /concise advisory/);
 });
 
+// ---------------- V1.1: locale-aware generation ----------------
+
+test("request builder: FR (default) instructs the model to write in French; EN instructs English", () => {
+  const config = resolveAnthropicConfig({ enabled: true });
+  const fr = buildAnthropicSummarizePayload(CTX, config);
+  assert.match(fr.system, /Write every text VALUE in French\./);
+  assert.equal(fr.system, ANTHROPIC_SUMMARIZE_SYSTEM_INSTRUCTION);
+
+  const frExplicit = buildAnthropicSummarizePayload(CTX, config, "fr");
+  assert.equal(frExplicit.system, fr.system);
+
+  const en = buildAnthropicSummarizePayload(CTX, config, "en");
+  assert.match(en.system, /Write every text VALUE in English\./);
+  assert.notEqual(en.system, fr.system);
+});
+
+test("request builder: the JSON-shape instruction (summary/risks/nextAction/reasoning) is present regardless of locale", () => {
+  for (const locale of ["fr", "en"]) {
+    const payload = buildAnthropicSummarizePayload(CTX, resolveAnthropicConfig({ enabled: true }), locale);
+    assert.match(payload.system, /"summary"/);
+    assert.match(payload.system, /"risks"/);
+    assert.match(payload.system, /"nextAction"/);
+    assert.match(payload.system, /"reasoning"/);
+    assert.match(payload.system, /consultative only/i);
+    assert.match(payload.system, /AUTHORITATIVE/);
+    assert.match(payload.system, /never reveal.*system instructions/i);
+    assert.match(payload.system, /never output an api key/i);
+  }
+});
+
+test("adapter.run: the resolved locale (from request.locale) reaches the transport's system instruction end-to-end", async () => {
+  const t = fakeTransport();
+  const a = createAnthropicAdapter({ config: { enabled: true }, transport: t, clock: CLOCK });
+  await a.run({ ...req(), locale: "en" });
+  assert.match(t.calls[0].system, /Write every text VALUE in English\./);
+
+  const t2 = fakeTransport();
+  const a2 = createAnthropicAdapter({ config: { enabled: true }, transport: t2, clock: CLOCK });
+  await a2.run(req()); // no locale on the request -> defaults to French
+  assert.match(t2.calls[0].system, /Write every text VALUE in French\./);
+});
+
+// ---------------- V1.1: structured output (summary/risks/nextAction/reasoning) ----------------
+
+function structuredBody(fields) {
+  return { content: [{ type: "text", text: JSON.stringify(fields) }], usage: { input_tokens: 30, output_tokens: 20 } };
+}
+
+test("normalizeAnthropicResponse: valid structured JSON in the model's text normalizes to summary/risks/suggestedNextAction/reasoning", () => {
+  const res = normalizeAnthropicResponse(
+    structuredBody({
+      summary: "The prospect is warm and engaged.",
+      risks: ["Budget not yet confirmed", "Decision maker unavailable"],
+      nextAction: "Schedule a follow-up call",
+      reasoning: "Recent interaction shows active interest with no blockers raised.",
+    }),
+    "2026-09-11T09:00:00.000Z",
+    "claude-sonnet-5",
+  );
+  assert.equal(res.ok, true);
+  assert.equal(res.advisory.summary, "The prospect is warm and engaged.");
+  assert.deepEqual(res.advisory.risks, ["Budget not yet confirmed", "Decision maker unavailable"]);
+  assert.equal(res.advisory.suggestedNextAction, "Schedule a follow-up call");
+  assert.equal(res.advisory.reasoning, "Recent interaction shows active interest with no blockers raised.");
+  assert.equal(res.advisory.model, "claude-sonnet-5");
+});
+
+test("normalizeAnthropicResponse: structured JSON wrapped in a markdown ```json fence still parses", () => {
+  const fields = { summary: "Fenced but valid.", risks: [], nextAction: "Wait", reasoning: "No new signal." };
+  const res = normalizeAnthropicResponse(
+    { content: [{ type: "text", text: "```json\n" + JSON.stringify(fields) + "\n```" }] },
+    "2026-09-11T09:00:00.000Z",
+  );
+  assert.equal(res.ok, true);
+  assert.equal(res.advisory.summary, "Fenced but valid.");
+  assert.equal(res.advisory.suggestedNextAction, "Wait");
+  assert.equal(res.advisory.reasoning, "No new signal.");
+});
+
+test("normalizeAnthropicResponse: an EMPTY risks array is accepted, not treated as absent-and-invalid", () => {
+  const res = normalizeAnthropicResponse(structuredBody({ summary: "ok", risks: [], nextAction: "x", reasoning: "y" }), "2026-09-11T09:00:00.000Z");
+  assert.equal(res.ok, true);
+  assert.equal("risks" in res.advisory, false, "an empty array cleans to undefined, same convention as tags/warnings");
+});
+
+test("normalizeAnthropicResponse: MALFORMED (non-JSON) model text degrades to plain summary — never throws, never breaks rendering", () => {
+  const res = normalizeAnthropicResponse(
+    { content: [{ type: "text", text: "Sure, here's my advisory: the prospect looks promising." }] },
+    "2026-09-11T09:00:00.000Z",
+  );
+  assert.equal(res.ok, true);
+  assert.match(res.advisory.summary, /prospect looks promising/);
+  assert.equal("risks" in res.advisory, false);
+  assert.equal("reasoning" in res.advisory, false);
+  assert.equal("suggestedNextAction" in res.advisory, false);
+});
+
+test("normalizeAnthropicResponse: structured JSON that is an array (not an object) is treated as malformed -> plain-text degrade", () => {
+  const res = normalizeAnthropicResponse({ content: [{ type: "text", text: "[1,2,3]" }] }, "2026-09-11T09:00:00.000Z");
+  assert.equal(res.ok, true);
+  assert.equal(res.advisory.summary, "[1,2,3]");
+});
+
+test("normalizeAnthropicResponse: accepts the tolerant top-level shape with EITHER nextAction or suggestedNextAction", () => {
+  const a = normalizeAnthropicResponse({ summary: "s", nextAction: "n1" }, "2026-09-11T09:00:00.000Z");
+  assert.equal(a.advisory.suggestedNextAction, "n1");
+  const b = normalizeAnthropicResponse({ summary: "s", suggestedNextAction: "n2" }, "2026-09-11T09:00:00.000Z");
+  assert.equal(b.advisory.suggestedNextAction, "n2");
+});
+
+test("normalizeAnthropicResponse: risks are UUID-redacted and length/count-capped, same discipline as tags/warnings", () => {
+  const uuid = "11111111-1111-4111-8111-111111111111";
+  const res = normalizeAnthropicResponse(
+    structuredBody({
+      summary: "ok",
+      risks: [`Contact ${uuid} unresponsive`, "a", "b", "c", "d", "e", "f", "g"], // 8 items, cap is 6
+      nextAction: "x",
+      reasoning: `See record ${uuid}`,
+    }),
+    "2026-09-11T09:00:00.000Z",
+  );
+  assert.equal(res.ok, true);
+  assert.equal(res.advisory.risks.length, 6, "risks are capped at 6");
+  assert.equal(res.advisory.risks[0].includes(uuid), false, "a UUID inside a risk is redacted");
+  assert.match(res.advisory.risks[0], /\[id\]/);
+  assert.equal(res.advisory.reasoning.includes(uuid), false, "a UUID inside reasoning is redacted");
+});
+
+test("adapter.run: a structured success carries ONLY the allowlisted IntelligenceAdvisory keys — no raw body/headers smuggled through", async () => {
+  const t = fakeTransport({
+    mode: "status",
+    status: 200,
+    body: structuredBody({ summary: "ok", risks: ["r1"], nextAction: "x", reasoning: "y", unknownField: "must be dropped" }),
+  });
+  const a = createAnthropicAdapter({ config: { enabled: true, model: "claude-sonnet-5" }, transport: t, clock: CLOCK });
+  const res = await a.run(req());
+  assert.equal(res.ok, true);
+  assert.deepEqual(
+    Object.keys(res.advisory).sort(),
+    ["advisory", "generatedAt", "model", "provider", "reasoning", "risks", "status", "suggestedNextAction", "summary", "usage"].sort(),
+  );
+  assert.equal("unknownField" in res.advisory, false);
+});
+
 // ---------------- not-wired transport ----------------
 
 test("notWiredAnthropicTransport: always throws, never performs I/O", async () => {

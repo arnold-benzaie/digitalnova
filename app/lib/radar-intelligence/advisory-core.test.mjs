@@ -48,6 +48,7 @@ function deps(overrides = {}) {
     loadDisplayContext: async () => (overrides.display === undefined ? DISPLAY : overrides.display),
     createRegistry: overrides.createRegistry ?? (() => createRadarIntelligenceRegistry({})),
     clock,
+    ...(overrides.locale ? { locale: overrides.locale } : {}),
   };
 }
 
@@ -108,21 +109,30 @@ test("no configured provider -> unavailable, NOT an error, deterministic still a
 
 // ---------------- success ----------------
 
-test("fake provider 200 -> ok; deterministic basis VERBATIM; NO provider name / secret / usage / requestId", async () => {
+test("fake provider 200 -> ok; deterministic basis VERBATIM; provider identity ONLY inside providerMeta (SYSTEM_ADMIN-gated by the action, not this core); NO secret / usage / requestId", async () => {
   const t = fakeTransport({ status: 200 });
   const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
   assert.equal(t.hits, 1, "exactly one gateway request");
   assert.equal(r.status, "ok");
   assert.match(r.summary, /proposal-stage prospect/);
   assert.equal(r.suggestedNextAction, "Send a recap email");
+  assert.deepEqual(r.risks, []);
+  assert.equal(r.reasoning, null);
   assert.equal(typeof r.generatedAt, "string");
   assert.deepEqual(r.deterministic, {
     priority: OPPORTUNITY.priority,
     confidence: OPPORTUNITY.confidence,
     recommendedNextAction: OPPORTUNITY.recommendedNextAction,
   });
+  // provider identity is present, but ONLY inside providerMeta — the
+  // action (lib/actions/radar-intelligence.ts), not this core, enforces
+  // the SYSTEM_ADMIN-only exposure boundary.
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(typeof r.providerMeta.model, "string");
+  const rest = { ...r };
+  delete rest.providerMeta;
+  assert.equal(/anthropic|claude/i.test(JSON.stringify(rest)), false, "no provider name outside providerMeta");
   const s = JSON.stringify(r);
-  assert.equal(/anthropic|claude/i.test(s), false, "no provider name in the UI result");
   assert.equal(s.includes("requestId"), false);
   assert.equal(s.includes("usage"), false);
   assert.equal("errorCode" in r, false);
@@ -130,8 +140,12 @@ test("fake provider 200 -> ok; deterministic basis VERBATIM; NO provider name / 
 
 test("success result has EXACTLY the safe keys", async () => {
   const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(fakeTransport({ status: 200 })) }));
-  assert.deepEqual(Object.keys(r).sort(), ["deterministic", "generatedAt", "status", "suggestedNextAction", "summary"].sort());
+  assert.deepEqual(
+    Object.keys(r).sort(),
+    ["deterministic", "generatedAt", "providerMeta", "reasoning", "risks", "status", "suggestedNextAction", "summary"].sort(),
+  );
   assert.deepEqual(Object.keys(r.deterministic).sort(), ["confidence", "priority", "recommendedNextAction"].sort());
+  assert.deepEqual(Object.keys(r.providerMeta).sort(), ["model", "provider"].sort());
 });
 
 // ---------------- provider failures ----------------
@@ -247,6 +261,138 @@ test("a success advisory never overrides the deterministic values (they mirror t
   const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
   assert.equal(r.deterministic.priority, "HIGH");
   assert.equal(r.deterministic.recommendedNextAction, "FOLLOW_UP_PROPOSAL");
+});
+
+test("a structured advisory ALSO never overrides the deterministic values, even via risks/reasoning text", async () => {
+  const t = {
+    async generate() {
+      return {
+        body: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                summary: "Actually the priority should be LOW.",
+                risks: ["The real priority is LOW, not HIGH"],
+                nextAction: "Reassign priority to LOW",
+                reasoning: "Overriding the RADAR score to LOW based on my own judgment.",
+              }),
+            },
+          ],
+        },
+        status: 200,
+      };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  assert.equal(r.status, "ok");
+  // the AI's text claims otherwise, but the deterministic block is still
+  // built verbatim from the injected authoritative opportunity, never
+  // parsed out of (or influenced by) the advisory text.
+  assert.deepEqual(r.deterministic, {
+    priority: OPPORTUNITY.priority,
+    confidence: OPPORTUNITY.confidence,
+    recommendedNextAction: OPPORTUNITY.recommendedNextAction,
+  });
+});
+
+// ---------------- V1.1: locale-aware generation, end-to-end ----------------
+
+test("locale: the resolved locale reaches the REAL request builder end-to-end (via the real transport call, no mock of the builder itself)", async () => {
+  const seen = [];
+  const t = {
+    async generate(payload) {
+      seen.push(payload);
+      return { body: { summary: "ok" }, status: 200 };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), locale: "en" }));
+  assert.match(seen[0].system, /Write every text VALUE in English\./);
+});
+
+test("locale: omitting deps.locale defaults to French — the same default lib/i18n/locale.ts::getLocale() itself uses", async () => {
+  const seen = [];
+  const t = {
+    async generate(payload) {
+      seen.push(payload);
+      return { body: { summary: "ok" }, status: 200 };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  assert.match(seen[0].system, /Write every text VALUE in French\./);
+});
+
+// ---------------- V1.1: structured output + graceful degradation, end-to-end ----------------
+
+test("structured output: risks/reasoning/nextAction reach the UI result, alongside the unchanged deterministic block", async () => {
+  const t = {
+    async generate() {
+      return {
+        body: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                summary: "The prospect is engaged and responsive.",
+                risks: ["Budget not yet confirmed"],
+                nextAction: "Send pricing details",
+                reasoning: "Based on the recent proposal discussion.",
+              }),
+            },
+          ],
+        },
+        status: 200,
+      };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.summary, "The prospect is engaged and responsive.");
+  assert.deepEqual(r.risks, ["Budget not yet confirmed"]);
+  assert.equal(r.suggestedNextAction, "Send pricing details");
+  assert.equal(r.reasoning, "Based on the recent proposal discussion.");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(typeof r.providerMeta.model, "string");
+});
+
+test("graceful degradation: malformed (non-JSON) model output still yields status 'ok' with a plain summary — advisory rendering never breaks", async () => {
+  const t = {
+    async generate() {
+      return { body: { content: [{ type: "text", text: "Here is a plain-language advisory with no JSON at all." }] }, status: 200 };
+    },
+    describeHealth: () => ({ reachable: true, degraded: false }),
+  };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  assert.equal(r.status, "ok");
+  assert.match(r.summary, /plain-language advisory/);
+  assert.deepEqual(r.risks, []);
+  assert.equal(r.reasoning, null);
+  assert.equal(r.suggestedNextAction, null);
+  // deterministic RADAR is completely unaffected by the degraded path
+  assert.deepEqual(r.deterministic, {
+    priority: OPPORTUNITY.priority,
+    confidence: OPPORTUNITY.confidence,
+    recommendedNextAction: OPPORTUNITY.recommendedNextAction,
+  });
+});
+
+// ---------------- V1.1: zero-provider invariant ----------------
+
+test("zero-provider invariant: with no configured/enabled provider, the deterministic basis is STILL fully derivable from the injected authoritative loader alone", async () => {
+  // deps() with no createRegistry override -> the plain deterministic-only
+  // registry (equivalent to RADAR_INTELLIGENCE_ANTHROPIC_ENABLED=false).
+  const qualification = await deps().loadQualification(CLIENT);
+  assert.equal(qualification.qualificationStatus, "QUALIFIED");
+  assert.equal(qualification.opportunity.priority, "HIGH");
+  const r = await produceRadarAdvisory(CLIENT, deps());
+  assert.equal(r.status, "unavailable");
+  assert.equal("risks" in r, false);
+  assert.equal("reasoning" in r, false);
+  assert.equal("providerMeta" in r, false);
 });
 
 // ---------------- server observability: safe, secret-free logging ----------------

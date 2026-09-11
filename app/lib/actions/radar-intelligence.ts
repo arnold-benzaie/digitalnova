@@ -26,10 +26,36 @@ import { db } from "@/db";
 import { crmClients, interactions, tasks } from "@/db/schema";
 import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
+import { getLocale } from "@/lib/i18n/locale";
 import { getProspectQualification } from "@/lib/actions/radar";
 import { createConfiguredRadarIntelligenceRegistry } from "@/lib/radar-intelligence/configured-registry";
 import { produceRadarAdvisory, type AdvisoryDisplayContext, type RadarAdvisoryUiResult } from "@/lib/radar-intelligence/advisory-core";
 import { logRadarIntelligenceEvent } from "@/lib/radar-intelligence/observability";
+
+/**
+ * Strips every SYSTEM_ADMIN-only field from `result`, returning ONLY the
+ * fields every caller may see. An explicit ALLOWLIST copy, not a
+ * denylist-omit: a future admin-only field added to the "ok" shape is
+ * dropped by default here unless someone deliberately adds it below —
+ * the same fail-closed convention as sanitizeProspectContext()'s
+ * allowlist-only construction and logRadarIntelligenceEvent()'s
+ * allowlisted fields.
+ */
+function stripAdminOnlyFields(result: RadarAdvisoryUiResult): RadarAdvisoryUiResult {
+  if (result.status !== "ok") {
+    return { status: result.status };
+  }
+  return {
+    status: "ok",
+    summary: result.summary,
+    suggestedNextAction: result.suggestedNextAction,
+    risks: result.risks,
+    reasoning: result.reasoning,
+    generatedAt: result.generatedAt,
+    deterministic: result.deterministic,
+    // providerMeta intentionally omitted — SYSTEM_ADMIN-only.
+  };
+}
 
 /** Small, best-effort anti-spam: one advisory per user per window, per
  * server instance. In-memory ONLY — no Redis, no DB schema. The UI button
@@ -98,24 +124,34 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
     }
     lastAdvisoryRequestByUser.set(userId, now);
 
+    // The app's CURRENT interface locale — resolved server-side, the same
+    // way every page already does (lib/i18n/locale.ts::getLocale()).
+    // Never inferred from prospect data, never accepted from the caller:
+    // requestRadarIntelligenceAdvisory still takes only (clientId).
+    const locale = await getLocale();
+
     const result = await produceRadarAdvisory(clientId, {
       loadQualification: getProspectQualification,
       loadDisplayContext,
       createRegistry: createConfiguredRadarIntelligenceRegistry,
+      locale,
     });
 
-    // The coarse failure class — and, when one genuinely exists, the
-    // exact provider HTTP status alongside it — is an OPERATOR
-    // diagnostic. Both are present only on a genuine provider failure;
-    // when they are, they go out ONLY to a caller who holds SYSTEM_ADMIN
-    // (OWNER / ADMIN today — the same permission that gates the
-    // provider-status service). Every other caller gets the exact
-    // pre-patch safe result — `{ status: result.status }` below is a
-    // FRESH object literal, so it structurally cannot carry `diagnostic`
-    // or `httpStatus` even if the caller forgot to check for either. The
-    // check uses the session identity resolved above, never a
+    // Two DISTINCT SYSTEM_ADMIN-only affordances share one re-check:
+    //  - the coarse failure class (+ exact provider HTTP status), present
+    //    only on a genuine provider failure;
+    //  - providerMeta (provider id + model), present only on a genuine
+    //    successful advisory.
+    // Either goes out ONLY to a caller who holds SYSTEM_ADMIN (OWNER /
+    // ADMIN today — the same permission that gates the provider-status
+    // service). Every other caller gets the exact safe result via
+    // stripAdminOnlyFields() below, which is a FRESH object built from an
+    // explicit allowlist, so it structurally cannot carry any of these
+    // fields even if a future field is added and this check forgets it.
+    // The check uses the session identity resolved above, never a
     // client-supplied argument. permissions.ts is unchanged.
-    if ("diagnostic" in result && result.diagnostic !== undefined) {
+    const hasAdminOnlyField = ("diagnostic" in result && result.diagnostic !== undefined) || (result.status === "ok" && result.providerMeta !== undefined);
+    if (hasAdminOnlyField) {
       let admin;
       try {
         admin = await evaluateStaffPermission({ userId, permission: "SYSTEM_ADMIN" });
@@ -123,14 +159,14 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
         // The re-check itself failed (e.g. a transient DB hiccup on the
         // SECOND permission lookup, after the FIRST one above already
         // succeeded for this same request). Fail closed on exposure —
-        // never expose the diagnostic — but do NOT let this throw take
-        // down the whole advisory: the caller still gets the safe status
-        // they would have gotten anyway.
+        // never expose the admin-only fields — but do NOT let this throw
+        // take down the whole advisory: the caller still gets the safe
+        // result they would have gotten anyway.
         logRadarIntelligenceEvent({ source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: result.status });
-        return { status: result.status };
+        return stripAdminOnlyFields(result);
       }
       if (!admin.ok) {
-        return { status: result.status };
+        return stripAdminOnlyFields(result);
       }
     }
 

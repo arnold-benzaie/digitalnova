@@ -113,6 +113,14 @@ export type IntelligenceRequest = {
   context: import("./sanitize-context").SanitizedIntelligenceContext;
   /** Optional soft preference; selection policy still enforces health/capability/enabled. */
   preferredProviderId?: IntelligenceProviderId;
+  /**
+   * The app's CURRENT interface locale (never inferred from prospect
+   * data, never client-supplied auth state — resolved server-side via
+   * lib/i18n/locale.ts::getLocale()). An adapter may use it ONLY to pick
+   * the language it writes its advisory text in. Defaults to "fr" when
+   * omitted (e.g. the live-smoke harness, which passes none).
+   */
+  locale?: import("@/lib/i18n/dictionaries").Locale;
 };
 
 /**
@@ -130,9 +138,22 @@ export type IntelligenceAdvisory = {
   confidence?: "LOW" | "MEDIUM" | "HIGH";
   summary?: string;
   suggestedNextAction?: string;
+  /** Short risk phrases the provider identified — advisory only, never
+   * a deterministic risk score. */
+  risks?: string[];
+  /** A short grounding explanation for the summary/risks/next action —
+   * still advisory text, never a deterministic justification. */
+  reasoning?: string;
   tags?: string[];
   warnings?: string[];
   usage?: IntelligenceUsage;
+  /**
+   * The model id actually used (e.g. "claude-sonnet-5") — non-secret
+   * configuration, already documented as safe to show a SYSTEM_ADMIN
+   * (see docs/radar-intelligence-production-config.md). Never an api
+   * key, header, or anything else about the request/response.
+   */
+  model?: string;
 };
 
 /** What an adapter's run() resolves to. Never throws a raw provider error. */

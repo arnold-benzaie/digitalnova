@@ -74,7 +74,7 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps = {}): Intelli
       }
       try {
         assertNoForbiddenKeys(request.context);
-        const payload = buildAnthropicSummarizePayload(request.context, config);
+        const payload = buildAnthropicSummarizePayload(request.context, config, request.locale);
         // Final defensive request-size cap, on top of the sanitizer's
         // per-field caps — never send a giant prompt.
         if (payloadByteSize(payload) > config.maxRequestBytes) {
@@ -111,7 +111,7 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps = {}): Intelli
             };
           }
         }
-        return normalizeAnthropicResponse(result.body, clock().toISOString());
+        return normalizeAnthropicResponse(result.body, clock().toISOString(), config.model);
       } catch (thrown) {
         // Never let a raw transport/SDK error (which could embed a
         // credential or a response body) escape.

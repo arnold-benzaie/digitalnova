@@ -1,5 +1,7 @@
 /**
  * RADAR INTELLIGENCE V1 — Slice 2 — pure Anthropic response normalization.
+ * RADAR INTELLIGENCE V1.1 — structured (summary/risks/nextAction/reasoning)
+ * output, with graceful degradation to plain-text summary.
  *
  * Provider output is UNTRUSTED. This module validates the runtime shape,
  * drops unknown fields, truncates oversized fields, and turns anything
@@ -21,6 +23,9 @@ const MAX_TAGS = 8;
 const MAX_TAG_LEN = 40;
 const MAX_WARNINGS = 6;
 const MAX_WARNING_LEN = 200;
+const MAX_RISKS = 6;
+const MAX_RISK_LEN = 120;
+const MAX_REASONING_LEN = 400;
 
 function cleanText(value: unknown, maxLen: number): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -63,28 +68,65 @@ function normalizeUsage(raw: unknown): IntelligenceUsage {
   };
 }
 
+/** Strip a ```json ... ``` (or bare ``` ... ```) fence around `text`, if
+ * the model wrapped its JSON in one despite being asked not to. */
+function stripJsonFence(text: string): string {
+  const trimmed = text.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+/**
+ * Best-effort parse of the model's own text as the requested
+ * { summary, risks, nextAction, reasoning } JSON object. Returns
+ * undefined on ANY failure (not valid JSON, or not a plain object) —
+ * the caller degrades to plain-text summary in that case. Never throws.
+ */
+function tryParseStructuredText(text: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(stripJsonFence(text));
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Accept a provider body in a couple of tolerant shapes:
- *   { summary, suggestedNextAction?, tags?, warnings?, usage? }
- *   { content: [{ type: "text", text }], usage? }   (Messages-API-ish)
- * Anything else -> PROVIDER_ERROR.
+ *   { summary, suggestedNextAction | nextAction?, risks?, reasoning?, tags?, warnings?, usage? }
+ *   { content: [{ type: "text", text }], usage? }   (Messages-API shape)
+ *
+ * For the Messages-API shape, `text` is itself expected to be the JSON
+ * object the system instruction asked for. If it parses, its fields are
+ * used directly (GRACEFUL structured path). If it does NOT parse (the
+ * model replied with plain prose, or something else went wrong), the
+ * raw text becomes the plain `summary` and risks/nextAction/reasoning
+ * are simply absent — the advisory still renders, never breaks, and
+ * never fabricates a value that wasn't actually said.
+ *
+ * Anything from which no usable summary can be extracted -> PROVIDER_ERROR.
  */
-export function normalizeAnthropicResponse(body: unknown, generatedAt: string): IntelligenceResponse {
+export function normalizeAnthropicResponse(body: unknown, generatedAt: string, model?: string): IntelligenceResponse {
   if (typeof body !== "object" || body === null) {
     return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, "PROVIDER_PARSE") };
   }
   const b = body as Record<string, unknown>;
 
-  let summary = cleanText(b.summary, MAX_SUMMARY_LEN);
-  if (summary === undefined && Array.isArray(b.content)) {
+  // Prefer an already-structured top-level object (fakes, or a future
+  // direct-JSON provider mode); otherwise fall back to the Messages-API
+  // shape, where the model's own text is expected to itself be the JSON
+  // object the system instruction requested.
+  let fields: Record<string, unknown> = b;
+  if (typeof b.summary !== "string" && Array.isArray(b.content)) {
     const text = b.content
       .filter((c): c is { type?: unknown; text?: unknown } => typeof c === "object" && c !== null)
       .map((c) => (typeof c.text === "string" ? c.text : ""))
       .join(" ")
       .trim();
-    summary = cleanText(text, MAX_SUMMARY_LEN);
+    fields = tryParseStructuredText(text) ?? { summary: text };
   }
 
+  const summary = cleanText(fields.summary, MAX_SUMMARY_LEN);
   if (summary === undefined) {
     return { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", ANTHROPIC_PROVIDER_ID, "PROVIDER_PARSE") };
   }
@@ -98,16 +140,32 @@ export function normalizeAnthropicResponse(body: unknown, generatedAt: string): 
     summary,
   };
 
-  const suggestedNextAction = cleanText(b.suggestedNextAction, MAX_NEXT_ACTION_LEN);
+  // Accept either key name — the system instruction asks for "nextAction",
+  // older fakes/tests may still use "suggestedNextAction".
+  const suggestedNextAction = cleanText(fields.suggestedNextAction ?? fields.nextAction, MAX_NEXT_ACTION_LEN);
   if (suggestedNextAction) advisory.suggestedNextAction = suggestedNextAction;
 
-  const tags = cleanStringArray(b.tags, MAX_TAGS, MAX_TAG_LEN);
+  const risks = cleanStringArray(fields.risks, MAX_RISKS, MAX_RISK_LEN);
+  if (risks) advisory.risks = risks;
+
+  const reasoning = cleanText(fields.reasoning, MAX_REASONING_LEN);
+  if (reasoning) advisory.reasoning = reasoning;
+
+  const tags = cleanStringArray(fields.tags, MAX_TAGS, MAX_TAG_LEN);
   if (tags) advisory.tags = tags;
 
-  const warnings = cleanStringArray(b.warnings, MAX_WARNINGS, MAX_WARNING_LEN);
+  const warnings = cleanStringArray(fields.warnings, MAX_WARNINGS, MAX_WARNING_LEN);
   if (warnings) advisory.warnings = warnings;
 
+  // usage is always a SIBLING of `content` in the real Messages API
+  // response, never something the model's own generated text could set —
+  // always read off the raw top-level body, never off `fields`.
   advisory.usage = normalizeUsage(b.usage);
+
+  // The configured model id — non-secret configuration (see
+  // adapters/config.ts), never anything from the response itself.
+  const cleanModel = cleanText(model, 200);
+  if (cleanModel) advisory.model = cleanModel;
 
   return { ok: true, advisory };
 }

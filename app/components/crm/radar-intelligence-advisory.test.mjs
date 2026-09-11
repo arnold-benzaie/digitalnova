@@ -76,6 +76,8 @@ const OK = {
   status: "ok",
   summary: "Proposal is progressing; a timely recap would help.",
   suggestedNextAction: "Send a recap email this week",
+  risks: [],
+  reasoning: null,
   generatedAt: "2026-09-13T10:00:00.000Z",
   deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" },
 };
@@ -106,6 +108,76 @@ test("ok: a missing suggestedNextAction just omits that row (no crash)", () => {
   const html = view({ ...OK, suggestedNextAction: null }, "fr");
   assert.match(html, /Proposal is progressing/);
   assert.equal(html.includes(tFr.suggestedNextActionLabel), false);
+});
+
+test("ok: nextAction renders under the exact renamed label (\"Prochaine action\" / \"Next action\")", () => {
+  const fr = view(OK, "fr");
+  assert.equal(tFr.suggestedNextActionLabel, "Prochaine action");
+  assert.ok(fr.includes("Prochaine action"));
+  assert.ok(fr.includes("Send a recap email this week"));
+
+  const en = view(OK, "en");
+  assert.equal(tEn.suggestedNextActionLabel, "Next action");
+  assert.ok(en.includes("Next action"));
+});
+
+// ---------------- V1.1: risks ----------------
+
+test("ok: risks render as a bulleted list under the Risques/Risks label (FR + EN)", () => {
+  const withRisks = { ...OK, risks: ["Budget uncertain", "Decision maker unavailable"] };
+  const fr = view(withRisks, "fr");
+  assert.ok(fr.includes(tFr.risksLabel));
+  assert.match(fr, /<ul[^>]*>[\s\S]*<li[^>]*>Budget uncertain<\/li>[\s\S]*<li[^>]*>Decision maker unavailable<\/li>[\s\S]*<\/ul>/);
+
+  const en = view(withRisks, "en");
+  assert.ok(en.includes(tEn.risksLabel));
+});
+
+test("ok: an empty risks array renders NO risks section at all (no crash, no empty <ul>)", () => {
+  const html = view({ ...OK, risks: [] }, "fr");
+  assert.equal(html.includes(tFr.risksLabel), false);
+  assert.equal(html.includes("<ul"), false);
+});
+
+test("ok: a result built without the risks field (old shape) still renders — defensive fallback, no crash", () => {
+  const legacy = { status: "ok", summary: "x", suggestedNextAction: null, generatedAt: OK.generatedAt, deterministic: OK.deterministic };
+  assert.doesNotThrow(() => view(legacy, "fr"));
+});
+
+// ---------------- V1.1: reasoning ----------------
+
+test("ok: reasoning renders under the Raisonnement/Reasoning label when present", () => {
+  const withReasoning = { ...OK, reasoning: "Grounded in the recent proposal discussion." };
+  const fr = view(withReasoning, "fr");
+  assert.ok(fr.includes(tFr.reasoningLabel));
+  assert.ok(fr.includes("Grounded in the recent proposal discussion."));
+
+  const en = view(withReasoning, "en");
+  assert.ok(en.includes(tEn.reasoningLabel));
+});
+
+test("ok: a null reasoning omits that row entirely (no crash)", () => {
+  const html = view({ ...OK, reasoning: null }, "fr");
+  assert.equal(html.includes(tFr.reasoningLabel), false);
+});
+
+// ---------------- V1.1: SYSTEM_ADMIN-only provider/model footer ----------------
+
+test("providerMeta: when present, renders a small Provider/Model footer — a deliberate, server-gated exception to the provider-neutral rule", () => {
+  const html = view({ ...OK, providerMeta: { provider: "anthropic", model: "claude-sonnet-5" } }, "fr");
+  assert.match(html, /Provider:\s*Anthropic/);
+  assert.match(html, /Model:\s*claude-sonnet-5/);
+});
+
+test("providerMeta: absent (the normal, non-SYSTEM_ADMIN case) -> no footer, and the provider-neutral rule holds", () => {
+  const html = view(OK, "fr");
+  assert.equal(/Provider:|Model:/.test(html), false);
+  noProviderName(html);
+});
+
+test("providerMeta: an unrecognized future provider id falls back to rendering the raw id, never throws", () => {
+  const html = view({ ...OK, providerMeta: { provider: "future-provider", model: "some-model" } }, "fr");
+  assert.match(html, /Provider:\s*future-provider/);
 });
 
 // ---------------- result: failure/unavailable statuses ----------------

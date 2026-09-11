@@ -28,7 +28,9 @@ export type RadarIntelligenceAdvisoryDict = {
   indicativeLabel: string;
   deterministicNote: string;
   summaryLabel: string;
+  risksLabel: string;
   suggestedNextActionLabel: string;
+  reasoningLabel: string;
   generatedAtLabel: string;
   deterministicHeading: string;
   priorityLabel: string;
@@ -44,6 +46,14 @@ export type RadarIntelligenceAdvisoryDict = {
    * server chose to include one. Never shown otherwise. */
   diagnosticPrefix: string;
 };
+
+/** Presentational display names for the SYSTEM_ADMIN-only technical
+ * footer ONLY — deliberately distinct from the general "provider-neutral"
+ * UI rule everywhere else in this component (mission-authorized
+ * exception, gated by the server: providerMeta never reaches a
+ * non-SYSTEM_ADMIN caller in the first place). Falls back to the raw id
+ * for any future provider not yet in this map. */
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = { anthropic: "Anthropic" };
 
 const ctaButtonClass =
   "rounded-lg border border-pm-bleu-eu/30 bg-white px-3 py-1.5 text-sm font-medium text-pm-bleu-eu transition hover:border-pm-bleu-eu/60 hover:bg-pm-bleu-eu/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-bleu-eu/40 disabled:cursor-not-allowed disabled:opacity-60";
@@ -92,6 +102,10 @@ export function AdvisoryResultView({
       </>
     );
   }
+  // Defensive fallback only — advisory-core.ts always sets both fields on
+  // a real "ok" result (risks: [] at minimum, reasoning: string | null).
+  const risks = result.risks ?? [];
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {/* A — deterministic RADAR (authoritative) */}
@@ -121,16 +135,39 @@ export function AdvisoryResultView({
         </div>
         <p className="mt-2 text-xs font-medium uppercase tracking-wide text-pm-gris">{t.summaryLabel}</p>
         <p className="mt-0.5 whitespace-pre-line text-sm text-pm-noir">{result.summary}</p>
+        {risks.length > 0 ? (
+          <>
+            <p className="mt-2 text-xs font-medium uppercase tracking-wide text-pm-gris">{t.risksLabel}</p>
+            <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-sm text-pm-noir">
+              {risks.map((risk, index) => (
+                <li key={index}>{risk}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
         {result.suggestedNextAction ? (
           <>
             <p className="mt-2 text-xs font-medium uppercase tracking-wide text-pm-gris">{t.suggestedNextActionLabel}</p>
             <p className="mt-0.5 text-sm text-pm-noir">{result.suggestedNextAction}</p>
           </>
         ) : null}
+        {result.reasoning ? (
+          <>
+            <p className="mt-2 text-xs font-medium uppercase tracking-wide text-pm-gris">{t.reasoningLabel}</p>
+            <p className="mt-0.5 text-sm text-pm-noir">{result.reasoning}</p>
+          </>
+        ) : null}
         <p className="mt-2 text-xs text-pm-gris">
           {t.generatedAtLabel} {formatDateTime(result.generatedAt, locale)}
         </p>
         <p className="mt-1 text-xs text-pm-gris">{t.deterministicNote}</p>
+        {result.providerMeta ? (
+          <p className="mt-2 border-t border-pm-gris-2 pt-2 text-[10px] leading-relaxed text-pm-gris">
+            Provider: {PROVIDER_DISPLAY_NAMES[result.providerMeta.provider] ?? result.providerMeta.provider}
+            <br />
+            Model: {result.providerMeta.model}
+          </p>
+        ) : null}
       </section>
     </div>
   );

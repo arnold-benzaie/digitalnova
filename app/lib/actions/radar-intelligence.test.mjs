@@ -49,6 +49,17 @@ mock.module("@/lib/rbac/require-staff-member", {
 let sessionUserId = "user-A";
 mock.module("@/lib/session", { namedExports: { requireSession: async () => ({ userId: sessionUserId, role: "staff" }) } });
 
+let localeCalls = [];
+let currentLocale = "fr";
+mock.module("@/lib/i18n/locale", {
+  namedExports: {
+    getLocale: async () => {
+      localeCalls.push(currentLocale);
+      return currentLocale;
+    },
+  },
+});
+
 mock.module("@/lib/actions/radar", { namedExports: { getProspectQualification: async () => ({ qualificationStatus: "QUALIFIED", eligibility: { contactable: true }, opportunity: null }) } });
 
 mock.module("@/lib/radar-intelligence/configured-registry", {
@@ -63,7 +74,7 @@ let coreThrows = false;
 mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
     produceRadarAdvisory: async (clientId, deps) => {
-      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort() });
+      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale });
       if (coreThrows) {
         throw new Error("unexpected core failure with a secret inside sk-ant-LEAK");
       }
@@ -86,6 +97,8 @@ function reset() {
   coreResult = { status: "unavailable" };
   coreThrows = false;
   sessionUserId = `user-${Math.random().toString(36).slice(2)}`;
+  localeCalls = [];
+  currentLocale = "fr";
 }
 
 async function withCapturedWarn(fn) {
@@ -108,7 +121,7 @@ test("action: requireStaffMember('RADAR_QUEUE_VIEW') runs first; delegates to th
   assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
   assert.equal(coreCalls.length, 1);
   assert.equal(coreCalls[0].clientId, CLIENT);
-  assert.deepEqual(coreCalls[0].depKeys, ["createRegistry", "loadDisplayContext", "loadQualification"].sort());
+  assert.deepEqual(coreCalls[0].depKeys, ["createRegistry", "loadDisplayContext", "loadQualification", "locale"].sort());
   assert.deepEqual(r, { status: "unavailable" });
 });
 
@@ -350,4 +363,87 @@ test("hardening: a REDIRECT throw from requireStaffMember still propagates untou
     await assert.rejects(() => requestRadarIntelligenceAdvisory(CLIENT), /NEXT_REDIRECT/);
   });
   assert.equal(calls.length, 0, "no observability log fires for a normal auth redirect");
+});
+
+// ---------------- V1.1: locale is resolved server-side, never client-supplied ----------------
+
+test("locale: the action's own resolved locale is threaded into the core deps — the action still takes only (clientId)", async () => {
+  reset();
+  currentLocale = "en";
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(localeCalls.length, 1, "getLocale() is called exactly once");
+  assert.equal(coreCalls[0].locale, "en");
+  assert.equal(requestRadarIntelligenceAdvisory.length, 1, "signature is still (clientId) only");
+});
+
+test("locale: FR is the default when the app's current locale resolves to fr", async () => {
+  reset();
+  currentLocale = "fr";
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(coreCalls[0].locale, "fr");
+});
+
+// ---------------- V1.1: providerMeta follows the EXACT same SYSTEM_ADMIN boundary as diagnostic ----------------
+
+const OK_WITH_META = {
+  status: "ok",
+  summary: "text",
+  suggestedNextAction: "Send a recap",
+  risks: ["Budget uncertain"],
+  reasoning: "Grounded in the recent interaction.",
+  generatedAt: "2026-09-13T10:00:00.000Z",
+  deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" },
+  providerMeta: { provider: "anthropic", model: "claude-sonnet-5" },
+};
+
+test("providerMeta: SYSTEM_ADMIN receives providerMeta verbatim, alongside every other ok field", async () => {
+  reset();
+  evalOk = true;
+  coreResult = OK_WITH_META;
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, OK_WITH_META);
+  assert.equal(evalCalls.length, 1);
+  assert.equal(evalCalls[0].permission, "SYSTEM_ADMIN");
+});
+
+for (const label of ["MANAGER", "EMPLOYEE", "any non-admin"]) {
+  test(`providerMeta: a ${label} caller keeps every ok field EXCEPT providerMeta`, async () => {
+    reset();
+    evalOk = false;
+    coreResult = OK_WITH_META;
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.equal("providerMeta" in r, false);
+    assert.deepEqual(r, {
+      status: "ok",
+      summary: OK_WITH_META.summary,
+      suggestedNextAction: OK_WITH_META.suggestedNextAction,
+      risks: OK_WITH_META.risks,
+      reasoning: OK_WITH_META.reasoning,
+      generatedAt: OK_WITH_META.generatedAt,
+      deterministic: OK_WITH_META.deterministic,
+    });
+  });
+}
+
+test("providerMeta: the SYSTEM_ADMIN check is SKIPPED when the ok result has no providerMeta (common path, no extra RBAC hit)", async () => {
+  reset();
+  evalOk = true;
+  coreResult = { status: "ok", summary: "x", suggestedNextAction: null, risks: [], reasoning: null, generatedAt: "2026-09-13T10:00:00.000Z", deterministic: { priority: "LOW", confidence: "LOW", recommendedNextAction: "NONE" } };
+  const r = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(r, coreResult);
+  assert.equal(evalCalls.length, 0);
+});
+
+test("providerMeta: a permission-check THROW strips providerMeta but keeps every other ok field (not just the diagnostic path)", async () => {
+  reset();
+  evalThrows = true;
+  coreResult = OK_WITH_META;
+  const calls = await withCapturedWarn(async () => {
+    const r = await requestRadarIntelligenceAdvisory(CLIENT);
+    assert.equal("providerMeta" in r, false);
+    assert.equal(r.summary, OK_WITH_META.summary);
+    assert.deepEqual(r.risks, OK_WITH_META.risks);
+    assert.equal(r.reasoning, OK_WITH_META.reasoning);
+  });
+  assert.deepEqual(calls[0][1], { source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: "ok" });
 });

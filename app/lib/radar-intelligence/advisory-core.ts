@@ -14,6 +14,7 @@ import "server-only";
  */
 import type { ProspectQualificationResult } from "@/lib/actions/radar";
 import { isValidUuid } from "@/lib/api-v1/dto";
+import type { Locale } from "@/lib/i18n/dictionaries";
 import type { ProviderFailureClass } from "./errors";
 import { createRadarIntelligenceGateway } from "./gateway";
 import { logRadarIntelligenceEvent } from "./observability";
@@ -26,9 +27,22 @@ export type RadarAdvisoryUiResult =
       /** AI-generated advisory text — display only. */
       summary: string;
       suggestedNextAction: string | null;
+      /** Short risk phrases — advisory only, never a deterministic score. */
+      risks: string[];
+      /** A short grounding explanation — advisory only. */
+      reasoning: string | null;
       generatedAt: string;
       /** The AUTHORITATIVE deterministic values, shown in a separate block. */
       deterministic: { priority: string; confidence: string; recommendedNextAction: string };
+      /**
+       * Non-secret provider/model identity. Always computed here when
+       * available — the SYSTEM_ADMIN-only exposure boundary is enforced
+       * by the server action (lib/actions/radar-intelligence.ts), which
+       * strips this field for every non-SYSTEM_ADMIN caller, exactly like
+       * `diagnostic`/`httpStatus` below. Never an api key, header, or
+       * anything else about the request/response.
+       */
+      providerMeta?: { provider: string; model: string };
     }
   | { status: "unavailable"; diagnostic?: ProviderFailureClass; httpStatus?: number }
   | { status: "rate_limited"; diagnostic?: ProviderFailureClass; httpStatus?: number }
@@ -72,6 +86,13 @@ export type AdvisoryCoreDeps = {
   /** The configured provider registry (disabled-by-default). */
   createRegistry: () => ProviderRegistry;
   clock?: () => Date;
+  /**
+   * The app's CURRENT interface locale — resolved server-side by the
+   * caller (lib/i18n/locale.ts::getLocale()), NEVER inferred from
+   * prospect data and never a client-supplied auth value. Defaults to
+   * "fr" when omitted, matching getLocale()'s own default.
+   */
+  locale?: Locale;
 };
 
 export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
@@ -127,7 +148,7 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
       // exactly one provider attempt for a user-triggered advisory
       policy: { timeoutMs: 8_000, maxRetries: 0, retryBaseDelayMs: 0, retryableCodes: new Set() },
     });
-    outcome = await gateway.run({ kind: "summarize", requiredCapabilities: ["summarize"], context });
+    outcome = await gateway.run({ kind: "summarize", requiredCapabilities: ["summarize"], context, locale: deps.locale ?? "fr" });
   } catch {
     logRadarIntelligenceEvent({ source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
     return { status: "error" };
@@ -144,8 +165,11 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
       status: "ok",
       summary: outcome.advisory.summary ?? "",
       suggestedNextAction: outcome.advisory.suggestedNextAction ?? null,
+      risks: outcome.advisory.risks ?? [],
+      reasoning: outcome.advisory.reasoning ?? null,
       generatedAt: outcome.advisory.generatedAt ?? outcome.generatedAt,
       deterministic,
+      ...(outcome.advisory.model ? { providerMeta: { provider: outcome.advisory.provider, model: outcome.advisory.model } } : {}),
     };
   }
 
