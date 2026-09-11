@@ -295,3 +295,79 @@ test("V2: end-to-end NON-fallback at the configured-registry level — Anthropic
   assert.equal(outcome.fallbackUsed, false);
   assert.equal(openaiFetch.calls.length, 0);
 });
+
+// ---------------- BUGFIX: the exact Production gap, reproduced end-to-end ----------------
+//
+// The prior diagnostic found no test reproducing "Anthropic completely
+// UNREGISTERED (RADAR_INTELLIGENCE_ANTHROPIC_ENABLED=false, so
+// createConfiguredRadarIntelligenceRegistry never constructs it at all)
+// + OpenAI registered" through the REAL createProviderRouter path — the
+// two existing "OpenAI-only enabled" tests above only exercise the raw
+// gateway directly (snapWith), never the router, which is what
+// lib/actions/radar-intelligence.ts -> advisory-core.ts actually uses in
+// Production. This test closes that gap: real loadRadarIntelligenceConfig
+// shape (anthropic present in the config object but enabled:false, exactly
+// like the Production env), real createConfiguredRadarIntelligenceRegistry,
+// real createProviderRouter — only the fetch implementations are fakes.
+// Zero network, zero real credentials.
+
+test("BUGFIX (exact Production gap): Anthropic disabled (ENABLED=false, never registered) + OpenAI enabled+configured -> the REAL router still serves the OpenAI advisory as fallback", async () => {
+  const { createProviderRouter } = await import("./provider-router.ts");
+  const { sanitizeProspectContext } = await import("./sanitize-context.ts");
+  const anthropicFetch = fakeFetch(); // must NEVER be called -- Anthropic isn't even registered
+  const openaiFetch = openAiChatCompletionsFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    // Anthropic present in the loaded config, exactly as
+    // loadRadarIntelligenceConfig() would shape it in Production with
+    // RADAR_INTELLIGENCE_ANTHROPIC_ENABLED=false -- effectiveEnabled
+    // false, so configured-registry.ts's `if (a?.effectiveEnabled...)`
+    // gate skips constructing/registering it entirely (NOT a "disabled
+    // adapter object" -- genuinely absent from reg.list()).
+    loadedConfig: { anthropic: loadedConfig({ enabled: false }).anthropic, openai: openAiConfig() },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  // Confirms the premise: anthropic is genuinely absent, not merely disabled.
+  assert.deepEqual(reg.list().map((a) => a.id).sort(), ["deterministic", "openai"].sort());
+  assert.equal(reg.has("anthropic"), false);
+
+  const router = createProviderRouter({ registry: reg, clock, timeoutMs: 8000 });
+  const outcome = await router.run({
+    kind: "summarize",
+    requiredCapabilities: ["summarize"],
+    context: sanitizeProspectContext({ prospectName: "X", stage: "prospect" }),
+  });
+
+  assert.equal(outcome.advisory.provider, "openai");
+  assert.equal(outcome.fallbackUsed, true);
+  assert.equal(outcome.attemptCount, 1, "the primary was never dispatched to (absent) -- 0 + 1 fallback attempt");
+  assert.equal(anthropicFetch.calls.length, 0, "Anthropic's transport must never be reached -- it isn't registered");
+  assert.equal(openaiFetch.calls.length, 1);
+  assert.ok(!JSON.stringify(outcome).includes(FAKE_KEY));
+  assert.ok(!JSON.stringify(outcome).includes(OPENAI_FAKE_KEY));
+});
+
+test("BUGFIX (exact Production gap), both disabled: Anthropic disabled + OpenAI ALSO disabled -> the REAL router returns the safe no-provider outcome, zero fetch calls, no crash", async () => {
+  const { createProviderRouter } = await import("./provider-router.ts");
+  const { sanitizeProspectContext } = await import("./sanitize-context.ts");
+  const anthropicFetch = fakeFetch();
+  const openaiFetch = openAiChatCompletionsFetch();
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { anthropic: loadedConfig({ enabled: false }).anthropic, openai: openAiConfig({ enabled: false }) },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+  });
+  const router = createProviderRouter({ registry: reg, clock, timeoutMs: 8000 });
+  const outcome = await router.run({
+    kind: "summarize",
+    requiredCapabilities: ["summarize"],
+    context: sanitizeProspectContext({ prospectName: "X", stage: "prospect" }),
+  });
+  assert.equal(outcome.advisory, null);
+  assert.equal(outcome.error, null);
+  assert.equal(outcome.fallbackUsed, false);
+  assert.equal(anthropicFetch.calls.length, 0);
+  assert.equal(openaiFetch.calls.length, 0);
+});

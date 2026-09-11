@@ -235,6 +235,121 @@ test("30. primary disabled, fallback not registered at all -> clean unavailable 
   assert.equal(outcome.fallbackUsed, false);
 });
 
+// ---------------- BUGFIX REGRESSION: primary ABSENT (not merely disabled) -> fallback ----------------
+//
+// The Production gap: a primary that is simply never REGISTERED (the
+// real createConfiguredRadarIntelligenceRegistry shape when
+// RADAR_INTELLIGENCE_ANTHROPIC_ENABLED=false — it never constructs a
+// "disabled" adapter object at all) resolves, via the gateway's own
+// NO_CAPABLE_PROVIDER -> deterministicOutcome() collapse, to
+// `error: null`. Before the fix, `isFallbackEligible(null)` returning
+// `false` meant the fallback was silently never attempted. These tests
+// exercise createProviderRouter() directly end-to-end — never
+// isFallbackEligible() in isolation — with a registry that TRULY never
+// contains an "anthropic" entry (registryOf(openai) only, no fake
+// anthropic adapter of any kind, disabled or otherwise).
+
+test("BUGFIX A: Anthropic completely ABSENT (never registered, not merely disabled) + OpenAI registered -> OpenAI is attempted exactly once and its result is returned as the fallback", async () => {
+  const openai = fakeAdapter("openai", { ok: true, summary: "OpenAI served this one." });
+  const r = router(registryOf(openai)); // no anthropic entry in the registry at all
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory.provider, "openai");
+  assert.match(outcome.advisory.summary, /OpenAI served this one/);
+  assert.equal(outcome.fallbackUsed, true);
+  assert.equal(outcome.attemptCount, 1, "the primary was never dispatched to (it doesn't exist) -- 0 + 1 fallback attempt");
+  assert.equal(openai.calls(), 1);
+  assert.equal(outcome.error, null);
+});
+
+test("BUGFIX B: neither Anthropic nor OpenAI registered -> deterministic-safe no-provider outcome, no crash, zero provider transport calls, fallbackUsed false", async () => {
+  const r = router(createProviderRegistry()); // genuinely empty — no adapters of any kind
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory, null);
+  assert.equal(outcome.error, null, "the designed no-provider state, not a fabricated error");
+  assert.equal(outcome.providerUnavailable, true);
+  assert.equal(outcome.fallbackUsed, false);
+  assert.equal(outcome.attemptCount, 0);
+});
+
+test("BUGFIX C: Anthropic absent + OpenAI registered but OpenAI itself fails -> OpenAI's normalized failure is returned, fallbackUsed true, no retry, no third attempt", async () => {
+  const openai = fakeAdapter("openai", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "openai") });
+  const r = router(registryOf(openai));
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory, null);
+  assert.equal(outcome.error.code, "PROVIDER_UNAVAILABLE");
+  assert.equal(outcome.error.providerId, "openai");
+  assert.equal(outcome.fallbackUsed, true);
+  assert.equal(outcome.attemptCount, 1);
+  assert.equal(openai.calls(), 1, "OpenAI was called exactly once -- no retry, no third attempt");
+});
+
+test("BUGFIX D: Anthropic present and succeeds, OpenAI also registered -> Anthropic only, OpenAI never called, fallbackUsed false (unchanged by the fix)", async () => {
+  const anthropic = fakeAdapter("anthropic", { ok: true, summary: "Anthropic answered." });
+  const openai = fakeAdapter("openai", { ok: true, summary: "must never run" });
+  const r = router(registryOf(anthropic, openai));
+  const outcome = await r.run(REQUEST);
+  assert.equal(outcome.advisory.provider, "anthropic");
+  assert.equal(outcome.fallbackUsed, false);
+  assert.equal(anthropic.calls(), 1);
+  assert.equal(openai.calls(), 0);
+});
+
+test("BUGFIX regression guard: a REGISTERED-but-disabled primary is a DIFFERENT case from an ABSENT primary, and both still correctly reach OpenAI", async () => {
+  // registered (disabled:true) -> gateway returns a REAL PROVIDER_DISABLED
+  // error (not a null-collapse); this already worked before the fix and
+  // must keep working identically now that primaryRegistered also feeds
+  // the eligibility decision.
+  const disabledAnthropic = fakeAdapter("anthropic", { disabled: true });
+  const openai1 = fakeAdapter("openai", { ok: true, summary: "fallback via disabled adapter" });
+  const outcome1 = await router(registryOf(disabledAnthropic, openai1)).run(REQUEST);
+  assert.equal(outcome1.advisory.provider, "openai");
+  assert.equal(outcome1.fallbackUsed, true);
+
+  // absent (not registered at all) -> the bug this mission fixes.
+  const openai2 = fakeAdapter("openai", { ok: true, summary: "fallback via absent primary" });
+  const outcome2 = await router(registryOf(openai2)).run(REQUEST);
+  assert.equal(outcome2.advisory.provider, "openai");
+  assert.equal(outcome2.fallbackUsed, true);
+});
+
+test("BUGFIX E/F (re-confirmation): a REGISTERED primary's own eligibility rules are completely unaffected by the fix", async () => {
+  // Non-fallbackable (E): 400/401/403/429/parse -> no OpenAI, exactly as
+  // tests 6-9 above already assert; re-confirmed here as a single
+  // consolidated guard against any accidental broadening.
+  for (const status of [400, 401, 403]) {
+    const anthropic = fakeAdapter("anthropic", { ok: false, error: makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_4XX", status) });
+    const openai = fakeAdapter("openai", { ok: true });
+    const outcome = await router(registryOf(anthropic, openai)).run(REQUEST);
+    assert.equal(outcome.fallbackUsed, false, `status ${status} must not fall back`);
+    assert.equal(openai.calls(), 0);
+  }
+  // Fallbackable (F): 5xx/timeout/network/unavailable -> OpenAI, exactly
+  // as tests 2-5 above already assert.
+  for (const error of [
+    makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_5XX", 503),
+    makeIntelligenceError("PROVIDER_TIMEOUT", "anthropic", "PROVIDER_TIMEOUT"),
+    makeIntelligenceError("PROVIDER_ERROR", "anthropic", "PROVIDER_NETWORK"),
+    makeIntelligenceError("PROVIDER_UNAVAILABLE", "anthropic"),
+  ]) {
+    const anthropic = fakeAdapter("anthropic", { ok: false, error });
+    const openai = fakeAdapter("openai", { ok: true, summary: "fallback ok" });
+    const outcome = await router(registryOf(anthropic, openai)).run(REQUEST);
+    assert.equal(outcome.fallbackUsed, true, `${error.code} must fall back`);
+    assert.equal(openai.calls(), 1);
+  }
+});
+
+test("BUGFIX G: attempt cap is structurally unaffected -- absent-primary fallback still dispatches at most two providers total, never a loop", async () => {
+  const openai = fakeAdapter("openai", { ok: false, error: makeIntelligenceError("PROVIDER_UNAVAILABLE", "openai") });
+  const r = router(registryOf(openai));
+  await r.run(REQUEST);
+  await r.run(REQUEST);
+  // one OpenAI dispatch per run() call, never accumulating and never a
+  // third attempt within a single run() (there is no third provider to
+  // try, and the router has no retry loop regardless).
+  assert.equal(openai.calls(), 2, "exactly one OpenAI call per run(), across two independent run() calls");
+});
+
 // ---------------- REGRESSION: policy.fallback === null disables routing entirely ----------------
 
 test("a routing policy with fallback:null never attempts a second provider, however the primary fails", async () => {

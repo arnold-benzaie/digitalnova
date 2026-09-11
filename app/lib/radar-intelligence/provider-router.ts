@@ -45,6 +45,28 @@
  * configuration or the request itself, and hiding them behind a silent
  * fallback would make an auth/config mistake invisible (mission section
  * 15). See isFallbackEligible() below for the exact rule.
+ *
+ * PRIMARY-ABSENT FIX (diagnosed after the V2 push): when the primary is
+ * disabled/unconfigured, `deps.registry` never even contains it —
+ * `configured-registry.ts` only registers a provider once it is BOTH
+ * enabled AND keyed. In that case `isolateProvider` below builds a
+ * genuinely EMPTY gateway registry (not even the deterministic adapter),
+ * so `gateway.run()`'s selection resolves NO_CAPABLE_PROVIDER, which the
+ * gateway then deliberately COLLAPSES to `deterministicOutcome()` —
+ * `error: null` — because that is Slice-1's designed, non-error
+ * "nothing configured" state. `isFallbackEligible(null)` correctly
+ * returns `false` (a null error is never, by itself, a reason to try a
+ * second provider) — but that meant a primary that was simply never
+ * registered could never reach the fallback either, even though the
+ * module docstring above always intended it to. The fix does NOT touch
+ * `isFallbackEligible` or broaden what a null error means in general —
+ * it adds ONE additional, narrowly-scoped signal computed directly from
+ * `deps.registry.has(policy.primary)` (captured as `primaryRegistered`,
+ * already computed for `attemptCount` bookkeeping): a primary that was
+ * never registered is unconditionally fallback-eligible, independent of
+ * whatever `primaryOutcome.error` happens to be. A primary that WAS
+ * registered still goes through `isFallbackEligible(primaryOutcome.error)`
+ * exactly as before — this change never affects that branch.
  */
 import { createRadarIntelligenceGateway, type GatewayClock } from "./gateway";
 import type { IntelligenceError } from "./errors";
@@ -163,7 +185,15 @@ export function createProviderRouter(deps: ProviderRouterDeps) {
       }
 
       const fallbackRegistered = policy.fallback !== null && deps.registry.has(policy.fallback);
-      const eligible = isFallbackEligible(primaryOutcome.error);
+      // `primaryRegistered` (above) is an independent, direct signal —
+      // "this provider does not even exist in the registry" — checked
+      // BEFORE trusting `primaryOutcome.error` alone. A registered
+      // primary still goes through the ordinary isFallbackEligible(...)
+      // check unchanged; only a genuinely absent primary short-circuits
+      // straight to eligible, since the gateway's own no-provider
+      // collapse (deterministicOutcome -> error: null) would otherwise
+      // make isFallbackEligible(null) report false and hide it.
+      const eligible = !primaryRegistered || isFallbackEligible(primaryOutcome.error);
 
       if (!eligible || !fallbackRegistered || policy.fallback === null) {
         return { ...primaryOutcome, fallbackUsed: false, attemptCount: primaryRegistered ? 1 : 0 };
