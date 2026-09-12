@@ -78,7 +78,7 @@ mock.module("@/lib/notifications", {
   },
 });
 
-const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce, getRadarCapabilities } = await import("./require-staff-member.ts");
+const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce, canCurrentUserManageAiPolicy, getRadarCapabilities } = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
   return async () => id;
@@ -455,6 +455,71 @@ test("OWNER-UI-3B.10. no hardcoded role names — it returns evaluateStaffPermis
   assert.equal(await canCurrentUserManageWorkforce(), hasPermission("MANAGER", "WORKFORCE_MANAGE"));
   withMembershipRow("ADMIN");
   assert.equal(await canCurrentUserManageWorkforce(), hasPermission("ADMIN", "WORKFORCE_MANAGE"));
+});
+
+// ------------- canCurrentUserManageAiPolicy(): RADAR INTELLIGENCE V2.1 Phase C visibility signal -------------
+// Same non-redirecting, zero-argument shape as the signals above, but
+// follows the "RADAR_AI_POLICY_MANAGE" permission (OWNER-only today) and
+// returns evaluateStaffPermission().ok verbatim — no hardcoded role names.
+// Never an authorization gate — /admin/owner/ai-providers keeps its own
+// requireStaffMember("RADAR_AI_POLICY_MANAGE") server guard.
+
+test("PHASE-C.1. OWNER -> canManageAiPolicy = true", async () => {
+  withMembershipRow("OWNER");
+  assert.equal(await canCurrentUserManageAiPolicy(), true);
+});
+
+test("PHASE-C.2. ADMIN -> canManageAiPolicy = false (unlike WORKFORCE_MANAGE, this permission is OWNER-exclusive)", async () => {
+  withMembershipRow("ADMIN");
+  assert.equal(await canCurrentUserManageAiPolicy(), false);
+});
+
+test("PHASE-C.3. MANAGER -> canManageAiPolicy = false", async () => {
+  withMembershipRow("MANAGER");
+  assert.equal(await canCurrentUserManageAiPolicy(), false);
+});
+
+test("PHASE-C.4. EMPLOYEE -> canManageAiPolicy = false", async () => {
+  withMembershipRow("EMPLOYEE");
+  assert.equal(await canCurrentUserManageAiPolicy(), false);
+});
+
+test("PHASE-C.5. missing staff_members membership -> canManageAiPolicy = false", async () => {
+  withNoMembershipRow();
+  assert.equal(await canCurrentUserManageAiPolicy(), false);
+});
+
+test("PHASE-C.6. inactive (SUSPENDED) OWNER row -> canManageAiPolicy = false", async () => {
+  withMembershipRow("OWNER", "SUSPENDED");
+  assert.equal(await canCurrentUserManageAiPolicy(), false);
+});
+
+test("PHASE-C.7. no internal workspace resolvable -> canManageAiPolicy = false, never true", async () => {
+  withMembershipRow("OWNER");
+  internalOrgIdMock = async () => null;
+  try {
+    assert.equal(await canCurrentUserManageAiPolicy(), false);
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("PHASE-C.8. determination is via RADAR_AI_POLICY_MANAGE against the real defaultLookupStaffMembership() — never email", async () => {
+  membershipRowOrError = { row: { roleName: "OWNER", status: "ACTIVE" } };
+  assert.equal("email" in membershipRowOrError.row, false, "the membership row consulted has no email field — the decision cannot be email-based");
+  assert.equal(await canCurrentUserManageAiPolicy(), true);
+});
+
+test("PHASE-C.9. a DB/lookup failure propagates (rejects), never silently resolves to false or true", async () => {
+  withMembershipLookupError();
+  await assert.rejects(() => canCurrentUserManageAiPolicy(), /db unreachable/);
+});
+
+test("PHASE-C.10. no hardcoded role names — follows the permission catalogue verbatim for every role", async () => {
+  for (const role of ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"]) {
+    withMembershipRow(role);
+    assert.equal(await canCurrentUserManageAiPolicy(), hasPermission(role, "RADAR_AI_POLICY_MANAGE"), `${role} mismatch`);
+  }
 });
 
 // ------------- getRadarCapabilities(): RADAR-CORE-1A/1B capability signal -------------

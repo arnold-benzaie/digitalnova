@@ -191,6 +191,37 @@ export async function canCurrentUserManageWorkforce(): Promise<boolean> {
 }
 
 /**
+ * RADAR INTELLIGENCE V2.1 Phase C — non-redirecting RADAR_AI_POLICY_MANAGE
+ * visibility signal, for deciding whether to RENDER the
+ * /admin/owner/ai-providers nav entry. Like canCurrentUserManageWorkforce()
+ * above, it is NEVER an authorization gate: the page itself independently
+ * calls requireStaffMember("RADAR_AI_POLICY_MANAGE") as its own first
+ * statement, and every management server action re-checks it again. A
+ * client that forges the resulting boolean can at most render a dead link
+ * in its own browser.
+ *
+ * Deliberately its OWN dedicated signal — not a reuse of isCurrentUserOwner()
+ * — even though RADAR_AI_POLICY_MANAGE happens to be OWNER-exclusive today
+ * (lib/rbac/permissions.ts): the permission catalogue is the sole source of
+ * truth here, exactly like canCurrentUserManageWorkforce()'s own contract,
+ * so a deliberate future policy change (were RADAR_AI_POLICY_MANAGE ever
+ * reassigned) tracks automatically without touching this function or the
+ * sidebar. No email, no client-suppliable state, no duplicated allowlist.
+ *
+ * Errors propagate exactly as in isCurrentUserOwner(): a real
+ * infrastructure failure fails the whole request rather than silently
+ * resolving to `false`; a normal `{ ok: false }` permission denial resolves
+ * to `false`.
+ *
+ * Takes NO parameters — same reviewed API invariant as the functions above.
+ */
+export async function canCurrentUserManageAiPolicy(): Promise<boolean> {
+  const session = await requireSession();
+  const result = await evaluateStaffPermission({ userId: session.userId, permission: "RADAR_AI_POLICY_MANAGE" });
+  return result.ok;
+}
+
+/**
  * PHASE EMPLOYEE-OPS (Slice 2) — non-redirecting RADAR_WORK visibility
  * signal, for deciding whether to RENDER the "Mon travail" / "My work" nav
  * entry. Same contract as isCurrentUserOwner() /

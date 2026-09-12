@@ -12,7 +12,7 @@ type NavDict = {
   sections: { auditGbp: string; clientRelation: string; crm: string; business: string };
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
-    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; myWork: string;
+    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; myWork: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
@@ -28,18 +28,24 @@ type NavDict = {
  * Labels are resolved from the active locale's `navigation` dictionary at
  * call time (not baked into a static array) — see components/app-shell-
  * client.tsx, which calls these with `dictionaries[locale].navigation`. */
-export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canManageWorkforce?: boolean; canWorkRadar?: boolean }): NavSection[] {
-  // PHASE OWNER-UI-2 (`ownerControl`) and PHASE OWNER-UI-3B (`workforce`) —
-  // conditional `relation`-section nav entries, each appended ONLY on an
-  // explicit `=== true` of its server-derived flag (isCurrentUserOwner() /
-  // canCurrentUserManageWorkforce(), plumbed via components/app-shell.tsx).
-  // false / undefined / omitted `opts` / a truthy non-boolean all leave
-  // the sidebar exactly as it was — the item is absent from the generated
-  // data, not CSS-hidden. Cosmetic visibility only: /admin/owner and
-  // /admin/workforce each independently call requireStaffMember(...)
-  // server-side.
+export function getStaffNavSections(
+  t: NavDict,
+  opts?: { isOwner?: boolean; canManageWorkforce?: boolean; canWorkRadar?: boolean; canManageAiPolicy?: boolean },
+): NavSection[] {
+  // PHASE OWNER-UI-2 (`ownerControl`), PHASE OWNER-UI-3B (`workforce`), and
+  // RADAR INTELLIGENCE V2.1 Phase C (`aiProviders`) — conditional
+  // `relation`-section nav entries, each appended ONLY on an explicit
+  // `=== true` of its server-derived flag (isCurrentUserOwner() /
+  // canCurrentUserManageWorkforce() / canCurrentUserManageAiPolicy(),
+  // plumbed via components/app-shell.tsx). false / undefined / omitted
+  // `opts` / a truthy non-boolean all leave the sidebar exactly as it was
+  // — the item is absent from the generated data, not CSS-hidden.
+  // Cosmetic visibility only: /admin/owner, /admin/workforce and
+  // /admin/owner/ai-providers each independently call
+  // requireStaffMember(...) server-side.
   const workforceItem: NavItem = { label: t.items.workforce, href: "/admin/workforce", icon: "briefcase" };
   const ownerControlItem: NavItem = { label: t.items.ownerControl, href: "/admin/owner", icon: "userCircle" };
+  const aiProvidersItem: NavItem = { label: t.items.aiProviders, href: "/admin/owner/ai-providers", icon: "zap" };
   // PHASE EMPLOYEE-OPS (Slice 2) — the operational self-view. Emitted ONLY
   // on an explicit `opts.canWorkRadar === true` (server-derived
   // canCurrentUserWorkRadar(), RADAR_WORK). Never a gate: /admin/crm/my-work
@@ -75,6 +81,7 @@ export function getStaffNavSections(t: NavDict, opts?: { isOwner?: boolean; canM
         { label: t.items.systemHealth, href: "/admin/system-health", icon: "gauge" },
         { label: t.items.siteAnalytics, href: "/admin/analytics", icon: "barChart" },
         ...(opts?.isOwner === true ? [ownerControlItem] : []),
+        ...(opts?.canManageAiPolicy === true ? [aiProvidersItem] : []),
       ],
     },
     {

@@ -16,6 +16,10 @@ mock.module("server-only", { namedExports: {} });
 let selectResult = { rows: [] };
 /** @type {Array<{ values: any; set: any }>} */
 let insertCalls = [];
+/** @type {Array<{ where: any }>} */
+let deleteCalls = [];
+/** @type {{ error?: unknown }} */
+let deleteResult = {};
 
 const fakeDb = {
   select: () => ({
@@ -36,10 +40,17 @@ const fakeDb = {
       },
     }),
   }),
+  delete: () => ({
+    where: (where) => {
+      deleteCalls.push({ where });
+      if (deleteResult.error) return Promise.reject(deleteResult.error);
+      return Promise.resolve();
+    },
+  }),
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { loadProviderPolicy, replaceProviderPolicy } = await import("./provider-policy-store.ts");
+const { loadProviderPolicy, replaceProviderPolicy, resetProviderPolicy, loadProviderPolicyUpdatedAt } = await import("./provider-policy-store.ts");
 const { DEFAULT_PROVIDER_POLICY } = await import("./provider-policy.ts");
 
 function dbRow(overrides = {}) {
@@ -62,6 +73,8 @@ function dbRow(overrides = {}) {
 test.beforeEach(() => {
   selectResult = { rows: [] };
   insertCalls = [];
+  deleteCalls = [];
+  deleteResult = {};
 });
 
 // ---- A: no row -> DEFAULT_PROVIDER_POLICY ----
@@ -198,4 +211,48 @@ test("replaceProviderPolicy: never includes an apiKey/secret/credential field in
   for (const forbidden of ["apiKey", "secret", "credential", "token", "password", "env"]) {
     assert.equal(forbidden in values, false, `${forbidden} must never be part of the written row`);
   }
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase C — resetProviderPolicy() / loadProviderPolicyUpdatedAt()
+// =====================================================================
+
+test("resetProviderPolicy: deletes exactly one narrow WHERE clause, never a broad delete", async () => {
+  await resetProviderPolicy();
+  assert.equal(deleteCalls.length, 1);
+  assert.ok(deleteCalls[0].where, "a WHERE clause must be present -- never an unconditional DELETE");
+});
+
+test("resetProviderPolicy: after reset, loadProviderPolicy() naturally falls back to DEFAULT_PROVIDER_POLICY (no row = default)", async () => {
+  await resetProviderPolicy();
+  selectResult = { rows: [] }; // simulates the row now being gone
+  const policy = await loadProviderPolicy(fakeDb);
+  assert.deepEqual(policy, DEFAULT_PROVIDER_POLICY);
+});
+
+test("resetProviderPolicy: a DB failure propagates (rejects) -- never silently succeeds", async () => {
+  deleteResult = { error: new Error("connection refused") };
+  await assert.rejects(() => resetProviderPolicy(), /connection refused/);
+});
+
+test("loadProviderPolicyUpdatedAt: no row -> null", async () => {
+  selectResult = { rows: [] };
+  assert.equal(await loadProviderPolicyUpdatedAt(fakeDb), null);
+});
+
+test("loadProviderPolicyUpdatedAt: a row with updated_at -> ISO string", async () => {
+  const d = new Date("2026-09-12T06:20:31.000Z");
+  selectResult = { rows: [{ updatedAt: d }] };
+  assert.equal(await loadProviderPolicyUpdatedAt(fakeDb), "2026-09-12T06:20:31.000Z");
+});
+
+test("loadProviderPolicyUpdatedAt: a DB failure -> null, never throws", async () => {
+  selectResult = { error: new Error("connection refused") };
+  await assert.doesNotReject(() => loadProviderPolicyUpdatedAt(fakeDb));
+  assert.equal(await loadProviderPolicyUpdatedAt(fakeDb), null);
+});
+
+test("loadProviderPolicyUpdatedAt: a malformed (non-Date) updated_at value -> null, never throws or leaks the raw value", async () => {
+  selectResult = { rows: [{ updatedAt: "not-a-date-object" }] };
+  assert.equal(await loadProviderPolicyUpdatedAt(fakeDb), null);
 });

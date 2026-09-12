@@ -112,3 +112,14 @@ test("category: radar_ai.policy_updated -> 'radar_ai' -> localized category labe
   assert.equal(getAuditCategoryLabel("fr").radar_ai, "IA RADAR (politique fournisseur)");
   assert.equal(getAuditCategoryLabel("en").radar_ai, "RADAR AI (provider policy)");
 });
+
+/* ------------------------------------------------------------------ *
+ * RADAR INTELLIGENCE V2.1 — Phase C — radar_ai.policy_reset label
+ * ------------------------------------------------------------------ */
+
+test("radar_ai.policy_reset — real FR/EN labels (never the raw action string), same category as policy_updated", () => {
+  const entryFor = (metadata = {}) => ({ action: "radar_ai.policy_reset", targetType: "radar_ai_provider_policy", targetId: "global", metadata });
+  assert.equal(describeAuditEntry(entryFor(), "fr"), "Politique de fournisseur IA RADAR réinitialisée (valeurs par défaut)");
+  assert.equal(describeAuditEntry(entryFor(), "en"), "RADAR AI provider policy reset to default");
+  assert.equal(categoryOf("radar_ai.policy_reset"), "radar_ai");
+});

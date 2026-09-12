@@ -20,16 +20,18 @@ import { AppShellClient } from "@/components/app-shell-client";
  * AppShellClient — this stays a Server Component so it can fetch org,
  * notifications and badge counts directly.
  *
- * `isOwner` (PHASE OWNER-UI-1) and `canManageWorkforce` (PHASE OWNER-UI-3B)
- * are OPTIONAL, purely-additive visibility signals from the separate
- * internal-staff RBAC axis (lib/rbac/require-staff-member.ts's
- * isCurrentUserOwner() / canCurrentUserManageWorkforce()) — only
+ * `isOwner` (PHASE OWNER-UI-1), `canManageWorkforce` (PHASE OWNER-UI-3B) and
+ * `canManageAiPolicy` (RADAR INTELLIGENCE V2.1 Phase C) are OPTIONAL,
+ * purely-additive visibility signals from the separate internal-staff RBAC
+ * axis (lib/rbac/require-staff-member.ts's isCurrentUserOwner() /
+ * canCurrentUserManageWorkforce() / canCurrentUserManageAiPolicy()) — only
  * app/admin/layout.tsx computes and passes them; app/dashboard/layout.tsx
- * (client portal) omits both, defaulting to `false`, since neither is a
+ * (client portal) omits all three, defaulting to `false`, since none is a
  * concept there. They carry no capability of their own: they only decide
- * whether getStaffNavSections() emits the "Owner Control" / "Workforce"
- * nav items; the corresponding routes each re-check their own permission
- * server-side. No RBAC call and no route authorization happens in this
+ * whether getStaffNavSections() emits the "Owner Control" / "Workforce" /
+ * "AI Providers" nav items; the corresponding routes each re-check their
+ * own permission server-side. No RBAC call and no route authorization
+ * happens in this
  * component.
  */
 export async function AppShell({
@@ -38,12 +40,14 @@ export async function AppShell({
   isOwner = false,
   canManageWorkforce = false,
   canWorkRadar = false,
+  canManageAiPolicy = false,
 }: {
   children: ReactNode;
   role: DevRole;
   isOwner?: boolean;
   canManageWorkforce?: boolean;
   canWorkRadar?: boolean;
+  canManageAiPolicy?: boolean;
 }) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const visibility = notificationVisibilityWhere(org.id, session.userId, session.role);
@@ -70,6 +74,7 @@ export async function AppShell({
       isOwner={isOwner}
       canManageWorkforce={canManageWorkforce}
       canWorkRadar={canWorkRadar}
+      canManageAiPolicy={canManageAiPolicy}
       badges={badges}
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}

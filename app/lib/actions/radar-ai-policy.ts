@@ -28,8 +28,8 @@ import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
-import { validateProviderPolicyCandidate, type ProviderPolicy } from "@/lib/radar-intelligence/provider-policy";
-import { loadProviderPolicy, replaceProviderPolicy } from "@/lib/radar-intelligence/provider-policy-store";
+import { validateProviderPolicyCandidate, DEFAULT_PROVIDER_POLICY, type ProviderPolicy } from "@/lib/radar-intelligence/provider-policy";
+import { loadProviderPolicy, replaceProviderPolicy, resetProviderPolicy, loadProviderPolicyUpdatedAt } from "@/lib/radar-intelligence/provider-policy-store";
 
 /** Non-secret snapshot of a policy's fields — the ONLY shape ever
  * written into audit metadata. No API key, model secret, env value,
@@ -64,16 +64,19 @@ async function resolveActingStaffMemberId(userId: string, internalOrgId: string)
 }
 
 /**
- * Returns the current OWNER-configured provider policy (or the safe
- * DEFAULT_PROVIDER_POLICY when no row exists / storage is unavailable —
- * see provider-policy-store.ts). OWNER-only: this is the management
- * read, distinct from advisory-core.ts's own infrastructure-level read
- * (Step 17) which every RADAR advisory request performs regardless of
- * role.
+ * RADAR INTELLIGENCE V2.1 — Phase C. Returns the current OWNER-configured
+ * provider policy (or the safe DEFAULT_PROVIDER_POLICY when no row exists /
+ * storage is unavailable — see provider-policy-store.ts), plus a safe
+ * display-only `updatedAt` (ISO string, or `null` when there is no row /
+ * the auxiliary read failed — never authoritative, never used for
+ * routing). OWNER-only: this is the management read, distinct from
+ * advisory-core.ts's own infrastructure-level read (Step 17) which every
+ * RADAR advisory request performs regardless of role.
  */
-export async function getRadarAiProviderPolicy(): Promise<ProviderPolicy> {
+export async function getRadarAiProviderPolicy(): Promise<{ policy: ProviderPolicy; updatedAt: string | null }> {
   await requireStaffMember("RADAR_AI_POLICY_MANAGE");
-  return loadProviderPolicy();
+  const [policy, updatedAt] = await Promise.all([loadProviderPolicy(), loadProviderPolicyUpdatedAt()]);
+  return { policy, updatedAt };
 }
 
 /**
@@ -114,4 +117,45 @@ export async function updateRadarAiProviderPolicy(input: unknown): Promise<Provi
   });
 
   return result.policy;
+}
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase C. Resets the provider policy to the
+ * code default by DELETING the singleton row (never inserting
+ * DEFAULT_PROVIDER_POLICY as an explicit row) — "no row" is already
+ * loadProviderPolicy()'s own defined default-policy semantics (Phase B),
+ * so this keeps exactly one meaning for "using the default policy"
+ * instead of two indistinguishable ones. Uses
+ * provider-policy-store.ts::resetProviderPolicy(), the one narrowly
+ * scoped (`WHERE id = 'global'` only) delete helper — never ad-hoc SQL.
+ * Writes exactly one `radar_ai.policy_reset` audit record (distinct from
+ * `radar_ai.policy_updated`, since the underlying DB operation — DELETE
+ * vs upsert — is genuinely different) with the same non-secret snapshot
+ * shape: `before` the row that existed (or DEFAULT_PROVIDER_POLICY if
+ * there already was none — an idempotent reset-of-a-default is still
+ * auditable), `after` always DEFAULT_PROVIDER_POLICY.
+ */
+export async function resetRadarAiProviderPolicy(): Promise<ProviderPolicy> {
+  await requireStaffMember("RADAR_AI_POLICY_MANAGE");
+
+  const session = await requireSession();
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const before = await loadProviderPolicy();
+
+  await resetProviderPolicy();
+
+  await logAudit({
+    actorUserId: session.userId,
+    organizationId: internalOrgId,
+    action: "radar_ai.policy_reset",
+    targetType: "radar_ai_provider_policy",
+    targetId: "global",
+    metadata: { before: auditableSnapshot(before), after: auditableSnapshot(DEFAULT_PROVIDER_POLICY) },
+  });
+
+  return DEFAULT_PROVIDER_POLICY;
 }

@@ -251,3 +251,68 @@ test("EMPLOYEE-OPS: getClientNavSections() never contains /admin/crm/my-work, an
   assert.equal(myWorkItems(sections).length, 0);
   assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.myWork).length, 0);
 });
+
+// ---------------- RADAR INTELLIGENCE V2.1 Phase C — AI Providers nav visibility ----------------
+// The /admin/owner/ai-providers item is generated ONLY on an explicit
+// { canManageAiPolicy: true }; every other shape leaves the sidebar with
+// no such item. Independent of { isOwner } / { canManageWorkforce } /
+// { canWorkRadar } — even though RADAR_AI_POLICY_MANAGE is OWNER-exclusive
+// today, the nav layer follows its own dedicated flag, never `isOwner`.
+
+const aiProvidersItems = (sections) => sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/owner/ai-providers");
+
+test("PHASE-C: { canManageAiPolicy: true } -> exactly one /admin/owner/ai-providers item, in the relation section, with the dictionary label", () => {
+  const sections = getStaffNavSections(t, { canManageAiPolicy: true });
+  const matches = aiProvidersItems(sections);
+  assert.equal(matches.length, 1, "expected exactly one AI Providers item");
+  assert.equal(matches[0].label, t.items.aiProviders);
+  assert.equal(matches[0].href, "/admin/owner/ai-providers");
+
+  const relation = sections.find((s) => s.key === "relation");
+  assert.ok(relation, "expected a 'relation' section");
+  assert.ok(relation.items.some((i) => i.href === "/admin/owner/ai-providers"), "the AI Providers item must live in the relation section");
+  // last item of that section (after Owner Control)
+  assert.equal(relation.items[relation.items.length - 1].href, "/admin/owner/ai-providers");
+});
+
+test("PHASE-C: the AI Providers item is never duplicated under { canManageAiPolicy: true }", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t, { canManageAiPolicy: true })).length, 1);
+});
+
+test("PHASE-C: { canManageAiPolicy: false } -> no /admin/owner/ai-providers item", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t, { canManageAiPolicy: false })).length, 0);
+});
+
+test("PHASE-C: { canManageAiPolicy: undefined } -> no /admin/owner/ai-providers item", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t, { canManageAiPolicy: undefined })).length, 0);
+});
+
+test("PHASE-C: options omitted entirely -> no /admin/owner/ai-providers item", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t)).length, 0);
+});
+
+test("PHASE-C: empty options object -> no /admin/owner/ai-providers item", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t, {})).length, 0);
+});
+
+test("PHASE-C: a truthy-but-not-true canManageAiPolicy (string / number) does NOT reveal the item — strict === true only", () => {
+  assert.equal(aiProvidersItems(getStaffNavSections(t, { canManageAiPolicy: "true" })).length, 0);
+  assert.equal(aiProvidersItems(getStaffNavSections(t, { canManageAiPolicy: 1 })).length, 0);
+});
+
+test("PHASE-C: ADMIN-like (isOwner:false, canManageAiPolicy:false) -> AI Providers absent even though ADMIN is OWNER-adjacent", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: true, canManageAiPolicy: false });
+  assert.equal(aiProvidersItems(sections).length, 0);
+});
+
+test("PHASE-C: OWNER-like (isOwner:true, canManageAiPolicy:true) -> both Owner Control and AI Providers visible", () => {
+  const sections = getStaffNavSections(t, { isOwner: true, canManageAiPolicy: true });
+  assert.equal(ownerItems(sections).length, 1);
+  assert.equal(aiProvidersItems(sections).length, 1);
+});
+
+test("PHASE-C: getClientNavSections() never contains /admin/owner/ai-providers, and no item labeled like it", () => {
+  const sections = getClientNavSections(t);
+  assert.equal(aiProvidersItems(sections).length, 0);
+  assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.aiProviders).length, 0);
+});

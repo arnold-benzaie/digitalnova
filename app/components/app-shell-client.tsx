@@ -139,6 +139,7 @@ export function AppShellClient({
   isOwner = false,
   canManageWorkforce = false,
   canWorkRadar = false,
+  canManageAiPolicy = false,
   badges,
   recentNotifications,
   unreadCount,
@@ -147,16 +148,19 @@ export function AppShellClient({
   children,
 }: {
   role: DevRole;
-  // PHASE OWNER-UI-1/2 (`isOwner`) and PHASE OWNER-UI-3B
-  // (`canManageWorkforce`): server-derived visibility booleans, plumbed
+  // PHASE OWNER-UI-1/2 (`isOwner`), PHASE OWNER-UI-3B
+  // (`canManageWorkforce`) and RADAR INTELLIGENCE V2.1 Phase C
+  // (`canManageAiPolicy`): server-derived visibility booleans, plumbed
   // from AppShell. Their ONLY use is deciding whether getStaffNavSections()
-  // emits the "Owner Control" / "Workforce" items below. Neither gates a
-  // route or an action — /admin/owner and /admin/workforce each call
-  // requireStaffMember(...) server-side themselves. AppShell defaults both
-  // to `false`, and app/dashboard/layout.tsx passes neither, so the client
-  // portal (getClientNavSections) is entirely unaffected.
+  // emits the "Owner Control" / "Workforce" / "AI Providers" items below.
+  // None gates a route or an action — /admin/owner, /admin/workforce and
+  // /admin/owner/ai-providers each call requireStaffMember(...) server-side
+  // themselves. AppShell defaults all three to `false`, and
+  // app/dashboard/layout.tsx passes none of them, so the client portal
+  // (getClientNavSections) is entirely unaffected.
   isOwner?: boolean;
   canManageWorkforce?: boolean;
+  canManageAiPolicy?: boolean;
   // PHASE EMPLOYEE-OPS (Slice 2): same kind of server-derived visibility
   // boolean — decides whether getStaffNavSections() emits the "My work"
   // item. Never a gate: /admin/crm/my-work calls
@@ -173,8 +177,8 @@ export function AppShellClient({
   const pathname = usePathname() ?? "";
   const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
   const sections = useMemo(
-    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar })),
-    [role, t, isOwner, canManageWorkforce, canWorkRadar],
+    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy })),
+    [role, t, isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy],
   );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 

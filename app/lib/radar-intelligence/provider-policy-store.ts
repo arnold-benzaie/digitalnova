@@ -140,3 +140,43 @@ export async function replaceProviderPolicy(policy: ProviderPolicy, updatedBySta
       },
     });
 }
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase C — narrowly scoped singleton delete, for
+ * the OWNER's "Reset to default" action. Deletes ONLY the fixed `id='global'`
+ * row (the only id the CHECK constraint ever allows to exist in the first
+ * place) — never a broader DELETE. After this call, `loadProviderPolicy()`'s
+ * own "no row" branch naturally takes over and returns
+ * DEFAULT_PROVIDER_POLICY, so there is no separate "reset" state to keep in
+ * sync: "no row" already IS the defined default-policy semantics. A no-op
+ * (row already absent) is not an error — Postgres's DELETE with no matching
+ * row simply affects zero rows.
+ */
+export async function resetProviderPolicy(): Promise<void> {
+  await db.delete(radarAiProviderPolicy).where(eq(radarAiProviderPolicy.id, SINGLETON_ID));
+}
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase C — safe, metadata-only read of the
+ * singleton row's `updated_at`, for the OWNER settings page's "Last
+ * updated" display. Deliberately separate from loadProviderPolicy(): this
+ * is NEVER used for routing (advisory-core.ts never calls this), only for
+ * a non-authoritative display hint. Same fail-closed contract as
+ * loadProviderPolicy() — no row, or any DB read failure, resolves to
+ * `null` rather than throwing; the OWNER page must still render even if
+ * this one auxiliary read fails.
+ */
+export async function loadProviderPolicyUpdatedAt(executor: Pick<typeof db, "select"> = db): Promise<string | null> {
+  try {
+    const rows = await executor
+      .select({ updatedAt: radarAiProviderPolicy.updatedAt })
+      .from(radarAiProviderPolicy)
+      .where(eq(radarAiProviderPolicy.id, SINGLETON_ID))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return row.updatedAt instanceof Date ? row.updatedAt.toISOString() : null;
+  } catch {
+    return null;
+  }
+}

@@ -63,6 +63,8 @@ const STAFF_MEMBER_ID = "aaaaaaa1-1111-4111-8111-111111111111";
 let staffMemberIdRow = { id: STAFF_MEMBER_ID };
 /** @type {Array<{ values: any; set: any }>} */
 let insertCalls = [];
+/** @type {Array<{ where: any }>} */
+let deleteCalls = [];
 
 const fakeDb = {
   // Two distinct query shapes hit this same fake: provider-policy-store.ts's
@@ -97,10 +99,16 @@ const fakeDb = {
       },
     }),
   }),
+  delete: () => ({
+    where: (where) => {
+      deleteCalls.push({ where });
+      return Promise.resolve();
+    },
+  }),
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { getRadarAiProviderPolicy, updateRadarAiProviderPolicy } = await import("./radar-ai-policy.ts");
+const { getRadarAiProviderPolicy, updateRadarAiProviderPolicy, resetRadarAiProviderPolicy } = await import("./radar-ai-policy.ts");
 const { DEFAULT_PROVIDER_POLICY } = await import("../radar-intelligence/provider-policy.ts");
 
 function validCandidate(overrides = {}) {
@@ -124,6 +132,7 @@ function reset() {
   policyRowState = { rows: [] };
   staffMemberIdRow = { id: STAFF_MEMBER_ID };
   insertCalls = [];
+  deleteCalls = [];
 }
 
 test.beforeEach(reset);
@@ -197,7 +206,78 @@ for (const role of ["ADMIN", "MANAGER", "EMPLOYEE"]) {
     permissionMode = "DENY";
     await assert.rejects(() => getRadarAiProviderPolicy(), /NEXT_REDIRECT/);
   });
+
+  test(`${role} is denied before any DB delete (resetRadarAiProviderPolicy)`, async () => {
+    permissionMode = "DENY";
+    await assert.rejects(() => resetRadarAiProviderPolicy(), /NEXT_REDIRECT/);
+    assert.equal(deleteCalls.length, 0, "no delete must happen for a denied caller");
+    assert.equal(auditCalls.length, 0, "no audit record must be written for a denied caller");
+  });
 }
+
+// ---- resetRadarAiProviderPolicy() -- RADAR INTELLIGENCE V2.1 Phase C ----
+
+test("resetRadarAiProviderPolicy: OWNER can reset -- deletes the singleton row, returns DEFAULT_PROVIDER_POLICY, audits once", async () => {
+  policyRowState = {
+    rows: [
+      {
+        id: "global",
+        mode: "MANUAL",
+        defaultProvider: "openai",
+        fallbackOrder: ["openai", "anthropic"],
+        enabledProviders: ["openai", "anthropic"],
+        selectableProviders: ["openai"],
+        allowUserSelection: true,
+        fallbackEnabled: false,
+        updatedByStaffMemberId: STAFF_MEMBER_ID,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ],
+  };
+  const result = await resetRadarAiProviderPolicy();
+  assert.deepEqual(result, DEFAULT_PROVIDER_POLICY);
+  assert.equal(deleteCalls.length, 1);
+  assert.ok(deleteCalls[0].where, "the delete must carry a WHERE clause -- never an unconditional delete");
+  assert.equal(auditCalls.length, 1);
+  assert.equal(auditCalls[0].action, "radar_ai.policy_reset");
+  assert.equal(auditCalls[0].actorUserId, SESSION_USER_ID);
+  assert.equal(auditCalls[0].organizationId, INTERNAL_ORG_ID);
+  assert.equal(auditCalls[0].targetType, "radar_ai_provider_policy");
+  assert.equal(auditCalls[0].targetId, "global");
+  const { before, after } = auditCalls[0].metadata;
+  assert.equal(before.defaultProvider, "openai");
+  assert.deepEqual(after, {
+    mode: DEFAULT_PROVIDER_POLICY.mode,
+    defaultProvider: DEFAULT_PROVIDER_POLICY.defaultProvider,
+    fallbackOrder: [...DEFAULT_PROVIDER_POLICY.fallbackOrder],
+    enabledProviders: [...DEFAULT_PROVIDER_POLICY.enabledProviders],
+    userSelectableProviders: [...DEFAULT_PROVIDER_POLICY.userSelectableProviders],
+    allowUserSelection: DEFAULT_PROVIDER_POLICY.allowUserSelection,
+    fallbackEnabled: DEFAULT_PROVIDER_POLICY.fallbackEnabled,
+  });
+});
+
+test("resetRadarAiProviderPolicy: resetting an already-default (no row) policy is still auditable -- idempotent, no crash", async () => {
+  policyRowState = { rows: [] };
+  const result = await resetRadarAiProviderPolicy();
+  assert.deepEqual(result, DEFAULT_PROVIDER_POLICY);
+  assert.equal(deleteCalls.length, 1);
+  assert.equal(auditCalls.length, 1);
+  assert.equal(auditCalls[0].action, "radar_ai.policy_reset");
+});
+
+test("resetRadarAiProviderPolicy: never touches insert/upsert -- only a delete", async () => {
+  await resetRadarAiProviderPolicy();
+  assert.equal(insertCalls.length, 0);
+  assert.equal(deleteCalls.length, 1);
+});
+
+test("resetRadarAiProviderPolicy: audit metadata never contains a secret-shaped value", async () => {
+  await resetRadarAiProviderPolicy();
+  const s = JSON.stringify(auditCalls[0]);
+  assert.equal(/sk-ant-|sk-proj-|apiKey|secret|credential/i.test(s), false);
+});
 
 // ---- unknown / future-placeholder provider ids rejected ----
 
@@ -262,15 +342,42 @@ test("updateRadarAiProviderPolicy: malformed candidate shapes are all rejected b
 
 // ---- read path: safe default when the store has no row / a bad row ----
 
-test("getRadarAiProviderPolicy: no DB row -> returns DEFAULT_PROVIDER_POLICY", async () => {
+test("getRadarAiProviderPolicy: no DB row -> returns { policy: DEFAULT_PROVIDER_POLICY, updatedAt: null }", async () => {
   policyRowState = { rows: [] };
-  const policy = await getRadarAiProviderPolicy();
+  const { policy, updatedAt } = await getRadarAiProviderPolicy();
   assert.deepEqual(policy, DEFAULT_PROVIDER_POLICY);
+  assert.equal(updatedAt, null);
 });
 
-test("getRadarAiProviderPolicy: a DB read failure -> returns DEFAULT_PROVIDER_POLICY, never throws", async () => {
+test("getRadarAiProviderPolicy: a DB read failure -> returns the safe default, never throws", async () => {
   policyRowState = { error: new Error("connection refused") };
   await assert.doesNotReject(() => getRadarAiProviderPolicy());
+  const { policy, updatedAt } = await getRadarAiProviderPolicy();
+  assert.deepEqual(policy, DEFAULT_PROVIDER_POLICY);
+  assert.equal(updatedAt, null);
+});
+
+test("getRadarAiProviderPolicy: a row with updated_at -> surfaces it as an ISO string", async () => {
+  const d = new Date("2026-09-12T06:20:31.000Z");
+  policyRowState = {
+    rows: [
+      {
+        id: "global",
+        mode: "AUTO",
+        defaultProvider: "anthropic",
+        fallbackOrder: ["anthropic", "openai"],
+        enabledProviders: ["anthropic", "openai"],
+        selectableProviders: [],
+        allowUserSelection: false,
+        fallbackEnabled: true,
+        updatedByStaffMemberId: null,
+        createdAt: d,
+        updatedAt: d,
+      },
+    ],
+  };
+  const { updatedAt } = await getRadarAiProviderPolicy();
+  assert.equal(updatedAt, "2026-09-12T06:20:31.000Z");
 });
 
 // ---- identity comes from the authenticated session, never client input ----

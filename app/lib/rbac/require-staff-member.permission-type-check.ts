@@ -11,7 +11,7 @@
  * stops suppressing anything and the project fails to typecheck, which is
  * the point.
  */
-import { requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce } from "./require-staff-member";
+import { requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce, canCurrentUserManageAiPolicy } from "./require-staff-member";
 
 // @ts-expect-error - "NOT_A_REAL_PERMISSION" is not a member of the closed Permission union.
 void requireStaffMember("NOT_A_REAL_PERMISSION");
@@ -21,3 +21,6 @@ void isCurrentUserOwner("32371e8f-fc5e-4add-a7e4-9d4baf84252e");
 
 // @ts-expect-error - canCurrentUserManageWorkforce() takes no argument; nothing may be supplied here.
 void canCurrentUserManageWorkforce("forged-user");
+
+// @ts-expect-error - canCurrentUserManageAiPolicy() takes no argument; nothing may be supplied here.
+void canCurrentUserManageAiPolicy("forged-user");

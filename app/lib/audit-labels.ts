@@ -269,6 +269,8 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return "Administrateur retiré de l’administration";
     case "radar_ai.policy_updated":
       return "Politique de fournisseur IA RADAR mise à jour";
+    case "radar_ai.policy_reset":
+      return "Politique de fournisseur IA RADAR réinitialisée (valeurs par défaut)";
     default:
       return entry.action;
   }
@@ -449,6 +451,8 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return "Administrator removed from administration";
     case "radar_ai.policy_updated":
       return "RADAR AI provider policy updated";
+    case "radar_ai.policy_reset":
+      return "RADAR AI provider policy reset to default";
     default:
       return entry.action;
   }
