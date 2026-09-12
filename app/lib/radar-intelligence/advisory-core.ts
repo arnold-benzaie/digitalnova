@@ -23,6 +23,20 @@ import { logRadarIntelligenceEvent } from "./observability";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
 import type { IntelligenceProviderId } from "./types";
+import { recordRadarAiProviderAttempt as recordRadarAiProviderAttemptToStore, type RadarAiProviderAttemptTelemetryInput } from "./provider-attempt-telemetry-store";
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase G2 — a per-`produceRadarAdvisory()`-call
+ * correlation id, distinct from the gateway's own PER-ATTEMPT `requestId`
+ * (gateway.ts mints a fresh one on every single `gateway.run()` call,
+ * i.e. once per provider dispatch — see provider-attempt-telemetry-store.ts's
+ * own docstring on this distinction). Mirrors gateway.ts's own
+ * `defaultRequestId()` shape/style for consistency; not security
+ * sensitive, never used for authorization.
+ */
+function defaultAiRequestId(): string {
+  return `air_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export type RadarAdvisoryUiResult =
   | {
@@ -109,6 +123,35 @@ export type AdvisoryCoreDeps = {
    * synchronous `providerPolicy` test-only override.
    */
   loadProviderPolicy?: () => Promise<ProviderPolicy>;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G2. The acting staff member's
+   * session user id (requireSession().userId in the real caller) —
+   * NEVER a client-supplied value. Used ONLY to stamp operational
+   * telemetry (`actorUserId`); never used for authorization (that
+   * already happened before this function was ever called) and never
+   * forwarded to a provider. `null`/omitted degrades to an anonymous
+   * telemetry row (actorUserId: null) rather than throwing.
+   */
+  actorUserId?: string | null;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G2. Mints the STABLE per-advisory-
+   * request correlation id used only for telemetry — see
+   * `defaultAiRequestId()`'s own docstring for why this is distinct from
+   * the gateway's own per-ATTEMPT requestId. Tests inject a deterministic
+   * fake; production omits it and gets the real generator.
+   */
+  generateAiRequestId?: () => string;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G2. Records ONE best-effort,
+   * fail-safe provider-attempt telemetry row. Defaults to the real
+   * DB-backed store (provider-attempt-telemetry-store.ts), which itself
+   * never throws. Tests inject a fake to observe what would have been
+   * recorded without touching a DB. This is an OBSERVER only — it is
+   * never awaited in a way that can affect the returned
+   * RadarAdvisoryUiResult, and its own failure is caught independently
+   * either way (see the call site below).
+   */
+  recordProviderAttempt?: (input: RadarAiProviderAttemptTelemetryInput) => Promise<void>;
 };
 
 /**
@@ -175,6 +218,14 @@ export async function produceRadarAdvisory(
     nextFollowUpDueOn: null,
   });
 
+  // RADAR INTELLIGENCE V2.1 — Phase G2: minted ONCE per advisory request,
+  // before the router ever runs — the stable correlation id every
+  // telemetry row for this request will share (see defaultAiRequestId()'s
+  // own docstring for why this differs from the gateway's per-attempt id).
+  const aiRequestId = (deps.generateAiRequestId ?? defaultAiRequestId)();
+  const nowFn = deps.clock ?? (() => new Date());
+  const attemptStartedAt = nowFn();
+
   let outcome;
   try {
     const registry = deps.createRegistry();
@@ -213,6 +264,44 @@ export async function produceRadarAdvisory(
   } catch {
     logRadarIntelligenceEvent({ source: "advisory_core", code: "REGISTRY_GATEWAY_THROW", status: "error" });
     return { status: "error" };
+  }
+
+  // RADAR INTELLIGENCE V2.1 — Phase G2: OBSERVE the outcome the router
+  // already decided — this layer never influences routing/fallback/
+  // eligibility, it only records what already happened. Recorded ONLY
+  // when at least one real provider dispatch occurred (attemptCount >= 1
+  // and a real providerId is known) — the designed "nothing configured"
+  // no-op state (attemptCount === 0) is not a "provider attempt" and is
+  // deliberately never recorded here (see provider-attempt-telemetry-store.ts's
+  // own docstring). This entire block is best-effort and isolated from
+  // the function's own return value: any failure here (including a
+  // thrown test fake) is caught immediately below and never propagates.
+  if (outcome.attemptCount >= 1 && outcome.providerId !== null) {
+    try {
+      const latencyMs = Math.max(0, nowFn().getTime() - attemptStartedAt.getTime());
+      const record = deps.recordProviderAttempt ?? recordRadarAiProviderAttemptToStore;
+      await record({
+        aiRequestId,
+        actorUserId: deps.actorUserId ?? null,
+        providerId: outcome.providerId,
+        modelId: outcome.advisory?.model ?? null,
+        selectionMode: requestedProviderId ? "explicit" : "automatic",
+        status: outcome.advisory ? "success" : "failure",
+        errorCode: outcome.error?.code ?? null,
+        failureClass: outcome.error?.failureClass ?? null,
+        httpStatus: outcome.error?.httpStatus ?? null,
+        latencyMs,
+        attemptCount: outcome.attemptCount,
+        fallbackUsed: outcome.fallbackUsed,
+        inputTokens: outcome.advisory?.usage?.inputTokens ?? null,
+        outputTokens: outcome.advisory?.usage?.outputTokens ?? null,
+        providerRequestId: outcome.advisory?.usage?.providerRequestId ?? null,
+      });
+    } catch {
+      // Never let a telemetry failure (even one injected by a test
+      // fake) reach the caller — the advisory result below is already
+      // fully computed regardless.
+    }
   }
 
   const deterministic = {

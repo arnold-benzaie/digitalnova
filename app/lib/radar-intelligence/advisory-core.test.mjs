@@ -79,6 +79,18 @@ function deps(overrides = {}) {
     // fake (defaulting to DEFAULT_PROVIDER_POLICY, matching today's exact
     // Production routing) so no test ever touches the real DB-backed store.
     loadProviderPolicy: async () => overrides.providerPolicy ?? DEFAULT_PROVIDER_POLICY,
+    // RADAR INTELLIGENCE V2.1 Phase G2: always inject a no-op
+    // `recordProviderAttempt` fake by default (same convention as
+    // loadProviderPolicy above) so no pre-G2 test touches the real
+    // DB-backed telemetry store (whose own internal fail-safe swallow
+    // would otherwise emit a stray console.warn on every single
+    // attemptCount>=1 test in this file, polluting withCapturedWarn()'s
+    // captured calls exactly like the bug already found and fixed once
+    // in lib/actions/radar-intelligence.test.mjs). Phase G2's own tests
+    // override this to observe what would have been recorded.
+    recordProviderAttempt: overrides.recordProviderAttempt ?? (async () => {}),
+    ...(overrides.actorUserId !== undefined ? { actorUserId: overrides.actorUserId } : {}),
+    ...(overrides.generateAiRequestId ? { generateAiRequestId: overrides.generateAiRequestId } : {}),
   };
 }
 
@@ -487,9 +499,25 @@ test("diagnostic: not_applicable (prospect not qualified) carries NO diagnostic"
 
 // ---------------- non-authoritative / no mutation ----------------
 
-test("the deps bag has no mutation capability — only loaders + a registry factory", async () => {
+test("the deps bag has no BUSINESS-STATE mutation capability — only loaders, a registry factory, and (Phase G2) an isolated telemetry observer", async () => {
+  // RADAR INTELLIGENCE V2.1 Phase G2: this test's own name is deliberately
+  // narrowed from "no mutation capability" to "no BUSINESS-STATE mutation
+  // capability" -- a conscious, reviewed contract change. recordProviderAttempt
+  // IS a write capability, but it is a narrowly-scoped, best-effort,
+  // fail-safe TELEMETRY write (provider-attempt-telemetry-store.ts) that
+  // can never throw, never influences routing/fallback, and has no path
+  // to any CRM/RADAR/scoring/assignment table. actorUserId is plain string
+  // data (never a function); generateAiRequestId returns an opaque
+  // correlation string with no side effect of its own. The invariant this
+  // test still enforces: nothing in this bag can reach deterministic
+  // scoring, CRM, assignment, or queue state.
   const d = deps();
-  assert.deepEqual(Object.keys(d).sort(), ["clock", "createRegistry", "loadDisplayContext", "loadProviderPolicy", "loadQualification"].sort());
+  assert.deepEqual(
+    Object.keys(d).sort(),
+    ["clock", "createRegistry", "loadDisplayContext", "loadProviderPolicy", "loadQualification", "recordProviderAttempt"].sort(),
+  );
+  assert.equal(typeof d.recordProviderAttempt, "function");
+  assert.equal(d.recordProviderAttempt.constructor.name, "AsyncFunction");
   // RADAR INTELLIGENCE V2.1 Phase D: produceRadarAdvisory gained a third,
   // OPTIONAL parameter — requestedProviderId — a request-scoped provider
   // PREFERENCE, never an identity/model/userId/workspace parameter. It
@@ -1186,4 +1214,328 @@ test("Phase D #18: max provider attempts remains 2 even for an explicit selectio
   assert.equal(r.status, "unavailable");
   assert.equal(anthropicT.hits, 1);
   assert.equal(openaiT.hits, 1);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G2: provider-attempt telemetry
+// (observation only — never influences routing/fallback/eligibility).
+// =====================================================================
+
+function capturingRecorder() {
+  const calls = [];
+  return {
+    calls,
+    fn: async (input) => {
+      calls.push(input);
+    },
+  };
+}
+
+function throwingRecorder() {
+  return async () => {
+    throw new Error("telemetry sink unavailable");
+  };
+}
+
+/** A clock that advances by `stepMs` on every call, starting at `startMs`
+ * — needed because the file's own shared `clock` fixture always returns
+ * the SAME fixed Date (fine for every other test, but a latency test
+ * needs elapsed time). */
+function advancingClock(startMs, stepMs) {
+  let t = startMs;
+  return () => {
+    const d = new Date(t);
+    t += stepMs;
+    return d;
+  };
+}
+
+// ---- 1. successful attempt recorded ----
+
+test("G2 #1: a successful attempt is recorded with status=success", async () => {
+  const t = fakeTransport();
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(r.status, "ok");
+  assert.equal(rec.calls.length, 1);
+  assert.equal(rec.calls[0].status, "success");
+});
+
+// ---- 2. failed attempt recorded ----
+
+test("G2 #2: a final failure (no fallback available) is recorded with status=failure", async () => {
+  const t = fakeTransport({ status: 500 });
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(r.status, "error");
+  assert.equal(rec.calls.length, 1);
+  assert.equal(rec.calls[0].status, "failure");
+  assert.equal(rec.calls[0].attemptCount, 1);
+  assert.equal(rec.calls[0].fallbackUsed, false);
+});
+
+// ---- 3. aiRequestId correlation: request-scoped, distinct from the gateway's per-attempt id ----
+
+test("G2 #3: aiRequestId is minted once per produceRadarAdvisory() call and differs from the gateway's own per-attempt requestId", async () => {
+  const t = fakeTransport();
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls.length, 1);
+  assert.equal(typeof rec.calls[0].aiRequestId, "string");
+  assert.ok(rec.calls[0].aiRequestId.length > 0);
+  // r.providerMeta is stripped by the action layer for non-admin callers
+  // in production, but advisory-core.ts's own result never exposes
+  // aiRequestId at all -- it is a telemetry-only correlation id, never
+  // part of RadarAdvisoryUiResult.
+  assert.equal("aiRequestId" in r, false);
+});
+
+test("G2 #3b: two separate advisory requests get two DIFFERENT aiRequestId values", async () => {
+  const t1 = fakeTransport();
+  const t2 = fakeTransport();
+  const rec = capturingRecorder();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t1), recordProviderAttempt: rec.fn }));
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t2), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls.length, 2);
+  assert.notEqual(rec.calls[0].aiRequestId, rec.calls[1].aiRequestId);
+});
+
+test("G2 #3c: an injected generateAiRequestId is used verbatim", async () => {
+  const t = fakeTransport();
+  const rec = capturingRecorder();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn, generateAiRequestId: () => "air_fixed_for_test" }));
+  assert.equal(rec.calls[0].aiRequestId, "air_fixed_for_test");
+});
+
+// ---- 4. attemptCount reflects real dispatch count ----
+
+test("G2 #4: attemptCount=1 for a primary-only success, attemptCount=2 for a fallback", async () => {
+  const rec = capturingRecorder();
+  const t1 = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t1), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].attemptCount, 1);
+  assert.equal(rec.calls[0].fallbackUsed, false);
+
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[1].attemptCount, 2);
+  assert.equal(rec.calls[1].fallbackUsed, true);
+});
+
+// ---- 5. provider/model recorded ----
+
+test("G2 #5: provider and model are recorded on success; the FALLBACK provider/model on a successful fallback", async () => {
+  const rec = capturingRecorder();
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].providerId, "openai");
+  assert.equal(typeof rec.calls[0].modelId, "string");
+});
+
+test("G2 #5b: modelId is null on a failed attempt (no successful advisory to read a model from)", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport({ status: 500 });
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].modelId, null);
+});
+
+// ---- 6. selectionMode recorded ----
+
+test("G2 #6: selectionMode is 'automatic' when requestedProviderId is omitted/null", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].selectionMode, "automatic");
+});
+
+test("G2 #6b: selectionMode is 'explicit' when a requestedProviderId is supplied", async () => {
+  const rec = capturingRecorder();
+  const anthropicT = fakeTransport();
+  const openaiT = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy(), recordProviderAttempt: rec.fn }), "anthropic");
+  assert.equal(rec.calls[0].selectionMode, "explicit");
+  assert.equal(rec.calls[0].providerId, "anthropic");
+});
+
+// ---- 7. latency recorded ----
+
+test("G2 #7: latencyMs is a non-negative integer, derived from the injected clock, never negative/impossible", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport();
+  const slowClock = advancingClock(new Date("2026-09-13T10:00:00.000Z").getTime(), 250);
+  await produceRadarAdvisory(CLIENT, { ...deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }), clock: slowClock });
+  assert.equal(typeof rec.calls[0].latencyMs, "number");
+  assert.ok(Number.isInteger(rec.calls[0].latencyMs));
+  assert.ok(rec.calls[0].latencyMs >= 0);
+});
+
+// ---- 8. token counts recorded ----
+
+test("G2 #8: input/output token counts are recorded on success (from the provider's own usage field)", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport(); // default body includes usage: { input_tokens: 20, output_tokens: 12 }
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].inputTokens, 20);
+  assert.equal(rec.calls[0].outputTokens, 12);
+});
+
+test("G2 #8b: token counts are null on a failed attempt", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport({ status: 500 });
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].inputTokens, null);
+  assert.equal(rec.calls[0].outputTokens, null);
+});
+
+// ---- 9. providerRequestId recorded when available ----
+
+test("G2 #9: providerRequestId is recorded when the provider's usage body carries one, null otherwise", async () => {
+  const rec = capturingRecorder();
+  const tWith = fakeTransport({ body: { summary: "ok", usage: { input_tokens: 1, output_tokens: 1, providerRequestId: "req_test123" } } });
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(tWith), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].providerRequestId, "req_test123");
+
+  const tWithout = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(tWithout), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[1].providerRequestId, null);
+});
+
+// ---- 10/11/12/13. no raw prompt / advisory text / raw provider error / credential ----
+
+test("G2 #10-13: the recorded telemetry input carries EXACTLY the allowlisted fields -- no prompt, advisory text, raw error, or credential-shaped field", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  const input = rec.calls[0];
+  assert.deepEqual(
+    Object.keys(input).sort(),
+    [
+      "aiRequestId",
+      "actorUserId",
+      "providerId",
+      "modelId",
+      "selectionMode",
+      "status",
+      "errorCode",
+      "failureClass",
+      "httpStatus",
+      "latencyMs",
+      "attemptCount",
+      "fallbackUsed",
+      "inputTokens",
+      "outputTokens",
+      "providerRequestId",
+    ].sort(),
+  );
+  assert.equal(/summary|advisory|prompt|apiKey|Authorization|Bearer/i.test(JSON.stringify(input)), false);
+});
+
+test("G2 #12b: on failure, errorCode/failureClass are safe enum values, never the raw IntelligenceError object or a message", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport({ status: 503 });
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  const input = rec.calls[0];
+  assert.equal(typeof input.errorCode, "string");
+  assert.equal("message" in input, false);
+  assert.equal("providerId" in input && typeof input.providerId, "string"); // the STRING id, never an object
+});
+
+// ---- 14/15. telemetry failure never fails the advisory or the fallback ----
+
+test("G2 #14: a throwing telemetry recorder never changes the returned advisory result", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: throwingRecorder() }));
+  assert.equal(r.status, "ok");
+});
+
+test("G2 #15: a throwing telemetry recorder never prevents or alters a real fallback outcome", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), recordProviderAttempt: throwingRecorder() }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, true);
+});
+
+// ---- 16/17/18/19. deterministic RADAR / routing behavior unchanged with telemetry wired in ----
+
+test("G2 #16: the deterministic block is still byte-identical to the input opportunity with telemetry recording active", async () => {
+  const t = fakeTransport();
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.deepEqual(r.deterministic, { priority: OPPORTUNITY.priority, confidence: OPPORTUNITY.confidence, recommendedNextAction: OPPORTUNITY.recommendedNextAction });
+});
+
+test("G2 #17: automatic routing (no requestedProviderId) is unaffected -- still selects the primary, records selectionMode=automatic", async () => {
+  const rec = capturingRecorder();
+  const anthropicT = fakeTransport();
+  const openaiT = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), recordProviderAttempt: rec.fn }));
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(rec.calls[0].selectionMode, "automatic");
+  assert.equal(openaiT.hits, 0);
+});
+
+test("G2 #18: an explicit Anthropic selection is unaffected -- still routes to Anthropic, records providerId=anthropic + selectionMode=explicit", async () => {
+  const rec = capturingRecorder();
+  const anthropicT = fakeTransport();
+  const openaiT = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy(), recordProviderAttempt: rec.fn }), "anthropic");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(rec.calls[0].providerId, "anthropic");
+  assert.equal(rec.calls[0].selectionMode, "explicit");
+});
+
+test("G2 #19: an explicit OpenAI selection is unaffected -- still routes to OpenAI, records providerId=openai + selectionMode=explicit", async () => {
+  const rec = capturingRecorder();
+  const anthropicT = fakeTransport();
+  const openaiT = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy(), recordProviderAttempt: rec.fn }), "openai");
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(rec.calls[0].providerId, "openai");
+  assert.equal(rec.calls[0].selectionMode, "explicit");
+  assert.equal(anthropicT.hits, 0, "an explicit OpenAI selection must never dispatch to Anthropic at all");
+});
+
+// ---- extra rigor: cases that must NOT produce a telemetry row at all ----
+
+test("G2 extra: a not_applicable result (non-QUALIFIED prospect) never reaches the router -- zero telemetry rows", async () => {
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ qualification: { qualificationStatus: "INSUFFICIENT_DATA", eligibility: { contactable: true }, opportunity: null }, recordProviderAttempt: rec.fn }),
+  );
+  assert.equal(r.status, "not_applicable");
+  assert.equal(rec.calls.length, 0);
+});
+
+test("G2 extra: zero providers configured (attemptCount=0, the designed no-op state) records NO telemetry row -- not a real 'attempt'", async () => {
+  const rec = capturingRecorder();
+  const r = await produceRadarAdvisory(CLIENT, deps({ recordProviderAttempt: rec.fn })); // enabledRegistry not used -> empty registry
+  assert.equal(r.status, "unavailable");
+  assert.equal(rec.calls.length, 0);
+});
+
+test("G2 extra: an invalid clientId never reaches telemetry recording either", async () => {
+  const rec = capturingRecorder();
+  await produceRadarAdvisory("not-a-uuid", deps({ recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls.length, 0);
+});
+
+// ---- actorUserId wiring ----
+
+test("G2: actorUserId flows from deps into the recorded row when supplied", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport();
+  await produceRadarAdvisory(CLIENT, { ...deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }), actorUserId: "22222222-2222-4222-8222-222222222222" });
+  assert.equal(rec.calls[0].actorUserId, "22222222-2222-4222-8222-222222222222");
+});
+
+test("G2: actorUserId is null when omitted -- never throws, never fabricated", async () => {
+  const rec = capturingRecorder();
+  const t = fakeTransport();
+  await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls[0].actorUserId, null);
 });

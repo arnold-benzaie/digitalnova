@@ -1,0 +1,31 @@
+CREATE TABLE "radar_ai_provider_attempt_telemetry" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"ai_request_id" text NOT NULL,
+	"actor_user_id" uuid,
+	"provider_id" text NOT NULL,
+	"model_id" text,
+	"selection_mode" text NOT NULL,
+	"status" text NOT NULL,
+	"error_code" text,
+	"failure_class" text,
+	"http_status" integer,
+	"latency_ms" integer NOT NULL,
+	"attempt_count" integer NOT NULL,
+	"fallback_used" boolean DEFAULT false NOT NULL,
+	"input_tokens" integer,
+	"output_tokens" integer,
+	"provider_request_id" text,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_provider_check" CHECK ("radar_ai_provider_attempt_telemetry"."provider_id" IN ('anthropic','openai','deterministic')),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_selection_mode_check" CHECK ("radar_ai_provider_attempt_telemetry"."selection_mode" IN ('automatic','explicit')),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_status_check" CHECK ("radar_ai_provider_attempt_telemetry"."status" IN ('success','failure')),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_error_code_check" CHECK ("radar_ai_provider_attempt_telemetry"."error_code" IS NULL OR "radar_ai_provider_attempt_telemetry"."error_code" IN ('PROVIDER_DISCONNECTED','PROVIDER_DISABLED','PROVIDER_UNAVAILABLE','PROVIDER_TIMEOUT','PROVIDER_RATE_LIMITED','PROVIDER_ERROR','NO_CAPABLE_PROVIDER','INVALID_INTELLIGENCE_REQUEST')),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_failure_class_check" CHECK ("radar_ai_provider_attempt_telemetry"."failure_class" IS NULL OR "radar_ai_provider_attempt_telemetry"."failure_class" IN ('PROVIDER_4XX','PROVIDER_5XX','PROVIDER_TIMEOUT','PROVIDER_NETWORK','PROVIDER_PARSE','PROVIDER_UNKNOWN')),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_http_status_check" CHECK ("radar_ai_provider_attempt_telemetry"."http_status" IS NULL OR ("radar_ai_provider_attempt_telemetry"."http_status" BETWEEN 400 AND 599)),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_latency_check" CHECK ("radar_ai_provider_attempt_telemetry"."latency_ms" >= 0),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_attempt_count_check" CHECK ("radar_ai_provider_attempt_telemetry"."attempt_count" IN (1,2)),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_input_tokens_check" CHECK ("radar_ai_provider_attempt_telemetry"."input_tokens" IS NULL OR "radar_ai_provider_attempt_telemetry"."input_tokens" >= 0),
+	CONSTRAINT "radar_ai_provider_attempt_telemetry_output_tokens_check" CHECK ("radar_ai_provider_attempt_telemetry"."output_tokens" IS NULL OR "radar_ai_provider_attempt_telemetry"."output_tokens" >= 0)
+);
+--> statement-breakpoint
+ALTER TABLE "radar_ai_provider_attempt_telemetry" ADD CONSTRAINT "radar_ai_provider_attempt_telemetry_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

@@ -110,7 +110,7 @@ let coreThrows = false;
 mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
     produceRadarAdvisory: async (clientId, deps, requestedProviderId) => {
-      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale, requestedProviderId });
+      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale, requestedProviderId, actorUserId: deps.actorUserId });
       // Real produceRadarAdvisory always calls deps.createRegistry() —
       // invoke it here too so the (real) closure built by
       // requestRadarIntelligenceAdvisory actually runs, letting
@@ -166,7 +166,10 @@ test("action: requireStaffMember('RADAR_QUEUE_VIEW') runs first; delegates to th
   assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
   assert.equal(coreCalls.length, 1);
   assert.equal(coreCalls[0].clientId, CLIENT);
-  assert.deepEqual(coreCalls[0].depKeys, ["createRegistry", "loadDisplayContext", "loadQualification", "locale"].sort());
+  // RADAR INTELLIGENCE V2.1 Phase G2 — actorUserId (the already-resolved
+  // session identity, stamped ONLY onto best-effort telemetry) is now
+  // also forwarded — a conscious, reviewed, additive contract change.
+  assert.deepEqual(coreCalls[0].depKeys, ["createRegistry", "loadDisplayContext", "loadQualification", "locale", "actorUserId"].sort());
   assert.deepEqual(r, { status: "unavailable" });
 });
 
@@ -684,4 +687,16 @@ test("Phase E: getRadarAiProviderSelectionOptions never reads or forwards model 
   await getRadarAiProviderSelectionOptions();
   assert.equal(configuredRegistryCalls.length, 1);
   assert.equal("modelOverrides" in configuredRegistryCalls[0], false);
+});
+
+// ---------------- RADAR INTELLIGENCE V2.1 Phase G2: actorUserId wiring ----------------
+
+test("Phase G2: actorUserId forwarded to the core is the SESSION's userId, never a client-supplied value -- the action takes no such parameter", async () => {
+  reset();
+  sessionUserId = "user-phase-g2-actor";
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(coreCalls[0].actorUserId, "user-phase-g2-actor");
+  // Still exactly (clientId, requestedProviderId?) -- no third parameter
+  // exists through which a caller could smuggle a different actor id.
+  assert.equal(requestRadarIntelligenceAdvisory.length, 2);
 });

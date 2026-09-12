@@ -288,6 +288,13 @@
       "when": 1789207639599,
       "tag": "0040_radar_ai_provider_runtime_config",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789237316318,
+      "tag": "0041_radar_ai_provider_attempt_telemetry",
+      "breakpoints": true
     }
   ]
 }

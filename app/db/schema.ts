@@ -2055,3 +2055,83 @@ export const radarAiProviderRuntimeConfig = pgTable(
     }).onDelete("set null"),
   ],
 );
+
+// RADAR INTELLIGENCE V2.1 — Phase G2 — append-only, best-effort AI
+// provider-attempt telemetry. ONE row describes the DECISIVE (last
+// observed) provider dispatch for one advisory request — not raw
+// content, never a shadow copy of CRM/customer data. `ai_request_id` is
+// an application-level correlation string (see advisory-core.ts), not a
+// DB foreign key, since it never identifies a row anywhere else.
+//
+// KNOWN, DELIBERATE LIMITATION (see lib/radar-intelligence/advisory-core.ts's
+// own docstring on this table): provider-router.ts's run() returns only
+// the LAST outcome plus aggregate fallbackUsed/attemptCount — the
+// PRIMARY's own specific failure detail is not recoverable here without
+// a separately authorized, narrowly-scoped observer hook on the router,
+// which this phase deliberately does not add. This row's provider/model/
+// status/error/latency/tokens describe the FINAL dispatch only.
+//
+// NO CREDENTIAL, NO SECRET, NO PROMPT, NO ADVISORY TEXT, NO RAW PROVIDER
+// BODY, NO CUSTOMER PII — every column is a closed enum, a bounded
+// number, or an opaque correlation id.
+export const radarAiProviderAttemptTelemetry = pgTable(
+  "radar_ai_provider_attempt_telemetry",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // App-level correlation id minted once per produceRadarAdvisory()
+    // call — NOT the gateway's own per-attempt requestId (see
+    // advisory-core.ts). Plain text, not a UUID: mirrors the existing
+    // `ri_<...>` style id shape gateway.ts already uses for the same
+    // non-security-sensitive correlation purpose.
+    aiRequestId: text("ai_request_id").notNull(),
+    // The acting staff member's session user id (requireSession().userId)
+    // — never a client-supplied value. Nullable/SET NULL exactly like
+    // audit_log.actor_user_id, for the same reason (the user row may
+    // later be removed without invalidating historical telemetry).
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    providerId: text("provider_id").notNull(),
+    // Only present for a genuine provider dispatch (never for the
+    // designed no-provider "deterministic" state, which this table does
+    // not record at all — see the store's own docstring).
+    modelId: text("model_id"),
+    selectionMode: text("selection_mode").notNull(), // "automatic" | "explicit"
+    status: text("status").notNull(), // "success" | "failure"
+    // Only ever one of errors.ts's existing INTELLIGENCE_ERROR_CODES.
+    errorCode: text("error_code"),
+    // Only ever one of errors.ts's existing PROVIDER_FAILURE_CLASSES.
+    failureClass: text("failure_class"),
+    // Already validated 400-599 by errors.ts::validateHttpStatus before
+    // it ever reaches this column — never a raw body/header.
+    httpStatus: integer("http_status"),
+    latencyMs: integer("latency_ms").notNull(),
+    // How many providers were dispatched to for this AI request (1 or 2)
+    // — this table only ever records a row when at least one real
+    // dispatch happened (see the store's own docstring).
+    attemptCount: integer("attempt_count").notNull(),
+    fallbackUsed: boolean("fallback_used").notNull().default(false),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    // Already length-capped/redacted by structured-advisory-parser.ts's
+    // normalizeUsageTokens() before it ever reaches this column.
+    providerRequestId: text("provider_request_id"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("radar_ai_provider_attempt_telemetry_provider_check", sql`${table.providerId} IN ('anthropic','openai','deterministic')`),
+    check("radar_ai_provider_attempt_telemetry_selection_mode_check", sql`${table.selectionMode} IN ('automatic','explicit')`),
+    check("radar_ai_provider_attempt_telemetry_status_check", sql`${table.status} IN ('success','failure')`),
+    check(
+      "radar_ai_provider_attempt_telemetry_error_code_check",
+      sql`${table.errorCode} IS NULL OR ${table.errorCode} IN ('PROVIDER_DISCONNECTED','PROVIDER_DISABLED','PROVIDER_UNAVAILABLE','PROVIDER_TIMEOUT','PROVIDER_RATE_LIMITED','PROVIDER_ERROR','NO_CAPABLE_PROVIDER','INVALID_INTELLIGENCE_REQUEST')`,
+    ),
+    check(
+      "radar_ai_provider_attempt_telemetry_failure_class_check",
+      sql`${table.failureClass} IS NULL OR ${table.failureClass} IN ('PROVIDER_4XX','PROVIDER_5XX','PROVIDER_TIMEOUT','PROVIDER_NETWORK','PROVIDER_PARSE','PROVIDER_UNKNOWN')`,
+    ),
+    check("radar_ai_provider_attempt_telemetry_http_status_check", sql`${table.httpStatus} IS NULL OR (${table.httpStatus} BETWEEN 400 AND 599)`),
+    check("radar_ai_provider_attempt_telemetry_latency_check", sql`${table.latencyMs} >= 0`),
+    check("radar_ai_provider_attempt_telemetry_attempt_count_check", sql`${table.attemptCount} IN (1,2)`),
+    check("radar_ai_provider_attempt_telemetry_input_tokens_check", sql`${table.inputTokens} IS NULL OR ${table.inputTokens} >= 0`),
+    check("radar_ai_provider_attempt_telemetry_output_tokens_check", sql`${table.outputTokens} IS NULL OR ${table.outputTokens} >= 0`),
+  ],
+);

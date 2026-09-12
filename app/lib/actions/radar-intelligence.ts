@@ -180,6 +180,11 @@ export async function requestRadarIntelligenceAdvisory(
         loadDisplayContext,
         createRegistry: () => createConfiguredRadarIntelligenceRegistry({ modelOverrides }),
         locale,
+        // RADAR INTELLIGENCE V2.1 Phase G2 — the session identity already
+        // resolved above, stamped ONLY onto best-effort operational
+        // telemetry (never used for authorization, never forwarded to a
+        // provider).
+        actorUserId: userId,
       },
       validatedProviderId,
     );
