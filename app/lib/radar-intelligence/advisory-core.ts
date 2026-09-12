@@ -17,7 +17,8 @@ import { isValidUuid } from "@/lib/api-v1/dto";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { ProviderFailureClass } from "./errors";
 import { createProviderRouter } from "./provider-router";
-import { DEFAULT_PROVIDER_POLICY, resolveProviderPolicy, type ProviderPolicy } from "./provider-policy";
+import { resolveProviderPolicy, type ProviderPolicy } from "./provider-policy";
+import { loadProviderPolicy as loadProviderPolicyFromStore } from "./provider-policy-store";
 import { logRadarIntelligenceEvent } from "./observability";
 import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
@@ -96,14 +97,18 @@ export type AdvisoryCoreDeps = {
    */
   locale?: Locale;
   /**
-   * RADAR INTELLIGENCE V2.1 — Phase A. Test-only override of the
-   * OWNER-level Provider Policy — defaults to DEFAULT_PROVIDER_POLICY
-   * (AUTO, Anthropic primary, OpenAI fallback, no user selection),
-   * which resolves to the exact same routing Production has always
-   * used. No real caller sets this in Phase A: there is no DB-backed
-   * policy and no user-selection UI yet — see provider-policy.ts.
+   * RADAR INTELLIGENCE V2.1 — Phase B. Loads the OWNER-level Provider
+   * Policy. Defaults to the real DB-backed store
+   * (provider-policy-store.ts::loadProviderPolicy), which itself never
+   * throws and falls back to DEFAULT_PROVIDER_POLICY (AUTO, Anthropic
+   * primary, OpenAI fallback, no user selection — today's exact
+   * Production routing) whenever no policy row exists, the DB is
+   * unreachable, or the stored row fails validation — see that module's
+   * docstring for the full fail-closed contract. Tests inject a fake
+   * async function here instead of touching a DB. Supersedes Phase A's
+   * synchronous `providerPolicy` test-only override.
    */
-  providerPolicy?: ProviderPolicy;
+  loadProviderPolicy?: () => Promise<ProviderPolicy>;
 };
 
 export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
@@ -154,20 +159,23 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   let outcome;
   try {
     const registry = deps.createRegistry();
-    // RADAR INTELLIGENCE V2.1 — Phase A: the router's routing decision
-    // now comes from resolveProviderPolicy() (provider-policy.ts)
-    // instead of a hardcoded {primary, fallback} pair. `registry.list()`
-    // is REGISTRATION truth ("can this provider technically run" —
-    // config/credential state, unchanged); `deps.providerPolicy` is
-    // PERMISSION truth ("is this provider allowed, and in what order").
-    // The resolver intersects both; it never conflates them. Phase A
-    // passes `requestedProviderId: null` unconditionally — there is no
-    // user-selection caller yet, so this always resolves the exact same
-    // AUTO routing Production has always used (DEFAULT_PROVIDER_POLICY
-    // reproduces DEFAULT_ROUTING_POLICY's shape exactly).
+    // RADAR INTELLIGENCE V2.1 — Phase B: the OWNER policy itself now
+    // comes from the persistent store (provider-policy-store.ts),
+    // instead of Phase A's always-DEFAULT_PROVIDER_POLICY constant.
+    // `registry.list()` is REGISTRATION truth ("can this provider
+    // technically run" — config/credential state, unchanged); the
+    // loaded policy is PERMISSION truth ("is this provider allowed, and
+    // in what order"). resolveProviderPolicy() intersects both; it never
+    // conflates them. `requestedProviderId: null` is still passed
+    // unconditionally — there is no user-selection caller yet (Phase D),
+    // so an empty/absent DB policy resolves to the exact same AUTO
+    // routing Production has always used (loadProviderPolicy()'s own
+    // fallback returns DEFAULT_PROVIDER_POLICY, which reproduces
+    // DEFAULT_ROUTING_POLICY's shape exactly).
     const registeredProviders = new Set<IntelligenceProviderId>(registry.list().map((adapter) => adapter.id));
+    const ownerPolicy = await (deps.loadProviderPolicy ?? loadProviderPolicyFromStore)();
     const resolvedPolicy = resolveProviderPolicy({
-      ownerPolicy: deps.providerPolicy ?? DEFAULT_PROVIDER_POLICY,
+      ownerPolicy,
       registeredProviders,
       requestedProviderId: null,
     });

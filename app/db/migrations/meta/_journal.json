@@ -274,6 +274,13 @@
       "when": 1788711434731,
       "tag": "0038_pink_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789178964039,
+      "tag": "0039_mute_chat",
+      "breakpoints": true
     }
   ]
 }

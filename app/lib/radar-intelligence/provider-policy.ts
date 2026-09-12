@@ -152,3 +152,124 @@ export function resolveProviderPolicy(input: ResolveProviderPolicyInput): Resolv
     source: requestedProviderId != null ? "user-manual-invalid-fallback-to-auto" : "auto-default",
   };
 }
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase B — DB-facing validation.
+ *
+ * `IntelligenceProviderId` (types.ts) already includes documented FUTURE
+ * placeholders ("gemini" / "deepseek" / "kimi" / "local") so adapters and
+ * selection policy can be written once, ahead of any real integration —
+ * but Phase B must NOT let OWNER-mutable, DB-persisted policy make one of
+ * those placeholders configurable or dispatchable. `POLICY_CONFIGURABLE_
+ * PROVIDER_IDS` is the deliberately narrower, Phase-B-specific allowlist:
+ * exactly the providers with a real, registered adapter today. Every
+ * validation path below checks against THIS set, never the full
+ * `IntelligenceProviderId` union — so a stored/submitted "gemini" is
+ * rejected exactly like any other unrecognized string, even though the
+ * type system itself would accept it as a well-typed provider id.
+ */
+export const POLICY_CONFIGURABLE_PROVIDER_IDS = ["anthropic", "openai"] as const;
+export type PolicyConfigurableProviderId = (typeof POLICY_CONFIGURABLE_PROVIDER_IDS)[number];
+
+export function isPolicyConfigurableProviderId(value: unknown): value is PolicyConfigurableProviderId {
+  return typeof value === "string" && (POLICY_CONFIGURABLE_PROVIDER_IDS as readonly string[]).includes(value);
+}
+
+export type ProviderPolicyValidationResult = { ok: true; policy: ProviderPolicy } | { ok: false; errors: readonly string[] };
+
+/**
+ * Strict, ALL-OR-NOTHING structural validation of a candidate policy
+ * object against the full ProviderPolicy contract. Used by BOTH the
+ * store's read path (candidate = a DB row, already field-mapped to this
+ * shape — see provider-policy-store.ts) and the OWNER mutation's write
+ * path (candidate = the caller's proposed update).
+ *
+ * FAIL-CLOSED, ALL-OR-NOTHING BY DESIGN (not per-field normalization):
+ * if ANY field is malformed, the WHOLE candidate is rejected — this
+ * function never returns a policy assembled from a mix of trusted
+ * candidate fields and silently-substituted defaults. A "Frankenstein"
+ * policy (some fields honored, others quietly replaced) is a policy the
+ * OWNER never actually reviewed as a coherent whole, and is far harder to
+ * reason about or audit than a clean binary "valid or not" outcome. This
+ * mirrors the same allowlist-not-denylist, discard-the-whole-suspicious-
+ * unit philosophy already used throughout this codebase (sanitize-
+ * context.ts, observability.ts's field allowlist, stripAdminOnlyFields).
+ *
+ * Never mutates `candidate`; the returned policy's arrays are fresh,
+ * frozen copies — never the same array reference as anything on
+ * `candidate`, so a caller mutating their own input after the fact can
+ * never retroactively alter a policy this function already returned.
+ */
+export function validateProviderPolicyCandidate(candidate: unknown): ProviderPolicyValidationResult {
+  const errors: string[] = [];
+
+  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) {
+    return { ok: false, errors: ["policy must be a plain object"] };
+  }
+  const c = candidate as Record<string, unknown>;
+
+  if (c.mode !== "AUTO" && c.mode !== "MANUAL") {
+    errors.push("mode must be exactly 'AUTO' or 'MANUAL'");
+  }
+
+  const defaultProviderRaw = c.defaultProvider;
+  if (defaultProviderRaw !== null && defaultProviderRaw !== undefined && !isPolicyConfigurableProviderId(defaultProviderRaw)) {
+    errors.push("defaultProvider must be null or a policy-configurable provider id");
+  }
+
+  const fallbackOrderRaw = c.fallbackOrder;
+  const enabledProvidersRaw = c.enabledProviders;
+  const selectableProvidersRaw = c.userSelectableProviders;
+
+  if (!Array.isArray(fallbackOrderRaw)) errors.push("fallbackOrder must be an array");
+  if (!Array.isArray(enabledProvidersRaw)) errors.push("enabledProviders must be an array");
+  if (!Array.isArray(selectableProvidersRaw)) errors.push("userSelectableProviders must be an array");
+
+  if (typeof c.allowUserSelection !== "boolean") errors.push("allowUserSelection must be a boolean");
+  if (typeof c.fallbackEnabled !== "boolean") errors.push("fallbackEnabled must be a boolean");
+
+  // Stop here if the basic shape is already wrong — every check below
+  // assumes the arrays/booleans above are genuinely present.
+  if (errors.length > 0) return { ok: false, errors };
+
+  const fallbackOrderArr = fallbackOrderRaw as unknown[];
+  const enabledProvidersArr = enabledProvidersRaw as unknown[];
+  const selectableProvidersArr = selectableProvidersRaw as unknown[];
+
+  if (!fallbackOrderArr.every(isPolicyConfigurableProviderId)) errors.push("fallbackOrder contains an unrecognized/unsupported provider id");
+  if (!enabledProvidersArr.every(isPolicyConfigurableProviderId)) errors.push("enabledProviders contains an unrecognized/unsupported provider id");
+  if (!selectableProvidersArr.every(isPolicyConfigurableProviderId)) errors.push("userSelectableProviders contains an unrecognized/unsupported provider id");
+
+  if (errors.length > 0) return { ok: false, errors };
+
+  const fallbackOrder = fallbackOrderArr as PolicyConfigurableProviderId[];
+  const enabledProviders = enabledProvidersArr as PolicyConfigurableProviderId[];
+  const selectableProviders = selectableProvidersArr as PolicyConfigurableProviderId[];
+
+  if (new Set(fallbackOrder).size !== fallbackOrder.length) errors.push("fallbackOrder must not contain duplicate provider ids");
+  if (new Set(enabledProviders).size !== enabledProviders.length) errors.push("enabledProviders must not contain duplicate provider ids");
+  if (new Set(selectableProviders).size !== selectableProviders.length) errors.push("userSelectableProviders must not contain duplicate provider ids");
+
+  if (!selectableProviders.every((p) => enabledProviders.includes(p))) {
+    errors.push("userSelectableProviders must be a subset of enabledProviders — a disabled provider can never be user-selectable");
+  }
+
+  if (isPolicyConfigurableProviderId(defaultProviderRaw) && !enabledProviders.includes(defaultProviderRaw)) {
+    errors.push("defaultProvider must be one of enabledProviders when set");
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+
+  return {
+    ok: true,
+    policy: Object.freeze({
+      mode: c.mode as ProviderMode,
+      defaultProvider: isPolicyConfigurableProviderId(defaultProviderRaw) ? defaultProviderRaw : null,
+      fallbackOrder: Object.freeze([...fallbackOrder]),
+      enabledProviders: Object.freeze([...enabledProviders]),
+      userSelectableProviders: Object.freeze([...selectableProviders]),
+      allowUserSelection: c.allowUserSelection as boolean,
+      fallbackEnabled: c.fallbackEnabled as boolean,
+    }),
+  };
+}

@@ -25,6 +25,7 @@ const EXPECTED_PERMISSIONS = [
   "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
+  "RADAR_AI_POLICY_MANAGE",
 ];
 
 // ---- catalogue shape --------------------------------------------------
@@ -35,10 +36,10 @@ test("STAFF_ROLES is exactly the four workforce roles, CLIENT absent", () => {
   assert.ok(!STAFF_ROLES.includes("client"));
 });
 
-test("PERMISSIONS is exactly the 11 V1 permissions, no duplicates", () => {
+test("PERMISSIONS is exactly the 12 permissions (V1's 11 + RADAR_AI_POLICY_MANAGE), no duplicates", () => {
   assert.deepEqual([...PERMISSIONS], EXPECTED_PERMISSIONS);
-  assert.equal(PERMISSIONS.length, 11);
-  assert.equal(new Set(PERMISSIONS).size, 11, "no duplicate permission ids");
+  assert.equal(PERMISSIONS.length, 12);
+  assert.equal(new Set(PERMISSIONS).size, 12, "no duplicate permission ids");
 });
 
 test("no deferred/speculative permissions leaked in (RADAR_ASSIGN now landed with RADAR-CORE-1A)", () => {
@@ -76,11 +77,11 @@ test("every granted permission is a member of the PERMISSIONS catalogue", () => 
 });
 
 // ---- explicit V1 grants --------------------------------------------
-test("OWNER holds all 11 permissions", () => {
+test("OWNER holds all 12 permissions", () => {
   for (const p of PERMISSIONS) {
     assert.equal(hasPermission("OWNER", p), true, `OWNER should have ${p}`);
   }
-  assert.equal(ROLE_PERMISSIONS.OWNER.length, 11);
+  assert.equal(ROLE_PERMISSIONS.OWNER.length, 12);
 });
 
 test("OWNER_MANAGE is OWNER-only", () => {
@@ -88,6 +89,26 @@ test("OWNER_MANAGE is OWNER-only", () => {
   for (const role of ["ADMIN", "MANAGER", "EMPLOYEE"]) {
     assert.equal(hasPermission(role, "OWNER_MANAGE"), false, `${role} must not have OWNER_MANAGE`);
   }
+});
+
+// ---- RADAR INTELLIGENCE V2.1 Phase B: RADAR_AI_POLICY_MANAGE ----------
+
+test("RADAR_AI_POLICY_MANAGE is OWNER-only (mandatory Phase B matrix: OWNER=true, ADMIN/MANAGER/EMPLOYEE=false)", () => {
+  assert.equal(hasPermission("OWNER", "RADAR_AI_POLICY_MANAGE"), true);
+  for (const role of ["ADMIN", "MANAGER", "EMPLOYEE"]) {
+    assert.equal(hasPermission(role, "RADAR_AI_POLICY_MANAGE"), false, `${role} must not have RADAR_AI_POLICY_MANAGE`);
+  }
+});
+
+test("RADAR_AI_POLICY_MANAGE is independent of SYSTEM_ADMIN -- ADMIN keeps SYSTEM_ADMIN (read-only diagnostics) but never gains policy-write authority", () => {
+  assert.equal(hasPermission("ADMIN", "SYSTEM_ADMIN"), true, "ADMIN's existing read-only diagnostic gate is unaffected");
+  assert.equal(hasPermission("ADMIN", "RADAR_AI_POLICY_MANAGE"), false, "SYSTEM_ADMIN must never imply RADAR_AI_POLICY_MANAGE");
+});
+
+test("RADAR_AI_POLICY_MANAGE is independent of OWNER_MANAGE -- distinct, not overloaded, both OWNER-exclusive", () => {
+  assert.equal(hasPermission("OWNER", "OWNER_MANAGE"), true);
+  assert.equal(hasPermission("OWNER", "RADAR_AI_POLICY_MANAGE"), true);
+  assert.notEqual("OWNER_MANAGE", "RADAR_AI_POLICY_MANAGE");
 });
 
 test("ADMIN lacks OWNER_MANAGE but has SYSTEM_ADMIN / WORKFORCE_MANAGE / BILLING_MANAGE", () => {

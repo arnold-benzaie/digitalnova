@@ -61,6 +61,7 @@ export const AUDIT_CATEGORY_LABEL: Record<string, string> = {
   report: "Rapports",
   audit: "Audit IA",
   owner: "Propriétaire",
+  radar_ai: "IA RADAR (politique fournisseur)",
 };
 
 export const AUDIT_CATEGORY_LABEL_EN: Record<string, string> = {
@@ -76,6 +77,7 @@ export const AUDIT_CATEGORY_LABEL_EN: Record<string, string> = {
   report: "Reports",
   audit: "AI Audit",
   owner: "Owner governance",
+  radar_ai: "RADAR AI (provider policy)",
 };
 
 export function getAuditCategoryLabel(locale: Locale): Record<string, string> {
@@ -265,6 +267,8 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return "Administrateur réactivé";
     case "owner.admin_offboarded":
       return "Administrateur retiré de l’administration";
+    case "radar_ai.policy_updated":
+      return "Politique de fournisseur IA RADAR mise à jour";
     default:
       return entry.action;
   }
@@ -443,6 +447,8 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return "Administrator reactivated";
     case "owner.admin_offboarded":
       return "Administrator removed from administration";
+    case "radar_ai.policy_updated":
+      return "RADAR AI provider policy updated";
     default:
       return entry.action;
   }

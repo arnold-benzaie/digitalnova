@@ -45,6 +45,17 @@ export const PERMISSIONS = [
   "RADAR_ASSIGN", // assign a prospect to ANOTHER staff member / reassign / unassign another's (RADAR-CORE-1A: assignProspect / foreign unassignProspect)
   "ANALYTICS_TEAM_VIEW", // commercial-analytics + CRM performance dashboard (today: requireStaffRole)
   "GBP_INTEGRATION_MANAGE", // AF-1 staff path in gbp/analytics/search-console connect/sync
+  // RADAR INTELLIGENCE V2.1 Phase B — a SECOND, deliberately narrow
+  // OWNER-exclusive capability, matching OWNER_MANAGE's own precedent
+  // rather than overloading it: OWNER_MANAGE means "promote/demote OWNER
+  // & ADMIN" specifically, and SYSTEM_ADMIN is already ADMIN-inclusive
+  // (integrations/security config read+operate), so neither is safe to
+  // reuse for "may write the global AI provider policy" without silently
+  // widening ADMIN's authority. Mutating which AI providers are enabled,
+  // in what order, and whether users may choose one is OWNER-only
+  // governance, exactly like OWNER_MANAGE's own scope — so it gets its
+  // own explicit permission, granted to OWNER alone.
+  "RADAR_AI_POLICY_MANAGE",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -60,6 +71,7 @@ const OWNER_PERMISSIONS: readonly Permission[] = [
   "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
+  "RADAR_AI_POLICY_MANAGE",
 ];
 
 const ADMIN_PERMISSIONS: readonly Permission[] = [

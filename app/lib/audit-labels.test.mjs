@@ -96,3 +96,19 @@ test("unknown action still falls back to the raw action string (existing behavio
   assert.equal(describeAuditEntry(ownerEntry("owner.something_new"), "fr"), "owner.something_new");
   assert.equal(describeAuditEntry(ownerEntry("totally.unknown"), "en"), "totally.unknown");
 });
+
+/* ------------------------------------------------------------------ *
+ * RADAR INTELLIGENCE V2.1 — Phase B — radar_ai.policy_updated label
+ * ------------------------------------------------------------------ */
+
+test("radar_ai.policy_updated — real FR/EN labels (never the raw action string)", () => {
+  const entryFor = (metadata = {}) => ({ action: "radar_ai.policy_updated", targetType: "radar_ai_provider_policy", targetId: "global", metadata });
+  assert.equal(describeAuditEntry(entryFor(), "fr"), "Politique de fournisseur IA RADAR mise à jour");
+  assert.equal(describeAuditEntry(entryFor(), "en"), "RADAR AI provider policy updated");
+});
+
+test("category: radar_ai.policy_updated -> 'radar_ai' -> localized category labels", () => {
+  assert.equal(categoryOf("radar_ai.policy_updated"), "radar_ai");
+  assert.equal(getAuditCategoryLabel("fr").radar_ai, "IA RADAR (politique fournisseur)");
+  assert.equal(getAuditCategoryLabel("en").radar_ai, "RADAR AI (provider policy)");
+});

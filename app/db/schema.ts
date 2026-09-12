@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   index,
   check,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -1950,5 +1951,75 @@ export const staffInvitations = pgTable(
     index("staff_invitations_email_idx").on(table.email),
     index("staff_invitations_workspace_status_idx").on(table.workspaceOrgId, table.status),
     check("staff_invitations_status_check", sql`${table.status} IN ('pending','claimed','revoked')`),
+  ],
+);
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase B — Provider Policy persistence.
+ *
+ * A SINGLE, PUBLIC-MAP-WIDE singleton row — NOT scoped to a CRM client
+ * organization (never `organizations.id` the way `staffMembers`/
+ * `staffInvitations` reference the internal workspace), NOT per-client,
+ * NOT per-workspace: RADAR is a single-tenant internal staff tool, so
+ * there is exactly one PUBLIC-MAP-wide AI-provider policy, full stop.
+ * `id` is fixed to the literal `'global'`, enforced by a CHECK constraint
+ * (not merely a default): the primary key alone already prevents a
+ * SECOND row with the SAME id, and the CHECK additionally makes `'global'`
+ * the only value the column can ever legally hold — together these make
+ * more than one row structurally impossible, with no separate "is this
+ * the singleton" flag/index to keep in sync.
+ *
+ * Deliberately secret-free: no API key, model secret, env value, or
+ * provider credential is ever stored here — those remain server-only env
+ * vars (config-loader.ts), entirely independent of this table. This
+ * table only ever answers "is provider X allowed, and in what order" —
+ * never "can provider X technically run" (that stays registry/env
+ * state, unchanged by this table's mere existence).
+ *
+ * A raw row from this table is NEVER trusted directly by the router —
+ * lib/radar-intelligence/provider-policy-store.ts validates every field
+ * against a closed contract (known provider ids, known mode values,
+ * real arrays, no duplicates, selectable ⊆ enabled) before it can ever
+ * reach resolveProviderPolicy(). An empty table, a missing row, or a
+ * malformed row all safely resolve to the exact same in-code
+ * DEFAULT_PROVIDER_POLICY Production has always used — this table is
+ * additive and opt-in, never a single point of failure for the
+ * deterministic RADAR core or the AI advisory feature.
+ */
+export const radarAiProviderPolicy = pgTable(
+  "radar_ai_provider_policy",
+  {
+    id: text("id").primaryKey().default("global"),
+    mode: text("mode").notNull().default("AUTO"), // "AUTO" | "MANUAL"
+    defaultProvider: text("default_provider"), // nullable provider id — validated by the store, never trusted raw
+    fallbackOrder: jsonb("fallback_order").$type<string[]>().notNull().default([]),
+    enabledProviders: jsonb("enabled_providers").$type<string[]>().notNull().default([]),
+    selectableProviders: jsonb("selectable_providers").$type<string[]>().notNull().default([]),
+    allowUserSelection: boolean("allow_user_selection").notNull().default(false),
+    fallbackEnabled: boolean("fallback_enabled").notNull().default(true),
+    // No inline .references() here on purpose: Drizzle's auto-generated
+    // FK constraint name for this column ("radar_ai_provider_policy_
+    // updated_by_staff_member_id_staff_members_id_fk", 71 bytes) exceeds
+    // Postgres's 63-byte NAMEDATALEN identifier limit, so Postgres would
+    // silently store it truncated — a real mismatch between schema.ts's
+    // expected name and the live constraint name, caught by
+    // scripts/migration-replay-check.mjs (a THIRD case, distinct from
+    // its two pre-existing accepted legacy truncations elsewhere in this
+    // file). The explicit `foreignKey({ name: ... })` below gives it a
+    // short, deliberate name instead, so no truncation ever happens.
+    updatedByStaffMemberId: uuid("updated_by_staff_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Belt-and-suspenders singleton enforcement, independent of the
+    // primary key: this column can never hold anything but 'global'.
+    check("radar_ai_provider_policy_singleton_check", sql`${table.id} = 'global'`),
+    check("radar_ai_provider_policy_mode_check", sql`${table.mode} IN ('AUTO','MANUAL')`),
+    foreignKey({
+      name: "radar_ai_provider_policy_updated_by_staff_member_fk",
+      columns: [table.updatedByStaffMemberId],
+      foreignColumns: [staffMembers.id],
+    }).onDelete("set null"),
   ],
 );

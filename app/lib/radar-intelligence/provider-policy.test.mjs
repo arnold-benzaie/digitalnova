@@ -17,7 +17,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { DEFAULT_PROVIDER_POLICY, resolveProviderPolicy } from "./provider-policy.ts";
+import {
+  DEFAULT_PROVIDER_POLICY,
+  resolveProviderPolicy,
+  POLICY_CONFIGURABLE_PROVIDER_IDS,
+  isPolicyConfigurableProviderId,
+  validateProviderPolicyCandidate,
+} from "./provider-policy.ts";
 
 function policy(overrides = {}) {
   return {
@@ -270,4 +276,176 @@ test("requestedProviderId omitted entirely (no preference at all) -> plain AUTO,
 test("requestedProviderId explicitly null -> treated identically to omitted (still AUTO, not the invalid-fallback source)", () => {
   const resolved = resolveProviderPolicy({ ownerPolicy: DEFAULT_PROVIDER_POLICY, registeredProviders: BOTH_REGISTERED, requestedProviderId: null });
   assert.equal(resolved.source, "auto-default");
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase B — validateProviderPolicyCandidate()
+//
+// Mandatory test matrix (mission Step 22, items A-J): the fail-closed,
+// all-or-nothing DB/OWNER-input validator. Every malformed candidate
+// below must be REJECTED as a whole -- never partially trusted, never
+// silently normalized into a mix of real and substituted fields.
+// =====================================================================
+
+function candidate(overrides = {}) {
+  return {
+    mode: "AUTO",
+    defaultProvider: "anthropic",
+    fallbackOrder: ["anthropic", "openai"],
+    enabledProviders: ["anthropic", "openai"],
+    userSelectableProviders: [],
+    allowUserSelection: false,
+    fallbackEnabled: true,
+    ...overrides,
+  };
+}
+
+test("POLICY_CONFIGURABLE_PROVIDER_IDS is exactly [anthropic, openai] -- gemini/deepseek/kimi/local excluded in Phase B", () => {
+  assert.deepEqual([...POLICY_CONFIGURABLE_PROVIDER_IDS], ["anthropic", "openai"]);
+  for (const future of ["gemini", "deepseek", "kimi", "local"]) {
+    assert.ok(!POLICY_CONFIGURABLE_PROVIDER_IDS.includes(future), `${future} must not be policy-configurable yet`);
+  }
+});
+
+test("isPolicyConfigurableProviderId: true only for anthropic/openai, false for everything else including future placeholders", () => {
+  assert.equal(isPolicyConfigurableProviderId("anthropic"), true);
+  assert.equal(isPolicyConfigurableProviderId("openai"), true);
+  for (const bad of ["gemini", "deepseek", "kimi", "local", "deterministic", "", "ANTHROPIC", 123, null, undefined, {}]) {
+    assert.equal(isPolicyConfigurableProviderId(bad), false, `${JSON.stringify(bad)} must not be policy-configurable`);
+  }
+});
+
+// ---- A: no row is handled by the store, not the validator -- N/A here ----
+
+// ---- B: a valid, well-formed candidate validates ----
+
+test("B: a fully valid candidate policy validates and round-trips its exact field values", () => {
+  const result = validateProviderPolicyCandidate(candidate());
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.policy, candidate());
+});
+
+test("B variant: a valid MANUAL policy with user selection validates", () => {
+  const result = validateProviderPolicyCandidate(
+    candidate({ mode: "MANUAL", allowUserSelection: true, userSelectableProviders: ["openai"], defaultProvider: "openai" }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.policy.mode, "MANUAL");
+  assert.deepEqual(result.policy.userSelectableProviders, ["openai"]);
+});
+
+// ---- C: malformed mode ----
+
+test("C: malformed mode is rejected as a whole (not silently coerced to AUTO)", () => {
+  for (const badMode of ["auto", "manual", "AUTOMATIC", "", null, 1, undefined]) {
+    const result = validateProviderPolicyCandidate(candidate({ mode: badMode }));
+    assert.equal(result.ok, false, `mode ${JSON.stringify(badMode)} must be rejected`);
+  }
+});
+
+// ---- D: malformed arrays ----
+
+test("D: non-array fallbackOrder/enabledProviders/userSelectableProviders are rejected", () => {
+  for (const field of ["fallbackOrder", "enabledProviders", "userSelectableProviders"]) {
+    for (const badValue of ["anthropic", null, 42, { anthropic: true }]) {
+      const result = validateProviderPolicyCandidate(candidate({ [field]: badValue }));
+      assert.equal(result.ok, false, `${field}=${JSON.stringify(badValue)} must be rejected`);
+    }
+  }
+});
+
+// ---- E: unknown provider id -- explicit rejection contract ----
+
+test("E: an unknown/future provider id anywhere in the arrays is rejected outright (not stripped, not normalized)", () => {
+  for (const field of ["fallbackOrder", "enabledProviders", "userSelectableProviders"]) {
+    for (const forged of ["gemini", "deepseek", "kimi", "local", "some-forged-id", "DROP TABLE"]) {
+      const result = validateProviderPolicyCandidate(candidate({ [field]: [forged] }));
+      assert.equal(result.ok, false, `${field} containing ${forged} must be rejected`);
+    }
+  }
+});
+
+test("E variant: defaultProvider set to an unknown/future provider id is rejected", () => {
+  for (const forged of ["gemini", "deepseek", "kimi", "local", "not-a-provider"]) {
+    const result = validateProviderPolicyCandidate(candidate({ defaultProvider: forged }));
+    assert.equal(result.ok, false, `defaultProvider=${forged} must be rejected`);
+  }
+});
+
+// ---- F: duplicate ids -- deterministic rejection ----
+
+test("F: duplicate provider ids within an array are rejected (deterministic: reject, never silently de-duplicate)", () => {
+  for (const field of ["fallbackOrder", "enabledProviders", "userSelectableProviders"]) {
+    const result = validateProviderPolicyCandidate(candidate({ [field]: field === "userSelectableProviders" ? ["anthropic", "anthropic"] : ["anthropic", "openai", "anthropic"] }));
+    assert.equal(result.ok, false, `duplicate ids in ${field} must be rejected`);
+  }
+});
+
+// ---- G: selectable-not-enabled -- fail closed ----
+
+test("G: userSelectableProviders not a subset of enabledProviders is rejected (fail closed)", () => {
+  const result = validateProviderPolicyCandidate(candidate({ enabledProviders: ["anthropic"], userSelectableProviders: ["openai"] }));
+  assert.equal(result.ok, false);
+});
+
+// ---- defaultProvider must be one of enabledProviders when non-null (chosen deterministic contract) ----
+
+test("defaultProvider set but excluded from enabledProviders is rejected (chosen contract: reject, not silently normalize)", () => {
+  const result = validateProviderPolicyCandidate(candidate({ enabledProviders: ["openai"], defaultProvider: "anthropic" }));
+  assert.equal(result.ok, false);
+});
+
+test("defaultProvider null is always valid regardless of enabledProviders", () => {
+  const result = validateProviderPolicyCandidate(candidate({ defaultProvider: null }));
+  assert.equal(result.ok, true);
+});
+
+// ---- booleans ----
+
+test("non-boolean allowUserSelection/fallbackEnabled are rejected", () => {
+  for (const field of ["allowUserSelection", "fallbackEnabled"]) {
+    for (const badValue of ["true", 1, null, undefined, "false"]) {
+      const result = validateProviderPolicyCandidate(candidate({ [field]: badValue }));
+      assert.equal(result.ok, false, `${field}=${JSON.stringify(badValue)} must be rejected`);
+    }
+  }
+});
+
+// ---- H: not an object at all ----
+
+test("H: a completely malformed candidate (not an object, array, null, primitive) is rejected without throwing", () => {
+  for (const bad of [null, undefined, "a string", 42, true, [], ["array", "not", "object"]]) {
+    assert.doesNotThrow(() => validateProviderPolicyCandidate(bad));
+    const result = validateProviderPolicyCandidate(bad);
+    assert.equal(result.ok, false);
+  }
+});
+
+// ---- I: DEFAULT_PROVIDER_POLICY is never mutated by validation ----
+
+test("I: validating any candidate never mutates DEFAULT_PROVIDER_POLICY", () => {
+  const before = JSON.parse(JSON.stringify(DEFAULT_PROVIDER_POLICY));
+  validateProviderPolicyCandidate(candidate({ mode: "bogus" }));
+  validateProviderPolicyCandidate(candidate());
+  validateProviderPolicyCandidate({ garbage: true });
+  assert.deepEqual(DEFAULT_PROVIDER_POLICY, before);
+});
+
+// ---- J: returned policy's arrays are fresh copies, never aliasing the candidate's arrays ----
+
+test("J: a validated policy's arrays are frozen, independent copies -- mutating the original candidate cannot retroactively alter it", () => {
+  const input = candidate();
+  const result = validateProviderPolicyCandidate(input);
+  assert.equal(result.ok, true);
+  assert.ok(Object.isFrozen(result.policy.fallbackOrder));
+  assert.ok(Object.isFrozen(result.policy.enabledProviders));
+  assert.ok(Object.isFrozen(result.policy.userSelectableProviders));
+  assert.notEqual(result.policy.fallbackOrder, input.fallbackOrder);
+  input.fallbackOrder.push("openai", "openai"); // mutate the original after validation
+  assert.deepEqual(result.policy.fallbackOrder, ["anthropic", "openai"], "already-returned policy must be unaffected by later mutation of the input");
+});
+
+test("validateProviderPolicyCandidate never throws for any candidate shape, including prototype-polluting attempts", () => {
+  const weird = JSON.parse('{"mode":"AUTO","defaultProvider":null,"fallbackOrder":[],"enabledProviders":[],"userSelectableProviders":[],"allowUserSelection":false,"fallbackEnabled":true,"__proto__":{"polluted":true}}');
+  assert.doesNotThrow(() => validateProviderPolicyCandidate(weird));
 });

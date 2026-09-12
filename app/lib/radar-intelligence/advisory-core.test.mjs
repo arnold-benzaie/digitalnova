@@ -17,9 +17,35 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 
 mock.module("server-only", { namedExports: {} });
+// advisory-core.ts imports provider-policy-store.ts (RADAR INTELLIGENCE
+// V2.1 Phase B), which imports @/db at module scope. @/db's real module
+// throws synchronously at import time when DATABASE_URL isn't set (see
+// lib/rbac/require-staff-member.test.mjs for the same pattern). Almost
+// every test below supplies its own `deps.loadProviderPolicy` (see
+// deps() below), so the real store's function is never actually CALLED
+// for them -- this fake only needs to exist so the static import
+// doesn't throw. The "Phase B: real DB-backed store integration"
+// section further down DOES exercise the real store against this same
+// fake, via `dbPolicyRowState` (a mutable, per-test-controllable select
+// result/error), proving the store <-> advisory-core wiring end-to-end.
+let dbPolicyRowState = { rows: [] };
+const fakeDb = {
+  select: () => ({
+    from: () => ({
+      where: () => ({
+        limit: () => {
+          if (dbPolicyRowState.error) return Promise.reject(dbPolicyRowState.error);
+          return Promise.resolve(dbPolicyRowState.rows ?? []);
+        },
+      }),
+    }),
+  }),
+};
+mock.module("@/db", { namedExports: { db: fakeDb } });
 
 const { produceRadarAdvisory } = await import("./advisory-core.ts");
 const { createRadarIntelligenceRegistry } = await import("./adapters/index.ts");
+const { DEFAULT_PROVIDER_POLICY } = await import("./provider-policy.ts");
 
 const CLIENT = "11111111-1111-4111-8111-111111111111";
 const FAKE_KEY = "sk-ant-ADVISORY-MUST-NOT-LEAK";
@@ -49,7 +75,10 @@ function deps(overrides = {}) {
     createRegistry: overrides.createRegistry ?? (() => createRadarIntelligenceRegistry({})),
     clock,
     ...(overrides.locale ? { locale: overrides.locale } : {}),
-    ...(overrides.providerPolicy ? { providerPolicy: overrides.providerPolicy } : {}),
+    // RADAR INTELLIGENCE V2.1 Phase B: always inject a `loadProviderPolicy`
+    // fake (defaulting to DEFAULT_PROVIDER_POLICY, matching today's exact
+    // Production routing) so no test ever touches the real DB-backed store.
+    loadProviderPolicy: async () => overrides.providerPolicy ?? DEFAULT_PROVIDER_POLICY,
   };
 }
 
@@ -460,7 +489,7 @@ test("diagnostic: not_applicable (prospect not qualified) carries NO diagnostic"
 
 test("the deps bag has no mutation capability — only loaders + a registry factory", async () => {
   const d = deps();
-  assert.deepEqual(Object.keys(d).sort(), ["clock", "createRegistry", "loadDisplayContext", "loadQualification"].sort());
+  assert.deepEqual(Object.keys(d).sort(), ["clock", "createRegistry", "loadDisplayContext", "loadProviderPolicy", "loadQualification"].sort());
   // produceRadarAdvisory itself takes only (clientId, deps) — no provider,
   // model, userId, or workspace parameter.
   assert.equal(produceRadarAdvisory.length, 2);
@@ -814,4 +843,119 @@ test("observability: no log line, across every failure path above, ever contains
   const withHttpStatus = allCalls.filter((c) => "httpStatus" in c[1]);
   assert.equal(withHttpStatus.length, 1);
   assert.equal(withHttpStatus[0][1].httpStatus, 401);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase B: real DB-backed store integration
+//
+// Mandatory test matrix (mission Step 24, 7 numbered scenarios). Unlike
+// every test above (which injects `deps.loadProviderPolicy` directly),
+// these tests deliberately OMIT it so produceRadarAdvisory falls through
+// to its real default — provider-policy-store.ts::loadProviderPolicy —
+// against the shared `fakeDb` above, proving the store <-> resolver
+// <-> router wiring end-to-end without ever touching a live database.
+// =====================================================================
+
+function depsRealStore(overrides = {}) {
+  const d = deps(overrides);
+  delete d.loadProviderPolicy; // force advisory-core's own real-store default
+  return d;
+}
+
+function dbRow(overrides = {}) {
+  return {
+    id: "global",
+    mode: "AUTO",
+    defaultProvider: "anthropic",
+    fallbackOrder: ["anthropic", "openai"],
+    enabledProviders: ["anthropic", "openai"],
+    selectableProviders: [],
+    allowUserSelection: false,
+    fallbackEnabled: true,
+    updatedByStaffMemberId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+test.beforeEach(() => {
+  dbPolicyRowState = { rows: [] };
+});
+
+// ---- 1: empty table (no row) -> DEFAULT_PROVIDER_POLICY, today's exact routing ----
+
+test("Phase B #1: no policy row in the DB -> default AUTO routing (Anthropic primary, OpenAI fallback) via the REAL store", async () => {
+  dbPolicyRowState = { rows: [] };
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0, "empty policy table must not change Production routing at all");
+});
+
+// ---- 2: DB unavailable, Anthropic configured -> default still works ----
+
+test("Phase B #2: DB read throws -> loadProviderPolicy() falls back to DEFAULT_PROVIDER_POLICY, advisory still succeeds (no crash)", async () => {
+  dbPolicyRowState = { error: new Error("connection refused") };
+  const anthropicT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: enabledRegistry(anthropicT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+});
+
+// ---- 3: valid stored policy, OpenAI-first -> resolver sends OpenAI first ----
+
+test("Phase B #3: a valid stored policy with OpenAI as defaultProvider -> OpenAI is dispatched first, Anthropic only as fallback", async () => {
+  dbPolicyRowState = { rows: [dbRow({ defaultProvider: "openai", fallbackOrder: ["openai", "anthropic"] })] };
+  const anthropicT = { async generate() { throw new Error("must not be primary"); }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const openaiT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+});
+
+// ---- 4: fallbackEnabled=false in the stored policy -> no cross-provider fallback ----
+
+test("Phase B #4: a stored policy with fallbackEnabled=false -> Anthropic failure never falls back to OpenAI", async () => {
+  dbPolicyRowState = { rows: [dbRow({ fallbackEnabled: false })] };
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "unavailable");
+  assert.equal(openaiHits, 0);
+});
+
+// ---- 5: stored policy disables OpenAI -> never attempted even though registered ----
+
+test("Phase B #5: a stored policy excluding OpenAI from enabledProviders -> OpenAI never attempted even though it is registered/configured", async () => {
+  dbPolicyRowState = { rows: [dbRow({ enabledProviders: ["anthropic"], fallbackOrder: ["anthropic"] })] };
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- disabled by stored policy" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: dualRegistry(anthropicT, openaiT) }));
+  assert.equal(r.status, "unavailable");
+  assert.equal(openaiHits, 0);
+});
+
+// ---- 6: malformed stored row -> full fallback to DEFAULT_PROVIDER_POLICY, default routing still works ----
+
+test("Phase B #6: a malformed stored row (invalid mode) -> falls back to DEFAULT_PROVIDER_POLICY, default AUTO routing still works", async () => {
+  dbPolicyRowState = { rows: [dbRow({ mode: "bogus" })] };
+  const anthropicT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: enabledRegistry(anthropicT) }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+});
+
+// ---- 7: zero configured/registered providers -> deterministic-safe unavailable, never throws ----
+
+test("Phase B #7: zero registered providers, even with a valid stored policy -> deterministic-safe 'unavailable', never throws", async () => {
+  dbPolicyRowState = { rows: [dbRow()] };
+  const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: () => createRadarIntelligenceRegistry({}) }));
+  assert.equal(r.status, "unavailable");
 });
