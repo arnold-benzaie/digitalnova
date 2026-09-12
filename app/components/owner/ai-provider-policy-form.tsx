@@ -11,26 +11,28 @@ import { Button } from "@/components/gbp-audit/ui/button";
 import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
 
 /**
- * RADAR INTELLIGENCE V2.1 — Phase C — the OWNER-only provider-policy
+ * RADAR INTELLIGENCE V2.1 — Phase C/D — the OWNER-only provider-policy
  * settings form (/admin/owner/ai-providers).
  *
  * PRESENTATION + client-side pre-validation only. Every mutation goes
  * through the requireStaffMember("RADAR_AI_POLICY_MANAGE")-gated wrappers
  * in lib/actions/radar-ai-policy-ui.ts, which delegate to the
- * authoritative Phase B validation (validateProviderPolicyCandidate) —
+ * authoritative Phase B/D validation (validateProviderPolicyCandidate) —
  * this component cannot bypass a single server-side check. Client
  * validation exists only to prevent an obviously-invalid submission from
  * ever reaching the network; the server remains the single source of
  * truth and is re-checked on every save regardless of what this component
  * thinks is valid.
  *
- * `mode` stays fixed at "AUTO" — never rendered as an editable control —
- * and `allowUserSelection` / `userSelectableProviders` are shown but
- * disabled: see ai-provider-policy.ts's dictionary docstring for why
- * (resolveProviderPolicy() never actually reads `mode`, and
- * `requestedProviderId` is always `null` in the real call graph today, so
- * a live control here would be a control with zero real effect — a fake
- * feature this mission explicitly forbids presenting as active).
+ * `mode` stays fixed at "AUTO" — never rendered as an editable control:
+ * resolveProviderPolicy() never actually reads `mode` (provider-policy.ts),
+ * so exposing a "Manual" control here would be a control with zero real
+ * effect — a fake feature this mission explicitly forbids presenting as
+ * active. `allowUserSelection` / `userSelectableProviders` (Phase D), in
+ * contrast, are NOW live/interactive here — Phase D wired a real,
+ * per-request selector into the RADAR advisory surface
+ * (components/crm/radar-intelligence-advisory.tsx) that these settings
+ * actually control.
  */
 
 export type ProviderStatusBadge = "CONFIGURED" | "NOT_CONFIGURED" | "UNKNOWN";
@@ -63,24 +65,47 @@ export type FormState = {
   enabledProviders: PolicyConfigurableProviderId[];
   defaultProvider: PolicyConfigurableProviderId | null;
   fallbackEnabled: boolean;
+  /** RADAR INTELLIGENCE V2.1 Phase D — the master switch for exposing a
+   * per-request provider selector to users at all. */
+  allowUserSelection: boolean;
+  /** Subset of enabledProviders a user may explicitly request — always
+   * checked in ADDITION to enabledProviders server-side, never instead
+   * of it (provider-policy.ts). */
+  userSelectableProviders: PolicyConfigurableProviderId[];
 };
+
+export type FormValidationError =
+  | "errAtLeastOneEnabled"
+  | "errDefaultMustBeEnabled"
+  | "errSelectableMustBeEnabled"
+  | "errAllowSelectionRequiresSelectable";
 
 /** Pure: client-side validation-error KEYS (into the dictionary) for the
  * current form state — a strict SUBSET of what the server itself checks,
  * used only to disable Save / show inline hints. Exported for testing. */
-export function validateFormState(state: FormState): Array<"errAtLeastOneEnabled" | "errDefaultMustBeEnabled"> {
-  const errors: Array<"errAtLeastOneEnabled" | "errDefaultMustBeEnabled"> = [];
+export function validateFormState(state: FormState): FormValidationError[] {
+  const errors: FormValidationError[] = [];
   if (state.enabledProviders.length === 0) errors.push("errAtLeastOneEnabled");
   if (state.defaultProvider !== null && !state.enabledProviders.includes(state.defaultProvider)) {
     errors.push("errDefaultMustBeEnabled");
   }
+  // RADAR INTELLIGENCE V2.1 Phase D — rules 1/5/6 (mission "OWNER POLICY
+  // — ACTIVATE PHASE D CONTROLS"): a selectable provider must also be
+  // enabled, and turning selection ON requires at least one selectable
+  // provider — a "live" selector with zero options is self-contradictory
+  // (mirrors validateProviderPolicyCandidate's own new rule).
+  if (!state.userSelectableProviders.every((id) => state.enabledProviders.includes(id))) {
+    errors.push("errSelectableMustBeEnabled");
+  }
+  if (state.allowUserSelection && state.userSelectableProviders.length === 0) {
+    errors.push("errAllowSelectionRequiresSelectable");
+  }
   return errors;
 }
 
-/** Pure: builds the exact ProviderPolicy-shaped candidate this V1 UI is
- * ever allowed to submit — `mode` fixed "AUTO", `allowUserSelection`
- * fixed `false`, `userSelectableProviders` fixed `[]` (Phase D territory,
- * never activated from here). Exported for testing. */
+/** Pure: builds the exact ProviderPolicy-shaped candidate this UI
+ * submits — `mode` stays fixed "AUTO" (never editable; see this file's
+ * own docstring for why). Exported for testing. */
 export function buildCandidate(state: FormState): ProviderPolicy {
   const fallbackOrder = deriveFallbackOrder(state.enabledProviders, state.defaultProvider);
   return {
@@ -88,21 +113,26 @@ export function buildCandidate(state: FormState): ProviderPolicy {
     defaultProvider: state.defaultProvider,
     fallbackOrder,
     enabledProviders: [...state.enabledProviders],
-    userSelectableProviders: [],
-    allowUserSelection: false,
+    userSelectableProviders: [...state.userSelectableProviders],
+    allowUserSelection: state.allowUserSelection,
     fallbackEnabled: state.fallbackEnabled,
   };
 }
 
 function policyToFormState(policy: ProviderPolicy): FormState {
-  const enabled = policy.enabledProviders.filter((id): id is PolicyConfigurableProviderId =>
-    (POLICY_CONFIGURABLE_PROVIDER_IDS as readonly string[]).includes(id),
-  );
+  const isConfigurable = (id: string): id is PolicyConfigurableProviderId => (POLICY_CONFIGURABLE_PROVIDER_IDS as readonly string[]).includes(id);
+  const enabled = policy.enabledProviders.filter(isConfigurable);
   const defaultProvider =
     policy.defaultProvider && enabled.includes(policy.defaultProvider as PolicyConfigurableProviderId)
       ? (policy.defaultProvider as PolicyConfigurableProviderId)
       : null;
-  return { enabledProviders: enabled, defaultProvider, fallbackEnabled: policy.fallbackEnabled };
+  // Defensive: only ever surface a selectable provider that is BOTH a
+  // known id AND currently enabled — a stored policy could in principle
+  // have selectable-but-since-disabled entries (rule 4: "may remain
+  // stored" when allowUserSelection was off); this form never presents
+  // that as a valid-looking checked box.
+  const userSelectableProviders = policy.userSelectableProviders.filter((id): id is PolicyConfigurableProviderId => isConfigurable(id) && enabled.includes(id));
+  return { enabledProviders: enabled, defaultProvider, fallbackEnabled: policy.fallbackEnabled, allowUserSelection: policy.allowUserSelection, userSelectableProviders };
 }
 
 /** Structural (plain `string`) so either locale's `aiProviderPolicy` slice
@@ -147,8 +177,31 @@ export function AiProviderPolicyForm({
       // If the current default is being disabled, fall back to
       // Automatic rather than leaving an invalid selection in the form.
       const defaultProvider = prev.defaultProvider && !enabledProviders.includes(prev.defaultProvider) ? null : prev.defaultProvider;
-      return { ...prev, enabledProviders, defaultProvider };
+      // RADAR INTELLIGENCE V2.1 Phase D — a disabled provider can never
+      // stay selectable in the form either (rule 6): drop it from
+      // userSelectableProviders in the SAME state update, so the two
+      // controls never disagree even for one render.
+      const userSelectableProviders = enabledProviders.includes(id) ? prev.userSelectableProviders : prev.userSelectableProviders.filter((p) => p !== id);
+      return { ...prev, enabledProviders, defaultProvider, userSelectableProviders };
     });
+  }
+
+  function toggleSelectable(id: PolicyConfigurableProviderId, next: boolean) {
+    setSavedHint(null);
+    setErrorCode(null);
+    setState((prev) => ({
+      ...prev,
+      userSelectableProviders: next ? [...new Set([...prev.userSelectableProviders, id])] : prev.userSelectableProviders.filter((p) => p !== id),
+    }));
+  }
+
+  function toggleAllowUserSelection(next: boolean) {
+    setSavedHint(null);
+    setErrorCode(null);
+    // Turning selection OFF deliberately keeps whatever was already
+    // selected (mission rule 4: "may remain stored") — re-enabling later
+    // restores the OWNER's previous choice without re-selecting.
+    setState((prev) => ({ ...prev, allowUserSelection: next }));
   }
 
   function handleSave() {
@@ -276,23 +329,48 @@ export function AiProviderPolicyForm({
         </Field>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-xl border border-dashed border-pm-gris-2 p-4">
+      <section className="flex flex-col gap-3 rounded-xl border border-pm-gris-2 p-4">
         <h2 className="text-sm font-semibold text-pm-noir">{t.sectionUserSelection}</h2>
-        <p className="text-xs text-pm-gris">{t.userSelectionReservedNote}</p>
-        <label className="flex cursor-not-allowed items-center justify-between gap-4 opacity-60">
+        <p className="text-xs text-pm-gris">{t.userSelectionNote}</p>
+        <label className="flex cursor-pointer items-center justify-between gap-4">
           <span className="text-sm text-pm-noir">{t.allowUserSelectionLabel}</span>
-          <input type="checkbox" checked={false} disabled className="h-5 w-5 shrink-0 rounded border-pm-gris-2" />
+          <input
+            type="checkbox"
+            checked={state.allowUserSelection}
+            disabled={isPending}
+            onChange={(e) => toggleAllowUserSelection(e.target.checked)}
+            className="h-5 w-5 shrink-0 rounded border-pm-gris-2 accent-pm-bleu-eu"
+          />
         </label>
+        {clientErrors.includes("errAllowSelectionRequiresSelectable") && (
+          <p role="alert" className="text-xs font-medium text-pm-rouge">
+            {t.errAllowSelectionRequiresSelectable}
+          </p>
+        )}
         <div>
           <p className="mb-1 text-xs text-pm-gris">{t.selectableProvidersLabel}</p>
-          <div className="flex gap-4 opacity-60">
-            {POLICY_CONFIGURABLE_PROVIDER_IDS.map((id) => (
-              <label key={id} className="flex cursor-not-allowed items-center gap-2 text-sm text-pm-noir">
-                <input type="checkbox" checked={false} disabled className="h-4 w-4 rounded border-pm-gris-2" />
-                {t[PROVIDER_DISPLAY_KEYS[id]]}
-              </label>
-            ))}
+          <div className="flex gap-4">
+            {POLICY_CONFIGURABLE_PROVIDER_IDS.map((id) => {
+              const enabled = state.enabledProviders.includes(id);
+              return (
+                <label key={id} className={`flex items-center gap-2 text-sm text-pm-noir ${enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+                  <input
+                    type="checkbox"
+                    checked={state.userSelectableProviders.includes(id)}
+                    disabled={isPending || !enabled}
+                    onChange={(e) => toggleSelectable(id, e.target.checked)}
+                    className="h-4 w-4 rounded border-pm-gris-2 accent-pm-bleu-eu"
+                  />
+                  {t[PROVIDER_DISPLAY_KEYS[id]]}
+                </label>
+              );
+            })}
           </div>
+          {clientErrors.includes("errSelectableMustBeEnabled") && (
+            <p role="alert" className="mt-1 text-xs font-medium text-pm-rouge">
+              {t.errSelectableMustBeEnabled}
+            </p>
+          )}
         </div>
       </section>
 

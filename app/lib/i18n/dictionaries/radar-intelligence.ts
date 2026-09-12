@@ -29,6 +29,16 @@ export const radarIntelligence = {
     notApplicable: "Aucun avis IA : ce prospect n'est pas encore qualifié pour une analyse.",
     disclaimer: "L'avis IA est consultatif. Il ne modifie ni la priorité, ni le score, ni la qualification, ni l'attribution, ni les relances.",
     diagnosticPrefix: "Diagnostic :",
+    /** RADAR INTELLIGENCE V2.1 Phase D — the per-request provider
+     * selector, shown only when the OWNER policy currently authorizes
+     * user choice (see components/crm/radar-intelligence-advisory.tsx).
+     * Deliberately does NOT name a specific provider — those labels are
+     * a local, presentation-only map inside the component, exactly like
+     * the existing SYSTEM_ADMIN-only footer's PROVIDER_DISPLAY_NAMES —
+     * so this dictionary domain stays free of any provider name, keeping
+     * the "no 'Claude'/'Anthropic' in any string" invariant intact. */
+    aiProviderLabel: "Fournisseur IA",
+    automaticLabel: "Automatique",
   },
   en: {
     sectionTitle: "AI advisory",
@@ -53,5 +63,7 @@ export const radarIntelligence = {
     notApplicable: "No AI advisory: this prospect is not yet qualified for analysis.",
     disclaimer: "The AI advisory is advisory only. It does not change priority, score, qualification, assignment, or follow-ups.",
     diagnosticPrefix: "Diagnostic:",
+    aiProviderLabel: "AI Provider",
+    automaticLabel: "Automatic",
   },
 } as const;

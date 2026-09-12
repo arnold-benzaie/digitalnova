@@ -254,6 +254,16 @@ export function validateProviderPolicyCandidate(candidate: unknown): ProviderPol
     errors.push("userSelectableProviders must be a subset of enabledProviders — a disabled provider can never be user-selectable");
   }
 
+  // RADAR INTELLIGENCE V2.1 Phase D — allowUserSelection is the master
+  // switch for exposing ANY selector to users at all; turning it on with
+  // nothing to actually select would be a self-contradictory policy (a
+  // "live" feature with zero options), so it is rejected outright rather
+  // than silently tolerated — same fail-closed, all-or-nothing philosophy
+  // as every other rule here.
+  if (c.allowUserSelection === true && selectableProviders.length === 0) {
+    errors.push("userSelectableProviders must contain at least one provider when allowUserSelection is true");
+  }
+
   if (isPolicyConfigurableProviderId(defaultProviderRaw) && !enabledProviders.includes(defaultProviderRaw)) {
     errors.push("defaultProvider must be one of enabledProviders when set");
   }

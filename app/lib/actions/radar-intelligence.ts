@@ -20,6 +20,21 @@
  * score.ts). Provider selection is the configured registry's job; the
  * result never names it. No api key / model / provider / workspace / staff
  * id is accepted from the caller or returned.
+ *
+ * RADAR INTELLIGENCE V2.1 — Phase D. `requestRadarIntelligenceAdvisory`
+ * gained a second, OPTIONAL parameter: `requestedProviderId`, a
+ * request-scoped provider PREFERENCE, never an identity/role/workspace
+ * parameter. Backward compatible: every existing caller that passes only
+ * `clientId` keeps the exact same behavior (Automatic routing, Anthropic
+ * primary / OpenAI eligible fallback). The raw client value is NEVER
+ * trusted directly — `isPolicyConfigurableProviderId()` narrows it to a
+ * known, policy-configurable id or `null` BEFORE it ever reaches
+ * produceRadarAdvisory()/resolveProviderPolicy(), so an unknown/forged
+ * string can never become authorization and can never reach an adapter.
+ * The resolver (provider-policy.ts) is the SOLE authority on whether the
+ * requested provider is actually usable (OWNER policy + registration) —
+ * this file never re-implements that check; it only prevents an
+ * ill-typed value from reaching it.
  */
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -31,6 +46,8 @@ import { getProspectQualification } from "@/lib/actions/radar";
 import { createConfiguredRadarIntelligenceRegistry } from "@/lib/radar-intelligence/configured-registry";
 import { produceRadarAdvisory, type AdvisoryDisplayContext, type RadarAdvisoryUiResult } from "@/lib/radar-intelligence/advisory-core";
 import { logRadarIntelligenceEvent } from "@/lib/radar-intelligence/observability";
+import { isPolicyConfigurableProviderId, type PolicyConfigurableProviderId } from "@/lib/radar-intelligence/provider-policy";
+import { loadProviderPolicy } from "@/lib/radar-intelligence/provider-policy-store";
 
 /**
  * Strips every SYSTEM_ADMIN-only field from `result`, returning ONLY the
@@ -108,13 +125,29 @@ async function loadDisplayContext(clientId: string): Promise<AdvisoryDisplayCont
   };
 }
 
-export async function requestRadarIntelligenceAdvisory(clientId: string): Promise<RadarAdvisoryUiResult> {
+export async function requestRadarIntelligenceAdvisory(
+  clientId: string,
+  requestedProviderId?: string | null,
+): Promise<RadarAdvisoryUiResult> {
   // Authorization stays OUTSIDE the try/catch below: requireStaffMember()
   // signals a denial by THROWING a Next.js redirect, and that throw must
   // propagate untouched for the redirect to happen. Nothing past this
-  // point ever swallows it.
+  // point ever swallows it. Unchanged by Phase D: provider CHOICE is
+  // constrained by OWNER policy inside the resolver, never by a new/
+  // different permission here — every role that could request an
+  // advisory before Phase D still can, identically.
   await requireStaffMember("RADAR_QUEUE_VIEW");
   const { userId } = await requireSession();
+
+  // RADAR INTELLIGENCE V2.1 Phase D — narrow the raw client value to a
+  // known, policy-configurable provider id or `null`. This is NOT the
+  // authorization check (that lives entirely in resolveProviderPolicy(),
+  // via the OWNER policy loaded fresh inside produceRadarAdvisory on
+  // every call) — it only guarantees an arbitrary/forged string can never
+  // reach that far as anything other than `null`.
+  const validatedProviderId: PolicyConfigurableProviderId | null = isPolicyConfigurableProviderId(requestedProviderId)
+    ? requestedProviderId
+    : null;
 
   try {
     const now = Date.now();
@@ -126,16 +159,19 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
 
     // The app's CURRENT interface locale — resolved server-side, the same
     // way every page already does (lib/i18n/locale.ts::getLocale()).
-    // Never inferred from prospect data, never accepted from the caller:
-    // requestRadarIntelligenceAdvisory still takes only (clientId).
+    // Never inferred from prospect data, never accepted from the caller.
     const locale = await getLocale();
 
-    const result = await produceRadarAdvisory(clientId, {
-      loadQualification: getProspectQualification,
-      loadDisplayContext,
-      createRegistry: createConfiguredRadarIntelligenceRegistry,
-      locale,
-    });
+    const result = await produceRadarAdvisory(
+      clientId,
+      {
+        loadQualification: getProspectQualification,
+        loadDisplayContext,
+        createRegistry: createConfiguredRadarIntelligenceRegistry,
+        locale,
+      },
+      validatedProviderId,
+    );
 
     // Two DISTINCT SYSTEM_ADMIN-only affordances share one re-check:
     //  - the coarse failure class (+ exact provider HTTP status), present
@@ -179,4 +215,44 @@ export async function requestRadarIntelligenceAdvisory(clientId: string): Promis
     logRadarIntelligenceEvent({ source: "server_action_boundary", code: "SERVER_ACTION_UNHANDLED_ERROR", status: "error" });
     return { status: "error" };
   }
+}
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase D. Read-only, safe echo of WHICH
+ * providers the current OWNER policy currently authorizes a user to
+ * explicitly request — used ONLY to decide whether to render the
+ * selector at all, and with which options. Gated by the SAME
+ * "RADAR_QUEUE_VIEW" permission as the advisory request itself — no new
+ * role requirement merely to see the selector (mission requirement:
+ * provider-choice availability depends on OWNER policy, not role
+ * escalation).
+ *
+ * This is NEVER the authorization path: requestRadarIntelligenceAdvisory
+ * always re-derives the OWNER policy fresh, independently, on every
+ * single request via resolveProviderPolicy() — a stale/cached result
+ * from this function can at most make the selector show (or hide) a
+ * choice the actual request will still correctly accept or reject on its
+ * own. `selectableProviders` is already intersected with the technically
+ * REGISTERED providers (mirrors provider-status.ts's registration-vs-
+ * policy distinction), so the UI never advertises a choice that is
+ * policy-selectable but not currently configured. An empty array means
+ * "hide the selector" — covers both "OWNER disabled selection" and
+ * "nothing is currently usable" uniformly, so the UI needs no separate
+ * `allowUserSelection` flag.
+ */
+export async function getRadarAiProviderSelectionOptions(): Promise<{ selectableProviders: PolicyConfigurableProviderId[] }> {
+  await requireStaffMember("RADAR_QUEUE_VIEW");
+
+  const ownerPolicy = await loadProviderPolicy();
+  if (!ownerPolicy.allowUserSelection) {
+    return { selectableProviders: [] };
+  }
+
+  const registry = createConfiguredRadarIntelligenceRegistry();
+  const registeredIds = new Set(registry.list().map((adapter) => adapter.id));
+  const selectableProviders = ownerPolicy.userSelectableProviders.filter(
+    (id): id is PolicyConfigurableProviderId => isPolicyConfigurableProviderId(id) && registeredIds.has(id),
+  );
+
+  return { selectableProviders };
 }

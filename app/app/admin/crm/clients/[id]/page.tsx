@@ -67,6 +67,7 @@ import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
 import { RadarIntelligenceAdvisory } from "@/components/crm/radar-intelligence-advisory";
+import { getRadarAiProviderSelectionOptions } from "@/lib/actions/radar-intelligence";
 import { FollowUpActions } from "@/components/crm/follow-up-actions";
 import { describeAuditEntry } from "@/lib/audit-labels";
 import { createQuote } from "@/lib/actions/crm-quotes";
@@ -221,6 +222,13 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
   // requireStaffMember(...) in the server actions.
   const { userId: currentUserId } = await requireSession();
   const assignmentCaps = await getRadarCapabilities();
+  // RADAR INTELLIGENCE V2.1 Phase D — server-resolved, read-only echo of
+  // which providers the CURRENT OWNER policy authorizes a user to
+  // explicitly request. Gated by the SAME RADAR_QUEUE_VIEW every staff
+  // role that reaches this page already holds — never a new requirement.
+  // Purely a display hint for <RadarIntelligenceAdvisory>; the actual
+  // advisory request re-derives the OWNER policy fresh on every call.
+  const aiProviderSelectionOptions = await getRadarAiProviderSelectionOptions();
   const assignables = assignmentCaps.canAssignOthers ? await listAssignableRadarMembers() : [];
 
   // Resolve the current assignee's display identity + ACTIVE-in-internal-
@@ -337,8 +345,10 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
 
       {/* RADAR INTELLIGENCE (Slice 5) — opt-in AI advisory. Renders a
           button only; nothing calls the provider on load. The advisory is
-          indicative and never changes deterministic RADAR values. */}
-      <RadarIntelligenceAdvisory clientId={client.id} locale={locale} />
+          indicative and never changes deterministic RADAR values.
+          Phase D: selectionOptions is a display-only hint, never the
+          authorization source — see the component's own docstring. */}
+      <RadarIntelligenceAdvisory clientId={client.id} locale={locale} selectionOptions={aiProviderSelectionOptions} />
 
       <div className="mt-4 flex items-center justify-between rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
         <div>

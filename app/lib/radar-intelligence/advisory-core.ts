@@ -111,7 +111,26 @@ export type AdvisoryCoreDeps = {
   loadProviderPolicy?: () => Promise<ProviderPolicy>;
 };
 
-export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreDeps): Promise<RadarAdvisoryUiResult> {
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase D. Optional, request-scoped provider
+ * preference. `requestedProviderId` MUST already be server-validated by
+ * the caller (lib/actions/radar-intelligence.ts narrows any raw client
+ * value through isPolicyConfigurableProviderId() BEFORE it ever reaches
+ * this function) — this parameter is never a raw client string branched
+ * on directly here. `undefined`/`null` (the only value every pre-Phase-D
+ * caller passes) means "no preference", producing byte-identical AUTO
+ * routing to before this parameter existed. Forwarded verbatim into
+ * resolveProviderPolicy() (provider-policy.ts), which is ALREADY
+ * fail-closed against any unusable/unauthorized/forged id — an invalid
+ * preference silently degrades to the exact same AUTO result a caller
+ * with no preference would get, never a throw, never a distinguishing
+ * signal.
+ */
+export async function produceRadarAdvisory(
+  clientId: string,
+  deps: AdvisoryCoreDeps,
+  requestedProviderId?: IntelligenceProviderId | null,
+): Promise<RadarAdvisoryUiResult> {
   if (typeof clientId !== "string" || !isValidUuid(clientId)) {
     logRadarIntelligenceEvent({ source: "advisory_core", code: "INVALID_CLIENT_ID", status: "error" });
     return { status: "error" };
@@ -159,25 +178,27 @@ export async function produceRadarAdvisory(clientId: string, deps: AdvisoryCoreD
   let outcome;
   try {
     const registry = deps.createRegistry();
-    // RADAR INTELLIGENCE V2.1 — Phase B: the OWNER policy itself now
-    // comes from the persistent store (provider-policy-store.ts),
-    // instead of Phase A's always-DEFAULT_PROVIDER_POLICY constant.
-    // `registry.list()` is REGISTRATION truth ("can this provider
-    // technically run" — config/credential state, unchanged); the
-    // loaded policy is PERMISSION truth ("is this provider allowed, and
-    // in what order"). resolveProviderPolicy() intersects both; it never
-    // conflates them. `requestedProviderId: null` is still passed
-    // unconditionally — there is no user-selection caller yet (Phase D),
-    // so an empty/absent DB policy resolves to the exact same AUTO
-    // routing Production has always used (loadProviderPolicy()'s own
-    // fallback returns DEFAULT_PROVIDER_POLICY, which reproduces
-    // DEFAULT_ROUTING_POLICY's shape exactly).
+    // RADAR INTELLIGENCE V2.1 — Phase B: the OWNER policy itself comes
+    // from the persistent store (provider-policy-store.ts), instead of
+    // Phase A's always-DEFAULT_PROVIDER_POLICY constant. `registry.list()`
+    // is REGISTRATION truth ("can this provider technically run" —
+    // config/credential state, unchanged); the loaded policy is
+    // PERMISSION truth ("is this provider allowed, and in what order").
+    // resolveProviderPolicy() intersects both; it never conflates them.
+    //
+    // Phase D: `requestedProviderId` (see this function's own docstring)
+    // is now forwarded verbatim instead of being hardcoded `null`. Every
+    // caller that omits it (every caller that existed before Phase D)
+    // gets `undefined`, which resolveProviderPolicy() treats exactly like
+    // `null` — so an empty/absent DB policy still resolves to the exact
+    // same AUTO routing Production has always used, byte-identical to
+    // before this parameter existed.
     const registeredProviders = new Set<IntelligenceProviderId>(registry.list().map((adapter) => adapter.id));
     const ownerPolicy = await (deps.loadProviderPolicy ?? loadProviderPolicyFromStore)();
     const resolvedPolicy = resolveProviderPolicy({
       ownerPolicy,
       registeredProviders,
-      requestedProviderId: null,
+      requestedProviderId: requestedProviderId ?? null,
     });
     const router = createProviderRouter({
       registry,

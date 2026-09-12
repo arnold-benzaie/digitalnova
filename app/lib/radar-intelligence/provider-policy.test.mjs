@@ -388,6 +388,28 @@ test("G: userSelectableProviders not a subset of enabledProviders is rejected (f
   assert.equal(result.ok, false);
 });
 
+// ---- RADAR INTELLIGENCE V2.1 Phase D: allowUserSelection=true requires >=1 selectable ----
+
+test("Phase D: allowUserSelection=true with an empty userSelectableProviders is rejected -- a 'live' selector with zero options is self-contradictory", () => {
+  const result = validateProviderPolicyCandidate(candidate({ allowUserSelection: true, userSelectableProviders: [] }));
+  assert.equal(result.ok, false);
+});
+
+test("Phase D: allowUserSelection=true with at least one selectable provider validates", () => {
+  const result = validateProviderPolicyCandidate(candidate({ allowUserSelection: true, userSelectableProviders: ["anthropic"] }));
+  assert.equal(result.ok, true);
+});
+
+test("Phase D: allowUserSelection=false with an empty userSelectableProviders still validates (existing semantics, unaffected)", () => {
+  const result = validateProviderPolicyCandidate(candidate({ allowUserSelection: false, userSelectableProviders: [] }));
+  assert.equal(result.ok, true);
+});
+
+test("Phase D: allowUserSelection=false with a NON-empty userSelectableProviders still validates -- stored-but-inactive is allowed (existing semantics, unaffected)", () => {
+  const result = validateProviderPolicyCandidate(candidate({ allowUserSelection: false, userSelectableProviders: ["anthropic", "openai"] }));
+  assert.equal(result.ok, true);
+});
+
 // ---- defaultProvider must be one of enabledProviders when non-null (chosen deterministic contract) ----
 
 test("defaultProvider set but excluded from enabledProviders is rejected (chosen contract: reject, not silently normalize)", () => {

@@ -1,20 +1,20 @@
 /**
- * /admin/owner/ai-providers — RADAR INTELLIGENCE V2.1 Phase C. The OWNER-only
- * settings page for the persisted RADAR AI provider policy introduced in
- * Phase B. Server-guarded by requireStaffMember("RADAR_AI_POLICY_MANAGE")
- * — these strings never gate anything.
+ * /admin/owner/ai-providers — RADAR INTELLIGENCE V2.1 Phase C/D. The
+ * OWNER-only settings page for the persisted RADAR AI provider policy.
+ * Server-guarded by requireStaffMember("RADAR_AI_POLICY_MANAGE") — these
+ * strings never gate anything.
  *
- * This page manages POLICY (routing permission) only — never credentials,
- * models, or the user-facing provider selector (Phase D). `mode` stays
- * fixed at "AUTO" in this V1: `resolveProviderPolicy()` (provider-policy.ts)
- * never actually reads `ownerPolicy.mode` today — the AUTO/MANUAL branch is
- * driven entirely by `allowUserSelection` + a `requestedProviderId` that
- * does not exist anywhere in the Production call graph yet (always `null`)
- * — so exposing a live "Manual" control here would be a misleading control
- * with zero real effect. Same reasoning for `allowUserSelection`: the
- * section is shown so the OWNER can see what Phase D will build on, but the
- * toggle stays disabled — flipping it today would change nothing, so
- * presenting it as live would be presenting a fake feature.
+ * This page manages POLICY (routing permission) only — never credentials
+ * or models. `mode` stays fixed at "AUTO": `resolveProviderPolicy()`
+ * (provider-policy.ts) never actually reads `ownerPolicy.mode` — the
+ * AUTO/user-selection branch is driven entirely by `allowUserSelection` +
+ * a per-request `requestedProviderId` (Phase D) — so exposing a live
+ * "Manual" control here would be a misleading control with zero real
+ * effect. `allowUserSelection` / `userSelectableProviders`, in contrast,
+ * are live as of Phase D: the RADAR advisory surface
+ * (components/crm/radar-intelligence-advisory.tsx) now reads these
+ * settings to decide whether to show a real per-request provider
+ * selector to users.
  */
 export const aiProviderPolicy = {
   fr: {
@@ -44,10 +44,10 @@ export const aiProviderPolicy = {
     fallbackOrderLabel: "Ordre de repli",
     fallbackOrderHint: "Utilisé uniquement quand le repli est autorisé ci-dessus.",
 
-    sectionUserSelection: "Sélection par l'utilisateur (préparation phase D)",
-    userSelectionReservedNote: "Réservé à une phase future — aucun sélecteur n'est actif dans RADAR aujourd'hui. Ce réglage n'a aucun effet tant que cette fonctionnalité n'existe pas.",
-    allowUserSelectionLabel: "Autoriser les utilisateurs à choisir un fournisseur (inactif)",
-    selectableProvidersLabel: "Fournisseurs sélectionnables (préparation)",
+    sectionUserSelection: "Sélection par l'utilisateur",
+    userSelectionNote: "Lorsque activé, un sélecteur de fournisseur apparaît sur l'avis IA RADAR pour les utilisateurs autorisés, limité aux fournisseurs sélectionnables ci-dessous.",
+    allowUserSelectionLabel: "Autoriser les utilisateurs à choisir un fournisseur",
+    selectableProvidersLabel: "Fournisseurs sélectionnables",
 
     saveButton: "Enregistrer les modifications",
     savingButton: "Enregistrement…",
@@ -66,6 +66,7 @@ export const aiProviderPolicy = {
     errAtLeastOneEnabled: "Au moins un fournisseur doit être activé.",
     errDefaultMustBeEnabled: "Le fournisseur par défaut doit être activé.",
     errSelectableMustBeEnabled: "Un fournisseur sélectionnable doit être activé.",
+    errAllowSelectionRequiresSelectable: "Sélectionnez au moins un fournisseur pour activer la sélection utilisateur.",
     errGeneric: "Impossible d'enregistrer la politique. Vérifiez vos réglages et réessayez.",
   },
   en: {
@@ -95,10 +96,10 @@ export const aiProviderPolicy = {
     fallbackOrderLabel: "Fallback order",
     fallbackOrderHint: "Only used when fallback is allowed above.",
 
-    sectionUserSelection: "User provider selection (Phase D preparation)",
-    userSelectionReservedNote: "Reserved for a future phase — no selector is active in RADAR today. This setting has no effect until that feature exists.",
-    allowUserSelectionLabel: "Allow users to choose a provider (inactive)",
-    selectableProvidersLabel: "Selectable providers (preparation)",
+    sectionUserSelection: "User provider selection",
+    userSelectionNote: "When enabled, a provider selector appears on the RADAR AI advisory for authorized users, limited to the selectable providers below.",
+    allowUserSelectionLabel: "Allow users to choose a provider",
+    selectableProvidersLabel: "Selectable providers",
 
     saveButton: "Save changes",
     savingButton: "Saving…",
@@ -117,6 +118,7 @@ export const aiProviderPolicy = {
     errAtLeastOneEnabled: "At least one provider must be enabled.",
     errDefaultMustBeEnabled: "The default provider must be enabled.",
     errSelectableMustBeEnabled: "A selectable provider must be enabled.",
+    errAllowSelectionRequiresSelectable: "Select at least one provider to enable user selection.",
     errGeneric: "Unable to save the policy. Check your settings and try again.",
   },
 } as const;

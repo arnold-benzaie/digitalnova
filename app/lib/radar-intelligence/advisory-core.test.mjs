@@ -490,9 +490,14 @@ test("diagnostic: not_applicable (prospect not qualified) carries NO diagnostic"
 test("the deps bag has no mutation capability — only loaders + a registry factory", async () => {
   const d = deps();
   assert.deepEqual(Object.keys(d).sort(), ["clock", "createRegistry", "loadDisplayContext", "loadProviderPolicy", "loadQualification"].sort());
-  // produceRadarAdvisory itself takes only (clientId, deps) — no provider,
-  // model, userId, or workspace parameter.
-  assert.equal(produceRadarAdvisory.length, 2);
+  // RADAR INTELLIGENCE V2.1 Phase D: produceRadarAdvisory gained a third,
+  // OPTIONAL parameter — requestedProviderId — a request-scoped provider
+  // PREFERENCE, never an identity/model/userId/workspace parameter. It
+  // must already be server-validated by the caller (see
+  // lib/actions/radar-intelligence.ts) and, if invalid/omitted, produces
+  // byte-identical AUTO routing to the pre-Phase-D (clientId, deps)-only
+  // contract — see the Phase D tests further below.
+  assert.equal(produceRadarAdvisory.length, 3);
 });
 
 test("a success advisory never overrides the deterministic values (they mirror the input opportunity)", async () => {
@@ -958,4 +963,227 @@ test("Phase B #7: zero registered providers, even with a valid stored policy -> 
   dbPolicyRowState = { rows: [dbRow()] };
   const r = await produceRadarAdvisory(CLIENT, depsRealStore({ createRegistry: () => createRadarIntelligenceRegistry({}) }));
   assert.equal(r.status, "unavailable");
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase D: per-request user provider selection
+//
+// produceRadarAdvisory(clientId, deps, requestedProviderId) — the third,
+// OPTIONAL positional argument. Every test below exercises the FULL
+// integration (resolver -> router -> adapters), proving there is exactly
+// ONE authoritative resolution path (resolveProviderPolicy) and that a
+// forged/stale/unauthorized requestedProviderId can never reach an
+// adapter, never throws, and never distinguishably signals its own
+// invalidity to the caller.
+// =====================================================================
+
+const selectionPolicy = (overrides = {}) => ({
+  mode: "AUTO",
+  defaultProvider: "anthropic",
+  fallbackOrder: ["anthropic", "openai"],
+  enabledProviders: ["anthropic", "openai"],
+  userSelectableProviders: ["anthropic", "openai"],
+  allowUserSelection: true,
+  fallbackEnabled: true,
+  ...overrides,
+});
+
+// ---- automatic routing preservation (requestedProviderId omitted/null) ----
+
+test("Phase D #1: requestedProviderId omitted -> byte-identical AUTO routing (Anthropic primary), even with a selection-enabled policy", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }));
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #2: requestedProviderId explicitly null -> identical to omitted (still AUTO)", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(anthropicT), providerPolicy: selectionPolicy() }), null);
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+});
+
+// ---- explicit Anthropic routing ----
+
+test("Phase D #3: explicit 'anthropic' + healthy -> Anthropic exactly once, no OpenAI call, fallbackUsed false", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "anthropic");
+  assert.equal(r.status, "ok");
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiHits, 0);
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+});
+
+test("Phase D #4: explicit 'anthropic' + eligible failure (503) -> Anthropic then OpenAI, fallbackUsed true", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = { async generate() { return { body: { summary: "fallback via explicit anthropic selection" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "anthropic");
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, true);
+});
+
+// ---- explicit OpenAI routing ----
+
+test("Phase D #5: explicit 'openai' + healthy -> OpenAI exactly once, no Anthropic call, fallbackUsed false", async () => {
+  let anthropicHits = 0;
+  const anthropicT = { async generate() { anthropicHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const openaiT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "ok");
+  assert.equal(anthropicHits, 0);
+  assert.equal(openaiT.hits, 1);
+  assert.equal(r.providerMeta.provider, "openai");
+  assert.equal(r.providerMeta.fallbackUsed, false);
+});
+
+test("Phase D #6: explicit 'openai' + eligible failure -> OpenAI then Anthropic (fallback enabled, Anthropic enabled)", async () => {
+  const anthropicT = { async generate() { return { body: { summary: "fallback via explicit openai selection" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const openaiT = fakeTransport({ status: 503 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(r.providerMeta.fallbackUsed, true);
+});
+
+test("Phase D #7: explicit 'openai' + 429 -> OpenAI only, no Anthropic fallback (429 is never fallback-eligible)", async () => {
+  let anthropicHits = 0;
+  const anthropicT = { async generate() { anthropicHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const openaiT = fakeTransport({ status: 429 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "rate_limited");
+  assert.equal(anthropicHits, 0);
+});
+
+test("Phase D #8: explicit 'openai' + 400 -> OpenAI only, no Anthropic fallback (4xx is never fallback-eligible)", async () => {
+  let anthropicHits = 0;
+  const anthropicT = { async generate() { anthropicHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const openaiT = fakeTransport({ status: 400 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "error");
+  assert.equal(anthropicHits, 0);
+});
+
+// ---- forged / stale / unauthorized requests: safe fallback to Automatic, never a throw, never granted ----
+
+for (const forged of ["gemini", "deepseek", "kimi", "local", "drop-table", "", "anthropic; openai"]) {
+  test(`Phase D #9: forged/unsupported requestedProviderId (${JSON.stringify(forged)}) -> falls back to Automatic (Anthropic), never throws, never reaches an adapter`, async () => {
+    const anthropicT = fakeTransport({ status: 200 });
+    let openaiHits = 0;
+    const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+    const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), forged);
+    assert.equal(r.status, "ok");
+    assert.equal(r.providerMeta.provider, "anthropic", `forged id ${JSON.stringify(forged)} must resolve to the safe AUTO default`);
+    assert.equal(openaiHits, 0);
+  });
+}
+
+test("Phase D #10: a technically-valid-but-disabled provider requested ('openai' excluded from enabledProviders) -> falls back to Automatic", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- disabled" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy({ enabledProviders: ["anthropic"], userSelectableProviders: [], allowUserSelection: false }) }),
+    "openai",
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #11: a provider requested that is NOT in userSelectableProviders (but IS enabled) -> falls back to Automatic", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- not user-selectable" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy({ userSelectableProviders: ["anthropic"] }) }),
+    "openai",
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #12: allowUserSelection=false with a provider explicitly requested -> ignored entirely, OWNER default wins", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- selection globally off" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy({ allowUserSelection: false }) }),
+    "openai",
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #13: stale UI safety -- OWNER disables OpenAI selectability AFTER page load; a stale 'openai' request is safely rejected using FRESH policy, no OpenAI call", async () => {
+  // Simulates: user's browser still shows OpenAI as selectable (loaded
+  // before the OWNER change), but the server always re-loads the policy
+  // fresh on every request -- there is no client-cached authorization.
+  const freshPolicyAfterOwnerChange = selectionPolicy({ userSelectableProviders: ["anthropic"] }); // OpenAI removed
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- stale selection" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: freshPolicyAfterOwnerChange }), "openai");
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0, "the stale client-side selection must never reach the disabled provider");
+});
+
+test("Phase D #14: requested provider is selectable+enabled but NOT actually registered (e.g. missing API key) -> falls back to Automatic", async () => {
+  // Only Anthropic is registered; OpenAI is policy-selectable but absent
+  // from the technical registry (mirrors "provider not configured").
+  const anthropicT = fakeTransport({ status: 200 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(anthropicT), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+});
+
+test("Phase D #15: empty registry + explicit request -> deterministic-safe 'unavailable', never throws", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: () => createRadarIntelligenceRegistry({}), providerPolicy: selectionPolicy() }), "openai");
+  assert.equal(r.status, "unavailable");
+});
+
+test("Phase D #16: no policy row (DEFAULT_PROVIDER_POLICY, allowUserSelection=false) + explicit request -> ignored, Automatic (Anthropic)", async () => {
+  const anthropicT = fakeTransport({ status: 200 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT) }), "openai"); // no providerPolicy override -> DEFAULT_PROVIDER_POLICY
+  assert.equal(r.status, "ok");
+  assert.equal(r.providerMeta.provider, "anthropic");
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #17: fallback disabled (fallbackEnabled=false) + explicit selection + eligible failure -> no fallback, failure returned as-is", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  let openaiHits = 0;
+  const openaiT = { async generate() { openaiHits += 1; return { body: { summary: "must not run -- fallback disabled" }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy({ fallbackEnabled: false }) }),
+    "anthropic",
+  );
+  assert.equal(r.status, "unavailable");
+  assert.equal(openaiHits, 0);
+});
+
+test("Phase D #18: max provider attempts remains 2 even for an explicit selection -- exactly one primary + one fallback attempt, never more", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = fakeTransport({ status: 503 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: dualRegistry(anthropicT, openaiT), providerPolicy: selectionPolicy() }), "anthropic");
+  assert.equal(r.status, "unavailable");
+  assert.equal(anthropicT.hits, 1);
+  assert.equal(openaiT.hits, 1);
 });

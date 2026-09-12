@@ -343,3 +343,88 @@ test("i18n: FR and EN key sets are identical, all non-empty; no 'Claude'/'Anthro
     }
   }
 });
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase D: per-request provider selector
+// =====================================================================
+
+const idleWithSelection = (locale, selectionOptions) =>
+  decode(renderToStaticMarkup(createElement(RadarIntelligenceAdvisory, { clientId: CLIENT, locale, selectionOptions })));
+
+test("Phase D: selectionOptions omitted -> selector absent, byte-identical to pre-Phase-D markup", () => {
+  const withSelection = idleWithSelection("fr", undefined);
+  const withoutProp = idle("fr");
+  assert.equal(withSelection, withoutProp);
+  assert.equal(withSelection.includes("<select"), false);
+});
+
+test("Phase D: selectionOptions with an empty selectableProviders array -> selector hidden (covers both 'not allowed' and 'nothing usable')", () => {
+  const html = idleWithSelection("fr", { selectableProviders: [] });
+  assert.equal(html.includes("<select"), false);
+  assert.equal(html.includes(tFr.aiProviderLabel), false);
+});
+
+test("Phase D: selectionOptions with providers -> selector appears, labelled, with Automatic always first", () => {
+  const html = idleWithSelection("fr", { selectableProviders: ["anthropic", "openai"] });
+  assert.ok(html.includes("<select"));
+  assert.ok(html.includes(tFr.aiProviderLabel));
+  assert.match(html, /<option value=""[^>]*>\s*Automatique/);
+});
+
+test("Phase D: only the OWNER-authorized providers are rendered as options -- never a hardcoded third option", () => {
+  const html = idleWithSelection("fr", { selectableProviders: ["anthropic"] });
+  assert.match(html, /<option[^>]*value="anthropic"[^>]*>\s*Anthropic/);
+  assert.equal(/value="openai"/.test(html), false, "OpenAI must not be offered when the OWNER policy did not authorize it");
+});
+
+test("Phase D: an unsupported/unexpected id in selectionOptions still renders (defensive fallback to the raw id, never throws) -- authorization already happened server-side before this prop was built", () => {
+  assert.doesNotThrow(() => idleWithSelection("fr", { selectableProviders: ["some-future-id"] }));
+  const html = idleWithSelection("fr", { selectableProviders: ["some-future-id"] });
+  assert.match(html, /value="some-future-id"/);
+});
+
+test("Phase D: EN selector copy", () => {
+  const html = idleWithSelection("en", { selectableProviders: ["openai"] });
+  assert.ok(html.includes(tEn.aiProviderLabel));
+  assert.match(html, /<option value=""[^>]*>\s*Automatic/);
+  assert.match(html, /value="openai"[^>]*>\s*OpenAI/);
+});
+
+test("Phase D: the selector is disabled while a request is pending, same as the CTA button (structural — no live-interaction harness in this repo)", () => {
+  assert.match(SOURCE, /disabled=\{isPending\}/g);
+  // Both the CTA button and the new <select> share the identical
+  // disabled-while-pending expression — count at least 2 occurrences.
+  assert.ok((SOURCE.match(/disabled=\{isPending\}/g) || []).length >= 2, "both the button and the selector must disable while pending");
+});
+
+test("Phase D: the selected provider id is what gets sent to the server action, never a second/parallel request path", () => {
+  // Structural: exactly one call site (already asserted elsewhere), and
+  // that ONE call site passes selectedProviderId as the second argument.
+  assert.match(SOURCE, /requestRadarIntelligenceAdvisory\(clientId,\s*selectedProviderId\)/);
+});
+
+test("Phase D: no persistence of the selected provider -- no localStorage/sessionStorage USAGE anywhere in this component; state resets to Automatic on remount", () => {
+  // Property-access check, not a bare word match: this file's own
+  // docstring/comments legitimately mention "localStorage" to explain
+  // its deliberate absence, so a naive substring test would false-positive.
+  assert.equal(/\blocalStorage\.|\blocalStorage\[|\bsessionStorage\.|\bsessionStorage\[/.test(SOURCE), false);
+  assert.match(SOURCE, /useState<string \| null>\(null\)/);
+});
+
+test("Phase D: provider names are shown ONLY inside the selector's own markup when authorized -- the disclaimer/idle text remains provider-neutral", () => {
+  const html = idleWithSelection("fr", { selectableProviders: ["anthropic", "openai"] });
+  assert.ok(html.includes(tFr.disclaimer.slice(0, 20)));
+  // The disclaimer text itself never names a provider, independent of
+  // whether the selector is shown.
+  assert.equal(/claude|anthropic|openai/i.test(tFr.disclaimer), false);
+});
+
+test("Phase D: selector-shown markup still leaks no API key / env value / secret alongside the provider names", () => {
+  const html = idleWithSelection("fr", { selectableProviders: ["anthropic", "openai"] });
+  assert.equal(/sk-ant-|sk-proj-|apiKey|DATABASE_URL/i.test(html), false);
+  noUuid(html);
+});
+
+test("Phase D: getRadarAiProviderSelectionOptions is never imported/called from this client component -- the parent page resolves it server-side", () => {
+  assert.equal(SOURCE.includes("getRadarAiProviderSelectionOptions"), false);
+});

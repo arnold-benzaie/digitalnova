@@ -62,10 +62,27 @@ mock.module("@/lib/i18n/locale", {
 
 mock.module("@/lib/actions/radar", { namedExports: { getProspectQualification: async () => ({ qualificationStatus: "QUALIFIED", eligibility: { contactable: true }, opportunity: null }) } });
 
+/** @type {string[]} RADAR INTELLIGENCE V2.1 Phase D — registered provider
+ * ids for getRadarAiProviderSelectionOptions()'s own registry read.
+ * Defaults to empty (pre-Phase-D behavior: no test relied on a non-empty
+ * registry from this mock). */
+let registeredProviderIds = [];
 mock.module("@/lib/radar-intelligence/configured-registry", {
   namedExports: {
-    createConfiguredRadarIntelligenceRegistry: () => ({ list: () => [], selectProvider: () => ({ ok: false, error: { code: "NO_CAPABLE_PROVIDER" } }) }),
+    createConfiguredRadarIntelligenceRegistry: () => ({
+      list: () => registeredProviderIds.map((id) => ({ id })),
+      selectProvider: () => ({ ok: false, error: { code: "NO_CAPABLE_PROVIDER" } }),
+    }),
   },
+});
+
+/** @type {{ allowUserSelection: boolean; userSelectableProviders: string[] }}
+ * RADAR INTELLIGENCE V2.1 Phase D — the OWNER policy
+ * getRadarAiProviderSelectionOptions() reads. Defaults to the safe,
+ * selection-disabled shape (matches DEFAULT_PROVIDER_POLICY). */
+let ownerPolicyMock = { allowUserSelection: false, userSelectableProviders: [] };
+mock.module("@/lib/radar-intelligence/provider-policy-store", {
+  namedExports: { loadProviderPolicy: async () => ownerPolicyMock },
 });
 
 let coreCalls = [];
@@ -73,8 +90,8 @@ let coreResult = { status: "unavailable" };
 let coreThrows = false;
 mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
-    produceRadarAdvisory: async (clientId, deps) => {
-      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale });
+    produceRadarAdvisory: async (clientId, deps, requestedProviderId) => {
+      coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale, requestedProviderId });
       if (coreThrows) {
         throw new Error("unexpected core failure with a secret inside sk-ant-LEAK");
       }
@@ -83,7 +100,7 @@ mock.module("@/lib/radar-intelligence/advisory-core", {
   },
 });
 
-const { requestRadarIntelligenceAdvisory } = await import("./radar-intelligence.ts");
+const { requestRadarIntelligenceAdvisory, getRadarAiProviderSelectionOptions } = await import("./radar-intelligence.ts");
 
 const CLIENT = "22222222-2222-4222-8222-222222222222";
 
@@ -99,6 +116,8 @@ function reset() {
   sessionUserId = `user-${Math.random().toString(36).slice(2)}`;
   localeCalls = [];
   currentLocale = "fr";
+  registeredProviderIds = [];
+  ownerPolicyMock = { allowUserSelection: false, userSelectableProviders: [] };
 }
 
 async function withCapturedWarn(fn) {
@@ -133,8 +152,15 @@ test("action: a guard denial propagates — core never runs", async () => {
   assert.equal(coreCalls.length, 0);
 });
 
-test("action: signature is (clientId) only — no provider / model / userId / workspace parameter", () => {
-  assert.equal(requestRadarIntelligenceAdvisory.length, 1);
+test("action: signature is (clientId, requestedProviderId?) — the second parameter is a request-scoped provider PREFERENCE, still no model / userId / workspace parameter", () => {
+  // RADAR INTELLIGENCE V2.1 Phase D: the action gained one optional
+  // parameter. This is a conscious, reviewed contract change, not a
+  // relaxed test — the invariant that actually matters (no identity /
+  // role / workspace / model parameter) is asserted explicitly by the
+  // dedicated Phase D tests further below, which prove the raw value is
+  // narrowed to a known provider id or discarded before ever reaching
+  // the core.
+  assert.equal(requestRadarIntelligenceAdvisory.length, 2);
 });
 
 test("action: per-user cooldown — a fast repeat for the SAME session user returns rate_limited without calling the core", async () => {
@@ -373,7 +399,7 @@ test("locale: the action's own resolved locale is threaded into the core deps �
   await requestRadarIntelligenceAdvisory(CLIENT);
   assert.equal(localeCalls.length, 1, "getLocale() is called exactly once");
   assert.equal(coreCalls[0].locale, "en");
-  assert.equal(requestRadarIntelligenceAdvisory.length, 1, "signature is still (clientId) only");
+  assert.equal(requestRadarIntelligenceAdvisory.length, 2, "signature is (clientId, requestedProviderId?)");
 });
 
 test("locale: FR is the default when the app's current locale resolves to fr", async () => {
@@ -477,4 +503,112 @@ test("providerMeta: a permission-check THROW strips providerMeta but keeps every
     assert.equal(r.reasoning, OK_WITH_META.reasoning);
   });
   assert.deepEqual(calls[0][1], { source: "diagnostic_permission_check", code: "SYSTEM_ADMIN_CHECK_FAILED", status: "ok" });
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase D: requestedProviderId passthrough +
+// getRadarAiProviderSelectionOptions()
+// =====================================================================
+
+test("Phase D: a valid requestedProviderId ('openai') is narrowed and forwarded verbatim to the core as the third argument", async () => {
+  reset();
+  await requestRadarIntelligenceAdvisory(CLIENT, "openai");
+  assert.equal(coreCalls[0].requestedProviderId, "openai");
+});
+
+test("Phase D: a valid requestedProviderId ('anthropic') is forwarded verbatim", async () => {
+  reset();
+  await requestRadarIntelligenceAdvisory(CLIENT, "anthropic");
+  assert.equal(coreCalls[0].requestedProviderId, "anthropic");
+});
+
+test("Phase D: omitted requestedProviderId -> the core receives null, never undefined-as-a-distinguishing-signal, never a throw", async () => {
+  reset();
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(coreCalls[0].requestedProviderId, null);
+});
+
+for (const forged of ["gemini", "deepseek", "kimi", "local", "deterministic", "DROP TABLE", "", "anthropic; openai", "__proto__"]) {
+  test(`Phase D: a forged/unsupported requestedProviderId (${JSON.stringify(forged)}) is coerced to null BEFORE reaching the core -- never passed through raw`, async () => {
+    reset();
+    await requestRadarIntelligenceAdvisory(CLIENT, forged);
+    assert.equal(coreCalls[0].requestedProviderId, null, `forged value ${JSON.stringify(forged)} must never reach the core as-is`);
+  });
+}
+
+test("Phase D: a non-string requestedProviderId (number, object, array) is coerced to null, never throws", async () => {
+  reset();
+  for (const bad of [42, {}, [], true]) {
+    await assert.doesNotReject(() => requestRadarIntelligenceAdvisory(CLIENT, bad));
+    assert.equal(coreCalls[coreCalls.length - 1].requestedProviderId, null);
+  }
+});
+
+test("Phase D: requestedProviderId never changes the permission requested -- still exactly RADAR_QUEUE_VIEW, no escalation", async () => {
+  reset();
+  await requestRadarIntelligenceAdvisory(CLIENT, "openai");
+  assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
+});
+
+// ---------------- getRadarAiProviderSelectionOptions() ----------------
+
+test("getRadarAiProviderSelectionOptions: requires RADAR_QUEUE_VIEW -- the SAME permission as the advisory itself, no escalation", async () => {
+  reset();
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"]);
+  assert.deepEqual(result, { selectableProviders: [] });
+});
+
+test("getRadarAiProviderSelectionOptions: a guard denial propagates, same as the advisory action", async () => {
+  reset();
+  denyMode = true;
+  await assert.rejects(() => getRadarAiProviderSelectionOptions(), /NEXT_REDIRECT/);
+});
+
+test("getRadarAiProviderSelectionOptions: allowUserSelection=false -> empty array regardless of userSelectableProviders content", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: false, userSelectableProviders: ["anthropic", "openai"] };
+  registeredProviderIds = ["anthropic", "openai"];
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(result.selectableProviders, []);
+});
+
+test("getRadarAiProviderSelectionOptions: allowUserSelection=true + both registered -> both surfaced", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["anthropic", "openai"] };
+  registeredProviderIds = ["anthropic", "openai"];
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(result.selectableProviders.sort(), ["anthropic", "openai"]);
+});
+
+test("getRadarAiProviderSelectionOptions: a policy-selectable provider that is NOT registered is filtered out", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["anthropic", "openai"] };
+  registeredProviderIds = ["anthropic"]; // openai selectable by policy but not technically configured
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(result.selectableProviders, ["anthropic"]);
+});
+
+test("getRadarAiProviderSelectionOptions: an unrecognized id smuggled into userSelectableProviders (defensive) never leaks through", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["gemini", "anthropic"] };
+  registeredProviderIds = ["anthropic"];
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(result.selectableProviders, ["anthropic"]);
+});
+
+test("getRadarAiProviderSelectionOptions: no registered providers -> empty array, never throws", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["anthropic", "openai"] };
+  registeredProviderIds = [];
+  const result = await getRadarAiProviderSelectionOptions();
+  assert.deepEqual(result.selectableProviders, []);
+});
+
+test("getRadarAiProviderSelectionOptions: never triggers a provider call -- read-only, zero adapter interaction", async () => {
+  reset();
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["anthropic", "openai"] };
+  registeredProviderIds = ["anthropic", "openai"];
+  await getRadarAiProviderSelectionOptions();
+  assert.equal(coreCalls.length, 0, "the advisory core must never run for a selection-options read");
 });

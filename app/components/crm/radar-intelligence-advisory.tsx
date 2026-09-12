@@ -19,6 +19,22 @@ import { formatDateTime } from "@/lib/i18n/format";
  *
  * Provider-neutral: never names "Claude" / "Anthropic". `clientId` is an
  * action argument, never rendered as visible text.
+ *
+ * RADAR INTELLIGENCE V2.1 — Phase D. `selectionOptions` (server-resolved,
+ * read-only) is the ONE deliberate, narrow exception to "provider-neutral"
+ * — mirroring the existing SYSTEM_ADMIN-only footer's own authorized
+ * exception below: when the OWNER policy currently authorizes user
+ * choice (`selectionOptions.selectableProviders` non-empty), a provider
+ * selector is shown to EVERY caller who already has RADAR_QUEUE_VIEW —
+ * no new role requirement, no escalation. When `selectionOptions` is
+ * omitted or empty (the default — matches every pre-Phase-D caller and
+ * every OWNER policy that has not explicitly enabled selection), the
+ * component renders BYTE-IDENTICAL markup to before Phase D existed: no
+ * selector, "Automatic" implied. This is presentation only — the actual
+ * authorization/eligibility of any choice is re-derived FRESH,
+ * server-side, on every single request (see advisory-core.ts's resolver
+ * integration); a stale `selectionOptions` value can at most show a
+ * choice the real request safely rejects on its own.
  */
 export type RadarIntelligenceAdvisoryDict = {
   sectionTitle: string;
@@ -45,6 +61,11 @@ export type RadarIntelligenceAdvisoryDict = {
   /** Label before the SYSTEM_ADMIN-only coarse failure class, when the
    * server chose to include one. Never shown otherwise. */
   diagnosticPrefix: string;
+  /** RADAR INTELLIGENCE V2.1 Phase D — the per-request provider selector's
+   * own label + the "no preference" option. Only rendered when
+   * `selectionOptions.selectableProviders` is non-empty. */
+  aiProviderLabel: string;
+  automaticLabel: string;
 };
 
 /** Presentational display names for the SYSTEM_ADMIN-only technical
@@ -184,22 +205,41 @@ export function AdvisoryResultView({
   );
 }
 
+/** RADAR INTELLIGENCE V2.1 Phase D — server-resolved, read-only echo of
+ * which providers the CURRENT OWNER policy authorizes a user to
+ * explicitly request. Empty/omitted -> the selector renders nothing at
+ * all (see RadarIntelligenceAdvisory's own docstring for why this is
+ * safe: never the authorization source, only a display hint). */
+export type RadarAiProviderSelectionOptions = {
+  selectableProviders: string[];
+};
+
 export function RadarIntelligenceAdvisory({
   clientId,
   locale,
+  selectionOptions,
   t = dictionaries[locale].radarIntelligence,
 }: {
   clientId: string;
   locale: Locale;
+  selectionOptions?: RadarAiProviderSelectionOptions;
   t?: RadarIntelligenceAdvisoryDict;
 }) {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<RadarAdvisoryUiResult | null>(null);
+  // RADAR INTELLIGENCE V2.1 Phase D — `null` = Automatic, the only value
+  // every pre-Phase-D usage of this component implicitly had. Component
+  // (React) state only — no persistence, no localStorage: a page reload
+  // always returns to Automatic, exactly as required.
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+
+  const selectableProviders = selectionOptions?.selectableProviders ?? [];
+  const showSelector = selectableProviders.length > 0;
 
   function onRequest() {
     startTransition(async () => {
       try {
-        setResult(await requestRadarIntelligenceAdvisory(clientId));
+        setResult(await requestRadarIntelligenceAdvisory(clientId, selectedProviderId));
       } catch {
         setResult({ status: "error" });
       }
@@ -210,9 +250,29 @@ export function RadarIntelligenceAdvisory({
     <div className="mt-4 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)]" aria-busy={isPending}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sectionTitle}</p>
-        <button type="button" className={ctaButtonClass} onClick={onRequest} disabled={isPending} aria-label={t.getAdvisoryCta}>
-          {isPending ? t.loading : result ? t.retryCta : t.getAdvisoryCta}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {showSelector && (
+            <label className="flex items-center gap-1.5 text-xs text-pm-gris">
+              {t.aiProviderLabel}
+              <select
+                value={selectedProviderId ?? ""}
+                disabled={isPending}
+                onChange={(e) => setSelectedProviderId(e.target.value === "" ? null : e.target.value)}
+                className="rounded-md border border-pm-gris-2 bg-white px-2 py-1 text-xs text-pm-noir disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">{t.automaticLabel}</option>
+                {selectableProviders.map((id) => (
+                  <option key={id} value={id}>
+                    {PROVIDER_DISPLAY_NAMES[id] ?? id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button type="button" className={ctaButtonClass} onClick={onRequest} disabled={isPending} aria-label={t.getAdvisoryCta}>
+            {isPending ? t.loading : result ? t.retryCta : t.getAdvisoryCta}
+          </button>
+        </div>
       </div>
 
       <p className="mt-2 text-xs text-pm-gris">{t.disclaimer}</p>
