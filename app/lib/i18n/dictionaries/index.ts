@@ -37,6 +37,7 @@ import { quoteVerification } from "./quote-verification";
 import { chat } from "./chat";
 import { radarIntelligence } from "./radar-intelligence";
 import { aiProviderPolicy } from "./ai-provider-policy";
+import { aiProviderOperations } from "./ai-provider-operations";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -71,6 +72,7 @@ export const dictionaries = {
     chat: chat.fr,
     radarIntelligence: radarIntelligence.fr,
     aiProviderPolicy: aiProviderPolicy.fr,
+    aiProviderOperations: aiProviderOperations.fr,
   },
   en: {
     common: common.en,
@@ -101,5 +103,6 @@ export const dictionaries = {
     chat: chat.en,
     radarIntelligence: radarIntelligence.en,
     aiProviderPolicy: aiProviderPolicy.en,
+    aiProviderOperations: aiProviderOperations.en,
   },
 } as const;

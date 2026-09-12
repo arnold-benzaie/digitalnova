@@ -54,7 +54,7 @@ function auditableSnapshot(policy: ProviderPolicy) {
  * once `requireStaffMember` has already confirmed an ACTIVE membership)
  * degrades to `null` rather than blocking the write.
  */
-async function resolveActingStaffMemberId(userId: string, internalOrgId: string): Promise<string | null> {
+export async function resolveActingStaffMemberId(userId: string, internalOrgId: string): Promise<string | null> {
   const [row] = await db
     .select({ id: staffMembers.id })
     .from(staffMembers)

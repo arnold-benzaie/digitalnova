@@ -1,11 +1,14 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getRadarAiProviderPolicyPageData } from "@/lib/actions/radar-ai-policy-ui";
+import { getRadarAiProviderOperationsStatusPageData, getRadarAiProviderModelCatalogPageData } from "@/lib/actions/radar-ai-provider-ops-ui";
+import { CREDENTIAL_OPERATIONS_CAPABILITY } from "@/lib/radar-intelligence/credential-operations";
 import { getRadarIntelligenceProviderStatus } from "@/lib/radar-intelligence/provider-status";
 import { POLICY_CONFIGURABLE_PROVIDER_IDS, type PolicyConfigurableProviderId } from "@/lib/radar-intelligence/provider-policy";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero } from "@/components/admin/page-hero";
 import { AiProviderPolicyForm, type ProviderStatusBadge } from "@/components/owner/ai-provider-policy-form";
+import { AiProviderOperationsPanel } from "@/components/owner/ai-provider-operations-panel";
 
 /**
  * RADAR INTELLIGENCE V2.1 — Phase C — the OWNER-only AI provider policy
@@ -35,10 +38,12 @@ import { AiProviderPolicyForm, type ProviderStatusBadge } from "@/components/own
 export default async function AiProvidersOwnerPage() {
   await requireStaffMember("RADAR_AI_POLICY_MANAGE");
 
-  const [{ policy, updatedAt }, status, locale] = await Promise.all([
+  const [{ policy, updatedAt }, status, locale, operationsStatus, modelCatalog] = await Promise.all([
     getRadarAiProviderPolicyPageData(),
     getRadarIntelligenceProviderStatus(),
     getLocale(),
+    getRadarAiProviderOperationsStatusPageData(),
+    getRadarAiProviderModelCatalogPageData(),
   ]);
   const t = dictionaries[locale].aiProviderPolicy;
 
@@ -52,6 +57,12 @@ export default async function AiProvidersOwnerPage() {
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
       <AiProviderPolicyForm initialPolicy={policy} updatedAt={updatedAt} providerStatus={providerStatus} locale={locale} />
+      <AiProviderOperationsPanel
+        initialStatus={operationsStatus}
+        modelCatalog={modelCatalog}
+        credentialOperationsCapability={CREDENTIAL_OPERATIONS_CAPABILITY}
+        locale={locale}
+      />
     </>
   );
 }

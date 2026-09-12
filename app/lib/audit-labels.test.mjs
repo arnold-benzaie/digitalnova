@@ -123,3 +123,47 @@ test("radar_ai.policy_reset — real FR/EN labels (never the raw action string),
   assert.equal(describeAuditEntry(entryFor(), "en"), "RADAR AI provider policy reset to default");
   assert.equal(categoryOf("radar_ai.policy_reset"), "radar_ai");
 });
+
+/* ------------------------------------------------------------------ *
+ * RADAR INTELLIGENCE V2.1 — Phase E — radar_ai.model_changed label
+ * ------------------------------------------------------------------ */
+
+test("radar_ai.model_changed — real FR/EN labels including provider + new model, never the raw action string", () => {
+  const entryFor = (metadata) => ({ action: "radar_ai.model_changed", targetType: "radar_ai_provider_runtime_config", targetId: "anthropic", metadata });
+  const metadata = { providerId: "anthropic", beforeModel: "claude-sonnet-4-5", afterModel: "claude-sonnet-5" };
+  const fr = describeAuditEntry(entryFor(metadata), "fr");
+  const en = describeAuditEntry(entryFor(metadata), "en");
+  assert.notEqual(fr, "radar_ai.model_changed");
+  assert.notEqual(en, "radar_ai.model_changed");
+  assert.match(fr, /anthropic/);
+  assert.match(fr, /claude-sonnet-5/);
+  assert.match(en, /anthropic/);
+  assert.match(en, /claude-sonnet-5/);
+});
+
+test("radar_ai.model_changed — missing providerId/afterModel metadata still degrades to a safe generic label, never a raw action string or a crash", () => {
+  const entryFor = { action: "radar_ai.model_changed", targetType: "radar_ai_provider_runtime_config", targetId: "anthropic", metadata: {} };
+  assert.doesNotThrow(() => describeAuditEntry(entryFor, "fr"));
+  assert.doesNotThrow(() => describeAuditEntry(entryFor, "en"));
+  assert.notEqual(describeAuditEntry(entryFor, "fr"), "radar_ai.model_changed");
+  assert.notEqual(describeAuditEntry(entryFor, "en"), "radar_ai.model_changed");
+});
+
+test("radar_ai.model_changed — never renders the old model / any secret-shaped metadata, even if maliciously injected", () => {
+  const entryFor = {
+    action: "radar_ai.model_changed",
+    targetType: "radar_ai_provider_runtime_config",
+    targetId: "anthropic",
+    metadata: { providerId: "anthropic", afterModel: "claude-sonnet-5", apiKey: "sk-ant-LEAK", authorization: "Bearer sk-ant-LEAK" },
+  };
+  const fr = describeAuditEntry(entryFor, "fr");
+  const en = describeAuditEntry(entryFor, "en");
+  assert.ok(!fr.includes("sk-ant-LEAK"));
+  assert.ok(!en.includes("sk-ant-LEAK"));
+});
+
+test("category: radar_ai.model_changed -> 'radar_ai' -> same localized category as policy_updated/policy_reset", () => {
+  assert.equal(categoryOf("radar_ai.model_changed"), "radar_ai");
+  assert.equal(getAuditCategoryLabel("fr").radar_ai, "IA RADAR (politique fournisseur)");
+  assert.equal(getAuditCategoryLabel("en").radar_ai, "RADAR AI (provider policy)");
+});

@@ -48,6 +48,7 @@ import { produceRadarAdvisory, type AdvisoryDisplayContext, type RadarAdvisoryUi
 import { logRadarIntelligenceEvent } from "@/lib/radar-intelligence/observability";
 import { isPolicyConfigurableProviderId, type PolicyConfigurableProviderId } from "@/lib/radar-intelligence/provider-policy";
 import { loadProviderPolicy } from "@/lib/radar-intelligence/provider-policy-store";
+import { loadProviderModelOverrides } from "@/lib/radar-intelligence/provider-runtime-config-store";
 
 /**
  * Strips every SYSTEM_ADMIN-only field from `result`, returning ONLY the
@@ -162,12 +163,22 @@ export async function requestRadarIntelligenceAdvisory(
     // Never inferred from prospect data, never accepted from the caller.
     const locale = await getLocale();
 
+    // RADAR INTELLIGENCE V2.1 Phase E — load any OWNER-configured model
+    // override ONCE, async, here — never inside the synchronous
+    // `createRegistry` closure below. `loadProviderModelOverrides()` is
+    // itself fail-closed (DB failure / unknown stored model -> {}), and
+    // `createConfiguredRadarIntelligenceRegistry` re-validates every
+    // entry again against the model catalog, so a stale or corrupt
+    // override can only ever fall back to the env-configured model —
+    // never reach a transport unvalidated.
+    const modelOverrides = await loadProviderModelOverrides();
+
     const result = await produceRadarAdvisory(
       clientId,
       {
         loadQualification: getProspectQualification,
         loadDisplayContext,
-        createRegistry: createConfiguredRadarIntelligenceRegistry,
+        createRegistry: () => createConfiguredRadarIntelligenceRegistry({ modelOverrides }),
         locale,
       },
       validatedProviderId,

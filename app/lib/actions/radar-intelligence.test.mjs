@@ -67,12 +67,20 @@ mock.module("@/lib/actions/radar", { namedExports: { getProspectQualification: a
  * Defaults to empty (pre-Phase-D behavior: no test relied on a non-empty
  * registry from this mock). */
 let registeredProviderIds = [];
+/** @type {Array<Record<string, unknown>>} RADAR INTELLIGENCE V2.1 Phase E
+ * — every deps object this factory was actually called with, so a test
+ * can prove what `requestRadarIntelligenceAdvisory`'s `createRegistry`
+ * closure passes through (in particular `modelOverrides`). */
+let configuredRegistryCalls = [];
 mock.module("@/lib/radar-intelligence/configured-registry", {
   namedExports: {
-    createConfiguredRadarIntelligenceRegistry: () => ({
-      list: () => registeredProviderIds.map((id) => ({ id })),
-      selectProvider: () => ({ ok: false, error: { code: "NO_CAPABLE_PROVIDER" } }),
-    }),
+    createConfiguredRadarIntelligenceRegistry: (deps = {}) => {
+      configuredRegistryCalls.push(deps);
+      return {
+        list: () => registeredProviderIds.map((id) => ({ id })),
+        selectProvider: () => ({ ok: false, error: { code: "NO_CAPABLE_PROVIDER" } }),
+      };
+    },
   },
 });
 
@@ -85,6 +93,17 @@ mock.module("@/lib/radar-intelligence/provider-policy-store", {
   namedExports: { loadProviderPolicy: async () => ownerPolicyMock },
 });
 
+/** @type {Record<string, string>} RADAR INTELLIGENCE V2.1 Phase E — kept
+ * empty by default: this suite tests the ACTION's orchestration, not the
+ * runtime-config store (see provider-runtime-config-store.test.mjs for
+ * that) — mocked here, same as provider-policy-store above, so the
+ * fake db ({}) is never actually touched and this store's own fallback
+ * console.warn never fires and pollutes withCapturedWarn() below. */
+let modelOverridesMock = {};
+mock.module("@/lib/radar-intelligence/provider-runtime-config-store", {
+  namedExports: { loadProviderModelOverrides: async () => modelOverridesMock },
+});
+
 let coreCalls = [];
 let coreResult = { status: "unavailable" };
 let coreThrows = false;
@@ -92,6 +111,11 @@ mock.module("@/lib/radar-intelligence/advisory-core", {
   namedExports: {
     produceRadarAdvisory: async (clientId, deps, requestedProviderId) => {
       coreCalls.push({ clientId, depKeys: Object.keys(deps).sort(), locale: deps.locale, requestedProviderId });
+      // Real produceRadarAdvisory always calls deps.createRegistry() —
+      // invoke it here too so the (real) closure built by
+      // requestRadarIntelligenceAdvisory actually runs, letting
+      // configuredRegistryCalls observe what it passed through.
+      deps.createRegistry();
       if (coreThrows) {
         throw new Error("unexpected core failure with a secret inside sk-ant-LEAK");
       }
@@ -118,6 +142,8 @@ function reset() {
   currentLocale = "fr";
   registeredProviderIds = [];
   ownerPolicyMock = { allowUserSelection: false, userSelectableProviders: [] };
+  modelOverridesMock = {};
+  configuredRegistryCalls = [];
 }
 
 async function withCapturedWarn(fn) {
@@ -611,4 +637,51 @@ test("getRadarAiProviderSelectionOptions: never triggers a provider call -- read
   registeredProviderIds = ["anthropic", "openai"];
   await getRadarAiProviderSelectionOptions();
   assert.equal(coreCalls.length, 0, "the advisory core must never run for a selection-options read");
+});
+
+// ---------------- RADAR INTELLIGENCE V2.1 Phase E: model override wiring ----------------
+//
+// `requestRadarIntelligenceAdvisory` loads any OWNER-configured model
+// override ONCE (async), then builds a synchronous `createRegistry`
+// closure that forwards it into `createConfiguredRadarIntelligenceRegistry`.
+// These tests observe that wiring directly via `configuredRegistryCalls`.
+
+test("Phase E: a stored model override is forwarded into createConfiguredRadarIntelligenceRegistry({ modelOverrides })", async () => {
+  reset();
+  modelOverridesMock = { anthropic: "claude-sonnet-5" };
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(configuredRegistryCalls.length, 1);
+  assert.deepEqual(configuredRegistryCalls[0].modelOverrides, { anthropic: "claude-sonnet-5" });
+});
+
+test("Phase E: no stored override -> createConfiguredRadarIntelligenceRegistry is still called with an empty modelOverrides object, never omitted/undefined-shaped", async () => {
+  reset();
+  modelOverridesMock = {};
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(configuredRegistryCalls[0].modelOverrides, {});
+});
+
+test("Phase E: model overrides are loaded fresh on every call -- two requests can see two different override states", async () => {
+  reset();
+  // Distinct session user ids so the action's own per-user cooldown
+  // (unrelated to this feature) never turns the second call into an
+  // early rate_limited return before createRegistry is ever built.
+  sessionUserId = "user-phase-e-1";
+  modelOverridesMock = { anthropic: "claude-sonnet-5" };
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  sessionUserId = "user-phase-e-2";
+  modelOverridesMock = { openai: "gpt-5.6-terra" };
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(configuredRegistryCalls[0].modelOverrides, { anthropic: "claude-sonnet-5" });
+  assert.deepEqual(configuredRegistryCalls[1].modelOverrides, { openai: "gpt-5.6-terra" });
+});
+
+test("Phase E: getRadarAiProviderSelectionOptions never reads or forwards model overrides -- it only checks registration, unaffected by this feature", async () => {
+  reset();
+  modelOverridesMock = { anthropic: "claude-sonnet-5" };
+  registeredProviderIds = ["anthropic", "openai"];
+  ownerPolicyMock = { allowUserSelection: true, userSelectableProviders: ["anthropic", "openai"] };
+  await getRadarAiProviderSelectionOptions();
+  assert.equal(configuredRegistryCalls.length, 1);
+  assert.equal("modelOverrides" in configuredRegistryCalls[0], false);
 });

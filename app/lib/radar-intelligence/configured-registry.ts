@@ -29,7 +29,9 @@ import { createRadarIntelligenceRegistry, type CreateRegistryOptions } from "./a
 import { createAnthropicHttpTransport } from "./adapters/anthropic-http-transport";
 import { createOpenAiHttpTransport } from "./adapters/openai-http-transport";
 import { loadRadarIntelligenceConfig, type LoadedRadarIntelligenceConfig } from "./config-loader";
+import { isKnownModelId } from "./model-catalog";
 import type { ProviderRegistry } from "./provider-registry";
+import type { PolicyConfigurableProviderId } from "./provider-policy";
 
 export type ConfiguredRegistryDeps = {
   /** Injected for tests — defaults to reading process.env via the loader. */
@@ -47,6 +49,24 @@ export type ConfiguredRegistryDeps = {
   clock?: () => Date;
   /** Test-only: override the request timeout passed to every HTTP transport. */
   requestTimeoutMs?: number;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase E — an already-loaded, per-provider
+   * model override (see provider-runtime-config-store.ts), plain data —
+   * never a DB read performed by THIS function. The real caller
+   * (lib/actions/radar-intelligence.ts) loads it async, once, before
+   * building the synchronous `createRegistry` closure this factory lives
+   * behind; tests may inject any fixture directly.
+   *
+   * Re-validated AGAIN here via `isKnownModelId()` regardless of whether
+   * the caller already validated it (defense in depth, same convention as
+   * `isPolicyConfigurableProviderId` being re-checked at multiple seams
+   * elsewhere in this feature): an override missing, or naming a model
+   * outside that provider's own catalog, is silently ignored and that
+   * provider's env-configured model (`a.model` / `o.model`) is used
+   * instead — never a throw, never a fabricated model id reaching a
+   * transport.
+   */
+  modelOverrides?: Partial<Record<PolicyConfigurableProviderId, string>>;
 };
 
 export function createConfiguredRadarIntelligenceRegistry(deps: ConfiguredRegistryDeps = {}): ProviderRegistry {
@@ -70,9 +90,14 @@ export function createConfiguredRadarIntelligenceRegistry(deps: ConfiguredRegist
       ...(typeof deps.requestTimeoutMs === "number" ? { requestTimeoutMs: deps.requestTimeoutMs } : {}),
     });
     // `a.apiKey` is not referenced again below — it goes out of scope here.
+    // Phase E: a validated OWNER model override takes precedence over the
+    // env-configured model; anything unvalidated/unknown falls back to
+    // `a.model` unchanged (see ConfiguredRegistryDeps.modelOverrides).
+    const anthropicOverride = deps.modelOverrides?.anthropic;
+    const anthropicModel = typeof anthropicOverride === "string" && isKnownModelId("anthropic", anthropicOverride) ? anthropicOverride : a.model;
     registryOptions.config = {
       ...registryOptions.config,
-      anthropic: { enabled: true, model: a.model, maxOutputTokens: a.maxOutputTokens, maxRequestBytes: a.maxRequestBytes },
+      anthropic: { enabled: true, model: anthropicModel, maxOutputTokens: a.maxOutputTokens, maxRequestBytes: a.maxRequestBytes },
     };
     registryOptions.anthropicTransport = anthropicTransport;
   }
@@ -85,9 +110,11 @@ export function createConfiguredRadarIntelligenceRegistry(deps: ConfiguredRegist
       ...(typeof deps.requestTimeoutMs === "number" ? { requestTimeoutMs: deps.requestTimeoutMs } : {}),
     });
     // `o.apiKey` is not referenced again below — it goes out of scope here.
+    const openaiOverride = deps.modelOverrides?.openai;
+    const openaiModel = typeof openaiOverride === "string" && isKnownModelId("openai", openaiOverride) ? openaiOverride : o.model;
     registryOptions.config = {
       ...registryOptions.config,
-      openai: { enabled: true, model: o.model, maxOutputTokens: o.maxOutputTokens, maxRequestBytes: o.maxRequestBytes },
+      openai: { enabled: true, model: openaiModel, maxOutputTokens: o.maxOutputTokens, maxRequestBytes: o.maxRequestBytes },
     };
     registryOptions.openaiTransport = openaiTransport;
   }

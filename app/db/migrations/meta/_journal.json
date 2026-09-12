@@ -281,6 +281,13 @@
       "when": 1789178964039,
       "tag": "0039_mute_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789207639599,
+      "tag": "0040_radar_ai_provider_runtime_config",
+      "breakpoints": true
     }
   ]
 }

@@ -271,6 +271,10 @@ function describeAuditEntryFr(entry: AuditEntry): string {
       return "Politique de fournisseur IA RADAR mise à jour";
     case "radar_ai.policy_reset":
       return "Politique de fournisseur IA RADAR réinitialisée (valeurs par défaut)";
+    case "radar_ai.model_changed":
+      return typeof m.providerId === "string" && typeof m.afterModel === "string"
+        ? `Modèle IA RADAR modifié (${m.providerId} → ${m.afterModel})`
+        : "Modèle IA RADAR modifié";
     default:
       return entry.action;
   }
@@ -453,6 +457,10 @@ function describeAuditEntryEn(entry: AuditEntry): string {
       return "RADAR AI provider policy updated";
     case "radar_ai.policy_reset":
       return "RADAR AI provider policy reset to default";
+    case "radar_ai.model_changed":
+      return typeof m.providerId === "string" && typeof m.afterModel === "string"
+        ? `RADAR AI model changed (${m.providerId} → ${m.afterModel})`
+        : "RADAR AI model changed";
     default:
       return entry.action;
   }

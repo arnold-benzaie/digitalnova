@@ -371,3 +371,104 @@ test("BUGFIX (exact Production gap), both disabled: Anthropic disabled + OpenAI 
   assert.equal(anthropicFetch.calls.length, 0);
   assert.equal(openaiFetch.calls.length, 0);
 });
+
+// ---------------- RADAR INTELLIGENCE V2.1 Phase E: model overrides ----------------
+//
+// `deps.modelOverrides` is plain, already-loaded data -- never a DB read
+// performed by this function itself (see ConfiguredRegistryDeps's own
+// docstring). Re-validated again here via isKnownModelId(): an
+// unknown/mismatched/absent override for a provider must never change
+// that provider's wire model away from its env-configured value.
+
+test("Phase E: a validated anthropic model override changes the model actually sent on the wire", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: loadedConfig({ model: "claude-sonnet-4-5" }),
+    fetchImpl: ff,
+    clock,
+    modelOverrides: { anthropic: "claude-sonnet-5" },
+  });
+  await snapWith(reg);
+  assert.equal(ff.calls.length, 1);
+  const sentModel = JSON.parse(ff.calls[0].init.body).model;
+  assert.equal(sentModel, "claude-sonnet-5");
+});
+
+test("Phase E: an UNKNOWN anthropic model override is ignored -- the env-configured model is still sent on the wire", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: loadedConfig({ model: "claude-sonnet-4-5" }),
+    fetchImpl: ff,
+    clock,
+    modelOverrides: { anthropic: "claude-opus-9000-does-not-exist" },
+  });
+  await snapWith(reg);
+  const sentModel = JSON.parse(ff.calls[0].init.body).model;
+  assert.equal(sentModel, "claude-sonnet-4-5");
+});
+
+test("Phase E: an OpenAI model id supplied as the anthropic override (provider/model mismatch) is ignored", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: loadedConfig({ model: "claude-sonnet-4-5" }),
+    fetchImpl: ff,
+    clock,
+    modelOverrides: { anthropic: "gpt-4o-mini" },
+  });
+  await snapWith(reg);
+  const sentModel = JSON.parse(ff.calls[0].init.body).model;
+  assert.equal(sentModel, "claude-sonnet-4-5");
+});
+
+test("Phase E: no modelOverrides at all (undefined) -> byte-identical to pre-Phase-E behavior", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({ loadedConfig: loadedConfig({ model: "claude-sonnet-4-5" }), fetchImpl: ff, clock });
+  await snapWith(reg);
+  const sentModel = JSON.parse(ff.calls[0].init.body).model;
+  assert.equal(sentModel, "claude-sonnet-4-5");
+});
+
+test("Phase E: an empty modelOverrides object -> byte-identical to pre-Phase-E behavior", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: loadedConfig({ model: "claude-sonnet-4-5" }),
+    fetchImpl: ff,
+    clock,
+    modelOverrides: {},
+  });
+  await snapWith(reg);
+  const sentModel = JSON.parse(ff.calls[0].init.body).model;
+  assert.equal(sentModel, "claude-sonnet-4-5");
+});
+
+test("Phase E: a validated openai model override changes the model sent on the wire, independent of anthropic", async () => {
+  const { createProviderRouter } = await import("./provider-router.ts");
+  const { sanitizeProspectContext } = await import("./sanitize-context.ts");
+  const anthropicFetch = fakeFetch({ status: 200 });
+  const openaiFetch = openAiChatCompletionsFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: { anthropic: loadedConfig({ model: "claude-sonnet-4-5" }).anthropic, openai: openAiConfig({ model: "gpt-4o-mini" }) },
+    anthropicFetchImpl: anthropicFetch,
+    openaiFetchImpl: openaiFetch,
+    clock,
+    modelOverrides: { openai: "gpt-5.6-terra" },
+  });
+  const router = createProviderRouter({ registry: reg, policy: { primary: "openai", fallbackOrder: [], fallbackEnabled: false }, clock, timeoutMs: 8000 });
+  await router.run({ kind: "summarize", requiredCapabilities: ["summarize"], context: sanitizeProspectContext({ prospectName: "X", stage: "prospect" }) });
+  assert.equal(anthropicFetch.calls.length, 0, "anthropic must be untouched by an openai-only override");
+  assert.equal(openaiFetch.calls.length, 1);
+  const sentModel = JSON.parse(openaiFetch.calls[0].init.body).model;
+  assert.equal(sentModel, "gpt-5.6-terra");
+});
+
+test("Phase E: a validated override for a DISABLED/unregistered provider has no effect (that provider is still simply absent)", async () => {
+  const ff = fakeFetch({ status: 200 });
+  const reg = createConfiguredRadarIntelligenceRegistry({
+    loadedConfig: loadedConfig({ enabled: false }),
+    fetchImpl: ff,
+    clock,
+    modelOverrides: { anthropic: "claude-sonnet-5" },
+  });
+  assert.deepEqual(reg.list().map((a) => a.id), ["deterministic"]);
+  assert.equal(ff.calls.length, 0);
+});

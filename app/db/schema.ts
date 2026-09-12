@@ -2023,3 +2023,35 @@ export const radarAiProviderPolicy = pgTable(
     }).onDelete("set null"),
   ],
 );
+
+// RADAR INTELLIGENCE V2.1 — Phase E — per-provider RUNTIME configuration
+// (model selection only). Deliberately a SEPARATE table from
+// radar_ai_provider_policy above: that table is ROUTING PERMISSION
+// (which providers may be used, in what order, whether a user may
+// choose), a governance concern; this one is PROVIDER RUNTIME
+// CONFIGURATION (which model id that provider currently uses), an
+// operations concern — see lib/radar-intelligence/model-catalog.ts's own
+// docstring on why the two must never merge. NO CREDENTIAL COLUMN, NO
+// SECRET COLUMN — a provider's API key never has anywhere to live in this
+// table by construction, only its (non-secret) model id.
+export const radarAiProviderRuntimeConfig = pgTable(
+  "radar_ai_provider_runtime_config",
+  {
+    // One row per known provider id — never a singleton, never a
+    // client-supplied id (the CHECK constraint below closes it to
+    // exactly the two policy-configurable providers).
+    providerId: text("provider_id").primaryKey(),
+    modelId: text("model_id").notNull(),
+    updatedByStaffMemberId: uuid("updated_by_staff_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("radar_ai_provider_runtime_config_provider_check", sql`${table.providerId} IN ('anthropic','openai')`),
+    foreignKey({
+      name: "radar_ai_provider_runtime_config_updated_by_staff_fk",
+      columns: [table.updatedByStaffMemberId],
+      foreignColumns: [staffMembers.id],
+    }).onDelete("set null"),
+  ],
+);
