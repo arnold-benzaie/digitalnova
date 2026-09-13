@@ -302,6 +302,13 @@
       "when": 1789272725826,
       "tag": "0042_radar_ai_quota_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789275506873,
+      "tag": "0043_radar_ai_quota_counter",
+      "breakpoints": true
     }
   ]
 }

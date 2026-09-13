@@ -2188,3 +2188,35 @@ export const radarAiQuotaPolicy = pgTable(
     }).onDelete("set null"),
   ],
 );
+
+// RADAR INTELLIGENCE V2.1 — Phase G4B-1 — the atomic AI quota COUNTER
+// (machine-only enforcement state, NOT configuration). Deliberately a
+// SEPARATE table from radar_ai_quota_policy above: that table is
+// OWNER-edited configuration (limits), this one is live, machine-written
+// consumption state for the current UTC period — the two are read
+// independently, on purpose, so an OWNER policy edit never resets an
+// in-progress counter (see lib/radar-intelligence/quota-counter-store.ts's
+// own docstring). G4B-1 introduces ONLY this table and its atomic store;
+// no gate, no policy read, no advisory-core.ts wiring exists yet (G4B-2).
+//
+// `key` follows lib/api-v1/rate-limit.ts's own proven "scope:identifier"
+// composition (that file's own atomic INSERT...ON CONFLICT DO UPDATE
+// technique is the direct model for this table's store) — here fixed to
+// `global:<UTC-date>` since G4B's scope is workspace-wide, never
+// per-user/per-provider. NO providerId, NO userId, NO secret column —
+// this table has no relationship to a specific provider, user, or
+// credential.
+export const radarAiQuotaCounter = pgTable(
+  "radar_ai_quota_counter",
+  {
+    key: text("key").primaryKey(),
+    requestCount: integer("request_count").notNull().default(0),
+    tokenCount: integer("token_count").notNull().default(0),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("radar_ai_quota_counter_request_count_check", sql`${table.requestCount} >= 0`),
+    check("radar_ai_quota_counter_token_count_check", sql`${table.tokenCount} >= 0`),
+  ],
+);
