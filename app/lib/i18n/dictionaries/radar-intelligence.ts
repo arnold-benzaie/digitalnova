@@ -27,6 +27,7 @@ export const radarIntelligence = {
     timeout: "La demande d'avis IA a expiré. Réessayez plus tard.",
     genericError: "Impossible de générer un avis IA pour le moment.",
     notApplicable: "Aucun avis IA : ce prospect n'est pas encore qualifié pour une analyse.",
+    limited: "L'IA externe est temporairement limitée. Le RADAR continue de fonctionner avec ses recommandations déterministes.",
     disclaimer: "L'avis IA est consultatif. Il ne modifie ni la priorité, ni le score, ni la qualification, ni l'attribution, ni les relances.",
     diagnosticPrefix: "Diagnostic :",
     /** RADAR INTELLIGENCE V2.1 Phase D — the per-request provider
@@ -61,6 +62,7 @@ export const radarIntelligence = {
     timeout: "The AI advisory request timed out. Please try again later.",
     genericError: "Unable to generate an AI advisory right now.",
     notApplicable: "No AI advisory: this prospect is not yet qualified for analysis.",
+    limited: "External AI is temporarily limited. RADAR continues to work with its deterministic recommendations.",
     disclaimer: "The AI advisory is advisory only. It does not change priority, score, qualification, assignment, or follow-ups.",
     diagnosticPrefix: "Diagnostic:",
     aiProviderLabel: "AI Provider",

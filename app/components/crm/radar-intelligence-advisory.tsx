@@ -57,6 +57,7 @@ export type RadarIntelligenceAdvisoryDict = {
   timeout: string;
   genericError: string;
   notApplicable: string;
+  limited: string;
   disclaimer: string;
   /** Label before the SYSTEM_ADMIN-only coarse failure class, when the
    * server chose to include one. Never shown otherwise. */
@@ -79,7 +80,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = { anthropic: "Anthropic",
 const ctaButtonClass =
   "rounded-lg border border-pm-bleu-eu/30 bg-white px-3 py-1.5 text-sm font-medium text-pm-bleu-eu transition hover:border-pm-bleu-eu/60 hover:bg-pm-bleu-eu/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-bleu-eu/40 disabled:cursor-not-allowed disabled:opacity-60";
 
-function messageFor(result: Exclude<RadarAdvisoryUiResult, { status: "ok" }>, t: RadarIntelligenceAdvisoryDict): string {
+function messageFor(result: Exclude<RadarAdvisoryUiResult, { status: "ok" } | { status: "limited" }>, t: RadarIntelligenceAdvisoryDict): string {
   switch (result.status) {
     case "unavailable":
       return t.unavailable;
@@ -94,6 +95,37 @@ function messageFor(result: Exclude<RadarAdvisoryUiResult, { status: "ok" }>, t:
   }
 }
 
+/** The authoritative deterministic RADAR block — shared, byte-identical
+ * markup for both "ok" and "limited" results, since both carry the same
+ * `deterministic` shape and it must render exactly the same way for both. */
+function DeterministicBlock({
+  deterministic,
+  t,
+}: {
+  deterministic: { priority: string; confidence: string; recommendedNextAction: string };
+  t: RadarIntelligenceAdvisoryDict;
+}) {
+  return (
+    <section className="rounded-xl border border-pm-gris-2 bg-pm-gris-1/40 p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-pm-noir">{t.deterministicHeading}</h3>
+      <dl className="mt-2 space-y-1 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-pm-gris">{t.priorityLabel}</dt>
+          <dd className="font-medium text-pm-noir">{deterministic.priority}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-pm-gris">{t.confidenceLabel}</dt>
+          <dd className="font-medium text-pm-noir">{deterministic.confidence}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-pm-gris">{t.recommendedActionLabel}</dt>
+          <dd className="font-medium text-pm-noir">{deterministic.recommendedNextAction}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 /** Pure result renderer — no hooks, so it is rendered directly in tests
  * for every RadarAdvisoryUiResult variant. */
 export function AdvisoryResultView({
@@ -105,6 +137,20 @@ export function AdvisoryResultView({
   locale: Locale;
   t: RadarIntelligenceAdvisoryDict;
 }) {
+  // G4C-0: a "limited" result carries the SAME authoritative deterministic
+  // block as "ok" (see advisory-core.ts), but no AI advisory content at
+  // all — there is no summary/risks/suggestedNextAction/reasoning to show,
+  // because no provider was ever called. Handled as its own branch, never
+  // folded into the generic non-ok message path below, and never treated
+  // as an error/unavailable/rate_limited/timeout state.
+  if (result.status === "limited") {
+    return (
+      <>
+        <DeterministicBlock deterministic={result.deterministic} t={t} />
+        <p className="mt-3 text-sm text-pm-gris">{t.limited}</p>
+      </>
+    );
+  }
   if (result.status !== "ok") {
     const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
     // httpStatus is only ever present on the result alongside diagnostic
@@ -130,23 +176,7 @@ export function AdvisoryResultView({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {/* A — deterministic RADAR (authoritative) */}
-      <section className="rounded-xl border border-pm-gris-2 bg-pm-gris-1/40 p-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-pm-noir">{t.deterministicHeading}</h3>
-        <dl className="mt-2 space-y-1 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-pm-gris">{t.priorityLabel}</dt>
-            <dd className="font-medium text-pm-noir">{result.deterministic.priority}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-pm-gris">{t.confidenceLabel}</dt>
-            <dd className="font-medium text-pm-noir">{result.deterministic.confidence}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-pm-gris">{t.recommendedActionLabel}</dt>
-            <dd className="font-medium text-pm-noir">{result.deterministic.recommendedNextAction}</dd>
-          </div>
-        </dl>
-      </section>
+      <DeterministicBlock deterministic={result.deterministic} t={t} />
 
       {/* B — AI advisory (indicative, visually separate) */}
       <section className="rounded-xl border border-pm-bleu-eu/20 bg-pm-bleu-eu/5 p-3">

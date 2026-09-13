@@ -3,8 +3,9 @@
 // The server action is stubbed. Proves:
 //   - idle: only a button, no request on mount
 //   - result rendering (via the pure AdvisoryResultView) for every status:
-//     ok (deterministic + AI blocks visually separate), unavailable,
-//     rate_limited, timeout, error, not_applicable
+//     ok (deterministic + AI blocks visually separate), limited
+//     (deterministic block only, no AI advisory content — G4C-0),
+//     unavailable, rate_limited, timeout, error, not_applicable
 //   - FR + EN copy
 //   - provider-neutral: no "Claude" / "Anthropic" anywhere
 //   - no client / task / interaction UUID in the markup
@@ -226,6 +227,117 @@ for (const [status, frNeedle, enNeedle] of [
     noProviderName(fr);
   });
 }
+
+// ---------------- G4C-0: "limited" status (quota gate, no provider call) ----------------
+
+const LIMITED = {
+  status: "limited",
+  deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" },
+};
+
+test("limited: renders the dedicated limited message (FR + EN), never the generic error message", () => {
+  const fr = view(LIMITED, "fr");
+  const en = view(LIMITED, "en");
+  assert.ok(fr.includes(tFr.limited), "FR limited message must be shown");
+  assert.ok(en.includes(tEn.limited), "EN limited message must be shown");
+  assert.equal(fr.includes(tFr.genericError), false, "must not fall back to the generic error message");
+  assert.equal(en.includes(tEn.genericError), false, "must not fall back to the generic error message");
+  assert.equal(fr.includes(tFr.unavailable), false);
+  assert.equal(fr.includes(tFr.rateLimited), false);
+  assert.equal(fr.includes(tFr.timeout), false);
+});
+
+test("limited: the full deterministic block (priority, confidence, recommended action) is rendered, sourced verbatim from result.deterministic", () => {
+  const html = view(LIMITED, "fr");
+  assert.ok(html.includes(tFr.deterministicHeading));
+  assert.match(html, /HIGH/);
+  assert.match(html, /MEDIUM/);
+  assert.match(html, /FOLLOW_UP_PROPOSAL/);
+  // exactly one <section> — the deterministic block only, no AI advisory block
+  assert.equal((html.match(/<section/g) || []).length, 1);
+});
+
+test("limited: no AI advisory content is rendered (no summary/risks/suggestedNextAction/reasoning/indicative labels)", () => {
+  const html = view(LIMITED, "fr");
+  assert.equal(html.includes(tFr.summaryLabel), false);
+  assert.equal(html.includes(tFr.risksLabel), false);
+  assert.equal(html.includes(tFr.suggestedNextActionLabel), false);
+  assert.equal(html.includes(tFr.reasoningLabel), false);
+  assert.equal(html.includes(tFr.indicativeLabel), false);
+  assert.equal(html.includes(tFr.sectionTitle) && html.includes(tFr.indicativeLabel), false);
+});
+
+test("limited: no OWNER quota governance internals ever leak into this operational view", () => {
+  const html = view(LIMITED, "fr");
+  const forbidden = [
+    "dailyRequestLimit",
+    "dailyTokenLimit",
+    "requestCount",
+    "tokenCount",
+    "remaining",
+    "warningThresholdPercent",
+    "storeStatus",
+    "AI_QUOTA_",
+    "quota_policy",
+    "quota_counter",
+  ];
+  for (const term of forbidden) {
+    assert.equal(html.toLowerCase().includes(term.toLowerCase()), false, `leaked OWNER-only term: ${term}`);
+  }
+  noProviderName(html);
+  noUuid(html);
+});
+
+test("limited: no diagnostic/httpStatus suffix is rendered even if present on the result (limited never carries those fields, but the renderer must not assume it does)", () => {
+  const html = view({ ...LIMITED, diagnostic: "SHOULD_NOT_APPEAR" }, "fr");
+  assert.equal(html.includes(tFr.diagnosticPrefix), false);
+  assert.equal(html.includes("SHOULD_NOT_APPEAR"), false);
+});
+
+test("limited: EN deterministic labels render correctly", () => {
+  const html = view(LIMITED, "en");
+  assert.ok(html.includes(tEn.deterministicHeading));
+  assert.ok(html.includes(tEn.limited));
+});
+
+test("limited: dictionary key exists in FR + EN, non-empty, provider-neutral, no secrets", () => {
+  for (const t of [tFr, tEn]) {
+    assert.equal(typeof t.limited, "string");
+    assert.ok(t.limited.length > 0);
+    assert.equal(/claude|anthropic/i.test(t.limited), false);
+    assert.equal(/sk-ant-|sk-proj-|apiKey|DATABASE_URL/i.test(t.limited), false);
+  }
+});
+
+test("limited: other non-ok statuses are unaffected — still no deterministic <section> and still their own distinct message", () => {
+  for (const [status, needle] of [
+    ["unavailable", tFr.unavailable],
+    ["rate_limited", tFr.rateLimited],
+    ["timeout", tFr.timeout],
+    ["error", tFr.genericError],
+    ["not_applicable", tFr.notApplicable],
+  ]) {
+    const html = view({ status }, "fr");
+    assert.ok(html.includes(needle), `${status}: unchanged message`);
+    assert.equal(html.includes("<section"), false, `${status}: still no deterministic block`);
+    assert.equal(html.includes(tFr.limited), false, `${status}: must not show the limited message`);
+  }
+});
+
+test("limited: does not affect the ok status's rendering (still both sections, deterministic + AI advisory)", () => {
+  const html = view(OK, "fr");
+  assert.equal((html.match(/<section/g) || []).length, 2);
+  assert.equal(html.includes(tFr.limited), false);
+});
+
+test("limited: no secret token or raw provider error text leaks into the rendered output", () => {
+  const html = view(LIMITED, "fr");
+  assert.equal(/sk-ant-|sk-proj-|apiKey|DATABASE_URL|Bearer /i.test(html), false);
+  assert.equal(/PROVIDER_[45]XX|PROVIDER_TIMEOUT|PROVIDER_NETWORK|PROVIDER_PARSE|PROVIDER_UNKNOWN/.test(html), false, "no raw provider diagnostic code");
+  assert.equal(/AI_QUOTA_[A-Z_]+/.test(html), false, "no raw internal log code");
+  noProviderName(html);
+  noUuid(html);
+});
 
 // ---------------- operator diagnostic suffix (SYSTEM_ADMIN-only, server-decided) ----------------
 
