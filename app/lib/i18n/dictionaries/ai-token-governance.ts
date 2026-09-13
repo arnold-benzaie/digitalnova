@@ -16,6 +16,12 @@ export const aiTokenGovernance = {
     title: "Gouvernance IA",
     subtitle: "Utilisation des tokens RADAR IA — visible uniquement par le propriétaire.",
 
+    /** Phase G4C-3 — heading for THIS section specifically, so it reads
+     * clearly as historical/telemetry reporting, distinct from the
+     * "Quota actuel" section above it (ai-quota-status.ts) which reports
+     * the current, durable quota state instead. */
+    historySectionTitle: "Historique d'utilisation IA",
+
     windowToday: "Aujourd'hui",
     window7d: "7 jours",
     window30d: "30 jours",
@@ -43,6 +49,8 @@ export const aiTokenGovernance = {
   en: {
     title: "AI Governance",
     subtitle: "RADAR AI token usage — visible to the owner only.",
+
+    historySectionTitle: "AI usage history",
 
     windowToday: "Today",
     window7d: "7 days",

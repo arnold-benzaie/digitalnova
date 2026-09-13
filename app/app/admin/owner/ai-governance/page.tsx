@@ -1,12 +1,14 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getRadarAiTokenGovernanceSnapshot, type TokenGovernanceSnapshot } from "@/lib/actions/radar-ai-token-governance";
 import { getRadarAiQuotaPolicy } from "@/lib/actions/radar-ai-quota-policy";
+import { getRadarAiQuotaGovernanceSnapshot, type RadarAiQuotaGovernanceSnapshot } from "@/lib/actions/radar-ai-quota-governance";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { formatNumber } from "@/lib/i18n/format";
 import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
 import { QuotaPolicyForm } from "@/components/owner/ai-quota-policy-form";
+import { AiQuotaStatusPanel } from "@/components/owner/ai-quota-status-panel";
 import type { TokenAccountingWindow } from "@/lib/radar-intelligence/token-accounting";
 import type { RadarAiQuotaPolicy } from "@/lib/radar-intelligence/quota-policy-store";
 
@@ -35,8 +37,28 @@ import type { RadarAiQuotaPolicy } from "@/lib/radar-intelligence/quota-policy-s
  * never hides the token-usage report, and vice versa. This section is
  * CONFIGURATION only (the QuotaPolicyForm client component) — it reads
  * and writes lib/actions/radar-ai-quota-policy.ts, never
- * radar-ai-token-governance.ts, and displays no computed consumption or
- * "remaining budget" (no enforcement/counter exists yet — G4B).
+ * radar-ai-token-governance.ts.
+ *
+ * PHASE G4C-3 — a THIRD, independently-loaded section, "Quota actuel",
+ * was added between the policy-configuration section and the historical
+ * usage report below. It renders getRadarAiQuotaGovernanceSnapshot()
+ * (G4C-2) VERBATIM via AiQuotaStatusPanel — this page never recomputes
+ * requestRemaining/tokenRemaining/usagePercent/quotaStatus itself, and
+ * never reads radar_ai_quota_policy/radar_ai_quota_counter directly. Its
+ * load failure is independent of the other two sections' — see
+ * `quotaGovernanceSnapshot`/`quotaGovernanceLoadFailed` below — though in
+ * practice the action's OWN contract already turns a store outage into a
+ * safe `{ quotaStatus: "UNAVAILABLE" }` value rather than throwing; the
+ * try/catch here exists only as defense-in-depth, matching this page's
+ * existing pattern for its other two independent reads.
+ *
+ * THREE DISTINCT CONCERNS, NEVER MERGED: (1) policy CONFIGURATION —
+ * "Quotas et limites" (G4A); (2) CURRENT, DURABLE quota state — "Quota
+ * actuel" (G4C, this phase); (3) HISTORICAL token telemetry — "Historique
+ * d'utilisation IA" (G3B, unchanged, still fed exclusively by
+ * getRadarAiTokenGovernanceSnapshot()). (2) and (3) look superficially
+ * similar (both about "usage") but read from entirely different stores
+ * and must never be conflated — see the G4 architecture review.
  */
 
 type Params = { window?: string };
@@ -57,6 +79,7 @@ function buildHref(window: TokenAccountingWindow): string {
 type Dict = {
   title: string;
   subtitle: string;
+  historySectionTitle: string;
   windowToday: string;
   window7d: string;
   window30d: string;
@@ -210,6 +233,7 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
   const [params, locale] = await Promise.all([searchParams, getLocale()]);
   const t = dictionaries[locale].aiTokenGovernance;
   const quotaT = dictionaries[locale].aiQuotaPolicy;
+  const quotaStatusT = dictionaries[locale].aiQuotaStatus;
   const window = resolveDisplayWindow(params.window);
 
   let snapshot: TokenGovernanceSnapshot | null = null;
@@ -249,6 +273,21 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
     quotaLoadFailed = true;
   }
 
+  // PHASE G4C-3 — a THIRD, INDEPENDENT read (see this page's own
+  // docstring): this section's failure never hides the other two, and a
+  // failure in the other two never hides this one. getRadarAiQuotaGovernanceSnapshot()
+  // itself never throws for a store outage (that already becomes
+  // `{ quotaStatus: "UNAVAILABLE" }`) — this try/catch is defense-in-depth
+  // only, matching the existing pattern above rather than assuming that
+  // contract can never change.
+  let quotaGovernanceSnapshot: RadarAiQuotaGovernanceSnapshot | null = null;
+  let quotaGovernanceLoadFailed = false;
+  try {
+    quotaGovernanceSnapshot = await getRadarAiQuotaGovernanceSnapshot();
+  } catch {
+    quotaGovernanceLoadFailed = true;
+  }
+
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
@@ -265,8 +304,23 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
         )}
       </div>
 
+      <div className={`mt-6 ${panelClass}`}>
+        <h2 className={panelTitleClass}>{quotaStatusT.sectionTitle}</h2>
+        <p className="mt-1 text-xs text-pm-gris">{quotaStatusT.sectionSubtitle}</p>
+        {quotaGovernanceLoadFailed || !quotaGovernanceSnapshot ? (
+          <p className="mt-3 text-sm text-pm-gris">{quotaStatusT.unavailableMessage}</p>
+        ) : (
+          <div className="mt-4">
+            <AiQuotaStatusPanel snapshot={quotaGovernanceSnapshot} locale={locale} t={quotaStatusT} />
+          </div>
+        )}
+      </div>
+
       <div className="mt-8">
-        <WindowTabs current={window} t={t} />
+        <h2 className={panelTitleClass}>{t.historySectionTitle}</h2>
+        <div className="mt-3">
+          <WindowTabs current={window} t={t} />
+        </div>
       </div>
       {loadFailed || !snapshot ? (
         <div className={`mt-6 ${panelClass}`}>

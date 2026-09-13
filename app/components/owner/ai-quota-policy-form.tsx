@@ -21,9 +21,10 @@ import { Button } from "@/components/gbp-audit/ui/button";
  *
  * G4A SCOPE: this form edits CONFIGURATION only. It never displays a
  * computed consumption, a "remaining budget," or a "limited" operational
- * state — no enforcement/counter exists yet (G4B). `t.enforcementNotice`
- * exists specifically so the OWNER is never misled into believing these
- * fields already do something they do not yet do.
+ * state — that live, durable state (G4B-2 enforcement is active in
+ * Production) is rendered by the separate "Quota actuel" section on the
+ * same page (components/owner/ai-quota-status-panel.tsx, Phase G4C-3),
+ * fed by getRadarAiQuotaGovernanceSnapshot() — never recomputed here.
  */
 
 export type QuotaPolicyFormDict = {

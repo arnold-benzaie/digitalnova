@@ -40,6 +40,7 @@ import { aiProviderPolicy } from "./ai-provider-policy";
 import { aiProviderOperations } from "./ai-provider-operations";
 import { aiTokenGovernance } from "./ai-token-governance";
 import { aiQuotaPolicy } from "./ai-quota-policy";
+import { aiQuotaStatus } from "./ai-quota-status";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -77,6 +78,7 @@ export const dictionaries = {
     aiProviderOperations: aiProviderOperations.fr,
     aiTokenGovernance: aiTokenGovernance.fr,
     aiQuotaPolicy: aiQuotaPolicy.fr,
+    aiQuotaStatus: aiQuotaStatus.fr,
   },
   en: {
     common: common.en,
@@ -110,5 +112,6 @@ export const dictionaries = {
     aiProviderOperations: aiProviderOperations.en,
     aiTokenGovernance: aiTokenGovernance.en,
     aiQuotaPolicy: aiQuotaPolicy.en,
+    aiQuotaStatus: aiQuotaStatus.en,
   },
 } as const;
