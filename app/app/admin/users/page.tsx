@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditLog, invitations, memberships, organizations, roles, staffMembers, users } from "@/db/schema";
+import { auditLog, invitations, memberships, organizations, roles, staffMembers, staffRoles, users } from "@/db/schema";
 import { UserManagement } from "@/components/admin/user-management";
 import { requireAdminRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
@@ -38,17 +38,21 @@ export default async function AdminUsersPage({
   const orgFilter = params.org && params.org !== "all" ? params.org : null;
   const page = parsePage(params.page);
 
-  // RBAC / DATA VISIBILITY AUDIT — this screen is Axis-A only (admin/
-  // client). A user with a real ACTIVE staff_members row (Axis-C: OWNER/
-  // ADMIN/MANAGER/EMPLOYEE) is managed exclusively via /admin/workforce
-  // (and /admin/owner) — excluded here at the query level, not just in
-  // the UI, so the server never returns their row (or a dual-context
-  // row's Axis-A membership, which used to make e.g. the real OWNER's own
-  // "admin" membership appear as a plain, indistinguishable admin here)
-  // to an admin who has no jurisdiction over them. Data minimization, not
-  // a client-side filter: excluded via isWorkforceManaged's own join
-  // below, never fetched at all.
-  const conditions = [eq(users.status, status), isNull(staffMembers.id)];
+  // HIERARCHICAL VISIBILITY — this screen is Axis-A (admin/client). A
+  // dual-context user (also holding a real ACTIVE Axis-C staff_members
+  // row) may legitimately appear here — an ADMIN dual-context row is
+  // exactly what "ADMIN peut voir les autres ADMIN" requires — EXCEPT
+  // OWNER, who must never be exposed to a non-OWNER viewer on this
+  // screen: not the row, not the email, not the Clerk id, not the status.
+  // Excluded at the query level (server projection), not a client-side
+  // filter — an ADMIN viewer's response never contains the OWNER row at
+  // all. The OWNER viewer themselves is exempt from this exclusion
+  // (`OWNER voit tout`, including their own dual-context row if any).
+  const isOwnerViewer = session.context === "WORKFORCE" && session.staffRole === "OWNER";
+  const conditions = [eq(users.status, status)];
+  if (!isOwnerViewer) {
+    conditions.push(or(isNull(staffRoles.name), ne(staffRoles.name, "OWNER"))!);
+  }
   if (search) {
     conditions.push(or(ilike(users.email, `%${search}%`), ilike(users.fullName, `%${search}%`))!);
   }
@@ -65,7 +69,8 @@ export default async function AdminUsersPage({
       .select({ status: users.status, count: sql<number>`count(*)::int` })
       .from(users)
       .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
-      .where(isNull(staffMembers.id))
+      .leftJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+      .where(isOwnerViewer ? undefined : or(isNull(staffRoles.name), ne(staffRoles.name, "OWNER")))
       .groupBy(users.status),
   ]);
   const counts: Record<StatusTab, number> = { pending: 0, active: 0, refused: 0, suspended: 0 };
@@ -93,6 +98,7 @@ export default async function AdminUsersPage({
     .leftJoin(organizations, eq(memberships.organizationId, organizations.id))
     .leftJoin(roles, eq(memberships.roleId, roles.id))
     .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
+    .leftJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
     .where(and(...conditions));
 
   const [rows, totalRows] = await Promise.all([
@@ -107,6 +113,7 @@ export default async function AdminUsersPage({
       .leftJoin(organizations, eq(memberships.organizationId, organizations.id))
       .leftJoin(roles, eq(memberships.roleId, roles.id))
       .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
+      .leftJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
       .where(and(...conditions)),
   ]);
   const total = totalRows[0]?.count ?? 0;
