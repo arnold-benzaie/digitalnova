@@ -17,12 +17,36 @@ import "server-only";
  * review for why this store is deliberately unsuited to that job (no
  * index, and a read-then-decide here would race under concurrency).
  *
- * FAIL-CLOSED READ CONTRACT (mirrors provider-policy-store.ts exactly):
- *   1. DB row exists and validates -> return the validated policy.
- *   2. no row -> return DEFAULT_RADAR_AI_QUOTA_POLICY.
- *   3. DB read failure -> return DEFAULT_RADAR_AI_QUOTA_POLICY.
- *   4. malformed row -> return DEFAULT_RADAR_AI_QUOTA_POLICY.
- * `loadRadarAiQuotaPolicy()` NEVER throws.
+ * FAIL-CLOSED READ CONTRACT — TWO READ FUNCTIONS, TWO DIFFERENT JOBS
+ * (RADAR INTELLIGENCE V2.1 Phase G4B-2 correction):
+ *
+ *   `loadRadarAiQuotaPolicyWithStatus()` is the AUTHORITATIVE read —
+ *   it DISTINGUISHES three genuinely different facts instead of
+ *   collapsing them into one silent default:
+ *     1. row exists and validates -> { status: "ok", policy }
+ *     2. no row at all (legitimate first-install / never configured) ->
+ *        { status: "missing", policy: DEFAULT_RADAR_AI_QUOTA_POLICY }
+ *        -- this is NOT an error; using the safe default here is
+ *        exactly the intended, documented behavior for an OWNER who
+ *        has simply never opened the settings page yet.
+ *     3. a genuine DB read failure OR a malformed/corrupt stored row ->
+ *        { status: "error", policy: null } -- deliberately NOT the
+ *        default, and deliberately NOT collapsed into case 2: an
+ *        OWNER-facing consumer (G4B-2's enforcement gate) MUST be able
+ *        to tell "nothing configured yet" apart from "the store is
+ *        broken and we have no idea what the real policy is," because
+ *        treating the latter as "enabled, unlimited" would silently
+ *        permit unbounded AI spend during an outage — exactly the
+ *        defect this correction fixes. Never throws.
+ *
+ *   `loadRadarAiQuotaPolicy()` is kept, UNCHANGED IN BEHAVIOR, as a
+ *   thin convenience wrapper over the function above for any caller
+ *   that only ever wanted "give me A policy to work with, I don't care
+ *   why" (its own contract was always "never throws, always returns a
+ *   RadarAiQuotaPolicy") — it collapses BOTH "missing" and "error" to
+ *   DEFAULT_RADAR_AI_QUOTA_POLICY, byte-identical to its pre-G4B-2
+ *   behavior. New code that needs to react differently to an outage
+ *   (the enforcement gate) must call the status-aware function instead.
  *
  * NO PROVIDER DATA: this table/type never carries a provider id, model
  * id, API key, secret, or credential — it governs the external-AI layer
@@ -126,22 +150,42 @@ function logQuotaPolicyStoreFallback(): void {
 }
 
 /**
- * Loads the OWNER-configured quota policy, or the safe default if none
- * exists / storage is unavailable / the stored row is malformed. Never
- * throws. Zero provider calls, zero counting, zero enforcement decision.
+ * RADAR INTELLIGENCE V2.1 — Phase G4B-2 correction. The three
+ * genuinely distinct outcomes of reading the singleton policy row —
+ * see this module's own top-of-file docstring for the full contract.
+ * `policy` is present (and safe to use) for `"ok"` and `"missing"`;
+ * `null` for `"error"` — a caller that needs to fail closed on a
+ * genuine outage checks `status`, never just falls back to `policy`
+ * being present/absent, since `"missing"`.policy is intentionally
+ * non-null (the safe default).
  */
-export async function loadRadarAiQuotaPolicy(executor: Pick<typeof db, "select"> = db): Promise<RadarAiQuotaPolicy> {
+export type RadarAiQuotaPolicyReadResult =
+  | { status: "ok"; policy: RadarAiQuotaPolicy }
+  | { status: "missing"; policy: RadarAiQuotaPolicy }
+  | { status: "error"; policy: null };
+
+/**
+ * The AUTHORITATIVE read — distinguishes "no row yet" (a legitimate,
+ * expected state before any OWNER has visited the settings page) from
+ * "the store is genuinely broken" (a DB read failure, or a stored row
+ * that fails validation). Never throws. Zero provider calls, zero
+ * counting, zero enforcement decision — this function only reports
+ * what it found; deciding what an `"error"` means for an in-flight
+ * advisory request is the ENFORCEMENT GATE's job (advisory-core.ts),
+ * not this store's.
+ */
+export async function loadRadarAiQuotaPolicyWithStatus(executor: Pick<typeof db, "select"> = db): Promise<RadarAiQuotaPolicyReadResult> {
   let row: typeof radarAiQuotaPolicy.$inferSelect | undefined;
   try {
     const rows = await executor.select().from(radarAiQuotaPolicy).where(eq(radarAiQuotaPolicy.id, SINGLETON_ID)).limit(1);
     row = rows[0];
   } catch {
     logQuotaPolicyStoreFallback();
-    return DEFAULT_RADAR_AI_QUOTA_POLICY;
+    return { status: "error", policy: null };
   }
 
   if (!row) {
-    return DEFAULT_RADAR_AI_QUOTA_POLICY;
+    return { status: "missing", policy: DEFAULT_RADAR_AI_QUOTA_POLICY };
   }
 
   const result = validateQuotaPolicyCandidate({
@@ -151,11 +195,28 @@ export async function loadRadarAiQuotaPolicy(executor: Pick<typeof db, "select">
     warningThresholdPercent: row.warningThresholdPercent,
   });
   if (!result.ok) {
+    // A stored row that exists but fails validation is CORRUPT, not
+    // "unconfigured" — this is deliberately "error", never "missing".
     logQuotaPolicyStoreFallback();
-    return DEFAULT_RADAR_AI_QUOTA_POLICY;
+    return { status: "error", policy: null };
   }
 
-  return result.policy;
+  return { status: "ok", policy: result.policy };
+}
+
+/**
+ * Convenience wrapper, UNCHANGED IN BEHAVIOR from before this
+ * correction: "give me a safe policy to work with regardless of why."
+ * Collapses BOTH "missing" and "error" to DEFAULT_RADAR_AI_QUOTA_POLICY
+ * — appropriate for a display-only consumer that isn't making a
+ * cost-control decision, but NOT appropriate for the enforcement gate
+ * (which must call loadRadarAiQuotaPolicyWithStatus() instead so it can
+ * fail closed specifically on "error", never on "missing"). Never
+ * throws.
+ */
+export async function loadRadarAiQuotaPolicy(executor: Pick<typeof db, "select"> = db): Promise<RadarAiQuotaPolicy> {
+  const result = await loadRadarAiQuotaPolicyWithStatus(executor);
+  return result.status === "ok" ? result.policy : DEFAULT_RADAR_AI_QUOTA_POLICY;
 }
 
 /**

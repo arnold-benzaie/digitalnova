@@ -39,6 +39,7 @@ mock.module("@/db", { namedExports: { db: fakeDb } });
 
 const {
   loadRadarAiQuotaPolicy,
+  loadRadarAiQuotaPolicyWithStatus,
   replaceRadarAiQuotaPolicy,
   validateQuotaPolicyCandidate,
   DEFAULT_RADAR_AI_QUOTA_POLICY,
@@ -224,4 +225,73 @@ test("replaceRadarAiQuotaPolicy: never includes an apiKey/secret/credential fiel
   for (const forbidden of ["apiKey", "secret", "credential", "token", "password", "env", "providerId"]) {
     assert.equal(forbidden in values, false, `${forbidden} must never be part of the written row`);
   }
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 correction — loadRadarAiQuotaPolicyWithStatus():
+// distinguishes "missing" (no row, legitimate first-install state) from
+// "error" (a genuine DB failure or a corrupt row) -- the defect this
+// correction fixes was that both used to collapse into the same silent
+// DEFAULT_RADAR_AI_QUOTA_POLICY, indistinguishable from each other.
+// =====================================================================
+
+test("loadRadarAiQuotaPolicyWithStatus: no row -> status 'missing', policy is the safe default (a legitimate state, not an error)", async () => {
+  selectResult = { rows: [] };
+  const result = await loadRadarAiQuotaPolicyWithStatus(fakeDb);
+  assert.equal(result.status, "missing");
+  assert.deepEqual(result.policy, DEFAULT_RADAR_AI_QUOTA_POLICY);
+});
+
+test("loadRadarAiQuotaPolicyWithStatus: a valid stored row -> status 'ok', the exact persisted policy", async () => {
+  selectResult = { rows: [dbRow({ enabled: false, dailyRequestLimit: 100, dailyTokenLimit: 20000, warningThresholdPercent: 90 })] };
+  const result = await loadRadarAiQuotaPolicyWithStatus(fakeDb);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.policy, { enabled: false, dailyRequestLimit: 100, dailyTokenLimit: 20000, warningThresholdPercent: 90 });
+});
+
+test("loadRadarAiQuotaPolicyWithStatus: a DB read failure -> status 'error', policy is null (NEVER the default -- this is the exact defect being fixed)", async () => {
+  selectResult = { error: new Error("connection refused") };
+  const result = await loadRadarAiQuotaPolicyWithStatus(fakeDb);
+  assert.equal(result.status, "error");
+  assert.equal(result.policy, null);
+});
+
+test("loadRadarAiQuotaPolicyWithStatus: a malformed/corrupt stored row -> status 'error' (NOT 'missing' -- a row that exists but fails validation is corrupt, not unconfigured)", async () => {
+  selectResult = { rows: [dbRow({ warningThresholdPercent: 999 })] };
+  const result = await loadRadarAiQuotaPolicyWithStatus(fakeDb);
+  assert.equal(result.status, "error");
+  assert.equal(result.policy, null);
+});
+
+test("loadRadarAiQuotaPolicyWithStatus: never throws, for any of the four input shapes", async () => {
+  for (const state of [{ rows: [] }, { rows: [dbRow()] }, { rows: [dbRow({ enabled: "not-a-boolean" })] }, { error: new Error("boom") }]) {
+    selectResult = state;
+    await assert.doesNotReject(() => loadRadarAiQuotaPolicyWithStatus(fakeDb));
+  }
+});
+
+test("loadRadarAiQuotaPolicyWithStatus: 'error' status never leaks the raw DB error message or any DB detail", async () => {
+  selectResult = { error: new Error("password authentication failed for user \"postgres\" at host secret-db.internal") };
+  const result = await loadRadarAiQuotaPolicyWithStatus(fakeDb);
+  assert.equal(result.status, "error");
+  const s = JSON.stringify(result);
+  assert.equal(/password|secret-db|authentication failed/i.test(s), false);
+});
+
+// ---- loadRadarAiQuotaPolicy(): behavior UNCHANGED by this correction ----
+
+test("loadRadarAiQuotaPolicy: still returns DEFAULT for a missing row (unchanged)", async () => {
+  selectResult = { rows: [] };
+  assert.deepEqual(await loadRadarAiQuotaPolicy(fakeDb), DEFAULT_RADAR_AI_QUOTA_POLICY);
+});
+
+test("loadRadarAiQuotaPolicy: still returns DEFAULT for a DB read failure (unchanged -- this wrapper is deliberately NOT fail-closed; only the status-aware function is)", async () => {
+  selectResult = { error: new Error("connection refused") };
+  assert.deepEqual(await loadRadarAiQuotaPolicy(fakeDb), DEFAULT_RADAR_AI_QUOTA_POLICY);
+});
+
+test("loadRadarAiQuotaPolicy: still returns the exact persisted policy for a valid row (unchanged)", async () => {
+  selectResult = { rows: [dbRow({ dailyRequestLimit: 42 })] };
+  const policy = await loadRadarAiQuotaPolicy(fakeDb);
+  assert.equal(policy.dailyRequestLimit, 42);
 });

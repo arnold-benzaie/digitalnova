@@ -91,6 +91,26 @@ function deps(overrides = {}) {
     recordProviderAttempt: overrides.recordProviderAttempt ?? (async () => {}),
     ...(overrides.actorUserId !== undefined ? { actorUserId: overrides.actorUserId } : {}),
     ...(overrides.generateAiRequestId ? { generateAiRequestId: overrides.generateAiRequestId } : {}),
+    // RADAR INTELLIGENCE V2.1 Phase G4B-2: always inject an "enabled,
+    // unlimited" quota policy and an "always admit" gate by default
+    // (same convention as loadProviderPolicy/recordProviderAttempt
+    // above) so every PRE-G4B-2 test in this file keeps its exact
+    // byte-identical behavior -- no test above this section touches the
+    // real quota policy/counter stores. Dedicated G4B-2 tests override
+    // these to exercise disabled/limit/counter-failure paths.
+    //
+    // G4B-2 correction: loadQuotaPolicy now returns the status-aware
+    // { status, policy } shape (quota-policy-store.ts::RadarAiQuotaPolicyReadResult).
+    // `overrides.quotaPolicy` remains the simple way most tests override
+    // the POLICY VALUES (wrapped here as status "ok"); a dedicated
+    // handful of G4B-2-correction tests override `loadQuotaPolicy`
+    // directly to exercise "missing"/"error".
+    loadQuotaPolicy:
+      overrides.loadQuotaPolicy ??
+      (async () => ({ status: "ok", policy: overrides.quotaPolicy ?? { enabled: true, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } })),
+    readQuotaCounter: overrides.readQuotaCounter ?? (async () => null),
+    admitRequestUnit: overrides.admitRequestUnit ?? (async () => true),
+    incrementQuotaTokens: overrides.incrementQuotaTokens ?? (async () => ({ key: "global:test", requestCount: 0, tokenCount: 0, windowStart: new Date(0) })),
   };
 }
 
@@ -499,7 +519,7 @@ test("diagnostic: not_applicable (prospect not qualified) carries NO diagnostic"
 
 // ---------------- non-authoritative / no mutation ----------------
 
-test("the deps bag has no BUSINESS-STATE mutation capability — only loaders, a registry factory, and (Phase G2) an isolated telemetry observer", async () => {
+test("the deps bag has no BUSINESS-STATE mutation capability — only loaders, a registry factory, (Phase G2) an isolated telemetry observer, and (Phase G4B-2) the AI quota gate", async () => {
   // RADAR INTELLIGENCE V2.1 Phase G2: this test's own name is deliberately
   // narrowed from "no mutation capability" to "no BUSINESS-STATE mutation
   // capability" -- a conscious, reviewed contract change. recordProviderAttempt
@@ -511,10 +531,31 @@ test("the deps bag has no BUSINESS-STATE mutation capability — only loaders, a
   // correlation string with no side effect of its own. The invariant this
   // test still enforces: nothing in this bag can reach deterministic
   // scoring, CRM, assignment, or queue state.
+  //
+  // RADAR INTELLIGENCE V2.1 Phase G4B-2 adds four more: loadQuotaPolicy
+  // (read-only), readQuotaCounter (read-only), admitRequestUnit (a real
+  // write -- the AI quota counter -- but, like recordProviderAttempt,
+  // scoped to AI-governance enforcement state with no path to any
+  // CRM/RADAR/scoring/assignment table), and incrementQuotaTokens (the
+  // same carve-out, post-hoc and best-effort). The invariant is
+  // unchanged: still nothing here can reach deterministic scoring, CRM,
+  // assignment, or queue state -- only the AI layer's own governance
+  // bookkeeping.
   const d = deps();
   assert.deepEqual(
     Object.keys(d).sort(),
-    ["clock", "createRegistry", "loadDisplayContext", "loadProviderPolicy", "loadQualification", "recordProviderAttempt"].sort(),
+    [
+      "clock",
+      "createRegistry",
+      "loadDisplayContext",
+      "loadProviderPolicy",
+      "loadQualification",
+      "recordProviderAttempt",
+      "loadQuotaPolicy",
+      "readQuotaCounter",
+      "admitRequestUnit",
+      "incrementQuotaTokens",
+    ].sort(),
   );
   assert.equal(typeof d.recordProviderAttempt, "function");
   assert.equal(d.recordProviderAttempt.constructor.name, "AsyncFunction");
@@ -1538,4 +1579,300 @@ test("G2: actorUserId is null when omitted -- never throws, never fabricated", a
   const t = fakeTransport();
   await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), recordProviderAttempt: rec.fn }));
   assert.equal(rec.calls[0].actorUserId, null);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the AI quota gate.
+//
+// The store-level primitives (quota-counter-store.ts::admitGlobalRequestUnit/
+// tryAdmitGlobalRequest/readGlobalQuotaCounter/incrementGlobalTokenCount)
+// are unit- and concurrency-tested in their OWN files
+// (quota-counter-store.test.mjs / .concurrency.integration.test.mjs) --
+// this section treats them as an injected black box and tests ONLY
+// advisory-core.ts's own orchestration: when the gate is called, what it
+// passes to each primitive, and how it interprets each primitive's
+// result. No test below touches a real DB.
+// =====================================================================
+
+test("G4B-2: enabled=true, no limits configured -> ok, admitRequestUnit called with dailyRequestLimit=null", async () => {
+  let seenLimit;
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: enabledRegistry(t),
+      quotaPolicy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 },
+      admitRequestUnit: async (limit) => {
+        seenLimit = limit;
+        return true;
+      },
+    }),
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(seenLimit, null);
+});
+
+test("G4B-2: enabled=false -> limited, zero provider HTTP calls, deterministic block present", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }));
+  assert.equal(r.status, "limited");
+  assert.deepEqual(r.deterministic, { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" });
+  assert.equal(t.hits, 0, "the AI layer being OWNER-disabled must produce zero provider HTTP calls -- the router is never even constructed, only the (side-effect-free) registry lookup that already existed for policy resolution");
+});
+
+test("G4B-2: admitRequestUnit returning false (request limit reached) -> limited, zero provider HTTP calls", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: enabledRegistry(t), quotaPolicy: { enabled: true, dailyRequestLimit: 10, dailyTokenLimit: null, warningThresholdPercent: 80 }, admitRequestUnit: async () => false }),
+  );
+  assert.equal(r.status, "limited");
+  assert.deepEqual(r.deterministic, { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" });
+  assert.equal(t.hits, 0);
+});
+
+test("G4B-2: admitRequestUnit returning true -> proceeds to the router (ok)", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: enabledRegistry(t), quotaPolicy: { enabled: true, dailyRequestLimit: 10, dailyTokenLimit: null, warningThresholdPercent: 80 }, admitRequestUnit: async () => true }),
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(t.hits, 1);
+});
+
+test("G4B-2: admitRequestUnit is called with the EXACT configured dailyRequestLimit, whatever it is (0, null, or N)", async () => {
+  const seenLimits = [];
+  const recorder = async (limit) => {
+    seenLimits.push(limit);
+    return true;
+  };
+  for (const limit of [0, null, 5, 1000]) {
+    await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: true, dailyRequestLimit: limit, dailyTokenLimit: null, warningThresholdPercent: 80 }, admitRequestUnit: recorder }));
+  }
+  assert.deepEqual(seenLimits, [0, null, 5, 1000]);
+});
+
+test("G4B-2: dailyTokenLimit already reached (tokenCount >= limit) -> limited, zero provider HTTP calls, admitRequestUnit never even called", async () => {
+  let admitCalls = 0;
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: enabledRegistry(t),
+      quotaPolicy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: 1000, warningThresholdPercent: 80 },
+      readQuotaCounter: async () => ({ key: "global:test", requestCount: 5, tokenCount: 1000, windowStart: new Date(0) }),
+      admitRequestUnit: async () => {
+        admitCalls += 1;
+        return true;
+      },
+    }),
+  );
+  assert.equal(r.status, "limited");
+  assert.equal(t.hits, 0);
+  assert.equal(admitCalls, 0, "the request-quota primitive must never even be reached once the token budget is already exhausted");
+});
+
+test("G4B-2: dailyTokenLimit=0 with no counter row yet (tokenCount defaults to 0) -> limited (0 >= 0)", async () => {
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      quotaPolicy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: 0, warningThresholdPercent: 80 },
+      readQuotaCounter: async () => null,
+    }),
+  );
+  assert.equal(r.status, "limited");
+});
+
+test("G4B-2: tokenCount under the limit -> proceeds to the router (ok)", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: enabledRegistry(t),
+      quotaPolicy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: 1000, warningThresholdPercent: 80 },
+      readQuotaCounter: async () => ({ key: "global:test", requestCount: 5, tokenCount: 999, windowStart: new Date(0) }),
+    }),
+  );
+  assert.equal(r.status, "ok");
+});
+
+test("G4B-2: an explicit provider selection cannot bypass a denied gate", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }), "openai");
+  assert.equal(r.status, "limited");
+});
+
+test("G4B-2: automatic (no requestedProviderId) is denied identically to an explicit selection", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }));
+  assert.equal(r.status, "limited");
+});
+
+test("G4B-2: a fallback (primary fails, secondary succeeds) still consumes EXACTLY ONE request-quota unit", async () => {
+  const anthropicT = fakeTransport({ status: 503 });
+  const openaiT = { async generate() { return { body: { summary: "ok", usage: { input_tokens: 5, output_tokens: 5 } }, status: 200 }; }, describeHealth: () => ({ reachable: true, degraded: false }) };
+  let admitCalls = 0;
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: dualRegistry(anthropicT, openaiT), admitRequestUnit: async () => { admitCalls += 1; return true; } }),
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(admitCalls, 1, "the gate runs ONCE before the router -- the router's own internal fallback dispatch never re-enters it");
+});
+
+test("G4B-2: a provider failure (no fallback available) still consumed its one request-quota unit -- never refunded", async () => {
+  let admitCalls = 0;
+  const t = fakeTransport({ status: 503 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), admitRequestUnit: async () => { admitCalls += 1; return true; } }));
+  assert.equal(r.status, "unavailable");
+  assert.equal(admitCalls, 1);
+});
+
+test("G4B-2: a successful provider response triggers exactly one token increment, with the sum of input+output tokens", async () => {
+  const calls = [];
+  const t = fakeTransport(); // default body: usage { input_tokens: 20, output_tokens: 12 }
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), incrementQuotaTokens: async (delta, now) => { calls.push({ delta, now }); return { key: "global:test", requestCount: 1, tokenCount: delta, windowStart: now }; } }));
+  assert.equal(r.status, "ok");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].delta, 32);
+});
+
+test("G4B-2: a failed provider response triggers ZERO token increments (G3A convention: only success produces tokens)", async () => {
+  let incrementCalls = 0;
+  const t = fakeTransport({ status: 503 });
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), incrementQuotaTokens: async () => { incrementCalls += 1; return { key: "global:test", requestCount: 1, tokenCount: 0, windowStart: new Date(0) }; } }));
+  assert.equal(r.status, "unavailable");
+  assert.equal(incrementCalls, 0);
+});
+
+test("G4B-2: a token increment failure NEVER takes back an already-successful advisory (best-effort, unlike the pre-dispatch gate)", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), incrementQuotaTokens: async () => { throw new Error("simulated counter-store outage"); } }));
+  assert.equal(r.status, "ok", "the user-facing advisory must still succeed even though the post-hoc token bookkeeping failed");
+});
+
+test("G4B-2: admitRequestUnit throwing (counter store outage) -> limited, fail-closed, zero provider HTTP calls", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: enabledRegistry(t), quotaPolicy: { enabled: true, dailyRequestLimit: 10, dailyTokenLimit: null, warningThresholdPercent: 80 }, admitRequestUnit: async () => { throw new Error("connection refused"); } }),
+  );
+  assert.equal(r.status, "limited");
+  assert.equal(t.hits, 0, "a counter-store outage must fail CLOSED -- never fail open into a real provider dispatch");
+});
+
+test("G4B-2: readQuotaCounter throwing (counter store outage during the token pre-check) -> limited, fail-closed", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: enabledRegistry(t),
+      quotaPolicy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: 1000, warningThresholdPercent: 80 },
+      readQuotaCounter: async () => { throw new Error("connection refused"); },
+    }),
+  );
+  assert.equal(r.status, "limited");
+  assert.equal(t.hits, 0);
+});
+
+test("G4B-2: loadQuotaPolicy throwing (defensive-only -- the real store never does) -> limited, fail-closed", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), loadQuotaPolicy: async () => { throw new Error("simulated"); } }));
+  assert.equal(r.status, "limited");
+  assert.equal(t.hits, 0);
+});
+
+test("G4B-2: a 'limited' result never reaches provider-attempt telemetry recording", async () => {
+  const rec = capturingRecorder();
+  await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 }, recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls.length, 0);
+});
+
+test("G4B-2: RADAR CORE FIRST -- the 'limited' deterministic block is byte-identical to what a successful advisory would have carried", async () => {
+  const rLimited = await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }));
+  const t = fakeTransport();
+  const rOk = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t) }));
+  assert.equal(rOk.status, "ok");
+  assert.deepEqual(rLimited.deterministic, rOk.deterministic);
+});
+
+test("G4B-2: no secret/provider/model value ever appears in a 'limited' result", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: false, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }));
+  assert.equal(r.status, "limited");
+  assert.deepEqual(Object.keys(r).sort(), ["status", "deterministic"].sort());
+  const s = JSON.stringify(r);
+  assert.equal(/anthropic|openai|apiKey|sk-ant-|sk-proj-|secret|credential|Bearer/i.test(s), false);
+});
+
+test("G4B-2: the gate's `now` comes from the injected clock, never a fresh Date() -- admitRequestUnit/readQuotaCounter/incrementQuotaTokens all see the SAME injected time", async () => {
+  const seenTimes = [];
+  const t = fakeTransport();
+  await produceRadarAdvisory(
+    CLIENT,
+    deps({
+      createRegistry: enabledRegistry(t),
+      quotaPolicy: { enabled: true, dailyRequestLimit: 10, dailyTokenLimit: 1000, warningThresholdPercent: 80 },
+      readQuotaCounter: async (now) => { seenTimes.push(now); return null; },
+      admitRequestUnit: async (limit, now) => { seenTimes.push(now); return true; },
+      incrementQuotaTokens: async (delta, now) => { seenTimes.push(now); return { key: "global:test", requestCount: 1, tokenCount: delta, windowStart: now }; },
+    }),
+  );
+  assert.equal(seenTimes.length, 3);
+  for (const t2 of seenTimes) assert.equal(t2.getTime(), clock().getTime());
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 CORRECTION — "missing" vs
+// "error" must produce genuinely different behavior: "missing" (no
+// policy row yet -- a legitimate, expected first-install state) must
+// behave EXACTLY like an "ok" default policy; "error" (a genuine
+// policy-store outage) must fail closed, distinctly from a
+// counter-store outage.
+// =====================================================================
+
+test("G4B-2 correction: loadQuotaPolicy status='missing' behaves EXACTLY like status='ok' with the default policy -- proceeds to the router", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(
+    CLIENT,
+    deps({ createRegistry: enabledRegistry(t), loadQuotaPolicy: async () => ({ status: "missing", policy: { enabled: true, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 80 } }) }),
+  );
+  assert.equal(r.status, "ok");
+  assert.equal(t.hits, 1);
+});
+
+test("G4B-2 correction: loadQuotaPolicy status='error' -> limited, fail-closed, ZERO provider HTTP calls -- this is the exact defect being corrected (an outage must never be silently treated as 'enabled, unlimited')", async () => {
+  const t = fakeTransport();
+  const r = await produceRadarAdvisory(CLIENT, deps({ createRegistry: enabledRegistry(t), loadQuotaPolicy: async () => ({ status: "error", policy: null }) }));
+  assert.equal(r.status, "limited");
+  assert.deepEqual(r.deterministic, { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" });
+  assert.equal(t.hits, 0, "a policy-store outage must fail CLOSED -- it must NEVER fall through to 'enabled, unlimited' and dispatch to a real provider");
+});
+
+test("G4B-2 correction: a policy-store error is logged with AI_QUOTA_POLICY_UNAVAILABLE, distinct from AI_QUOTA_COUNTER_UNAVAILABLE", async () => {
+  const calls = await withCapturedWarn(() =>
+    produceRadarAdvisory(CLIENT, deps({ loadQuotaPolicy: async () => ({ status: "error", policy: null }) })),
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].code, "AI_QUOTA_POLICY_UNAVAILABLE");
+});
+
+test("G4B-2 correction: a COUNTER-store error is still logged with AI_QUOTA_COUNTER_UNAVAILABLE -- the two outage types remain distinguishable in logs", async () => {
+  const calls = await withCapturedWarn(() =>
+    produceRadarAdvisory(CLIENT, deps({ quotaPolicy: { enabled: true, dailyRequestLimit: 10, dailyTokenLimit: null, warningThresholdPercent: 80 }, admitRequestUnit: async () => { throw new Error("connection refused"); } })),
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].code, "AI_QUOTA_COUNTER_UNAVAILABLE");
+});
+
+test("G4B-2 correction: a policy-store error never reaches provider-attempt telemetry recording", async () => {
+  const rec = capturingRecorder();
+  await produceRadarAdvisory(CLIENT, deps({ loadQuotaPolicy: async () => ({ status: "error", policy: null }), recordProviderAttempt: rec.fn }));
+  assert.equal(rec.calls.length, 0);
+});
+
+test("G4B-2 correction: a policy-store error result never leaks a DB error message or any secret-shaped value", async () => {
+  const r = await produceRadarAdvisory(CLIENT, deps({ loadQuotaPolicy: async () => ({ status: "error", policy: null }) }));
+  assert.equal(r.status, "limited");
+  assert.deepEqual(Object.keys(r).sort(), ["status", "deterministic"].sort());
+  const s = JSON.stringify(r);
+  assert.equal(/password|DATABASE_URL|secret|credential|connection refused/i.test(s), false);
 });

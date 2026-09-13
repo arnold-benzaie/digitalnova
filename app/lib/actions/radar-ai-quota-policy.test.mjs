@@ -243,19 +243,43 @@ test("no secret-shaped value ever reaches the audit record even on a successful 
   assert.equal(/sk-ant-|sk-proj-|apiKey|secret|credential/i.test(s), false);
 });
 
-// ---- read path: safe default when the store has no row / a bad row ----
+// ---- read path (Phase G4B-2 correction): { policy, storeStatus } ----
 
-test("getRadarAiQuotaPolicy: no DB row -> returns DEFAULT_RADAR_AI_QUOTA_POLICY", async () => {
+test("getRadarAiQuotaPolicy: no DB row -> storeStatus 'missing', policy is the safe default (a legitimate state, never confused with an outage)", async () => {
   policyRowState = { rows: [] };
-  const policy = await getRadarAiQuotaPolicy();
-  assert.deepEqual(policy, DEFAULT_RADAR_AI_QUOTA_POLICY);
+  const result = await getRadarAiQuotaPolicy();
+  assert.equal(result.storeStatus, "missing");
+  assert.deepEqual(result.policy, DEFAULT_RADAR_AI_QUOTA_POLICY);
 });
 
-test("getRadarAiQuotaPolicy: a DB read failure -> returns the safe default, never throws", async () => {
+test("getRadarAiQuotaPolicy: a valid stored row -> storeStatus 'ok', the exact persisted policy", async () => {
+  policyRowState = { rows: [{ id: "global", enabled: false, dailyRequestLimit: 50, dailyTokenLimit: 5000, warningThresholdPercent: 70, updatedByStaffMemberId: null, createdAt: new Date(), updatedAt: new Date() }] };
+  const result = await getRadarAiQuotaPolicy();
+  assert.equal(result.storeStatus, "ok");
+  assert.deepEqual(result.policy, { enabled: false, dailyRequestLimit: 50, dailyTokenLimit: 5000, warningThresholdPercent: 70 });
+});
+
+test("getRadarAiQuotaPolicy: a DB read failure -> storeStatus 'error' (NEVER 'ok' or 'missing'), never throws -- this is the exact contract change that fixes the G4B-2 policy-failure defect", async () => {
   policyRowState = { error: new Error("connection refused") };
   await assert.doesNotReject(() => getRadarAiQuotaPolicy());
-  const policy = await getRadarAiQuotaPolicy();
-  assert.deepEqual(policy, DEFAULT_RADAR_AI_QUOTA_POLICY);
+  const result = await getRadarAiQuotaPolicy();
+  assert.equal(result.storeStatus, "error");
+  // `policy` is still a safe, renderable default -- but the UI must
+  // check storeStatus before presenting it as the OWNER's real config.
+  assert.deepEqual(result.policy, DEFAULT_RADAR_AI_QUOTA_POLICY);
+});
+
+test("getRadarAiQuotaPolicy: a malformed/corrupt stored row -> storeStatus 'error', NOT 'missing'", async () => {
+  policyRowState = { rows: [{ id: "global", enabled: true, dailyRequestLimit: null, dailyTokenLimit: null, warningThresholdPercent: 999, updatedByStaffMemberId: null, createdAt: new Date(), updatedAt: new Date() }] };
+  const result = await getRadarAiQuotaPolicy();
+  assert.equal(result.storeStatus, "error");
+});
+
+test("getRadarAiQuotaPolicy: no secret/DB-detail ever leaks in the returned shape, even on an error", async () => {
+  policyRowState = { error: new Error("password authentication failed for user \"postgres\"") };
+  const result = await getRadarAiQuotaPolicy();
+  const s = JSON.stringify(result);
+  assert.equal(/password|authentication failed/i.test(s), false);
 });
 
 // ---- identity comes from the authenticated session, never client input ----

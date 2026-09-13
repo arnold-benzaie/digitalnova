@@ -96,7 +96,13 @@ test("no log line, however constructed, ever contains a UUID shape or an auth he
   assert.equal(/x-api-key|authorization|bearer|sk-ant-/i.test(s), false);
 });
 
-test("the blind-path code catalogue is exactly the seven documented codes", () => {
+test("the blind-path code catalogue is exactly the twelve documented codes", () => {
+  // RADAR INTELLIGENCE V2.1 Phase G4B-2 added four AI-quota-gate
+  // sub-cause codes (AI_QUOTA_*); the G4B-2 policy-store-failure
+  // correction added a fifth, AI_QUOTA_POLICY_UNAVAILABLE, deliberately
+  // distinct from AI_QUOTA_COUNTER_UNAVAILABLE (two different stores) --
+  // bumped deliberately here to match, same as every prior phase that
+  // added a blind-path code did.
   assert.deepEqual(
     [...RADAR_INTELLIGENCE_BLIND_PATH_CODES].sort(),
     [
@@ -107,6 +113,11 @@ test("the blind-path code catalogue is exactly the seven documented codes", () =
       "SERVER_ACTION_UNHANDLED_ERROR",
       "SYSTEM_ADMIN_CHECK_FAILED",
       "FALLBACK_SUCCEEDED",
+      "AI_QUOTA_DISABLED",
+      "AI_QUOTA_REQUEST_LIMIT_REACHED",
+      "AI_QUOTA_TOKEN_LIMIT_REACHED",
+      "AI_QUOTA_COUNTER_UNAVAILABLE",
+      "AI_QUOTA_POLICY_UNAVAILABLE",
     ].sort(),
   );
 });

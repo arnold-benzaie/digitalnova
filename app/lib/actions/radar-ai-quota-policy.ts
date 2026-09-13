@@ -26,7 +26,9 @@ import { requireSession } from "@/lib/session";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
 import {
+  DEFAULT_RADAR_AI_QUOTA_POLICY,
   loadRadarAiQuotaPolicy,
+  loadRadarAiQuotaPolicyWithStatus,
   replaceRadarAiQuotaPolicy,
   validateQuotaPolicyCandidate,
   type RadarAiQuotaPolicy,
@@ -62,13 +64,33 @@ async function resolveActingStaffMemberId(userId: string, internalOrgId: string)
 }
 
 /**
- * Returns the current OWNER-configured AI quota policy (or the safe
- * DEFAULT_RADAR_AI_QUOTA_POLICY when no row exists / storage is
- * unavailable — see quota-policy-store.ts). OWNER-only.
+ * RADAR INTELLIGENCE V2.1 — Phase G4B-2 correction. The display-only
+ * read result: `policy` is always a safe, renderable value (the
+ * default when none is configured yet, or when the store is
+ * unreachable); `storeStatus` tells the OWNER UI WHICH of those is
+ * true, so it can render "not configured yet" differently from
+ * "temporarily unavailable" — and, critically, so it never silently
+ * renders a genuine store outage as an ordinary "enabled, unlimited"
+ * configuration (the exact defect this correction fixes at the
+ * enforcement layer; this is the matching fix for the OWNER-facing
+ * display layer).
  */
-export async function getRadarAiQuotaPolicy(): Promise<RadarAiQuotaPolicy> {
+export type RadarAiQuotaPolicyDisplay = {
+  policy: RadarAiQuotaPolicy;
+  storeStatus: "ok" | "missing" | "error";
+};
+
+/**
+ * Returns the current OWNER-configured AI quota policy for display,
+ * WITH an explicit `storeStatus` (see RadarAiQuotaPolicyDisplay above).
+ * `policy` is always present and safe to render even on `"error"` (the
+ * default), but the UI must check `storeStatus` before presenting it as
+ * the OWNER's real, active configuration. OWNER-only.
+ */
+export async function getRadarAiQuotaPolicy(): Promise<RadarAiQuotaPolicyDisplay> {
   await requireStaffMember("RADAR_AI_POLICY_MANAGE");
-  return loadRadarAiQuotaPolicy();
+  const result = await loadRadarAiQuotaPolicyWithStatus();
+  return { policy: result.policy ?? DEFAULT_RADAR_AI_QUOTA_POLICY, storeStatus: result.status };
 }
 
 /**

@@ -45,6 +45,8 @@ let containerStarted = false;
 let incrementGlobalRequestCount;
 let incrementGlobalTokenCount;
 let readGlobalQuotaCounter;
+let tryAdmitGlobalRequest;
+let admitGlobalRequestUnit;
 let dbForTeardown;
 
 before(async () => {
@@ -90,7 +92,7 @@ before(async () => {
   // like every other integration test in this repo that imports a
   // server-only module directly.
   mock.module("server-only", { namedExports: {} });
-  ({ incrementGlobalRequestCount, incrementGlobalTokenCount, readGlobalQuotaCounter } = await import("./quota-counter-store.ts"));
+  ({ incrementGlobalRequestCount, incrementGlobalTokenCount, readGlobalQuotaCounter, tryAdmitGlobalRequest, admitGlobalRequestUnit } = await import("./quota-counter-store.ts"));
   ({ db: dbForTeardown } = await import("@/db"));
 });
 
@@ -164,4 +166,70 @@ test("concurrent requestCount AND tokenCount increments on the same row do not c
   const final = await readGlobalQuotaCounter(now);
   assert.equal(final.requestCount, 5);
   assert.equal(final.tokenCount, 111 + 222 + 333);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 — tryAdmitGlobalRequest() /
+// admitGlobalRequestUnit() under real concurrency. This is the mission-
+// critical proof: "limit=10, current=9, 10 concurrent requests -> exactly
+// ONE more admission, the other nine denied, with ZERO artificial
+// increment on any denied request."
+// =====================================================================
+
+test("CRITICAL: limit=10, current=9 -> 10 concurrent admission attempts admit EXACTLY 1, deny the other 9, final count is exactly 10 (never 19)", async () => {
+  const now = new Date("2026-09-19T09:00:00.000Z");
+  for (let i = 0; i < 9; i++) await tryAdmitGlobalRequest(10, now); // pre-seed current=9
+  const preSeeded = await readGlobalQuotaCounter(now);
+  assert.equal(preSeeded.requestCount, 9, "sanity: exactly 9 before the race");
+
+  const results = await Promise.all(Array.from({ length: 10 }, () => tryAdmitGlobalRequest(10, now)));
+  const admittedCount = results.filter((r) => r === true).length;
+  const deniedCount = results.filter((r) => r === false).length;
+  assert.equal(admittedCount, 1, "with 9 already consumed against a limit of 10, exactly ONE of the 10 racing callers may be admitted");
+  assert.equal(deniedCount, 9, "the other nine MUST be denied -- not merely 'eventually consistent', but denied for THIS specific call");
+
+  const final = await readGlobalQuotaCounter(now);
+  assert.equal(final.requestCount, 10, "the counter must land on EXACTLY 10 -- a denied call must never add a phantom unit (this would be 19 if every racer incremented unconditionally)");
+});
+
+test("CRITICAL: limit=1, 2 concurrent admission attempts on a BRAND NEW period -> exactly 1 admitted, 1 denied, final count is exactly 1", async () => {
+  const now = new Date("2026-09-20T09:00:00.000Z");
+  const before = await readGlobalQuotaCounter(now);
+  assert.equal(before, null, "sanity: no row exists yet");
+
+  const [a, b] = await Promise.all([tryAdmitGlobalRequest(1, now), tryAdmitGlobalRequest(1, now)]);
+  const admitted = [a, b].filter((r) => r === true).length;
+  assert.equal(admitted, 1, "exactly one of the two simultaneous first-ever callers for a limit=1 period may be admitted");
+  const final = await readGlobalQuotaCounter(now);
+  assert.equal(final.requestCount, 1);
+});
+
+test("CRITICAL: limit=0 (via admitGlobalRequestUnit) -> 10 concurrent calls all denied, ZERO DB writes, counter never created", async () => {
+  const now = new Date("2026-09-21T09:00:00.000Z");
+  const results = await Promise.all(Array.from({ length: 10 }, () => admitGlobalRequestUnit(0, now)));
+  assert.ok(results.every((r) => r === false), "every single one of the 10 concurrent callers must be denied when the policy limit is 0");
+  const final = await readGlobalQuotaCounter(now);
+  assert.equal(final, null, "no counter row must ever be created for a limit=0 period, however many callers raced for it");
+});
+
+test("CRITICAL: 50 concurrent admission attempts against limit=20 on a fresh period admit EXACTLY 20, never more, never fewer", async () => {
+  const now = new Date("2026-09-22T09:00:00.000Z");
+  const results = await Promise.all(Array.from({ length: 50 }, () => tryAdmitGlobalRequest(20, now)));
+  const admittedCount = results.filter((r) => r === true).length;
+  assert.equal(admittedCount, 20, "exactly the configured limit must be admitted out of 50 simultaneous callers, regardless of arrival order");
+  const final = await readGlobalQuotaCounter(now);
+  assert.equal(final.requestCount, 20, "the stored counter must land exactly on the limit -- never overshoot from a denied call, never undershoot from a lost admission");
+});
+
+test("multiple concurrent callers (simulating different users) all race against the SAME global counter -- there is no per-caller isolation", async () => {
+  const now = new Date("2026-09-23T09:00:00.000Z");
+  // Nothing here is scoped by user in any way -- calling the same
+  // function concurrently from what would be N different staff members'
+  // requests in production is indistinguishable, by design (G4B's scope
+  // is GLOBAL, never per-user -- see quota-counter-store.ts's own
+  // docstring). This test's only point: N concurrent callers share
+  // exactly ONE counter row, never N independent ones.
+  await Promise.all(Array.from({ length: 6 }, () => admitGlobalRequestUnit(100, now)));
+  const final = await readGlobalQuotaCounter(now);
+  assert.equal(final.requestCount, 6, "all 6 concurrent callers landed on the same single global row");
 });

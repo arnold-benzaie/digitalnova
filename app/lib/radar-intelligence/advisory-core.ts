@@ -24,6 +24,13 @@ import { sanitizeProspectContext } from "./sanitize-context";
 import type { ProviderRegistry } from "./provider-registry";
 import type { IntelligenceProviderId } from "./types";
 import { recordRadarAiProviderAttempt as recordRadarAiProviderAttemptToStore, type RadarAiProviderAttemptTelemetryInput } from "./provider-attempt-telemetry-store";
+import { loadRadarAiQuotaPolicyWithStatus as loadRadarAiQuotaPolicyFromStore, type RadarAiQuotaPolicyReadResult } from "./quota-policy-store";
+import {
+  admitGlobalRequestUnit as admitGlobalRequestUnitFromStore,
+  incrementGlobalTokenCount as incrementGlobalTokenCountFromStore,
+  readGlobalQuotaCounter as readGlobalQuotaCounterFromStore,
+  type QuotaCounterSnapshot,
+} from "./quota-counter-store";
 
 /**
  * RADAR INTELLIGENCE V2.1 — Phase G2 — a per-`produceRadarAdvisory()`-call
@@ -66,7 +73,24 @@ export type RadarAdvisoryUiResult =
   | { status: "timeout"; diagnostic?: ProviderFailureClass; httpStatus?: number }
   | { status: "error"; diagnostic?: ProviderFailureClass; httpStatus?: number }
   /** The prospect is not QUALIFIED — no deterministic basis to advise on. */
-  | { status: "not_applicable" };
+  | { status: "not_applicable" }
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G4B-2. The OWNER-configured AI quota
+   * gate denied this request BEFORE any provider registry/router was
+   * even constructed — no HTTP call, no fallback, no transport ever ran.
+   * Distinct from `"unavailable"` (no provider configured/reachable) and
+   * from `"rate_limited"` (a genuine provider-side 429) — `"limited"`
+   * means "the OWNER's own AI governance policy said no," never a
+   * provider/transport fact. Carries the SAME deterministic block as a
+   * successful advisory: a quota block must never take away the
+   * authoritative RADAR CORE basis, which was already fully computed
+   * before the gate ever ran (mission invariant: RADAR CORE FIRST).
+   * `"limited"` intentionally does not distinguish OWNER-disabled vs.
+   * daily-request-limit vs. daily-token-limit vs. counter-store-outage
+   * in its PUBLIC shape — see observability.ts's AI_QUOTA_* codes for
+   * the (server-log-only, never user-facing) internal sub-cause.
+   */
+  | { status: "limited"; deterministic: { priority: string; confidence: string; recommendedNextAction: string } };
 
 export type AdvisoryDisplayContext = {
   name: string;
@@ -152,7 +176,146 @@ export type AdvisoryCoreDeps = {
    * either way (see the call site below).
    */
   recordProviderAttempt?: (input: RadarAiProviderAttemptTelemetryInput) => Promise<void>;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G4B-2 (corrected). Loads the
+   * OWNER-configured AI quota policy, WITH an explicit status
+   * distinguishing "ok" (a valid stored row) / "missing" (no row yet —
+   * a legitimate, expected first-install state, safe to treat as the
+   * default) / "error" (a genuine DB read failure or a corrupt stored
+   * row — NEVER collapsed into the default; the gate below fails
+   * closed on this case specifically). Defaults to the real DB-backed
+   * store (quota-policy-store.ts::loadRadarAiQuotaPolicyWithStatus),
+   * which itself never throws. Tests inject a fake to force any of the
+   * three states.
+   */
+  loadQuotaPolicy?: () => Promise<RadarAiQuotaPolicyReadResult>;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G4B-2. Reads the CURRENT global
+   * token counter for `now`'s UTC period, without mutating anything —
+   * used only for the pre-dispatch token-budget check. Defaults to the
+   * real store (quota-counter-store.ts::readGlobalQuotaCounter), whose
+   * own contract is to PROPAGATE a DB failure (never fail open) — the
+   * gate below treats a rejection here as fail-closed (deny).
+   */
+  readQuotaCounter?: (now: Date) => Promise<QuotaCounterSnapshot | null>;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G4B-2. Atomically spends (or
+   * refuses to spend) exactly one request-quota unit for `now`'s UTC
+   * period, given the OWNER's `dailyRequestLimit` (null/0/positive —
+   * see quota-counter-store.ts::admitGlobalRequestUnit's own docstring
+   * for the exact semantics of each). Defaults to that real store
+   * function, which PROPAGATES a DB failure — treated as fail-closed
+   * (deny) here, exactly like `readQuotaCounter`.
+   */
+  admitRequestUnit?: (dailyRequestLimit: number | null, now: Date) => Promise<boolean>;
+  /**
+   * RADAR INTELLIGENCE V2.1 — Phase G4B-2. Best-effort, atomic POST-hoc
+   * token-count increment after a genuinely successful provider
+   * response (see the call site below for why this is intentionally
+   * NEVER awaited in a way that can take back an already-good result —
+   * mirrors telemetry's own "never block on this" contract, unlike the
+   * PRE-dispatch gate above, which is deliberately the opposite:
+   * fail-closed). Defaults to the real store
+   * (quota-counter-store.ts::incrementGlobalTokenCount).
+   */
+  incrementQuotaTokens?: (delta: number, now: Date) => Promise<QuotaCounterSnapshot>;
 };
+
+type QuotaGateInternalCode = "AI_QUOTA_DISABLED" | "AI_QUOTA_REQUEST_LIMIT_REACHED" | "AI_QUOTA_TOKEN_LIMIT_REACHED" | "AI_QUOTA_COUNTER_UNAVAILABLE" | "AI_QUOTA_POLICY_UNAVAILABLE";
+type QuotaGateDecision = { admitted: true } | { admitted: false; internalCode: QuotaGateInternalCode };
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the AI quota gate. Called
+ * exactly ONCE per `produceRadarAdvisory()` invocation, AFTER
+ * `resolvedPolicy` is computed and BEFORE `createProviderRouter(...)` is
+ * ever constructed (see the call site below) — so a denial here means
+ * ZERO registry/router construction, ZERO provider dispatch, ZERO
+ * fallback, for every one of the internal reasons below.
+ *
+ * ORDER (mission-specified): (1) load policy — a genuine STORE FAILURE
+ * fails closed outright (see the G4B-2 correction below); `enabled:
+ * false` denies outright too, but for a different, OWNER-deliberate
+ * reason; (2) token pre-check — a best-effort read against the OWNER's
+ * `dailyTokenLimit` (tokens are only known AFTER a provider responds,
+ * so this can only ever gate FUTURE requests, never the exact cost of
+ * the current one — an explicitly accepted, documented property, not a
+ * bug); (3) request-quota atomic admission — the one step that actually
+ * SPENDS a unit, via quota-counter-store.ts::admitGlobalRequestUnit,
+ * which encapsulates the null/0/positive branching so this function
+ * never constructs SQL itself.
+ *
+ * FAIL-CLOSED, CORRECTED (RADAR INTELLIGENCE V2.1 — Phase G4B-2
+ * targeted correction): the ORIGINAL version of this function called
+ * `loadQuotaPolicy` expecting a plain `RadarAiQuotaPolicy` — since
+ * quota-policy-store.ts's OLD read contract collapsed "no row"
+ * (legitimate, first-install) and "DB read failure" (a genuine outage)
+ * into the SAME silent `DEFAULT_RADAR_AI_QUOTA_POLICY` (enabled,
+ * unlimited), a real policy-store outage was indistinguishable from
+ * "nothing configured yet" and this gate would ADMIT every request
+ * during that outage — exactly the unbounded-spend risk this mission
+ * exists to prevent. `deps.loadQuotaPolicy` now returns the
+ * status-aware `RadarAiQuotaPolicyReadResult`
+ * (quota-policy-store.ts::loadRadarAiQuotaPolicyWithStatus), and this
+ * gate branches on `status` explicitly:
+ *   - `"ok"` / `"missing"` -> use `policy` exactly as before (a
+ *     genuinely absent row is NOT an outage — see that store's own
+ *     docstring for why treating "never configured" as unlimited
+ *     remains the correct, documented default);
+ *   - `"error"` -> FAIL CLOSED immediately, `AI_QUOTA_POLICY_UNAVAILABLE`
+ *     — no token pre-check, no request-quota admission, no router.
+ * `readQuotaCounter`/`admitRequestUnit` rejecting (the counter store's
+ * own contract: propagate a DB failure, never fail open) is still
+ * caught here and treated as `AI_QUOTA_COUNTER_UNAVAILABLE` — a
+ * DIFFERENT internal code from the policy-store case above, so the two
+ * distinct outages are never confused with one another in logs, even
+ * though both resolve to the same public `{ status: "limited" }`.
+ */
+async function evaluateAiQuotaGate(deps: AdvisoryCoreDeps, now: Date): Promise<QuotaGateDecision> {
+  let policyResult: RadarAiQuotaPolicyReadResult;
+  try {
+    policyResult = await (deps.loadQuotaPolicy ?? loadRadarAiQuotaPolicyFromStore)();
+  } catch {
+    // Defensive only: the real implementation's contract is "never
+    // throw, always return a status" — but a thrown value (e.g. from a
+    // test fake, or from a future change to that contract) must fail
+    // closed here exactly like an explicit `status: "error"`, never
+    // propagate up and be mistaken for a different failure mode.
+    return { admitted: false, internalCode: "AI_QUOTA_POLICY_UNAVAILABLE" };
+  }
+  if (policyResult.status === "error") {
+    return { admitted: false, internalCode: "AI_QUOTA_POLICY_UNAVAILABLE" };
+  }
+  const policy = policyResult.policy;
+
+  if (!policy.enabled) {
+    return { admitted: false, internalCode: "AI_QUOTA_DISABLED" };
+  }
+
+  if (policy.dailyTokenLimit !== null) {
+    let snapshot: QuotaCounterSnapshot | null;
+    try {
+      snapshot = await (deps.readQuotaCounter ?? readGlobalQuotaCounterFromStore)(now);
+    } catch {
+      return { admitted: false, internalCode: "AI_QUOTA_COUNTER_UNAVAILABLE" };
+    }
+    const tokensSoFar = snapshot?.tokenCount ?? 0;
+    if (tokensSoFar >= policy.dailyTokenLimit) {
+      return { admitted: false, internalCode: "AI_QUOTA_TOKEN_LIMIT_REACHED" };
+    }
+  }
+
+  let admitted: boolean;
+  try {
+    admitted = await (deps.admitRequestUnit ?? admitGlobalRequestUnitFromStore)(policy.dailyRequestLimit, now);
+  } catch {
+    return { admitted: false, internalCode: "AI_QUOTA_COUNTER_UNAVAILABLE" };
+  }
+  if (!admitted) {
+    return { admitted: false, internalCode: "AI_QUOTA_REQUEST_LIMIT_REACHED" };
+  }
+
+  return { admitted: true };
+}
 
 /**
  * RADAR INTELLIGENCE V2.1 — Phase D. Optional, request-scoped provider
@@ -190,6 +353,17 @@ export async function produceRadarAdvisory(
     return { status: "not_applicable" };
   }
   const opportunity = qualification.opportunity;
+  // Hoisted here (Phase G4B-2) from its previous position after the
+  // router call: this block depends ONLY on `opportunity`, already
+  // available at this point, and the new quota gate below (which can
+  // return before the router is ever constructed) needs the SAME
+  // deterministic block a successful advisory returns — RADAR CORE
+  // FIRST means a quota block can never omit it.
+  const deterministic = {
+    priority: opportunity.priority,
+    confidence: opportunity.confidence,
+    recommendedNextAction: opportunity.recommendedNextAction,
+  };
 
   let display: AdvisoryDisplayContext | null;
   try {
@@ -251,6 +425,20 @@ export async function produceRadarAdvisory(
       registeredProviders,
       requestedProviderId: requestedProviderId ?? null,
     });
+
+    // RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the AI quota gate. Evaluated
+    // exactly once per call, AFTER resolvedPolicy (so it applies uniformly
+    // whether `requestedProviderId` was explicit or automatic — neither
+    // can bypass it) and BEFORE the router is ever constructed below — a
+    // denial here means zero registry/router construction, zero provider
+    // dispatch, zero fallback. See evaluateAiQuotaGate()'s own docstring
+    // for the full ordering/fail-closed contract.
+    const quotaGate = await evaluateAiQuotaGate(deps, nowFn());
+    if (!quotaGate.admitted) {
+      logRadarIntelligenceEvent({ source: "advisory_core", code: quotaGate.internalCode, status: "limited" });
+      return { status: "limited", deterministic };
+    }
+
     const router = createProviderRouter({
       registry,
       policy: resolvedPolicy,
@@ -304,11 +492,28 @@ export async function produceRadarAdvisory(
     }
   }
 
-  const deterministic = {
-    priority: opportunity.priority,
-    confidence: opportunity.confidence,
-    recommendedNextAction: opportunity.recommendedNextAction,
-  };
+  // RADAR INTELLIGENCE V2.1 — Phase G4B-2: POST-hoc, atomic, best-effort
+  // token-count increment — reads exactly like G3A's own canonical
+  // metric (token-accounting.ts): only a genuinely successful, tokens-
+  // producing outcome contributes; a failed/no-provider outcome
+  // contributes 0, never a fabricated value. Deliberately the OPPOSITE
+  // fail-safe direction from the gate above: a failure HERE must never
+  // take back an already-good user-facing advisory (mirrors telemetry's
+  // own "never block on this" contract) — this is bookkeeping for
+  // FUTURE requests' token pre-check, not a decision about this one.
+  // Never opens/holds a transaction across the provider call above:
+  // this runs strictly AFTER `outcome` already resolved.
+  if (outcome.advisory) {
+    try {
+      const tokensUsed = (outcome.advisory.usage?.inputTokens ?? 0) + (outcome.advisory.usage?.outputTokens ?? 0);
+      if (tokensUsed > 0) {
+        const increment = deps.incrementQuotaTokens ?? incrementGlobalTokenCountFromStore;
+        await increment(tokensUsed, nowFn());
+      }
+    } catch {
+      // Best-effort — see this block's own docstring above.
+    }
+  }
 
   if (outcome.advisory) {
     // A successful FALLBACK is the one success-path event worth a safe

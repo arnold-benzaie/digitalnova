@@ -60,6 +60,15 @@ import { loadProviderModelOverrides } from "@/lib/radar-intelligence/provider-ru
  * allowlisted fields.
  */
 function stripAdminOnlyFields(result: RadarAdvisoryUiResult): RadarAdvisoryUiResult {
+  // RADAR INTELLIGENCE V2.1 — Phase G4B-2: `deterministic` on a
+  // `"limited"` result is NOT an admin-only field (it is the exact same
+  // authoritative RADAR CORE block every "ok" result already carries,
+  // never provider/model identity) — it must pass through to EVERY
+  // caller, not just SYSTEM_ADMIN, so a quota block never hides the
+  // deterministic basis from an ordinary staff member.
+  if (result.status === "limited") {
+    return { status: "limited", deterministic: result.deterministic };
+  }
   if (result.status !== "ok") {
     return { status: result.status };
   }

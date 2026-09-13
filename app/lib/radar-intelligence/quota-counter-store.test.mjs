@@ -22,14 +22,29 @@ let upsertCalls = [];
 let selectErrorState = {};
 /** @type {{ error?: unknown }} */
 let upsertErrorState = {};
+/**
+ * Forces the NEXT upsert to behave exactly like a real Postgres
+ * `ON CONFLICT DO UPDATE ... WHERE <guard>` whose guard evaluated to
+ * false: zero rows returned, the stored row left COMPLETELY unchanged.
+ * The real guard's actual evaluation (proven under real concurrency) is
+ * quota-counter-store.concurrency.integration.test.mjs's job -- this
+ * fake only lets this file's tests verify tryAdmitGlobalRequest's OWN
+ * plumbing: "zero rows returned" -> "return false", never mutate.
+ * @type {boolean}
+ */
+let forceNextUpsertDenied = false;
 
 const fakeDb = {
   insert: () => ({
     values: (values) => ({
-      onConflictDoUpdate: ({ set }) => ({
+      onConflictDoUpdate: ({ set, setWhere }) => ({
         returning: () => {
-          upsertCalls.push({ values, set });
+          upsertCalls.push({ values, set, setWhere });
           if (upsertErrorState.error) return Promise.reject(upsertErrorState.error);
+          if (forceNextUpsertDenied) {
+            forceNextUpsertDenied = false;
+            return Promise.resolve([]);
+          }
           const existing = rows.get(values.key);
           let row;
           if (!existing) {
@@ -72,13 +87,16 @@ const fakeDb = {
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { currentGlobalQuotaKey, incrementGlobalRequestCount, incrementGlobalTokenCount, readGlobalQuotaCounter } = await import("./quota-counter-store.ts");
+const { currentGlobalQuotaKey, incrementGlobalRequestCount, incrementGlobalTokenCount, readGlobalQuotaCounter, tryAdmitGlobalRequest, admitGlobalRequestUnit } = await import(
+  "./quota-counter-store.ts"
+);
 
 function reset() {
   rows = new Map();
   upsertCalls = [];
   selectErrorState = {};
   upsertErrorState = {};
+  forceNextUpsertDenied = false;
 }
 
 test.beforeEach(reset);
@@ -233,4 +251,97 @@ test("this module never references a providerId, userId, or secret-shaped field 
   const { readFileSync } = await import("node:fs");
   const source = readFileSync(new URL("./quota-counter-store.ts", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   assert.equal(/providerId|userId|apiKey|secret|credential/i.test(source), false);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 — tryAdmitGlobalRequest() /
+// admitGlobalRequestUnit(). The fake DB above proves this file's OWN
+// plumbing (input validation, DB-response interpretation, which
+// underlying primitive gets called for which limit shape) -- the real
+// atomic CAS guard's actual behavior under concurrency is proven for
+// real in quota-counter-store.concurrency.integration.test.mjs.
+// =====================================================================
+
+// ---- tryAdmitGlobalRequest: input validation ----
+
+test("tryAdmitGlobalRequest: limit=0 throws BEFORE any DB access", async () => {
+  await assert.rejects(() => tryAdmitGlobalRequest(0, DAY_1), /positive integer/);
+  assert.equal(upsertCalls.length, 0);
+});
+
+test("tryAdmitGlobalRequest: a negative limit throws BEFORE any DB access", async () => {
+  await assert.rejects(() => tryAdmitGlobalRequest(-1, DAY_1), /positive integer/);
+  assert.equal(upsertCalls.length, 0);
+});
+
+test("tryAdmitGlobalRequest: a non-integer limit throws", async () => {
+  for (const bad of [1.5, NaN, Infinity, "10"]) {
+    await assert.rejects(() => tryAdmitGlobalRequest(bad, DAY_1), /positive integer/);
+  }
+  assert.equal(upsertCalls.length, 0);
+});
+
+// ---- tryAdmitGlobalRequest: DB-response interpretation ----
+
+test("tryAdmitGlobalRequest: a returned row -> true (admitted), and the atomic statement carries a setWhere guard", async () => {
+  const admitted = await tryAdmitGlobalRequest(10, DAY_1);
+  assert.equal(admitted, true);
+  assert.equal(upsertCalls.length, 1);
+  assert.ok(upsertCalls[0].setWhere, "the conditional CAS guard must be present on every call -- never an unconditional increment for a positive limit");
+});
+
+test("tryAdmitGlobalRequest: zero rows returned (the real guard denied) -> false, and the fake's row is provably unchanged", async () => {
+  await incrementGlobalRequestCount(DAY_1); // seed an existing row: requestCount=1
+  forceNextUpsertDenied = true;
+  const admitted = await tryAdmitGlobalRequest(10, DAY_1);
+  assert.equal(admitted, false);
+  const snapshot = await readGlobalQuotaCounter(DAY_1);
+  assert.equal(snapshot.requestCount, 1, "a denied admission must leave the counter COMPLETELY unchanged -- no consolation increment");
+});
+
+test("tryAdmitGlobalRequest: a DB failure propagates, never silently returns false", async () => {
+  upsertErrorState = { error: new Error("connection refused") };
+  await assert.rejects(() => tryAdmitGlobalRequest(10, DAY_1), /connection refused/);
+});
+
+// ---- admitGlobalRequestUnit: null/0/positive branching ----
+
+test("admitGlobalRequestUnit: dailyRequestLimit=null -> always true, delegates to the plain unconditional increment (no setWhere guard)", async () => {
+  const admitted = await admitGlobalRequestUnit(null, DAY_1);
+  assert.equal(admitted, true);
+  assert.equal(upsertCalls.length, 1);
+  assert.equal(upsertCalls[0].setWhere, undefined, "the null (no-limit) path must reuse incrementGlobalRequestCount()'s own unconditional statement, never a guarded one");
+  const snapshot = await readGlobalQuotaCounter(DAY_1);
+  assert.equal(snapshot.requestCount, 1);
+});
+
+test("admitGlobalRequestUnit: dailyRequestLimit=0 -> always false, ZERO DB calls, for any pre-existing state", async () => {
+  await incrementGlobalTokenCount(500, DAY_1); // some unrelated pre-existing activity for the period
+  upsertCalls = []; // ignore the seed call above
+  const admitted = await admitGlobalRequestUnit(0, DAY_1);
+  assert.equal(admitted, false);
+  assert.equal(upsertCalls.length, 0, "limit=0 must be resolved as a static fact about the policy -- it never touches the counter at all");
+  const snapshot = await readGlobalQuotaCounter(DAY_1);
+  assert.equal(snapshot.requestCount, 0, "the counter's requestCount must remain exactly 0 -- never incremented for a limit=0 policy");
+});
+
+test("admitGlobalRequestUnit: dailyRequestLimit=N (positive) -> delegates to tryAdmitGlobalRequest with a setWhere guard", async () => {
+  const admitted = await admitGlobalRequestUnit(5, DAY_1);
+  assert.equal(admitted, true);
+  assert.equal(upsertCalls.length, 1);
+  assert.ok(upsertCalls[0].setWhere);
+});
+
+test("admitGlobalRequestUnit: dailyRequestLimit=N, denied by the real guard -> false, counter unchanged", async () => {
+  await incrementGlobalRequestCount(DAY_1);
+  forceNextUpsertDenied = true;
+  const admitted = await admitGlobalRequestUnit(1, DAY_1);
+  assert.equal(admitted, false);
+  const snapshot = await readGlobalQuotaCounter(DAY_1);
+  assert.equal(snapshot.requestCount, 1);
+});
+
+test("admitGlobalRequestUnit: a DB failure (positive-limit path) propagates, never silently returns false", async () => {
+  upsertErrorState = { error: new Error("connection refused") };
+  await assert.rejects(() => admitGlobalRequestUnit(10, DAY_1), /connection refused/);
 });

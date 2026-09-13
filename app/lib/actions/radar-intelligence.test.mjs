@@ -700,3 +700,49 @@ test("Phase G2: actorUserId forwarded to the core is the SESSION's userId, never
   // exists through which a caller could smuggle a different actor id.
   assert.equal(requestRadarIntelligenceAdvisory.length, 2);
 });
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the new "limited" status is
+// NOT admin-only: it must pass through to EVERY caller unchanged
+// (deterministic is the same authoritative RADAR CORE block "ok"
+// already carries, never provider/model identity).
+// =====================================================================
+
+test("G4B-2: a 'limited' result from the core passes through verbatim to a NON-admin caller (evalOk left false/unused)", async () => {
+  reset();
+  coreResult = { status: "limited", deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" } };
+  const result = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(result, { status: "limited", deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" } });
+  assert.equal(evalCalls.length, 0, "'limited' carries no admin-only field -- the SYSTEM_ADMIN re-check must never even run for it");
+});
+
+test("G4B-2: a 'limited' result is identical for an ADMIN/OWNER caller -- deterministic is visible to everyone, never stripped", async () => {
+  reset();
+  coreResult = { status: "limited", deterministic: { priority: "LOW", confidence: "HIGH", recommendedNextAction: "NONE" } };
+  const result = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(result, { status: "limited", deterministic: { priority: "LOW", confidence: "HIGH", recommendedNextAction: "NONE" } });
+});
+
+test("G4B-2: a 'limited' result never carries a diagnostic, httpStatus, or providerMeta field", async () => {
+  reset();
+  coreResult = { status: "limited", deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" } };
+  const result = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.deepEqual(Object.keys(result).sort(), ["status", "deterministic"].sort());
+});
+
+test("G4B-2: no secret/provider-shaped value ever appears in a 'limited' result returned by the action", async () => {
+  reset();
+  coreResult = { status: "limited", deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" } };
+  const result = await requestRadarIntelligenceAdvisory(CLIENT);
+  const s = JSON.stringify(result);
+  assert.equal(/anthropic|openai|apiKey|sk-ant-|sk-proj-|secret|credential|Bearer/i.test(s), false);
+});
+
+test("G4B-2: the 8-second cooldown still applies identically regardless of a 'limited' result -- quota enforcement adds no bypass or extra gate at this layer", async () => {
+  reset();
+  coreResult = { status: "limited", deterministic: { priority: "HIGH", confidence: "MEDIUM", recommendedNextAction: "FOLLOW_UP_PROPOSAL" } };
+  const first = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(first.status, "limited");
+  const second = await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(second.status, "rate_limited", "the PRE-EXISTING in-memory cooldown (unrelated to G4B) still fires on the very next call from the same user, unmodified by this phase");
+});

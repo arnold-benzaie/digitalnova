@@ -73,6 +73,25 @@ export const RADAR_INTELLIGENCE_BLIND_PATH_CODES = [
   "SYSTEM_ADMIN_CHECK_FAILED",
   "SERVER_ACTION_UNHANDLED_ERROR",
   "FALLBACK_SUCCEEDED",
+  // RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the AI quota gate's internal
+  // sub-causes for the public `{ status: "limited" }` result. Never
+  // surfaced to the UI (same "diagnostic-blind" contract as every other
+  // code above) — these exist purely so the four genuinely different
+  // situations the gate can hit are distinguishable in server logs,
+  // never confused with one another (mission requirement): an OWNER's
+  // deliberate off switch, a reached daily request/token budget, a
+  // counter-store outage, and (Phase G4B-2 correction) a POLICY-store
+  // outage are NOT the same fact, even though the public result is
+  // identically `{ status: "limited" }` in every case. AI_QUOTA_POLICY_UNAVAILABLE
+  // is deliberately distinct from AI_QUOTA_COUNTER_UNAVAILABLE: the two
+  // failures happen in two different stores (quota-policy-store.ts vs.
+  // quota-counter-store.ts) and must remain distinguishable in logs even
+  // though both resolve to the exact same fail-closed public result.
+  "AI_QUOTA_DISABLED",
+  "AI_QUOTA_REQUEST_LIMIT_REACHED",
+  "AI_QUOTA_TOKEN_LIMIT_REACHED",
+  "AI_QUOTA_COUNTER_UNAVAILABLE",
+  "AI_QUOTA_POLICY_UNAVAILABLE",
 ] as const;
 
 export type RadarIntelligenceBlindPathCode = (typeof RADAR_INTELLIGENCE_BLIND_PATH_CODES)[number];

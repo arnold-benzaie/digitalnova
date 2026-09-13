@@ -227,10 +227,24 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
   // PHASE G4A — an INDEPENDENT read: a quota-policy load failure never
   // hides the token-usage report above, and a token-usage load failure
   // never hides this section either.
+  //
+  // PHASE G4B-2 correction: getRadarAiQuotaPolicy() now returns
+  // { policy, storeStatus } instead of a bare policy — `storeStatus:
+  // "error"` (a genuine store outage) must render the SAME safe error
+  // message as a thrown exception, never the form with a default
+  // "enabled, unlimited" policy that could be mistaken for the OWNER's
+  // real, active configuration. `storeStatus: "missing"` (no row yet —
+  // a legitimate first-install state) renders the form normally, with
+  // the safe default values, exactly as before this correction.
   let quotaPolicy: RadarAiQuotaPolicy | null = null;
   let quotaLoadFailed = false;
   try {
-    quotaPolicy = await getRadarAiQuotaPolicy();
+    const display = await getRadarAiQuotaPolicy();
+    if (display.storeStatus === "error") {
+      quotaLoadFailed = true;
+    } else {
+      quotaPolicy = display.policy;
+    }
   } catch {
     quotaLoadFailed = true;
   }

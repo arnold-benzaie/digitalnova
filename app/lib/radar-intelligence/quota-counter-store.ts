@@ -158,3 +158,91 @@ export async function readGlobalQuotaCounter(now: Date = new Date()): Promise<Qu
   const row = rows[0];
   return row ? toSnapshot(row) : null;
 }
+
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase G4B-2 — the atomic, race-safe
+ * "admit one more request, or don't" primitive for a POSITIVE
+ * (`limit > 0`) daily request limit. Returns `true` (and the row IS
+ * incremented) when the request unit was admitted; `false` (and the
+ * row is left COMPLETELY UNCHANGED) when the limit was already reached
+ * — a denied caller consumes NOTHING, by construction, not by a
+ * separate compensating step.
+ *
+ * ONE atomic statement — never `SELECT count -> compare -> UPDATE`:
+ *   INSERT ... VALUES (key, ..., requestCount: 1, ...)
+ *   ON CONFLICT (key) DO UPDATE
+ *     SET requestCount = requestCount + 1
+ *     WHERE requestCount < limit
+ *   RETURNING requestCount
+ * Postgres evaluates the `WHERE` guard (`setWhere` below) against the
+ * CURRENT row value while holding that row's own lock — concurrent
+ * callers are serialized by Postgres itself, each re-checking the
+ * now-current count, so exactly `limit - alreadyConsumed` callers are
+ * ever admitted, never more, regardless of how many race simultaneously
+ * (proven under real concurrency — see
+ * quota-counter-store.concurrency.integration.test.mjs). When the
+ * `WHERE` guard fails, Postgres treats that row as neither inserted nor
+ * updated: `RETURNING` yields ZERO rows for it, which is exactly what
+ * this function treats as "denied."
+ *
+ * The unconditional INSERT branch (no `WHERE` on it) firing on a brand
+ * new period is always safe here because this function is NEVER called
+ * with `limit <= 0` (see the caller-facing docstring on
+ * `admitGlobalRequestUnit` for why 0 is handled as a static
+ * short-circuit before this function is ever reached, and `null`/"no
+ * limit" reuses the plain, unconditional `incrementGlobalRequestCount`
+ * instead) — inserting `requestCount: 1` is always within any `limit
+ * >= 1`.
+ */
+export async function tryAdmitGlobalRequest(limit: number, now: Date = new Date()): Promise<boolean> {
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error(`tryAdmitGlobalRequest: limit must be a positive integer, got ${limit}`);
+  }
+  const key = currentGlobalQuotaKey(now);
+  const windowStart = utcStartOfDay(now);
+  const rows = await db
+    .insert(radarAiQuotaCounter)
+    .values({ key, windowStart, requestCount: 1, tokenCount: 0, updatedAt: now })
+    .onConflictDoUpdate({
+      target: radarAiQuotaCounter.key,
+      set: { requestCount: sql`${radarAiQuotaCounter.requestCount} + 1`, updatedAt: now },
+      setWhere: sql`${radarAiQuotaCounter.requestCount} < ${limit}`,
+    })
+    .returning({ requestCount: radarAiQuotaCounter.requestCount });
+  return rows.length > 0;
+}
+
+/**
+ * The ONE orchestration entry point advisory-core.ts's gate calls to
+ * spend (or not) exactly one request-quota unit for the current UTC
+ * period, given the OWNER-configured `dailyRequestLimit` (G4A's
+ * `RadarAiQuotaPolicy.dailyRequestLimit` — `null` | `0` | a positive
+ * integer). Encapsulates ALL of the null/0/positive branching (and the
+ * raw SQL shape of each case) in this store, so advisory-core.ts never
+ * constructs quota SQL itself — it only calls this one function and
+ * gets a plain boolean back.
+ *
+ *  - `null` ("no limit configured"): reuses the plain, unconditional
+ *    `incrementGlobalRequestCount()` unchanged from G4B-1 — always
+ *    admits, always increments.
+ *  - `0` ("no external AI requests allowed at all"): a STATIC
+ *    short-circuit — returns `false` WITHOUT any DB call. This is
+ *    deliberate, not an optimization detail: `tryAdmitGlobalRequest`'s
+ *    own atomic guard cannot be made to also gate its own unconditional
+ *    INSERT branch for a brand-new period (there is nothing yet to
+ *    compare `0` against), so `0` is instead resolved as an always-true
+ *    fact about the policy alone, before the counter is ever touched —
+ *    the counter provably never changes, for any number of concurrent
+ *    callers, when the limit is `0`.
+ *  - a positive integer: delegates to `tryAdmitGlobalRequest(limit, now)`.
+ */
+export async function admitGlobalRequestUnit(dailyRequestLimit: number | null, now: Date = new Date()): Promise<boolean> {
+  if (dailyRequestLimit === null) {
+    await incrementGlobalRequestCount(now);
+    return true;
+  }
+  if (dailyRequestLimit === 0) {
+    return false;
+  }
+  return tryAdmitGlobalRequest(dailyRequestLimit, now);
+}

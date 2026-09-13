@@ -61,15 +61,20 @@ mock.module("@/lib/actions/radar-ai-token-governance", {
 const QUOTA_POLICY_FIXTURE = { enabled: true, dailyRequestLimit: 500, dailyTokenLimit: 200000, warningThresholdPercent: 80 };
 
 let quotaPolicyCalls = 0;
-/** @type {{ throw?: boolean }} */
+/** @type {{ throw?: boolean; storeStatus?: "ok" | "missing" | "error" }} */
 let quotaPolicyBehavior = {};
 
+// PHASE G4B-2 correction: getRadarAiQuotaPolicy() now returns
+// { policy, storeStatus } instead of a bare policy -- `storeStatus`
+// defaults to "ok" here so every pre-correction test keeps its exact
+// byte-identical behavior; dedicated correction tests override it to
+// "error"/"missing".
 mock.module("@/lib/actions/radar-ai-quota-policy", {
   namedExports: {
     getRadarAiQuotaPolicy: async () => {
       quotaPolicyCalls += 1;
       if (quotaPolicyBehavior.throw) throw new Error("simulated DB failure -- must never reach the rendered page");
-      return { ...QUOTA_POLICY_FIXTURE };
+      return { policy: { ...QUOTA_POLICY_FIXTURE }, storeStatus: quotaPolicyBehavior.storeStatus ?? "ok" };
     },
   },
 });
@@ -226,4 +231,34 @@ test("Phase G4A page: no secret-shaped value (apiKey/credential/token) appears a
   const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
   const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
   assert.equal(/apiKey|sk-ant-|sk-proj-|DATABASE_URL|Authorization|Bearer|credential/i.test(s), false);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4B-2 CORRECTION — the OWNER must
+// never see "enabled, unlimited" rendered as if it were the real,
+// active configuration while the policy store is genuinely down.
+// =====================================================================
+
+test("G4B-2 correction: storeStatus='error' renders the SAME safe error message as a thrown exception -- never the form with a default policy", async () => {
+  reset();
+  quotaPolicyBehavior = { storeStatus: "error" };
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  assert.equal(s.includes('"initialPolicy"'), false, "the QuotaPolicyForm (and its default-looking policy values) must never render during a genuine store outage");
+  assert.ok(s.includes("temporairement") || s.includes("indisponible") || s.includes("unavailable") || s.includes("Les données"), "the same safe error copy already used for a thrown exception must render");
+});
+
+test("G4B-2 correction: storeStatus='missing' renders the form normally, with the safe default policy -- a legitimate first-install state, not an error", async () => {
+  reset();
+  quotaPolicyBehavior = { storeStatus: "missing" };
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  assert.ok(s.includes('"initialPolicy"'), "a 'missing' policy is a normal, renderable state -- the form must still appear");
+});
+
+test("G4B-2 correction: storeStatus='ok' (default) still renders the form exactly as before -- unaffected by this correction", async () => {
+  reset();
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  assert.ok(s.includes('"initialPolicy"'));
 });
