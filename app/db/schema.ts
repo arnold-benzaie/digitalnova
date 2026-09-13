@@ -2135,3 +2135,56 @@ export const radarAiProviderAttemptTelemetry = pgTable(
     check("radar_ai_provider_attempt_telemetry_output_tokens_check", sql`${table.outputTokens} IS NULL OR ${table.outputTokens} >= 0`),
   ],
 );
+
+// RADAR INTELLIGENCE V2.1 — Phase G4A — the OWNER-configured AI quota
+// POLICY (configuration only). Deliberately a SEPARATE table from BOTH
+// radar_ai_provider_policy (routing permission: which providers, in what
+// order) and radar_ai_provider_attempt_telemetry (historical, best-effort
+// observability): this table is neither — it is the OWNER's declared
+// consumption budget for the external-AI layer. G4A stores this
+// configuration ONLY; no enforcement, no counter, no read of this table
+// from advisory-core.ts exists yet (see lib/radar-intelligence/
+// quota-policy-store.ts's own docstring — that is G4B's job). A null
+// `dailyRequestLimit` / `dailyTokenLimit` means "no limit configured" —
+// distinct from `enabled: false`, which is a master off switch for the
+// entire external-AI layer regardless of any limit value. NO CREDENTIAL,
+// NO SECRET, NO PROVIDER-SPECIFIC COLUMN — this table governs the AI
+// layer as a whole, never a specific provider's credentials.
+export const radarAiQuotaPolicy = pgTable(
+  "radar_ai_quota_policy",
+  {
+    id: text("id").primaryKey().default("global"),
+    enabled: boolean("enabled").notNull().default(true),
+    // null = no limit configured (unlimited) — a deliberate, explicit
+    // state, never confused with "0" (which would mean "no requests
+    // allowed at all").
+    dailyRequestLimit: integer("daily_request_limit"),
+    dailyTokenLimit: integer("daily_token_limit"),
+    warningThresholdPercent: integer("warning_threshold_percent").notNull().default(80),
+    updatedByStaffMemberId: uuid("updated_by_staff_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Belt-and-suspenders singleton enforcement, independent of the
+    // primary key — mirrors radar_ai_provider_policy's own convention
+    // exactly: this column can never hold anything but 'global'.
+    check("radar_ai_quota_policy_singleton_check", sql`${table.id} = 'global'`),
+    check("radar_ai_quota_policy_daily_request_limit_check", sql`${table.dailyRequestLimit} IS NULL OR ${table.dailyRequestLimit} >= 0`),
+    check("radar_ai_quota_policy_daily_token_limit_check", sql`${table.dailyTokenLimit} IS NULL OR ${table.dailyTokenLimit} >= 0`),
+    check(
+      "radar_ai_quota_policy_warning_threshold_check",
+      sql`${table.warningThresholdPercent} BETWEEN 0 AND 100`,
+    ),
+    // Explicit short name — the Drizzle-auto-generated name for this FK
+    // ("radar_ai_quota_policy_updated_by_staff_member_id_staff_members_id_fk")
+    // exceeds Postgres's 63-byte NAMEDATALEN limit, exactly the same
+    // issue radar_ai_provider_policy's own FK already works around (see
+    // that table's docstring above) — same fix, same reasoning.
+    foreignKey({
+      name: "radar_ai_quota_policy_updated_by_staff_member_fk",
+      columns: [table.updatedByStaffMemberId],
+      foreignColumns: [staffMembers.id],
+    }).onDelete("set null"),
+  ],
+);

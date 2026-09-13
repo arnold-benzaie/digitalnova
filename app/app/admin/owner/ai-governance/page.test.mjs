@@ -58,6 +58,22 @@ mock.module("@/lib/actions/radar-ai-token-governance", {
   },
 });
 
+const QUOTA_POLICY_FIXTURE = { enabled: true, dailyRequestLimit: 500, dailyTokenLimit: 200000, warningThresholdPercent: 80 };
+
+let quotaPolicyCalls = 0;
+/** @type {{ throw?: boolean }} */
+let quotaPolicyBehavior = {};
+
+mock.module("@/lib/actions/radar-ai-quota-policy", {
+  namedExports: {
+    getRadarAiQuotaPolicy: async () => {
+      quotaPolicyCalls += 1;
+      if (quotaPolicyBehavior.throw) throw new Error("simulated DB failure -- must never reach the rendered page");
+      return { ...QUOTA_POLICY_FIXTURE };
+    },
+  },
+});
+
 const { default: AiGovernanceOwnerPage } = await import("./page.tsx");
 
 function reset() {
@@ -65,6 +81,8 @@ function reset() {
   denyMode = false;
   snapshotCalls = [];
   snapshotBehavior = {};
+  quotaPolicyCalls = 0;
+  quotaPolicyBehavior = {};
 }
 
 function searchParams(params = {}) {
@@ -77,6 +95,12 @@ test("Phase G3B page: authorized -> renders; guard called exactly once with 'RAD
   assert.deepEqual(permissionCalls, ["RADAR_AI_POLICY_MANAGE"]);
   assert.equal(snapshotCalls.length, 1);
   assert.ok(el, "expected a React element when authorized");
+});
+
+test("Phase G4A page: authorized -> the quota policy is read exactly once (independent read from the token-usage snapshot)", async () => {
+  reset();
+  await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  assert.equal(quotaPolicyCalls, 1);
 });
 
 test("Phase G3B page: never asks for SYSTEM_ADMIN or ANALYTICS_TEAM_VIEW directly -- only RADAR_AI_POLICY_MANAGE", async () => {
@@ -92,6 +116,7 @@ test("Phase G3B page: a guard denial (NEXT_REDIRECT) propagates -- no snapshot r
   await assert.rejects(() => AiGovernanceOwnerPage({ searchParams: searchParams() }), /NEXT_REDIRECT/);
   assert.deepEqual(permissionCalls, ["RADAR_AI_POLICY_MANAGE"], "the guard still ran, with exactly RADAR_AI_POLICY_MANAGE, before any read");
   assert.equal(snapshotCalls.length, 0, "a denied caller never reaches the snapshot read");
+  assert.equal(quotaPolicyCalls, 0, "a denied caller (ADMIN/MANAGER/EMPLOYEE) never reaches the quota policy read either");
 });
 
 test("Phase G3B page: missing window query param safely defaults to 'today' for display", async () => {
@@ -143,4 +168,62 @@ test("Phase G3B page: no cost/price/currency value appears anywhere in the rende
   const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
   const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
   assert.equal(/estimatedCost|\bUSD\b|\bEUR\b|\bCAD\b|pricing/i.test(s), false);
+});
+
+// =====================================================================
+// RADAR INTELLIGENCE V2.1 — Phase G4A — the embedded "Quotas et limites"
+// section (QuotaPolicyForm), rendered independently of the token-usage
+// snapshot above.
+// =====================================================================
+
+test("Phase G4A page: a quota-policy load failure is caught and renders without throwing to the caller", async () => {
+  reset();
+  quotaPolicyBehavior = { throw: true };
+  await assert.doesNotReject(() => AiGovernanceOwnerPage({ searchParams: searchParams() }));
+});
+
+test("Phase G4A page: a quota-policy load failure does NOT prevent the token-usage snapshot from still loading/rendering", async () => {
+  reset();
+  quotaPolicyBehavior = { throw: true };
+  await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  assert.equal(snapshotCalls.length, 1, "the token-usage read must still happen even when the quota-policy read fails");
+});
+
+test("Phase G4A page: a token-usage snapshot load failure does NOT prevent the quota policy from still loading/rendering", async () => {
+  reset();
+  snapshotBehavior = { throw: true };
+  await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  assert.equal(quotaPolicyCalls, 1, "the quota-policy read must still happen even when the token-usage read fails");
+});
+
+test("Phase G4A page: the quota policy is passed to QuotaPolicyForm verbatim, never recomputed", async () => {
+  reset();
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  assert.ok(s.includes('"dailyRequestLimit":500'));
+  assert.ok(s.includes('"dailyTokenLimit":200000'));
+  assert.ok(s.includes('"warningThresholdPercent":80'));
+});
+
+test("Phase G4A page: no fake consumption/remaining/usage FIELD is ever passed to QuotaPolicyForm -- G4A is configuration-only", async () => {
+  // A narrow, key-shaped check (not a naive prose substring match): the
+  // dictionary legitimately uses words like "consommation" in its
+  // DESCRIPTIVE copy ("politique de consommation IA" = "AI consumption
+  // POLICY", the feature's own name) -- that is not a computed number and
+  // must not trip this test. What must never exist is an actual VALUE
+  // field for remaining budget / current consumption on the quota policy
+  // object itself, since no enforcement/counter exists yet (G4B).
+  reset();
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  const initialPolicyMatch = s.match(/"initialPolicy":\{[^}]*\}/);
+  assert.ok(initialPolicyMatch, "expected an initialPolicy prop to be present");
+  assert.deepEqual(Object.keys(JSON.parse(initialPolicyMatch[0].slice('"initialPolicy":'.length))).sort(), ["dailyRequestLimit", "dailyTokenLimit", "enabled", "warningThresholdPercent"].sort());
+});
+
+test("Phase G4A page: no secret-shaped value (apiKey/credential/token) appears anywhere in the rendered element tree", async () => {
+  reset();
+  const el = await AiGovernanceOwnerPage({ searchParams: searchParams() });
+  const s = JSON.stringify(el, (key, value) => (typeof value === "function" ? "[fn]" : value));
+  assert.equal(/apiKey|sk-ant-|sk-proj-|DATABASE_URL|Authorization|Bearer|credential/i.test(s), false);
 });

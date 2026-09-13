@@ -1,11 +1,14 @@
 import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getRadarAiTokenGovernanceSnapshot, type TokenGovernanceSnapshot } from "@/lib/actions/radar-ai-token-governance";
+import { getRadarAiQuotaPolicy } from "@/lib/actions/radar-ai-quota-policy";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 import { formatNumber } from "@/lib/i18n/format";
 import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
 import { KpiCard } from "@/components/gbp-audit/ui/kpi-card";
+import { QuotaPolicyForm } from "@/components/owner/ai-quota-policy-form";
 import type { TokenAccountingWindow } from "@/lib/radar-intelligence/token-accounting";
+import type { RadarAiQuotaPolicy } from "@/lib/radar-intelligence/quota-policy-store";
 
 /**
  * RADAR INTELLIGENCE V2.1 — Phase G3B — the OWNER-only token USAGE
@@ -25,6 +28,15 @@ import type { TokenAccountingWindow } from "@/lib/radar-intelligence/token-accou
  * used for window switching. An invalid/missing URL value defaults to
  * "today" for DISPLAY only; the underlying Server Action independently
  * re-validates the window regardless of what this page passes it.
+ *
+ * PHASE G4A — a "Quotas et limites" section was added below the hero,
+ * ABOVE the token-usage window tabs, loaded and rendered fully
+ * independently of `snapshot`/`loadFailed`: a quota-policy load failure
+ * never hides the token-usage report, and vice versa. This section is
+ * CONFIGURATION only (the QuotaPolicyForm client component) — it reads
+ * and writes lib/actions/radar-ai-quota-policy.ts, never
+ * radar-ai-token-governance.ts, and displays no computed consumption or
+ * "remaining budget" (no enforcement/counter exists yet — G4B).
  */
 
 type Params = { window?: string };
@@ -197,6 +209,7 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
 
   const [params, locale] = await Promise.all([searchParams, getLocale()]);
   const t = dictionaries[locale].aiTokenGovernance;
+  const quotaT = dictionaries[locale].aiQuotaPolicy;
   const window = resolveDisplayWindow(params.window);
 
   let snapshot: TokenGovernanceSnapshot | null = null;
@@ -211,10 +224,36 @@ export default async function AiGovernanceOwnerPage({ searchParams }: { searchPa
     loadFailed = true;
   }
 
+  // PHASE G4A — an INDEPENDENT read: a quota-policy load failure never
+  // hides the token-usage report above, and a token-usage load failure
+  // never hides this section either.
+  let quotaPolicy: RadarAiQuotaPolicy | null = null;
+  let quotaLoadFailed = false;
+  try {
+    quotaPolicy = await getRadarAiQuotaPolicy();
+  } catch {
+    quotaLoadFailed = true;
+  }
+
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
-      <WindowTabs current={window} t={t} />
+
+      <div className={`mt-6 ${panelClass}`}>
+        <h2 className={panelTitleClass}>{quotaT.sectionTitle}</h2>
+        <p className="mt-1 text-xs text-pm-gris">{quotaT.sectionSubtitle}</p>
+        {quotaLoadFailed || !quotaPolicy ? (
+          <p className="mt-3 text-sm text-pm-gris">{quotaT.errorMessage}</p>
+        ) : (
+          <div className="mt-4">
+            <QuotaPolicyForm initialPolicy={quotaPolicy} t={quotaT} />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <WindowTabs current={window} t={t} />
+      </div>
       {loadFailed || !snapshot ? (
         <div className={`mt-6 ${panelClass}`}>
           <p className="text-sm text-pm-gris">{t.errorMessage}</p>
