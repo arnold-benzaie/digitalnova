@@ -72,6 +72,17 @@ test.describe("Session authority unification — Axis-A / Axis-C priority", () =
     // maps EMPLOYEE -> "agent", never "admin").
     await page.goto("/admin/users");
     await expect(page, "admin-only /admin/users must stay denied for EMPLOYEE").toHaveURL((u) => u.pathname === "/admin");
+
+    // CLIENT DASHBOARD / PENDING ROUTING FIX — the exact real-world shape
+    // reported in Production (Samira: EMPLOYEE ACTIVE, zero Axis-A
+    // membership): landing directly on /access-pending (the page
+    // requireAuditSession() sends any active-but-no-Audit-access identity
+    // to, unmarked) must bounce straight to /admin, never render the
+    // "your account is pending approval" copy to a fully active member.
+    await page.goto("/access-pending");
+    await expect(page, "a pure ACTIVE WORKFORCE identity must never be stranded on the pending-approval page").toHaveURL(
+      (u) => u.pathname === "/admin",
+    );
   });
 
   test("CLIENT pure (Axis-A 'client', no Axis-C row): /dashboard reachable, /admin refused", async ({ page }) => {

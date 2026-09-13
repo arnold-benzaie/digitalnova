@@ -45,24 +45,29 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * This page is ALSO the shared landing spot for requireAuditSession()
  * (lib/gbp-audit/session.ts) when a user is fully "active" in the MAIN app
- * (e.g. an admin) but lacks an audit_staff_memberships row — a separate
- * gate this page has no polling logic for. That case is indistinguishable
- * here from a genuine main-app approval UNLESS we know this visit came
- * from requireSession()'s own pending redirect: requireSession() marks
- * that redirect `?ctx=pending` specifically so this page can tell "just
- * resolved from a real pending wait" (safe to redirect away once active,
- * whatever the eventual role) apart from "always was active, just blocked
- * by the unrelated audit gate" (must NOT redirect away — see
- * e2e/access-pending.spec.ts's "no redirect loop" and "no audit role"
- * cases, which cover exactly this with an active admin account). Absent
- * that marker, only role === "client" is trusted to redirect on its own —
- * a client has no legitimate reason to hit the audit gate, so it's safe
- * either way, and it's the exact case this feature was reported for
- * (a newly-approved client stuck on this page). AccessPendingClient
- * (polling for admin approval WHILE this page is open) only ever mounts
- * when accessState.kind is "pending" — by construction that's always a
- * real main-app wait, never the audit-gate case, so its own "active →
- * redirect" logic needs no extra guard.
+ * but lacks an audit_staff_memberships row — a separate gate this page has
+ * no polling logic for.
+ *
+ * CLIENT DASHBOARD / PENDING ROUTING FIX — an "active" accessState is
+ * ALWAYS redirected away, unconditionally, regardless of whether the visit
+ * carries requireSession()'s own `?ctx=pending` marker. There is no
+ * legitimate case where a fully active identity — CLIENT or WORKFORCE —
+ * should ever see this page's "your account is pending approval" copy:
+ * being blocked by the separate, unrelated Audit gate does not mean the
+ * MAIN app considers them pending. The previous logic only trusted the
+ * marker (or a literal CLIENT role) to redirect away, deliberately leaving
+ * every other active identity stuck here on the theory that it was "safe
+ * either way" — that assumption was wrong: it is exactly what stranded a
+ * fully active WORKFORCE member (EMPLOYEE/MANAGER/ADMIN/OWNER, no Axis-A
+ * membership at all) on this page after clicking the Audit section's own
+ * "Tableau de bord" link, which requireAuditSession() sends here with no
+ * marker. Whatever the eventual context, "active" now always means
+ * "redirect to your real home" (CLIENT → /dashboard, everything else →
+ * /admin) — never "render pending copy to someone who isn't pending."
+ * AccessPendingClient (polling for admin approval WHILE this page is
+ * open) only ever mounts when accessState.kind is "pending" — by
+ * construction that's always a real main-app wait, never the audit-gate
+ * case, so its own "active → redirect" logic needs no extra guard.
  *
  * Bilingual per lib/i18n/dictionaries.ts: getLocale() auto-detects from
  * the browser's Accept-Language header (falling back to French, this
@@ -77,8 +82,8 @@ export default async function AccessPendingPage({ searchParams }: { searchParams
   const [locale, user, accessState, params] = await Promise.all([getLocale(), currentUser(), getAccessState(), searchParams]);
   const cameFromPendingGate = params.ctx === "pending";
 
-  const isClientSession = accessState.kind === "active" && accessState.session.context === "CLIENT" && accessState.session.role === "client";
-  if (accessState.kind === "active" && (cameFromPendingGate || isClientSession)) {
+  if (accessState.kind === "active") {
+    const isClientSession = accessState.session.context === "CLIENT" && accessState.session.role === "client";
     redirect(isClientSession ? "/dashboard" : "/admin");
   }
   if (accessState.kind === "refused") {

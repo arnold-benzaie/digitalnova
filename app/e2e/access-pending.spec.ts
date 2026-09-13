@@ -6,13 +6,24 @@ import { auditStaffMemberships, auditStaffUsers } from "../db/audit-schema";
 /**
  * Covers the "authenticated with Clerk but no PUBLIC-MAP Audit membership"
  * case for requireAuditSession() (see lib/gbp-audit/session.ts): must
- * redirect to /access-pending, never throw a raw error, and must not loop.
+ * redirect cleanly, never throw a raw error, and must not loop.
  * Complements lib/dev-role.test.mjs, which covers the same "no role" /
  * "not authenticated" / "admin" / "client-on-an-admin-page" scenarios for
  * the MAIN app's role model (admin/staff/client) as fast unit tests — this
  * file exercises the AUDIT app's role model (admin/supervisor/staff, "agent"
  * in the UI) end-to-end instead, since getAuditStaffSession's require*Role
  * guards aren't cleanly unit-mockable (see that file's header comment).
+ *
+ * CLIENT DASHBOARD / PENDING ROUTING FIX — the shared test account
+ * (contact@public-map.com) carries a standing ACTIVE EMPLOYEE
+ * staff_members row (Axis-C, main DB — see e2e/helpers/main-db-staff.mjs),
+ * so its session resolves context="WORKFORCE" (Session Authority: WORKFORCE
+ * outranks Axis-A). It is therefore fully ACTIVE in the main app while
+ * this test makes it lack Audit access — the exact "active identity
+ * blocked only by the separate Audit gate" shape access-pending/page.tsx's
+ * own fix targets. It must land on /admin, never render the pending copy
+ * (which used to happen here — the bug this file's tests originally,
+ * unknowingly, asserted as "expected").
  *
  * Same real, already-authenticated test session (contact@public-map.com —
  * see e2e/auth-setup.mjs) reused by every file in this suite: its
@@ -62,36 +73,38 @@ test.afterAll(async () => {
     .onConflictDoNothing({ target: auditStaffMemberships.userId });
 });
 
-test("compte authentifié sans aucun rôle Audit : redirection propre vers /access-pending, jamais une erreur brute", async ({ page }) => {
+test("compte ACTIF (WORKFORCE) sans rôle Audit : redirection propre vers /admin, jamais bloqué sur la page pending, jamais une erreur brute", async ({ page }) => {
   const response = await page.goto("/admin/audit");
 
-  await page.waitForURL(/\/access-pending$/);
-  expect(page.url(), "devrait atterrir sur /access-pending, pas rester sur une page d'erreur").toMatch(/\/access-pending$/);
+  // CLIENT DASHBOARD / PENDING ROUTING FIX — this account is fully ACTIVE
+  // (context="WORKFORCE" via its standing EMPLOYEE staff_members row), so
+  // requireAuditSession()'s unmarked redirect to /access-pending must be
+  // bounced straight through to /admin, never rendering the pending copy.
+  await page.waitForURL(/\/admin$/);
+  expect(page.url(), "un compte ACTIF ne doit jamais rester sur /access-pending").toMatch(/\/admin$/);
   expect(response?.status(), "la réponse finale ne doit pas être un statut d'erreur serveur").toBeLessThan(500);
 
   const body = await page.textContent("body");
   expect(body, "ne doit jamais exposer le texte brut d'exception Next").not.toContain("Server Components render");
   expect(body, "ne doit jamais exposer un digest technique").not.toMatch(/digest/i);
-
-  await expect(page.getByRole("heading", { level: 1, name: "Bienvenue sur PUBLIC-MAP !" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Contacter PUBLIC-MAP" })).toHaveAttribute("href", "mailto:contact@public-map.com");
-  await expect(page.getByRole("button", { name: "Se déconnecter" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Retour au site PUBLIC-MAP" })).toHaveAttribute("href", "https://www.public-map.com");
+  expect(body, "ne doit jamais afficher le message 'compte en attente' à un compte actif").not.toContain("Bienvenue sur PUBLIC-MAP !");
 });
 
-test("aucune boucle de redirection : /access-pending se charge directement sans rebond", async ({ page }) => {
+test("aucune boucle de redirection : /access-pending redirige immédiatement un compte ACTIF vers /admin, sans rebond ni boucle", async ({ page }) => {
   const response = await page.goto("/access-pending");
   expect(response?.status()).toBeLessThan(400);
   // A redirect loop would either time out (page.goto already has a
   // navigation timeout) or bounce through /sign-in first; asserting the
-  // final URL is exactly this page rules out both.
-  expect(page.url()).toMatch(/\/access-pending$/);
+  // final URL is exactly /admin (this account's real home) rules out both
+  // and proves the single, correct redirect happened.
+  await page.waitForURL(/\/admin$/);
+  expect(page.url()).toMatch(/\/admin$/);
 });
 
 for (const path of ["/admin/audit/offres", "/admin/audit/equipe", "/admin/audit/parametres", "/admin/audit/liste"]) {
-  test(`compte sans rôle Audit : ${path} redirige aussi vers /access-pending`, async ({ page }) => {
+  test(`compte ACTIF sans rôle Audit : ${path} redirige vers /admin, jamais bloqué sur la page pending`, async ({ page }) => {
     await page.goto(path);
-    await page.waitForURL(/\/access-pending$/);
-    expect(page.url()).toMatch(/\/access-pending$/);
+    await page.waitForURL(/\/admin$/);
+    expect(page.url()).toMatch(/\/admin$/);
   });
 }
