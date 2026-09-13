@@ -38,6 +38,7 @@ import { chat } from "./chat";
 import { radarIntelligence } from "./radar-intelligence";
 import { aiProviderPolicy } from "./ai-provider-policy";
 import { aiProviderOperations } from "./ai-provider-operations";
+import { aiTokenGovernance } from "./ai-token-governance";
 
 export type { Locale } from "./types";
 export { LOCALES } from "./types";
@@ -73,6 +74,7 @@ export const dictionaries = {
     radarIntelligence: radarIntelligence.fr,
     aiProviderPolicy: aiProviderPolicy.fr,
     aiProviderOperations: aiProviderOperations.fr,
+    aiTokenGovernance: aiTokenGovernance.fr,
   },
   en: {
     common: common.en,
@@ -104,5 +106,6 @@ export const dictionaries = {
     radarIntelligence: radarIntelligence.en,
     aiProviderPolicy: aiProviderPolicy.en,
     aiProviderOperations: aiProviderOperations.en,
+    aiTokenGovernance: aiTokenGovernance.en,
   },
 } as const;

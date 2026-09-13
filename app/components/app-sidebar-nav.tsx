@@ -12,7 +12,7 @@ type NavDict = {
   sections: { auditGbp: string; clientRelation: string; crm: string; business: string };
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
-    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; myWork: string;
+    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; aiGovernance: string; myWork: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
@@ -46,6 +46,13 @@ export function getStaffNavSections(
   const workforceItem: NavItem = { label: t.items.workforce, href: "/admin/workforce", icon: "briefcase" };
   const ownerControlItem: NavItem = { label: t.items.ownerControl, href: "/admin/owner", icon: "userCircle" };
   const aiProvidersItem: NavItem = { label: t.items.aiProviders, href: "/admin/owner/ai-providers", icon: "zap" };
+  // RADAR INTELLIGENCE V2.1 Phase G3B — a SEPARATE nav entry for the
+  // read-only usage/token reporting page, gated by the SAME
+  // canManageAiPolicy flag as aiProvidersItem (both are
+  // RADAR_AI_POLICY_MANAGE-gated) — deliberately its own item, not folded
+  // into aiProvidersItem, mirroring that page's own separation of
+  // configuration (ai-providers) from reporting (ai-governance).
+  const aiGovernanceItem: NavItem = { label: t.items.aiGovernance, href: "/admin/owner/ai-governance", icon: "barChart" };
   // PHASE EMPLOYEE-OPS (Slice 2) — the operational self-view. Emitted ONLY
   // on an explicit `opts.canWorkRadar === true` (server-derived
   // canCurrentUserWorkRadar(), RADAR_WORK). Never a gate: /admin/crm/my-work
@@ -81,7 +88,7 @@ export function getStaffNavSections(
         { label: t.items.systemHealth, href: "/admin/system-health", icon: "gauge" },
         { label: t.items.siteAnalytics, href: "/admin/analytics", icon: "barChart" },
         ...(opts?.isOwner === true ? [ownerControlItem] : []),
-        ...(opts?.canManageAiPolicy === true ? [aiProvidersItem] : []),
+        ...(opts?.canManageAiPolicy === true ? [aiProvidersItem, aiGovernanceItem] : []),
       ],
     },
     {

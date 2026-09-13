@@ -271,8 +271,13 @@ test("PHASE-C: { canManageAiPolicy: true } -> exactly one /admin/owner/ai-provid
   const relation = sections.find((s) => s.key === "relation");
   assert.ok(relation, "expected a 'relation' section");
   assert.ok(relation.items.some((i) => i.href === "/admin/owner/ai-providers"), "the AI Providers item must live in the relation section");
-  // last item of that section (after Owner Control)
-  assert.equal(relation.items[relation.items.length - 1].href, "/admin/owner/ai-providers");
+  // RADAR INTELLIGENCE V2.1 Phase G3B: a conscious, reviewed contract
+  // change — a new /admin/owner/ai-governance sibling item now follows
+  // AI Providers (both gated by the same canManageAiPolicy flag), so AI
+  // Providers is no longer literally the LAST item of the section; it is
+  // now the second-to-last, immediately followed by AI Governance.
+  assert.equal(relation.items[relation.items.length - 2].href, "/admin/owner/ai-providers");
+  assert.equal(relation.items[relation.items.length - 1].href, "/admin/owner/ai-governance");
 });
 
 test("PHASE-C: the AI Providers item is never duplicated under { canManageAiPolicy: true }", () => {
@@ -315,4 +320,63 @@ test("PHASE-C: getClientNavSections() never contains /admin/owner/ai-providers, 
   const sections = getClientNavSections(t);
   assert.equal(aiProvidersItems(sections).length, 0);
   assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.aiProviders).length, 0);
+});
+
+// ---------------- RADAR INTELLIGENCE V2.1 Phase G3B — AI Governance nav visibility ----------------
+// The /admin/owner/ai-governance item is generated ONLY on the SAME
+// { canManageAiPolicy: true } flag as AI Providers (both are
+// RADAR_AI_POLICY_MANAGE-gated) -- a deliberately SEPARATE item, never
+// folded into aiProvidersItem, mirroring the two pages' own separation
+// of configuration from reporting.
+
+const aiGovernanceItems = (sections) => sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/owner/ai-governance");
+
+test("PHASE-G3B: { canManageAiPolicy: true } -> exactly one /admin/owner/ai-governance item, in the relation section, with the dictionary label", () => {
+  const sections = getStaffNavSections(t, { canManageAiPolicy: true });
+  const matches = aiGovernanceItems(sections);
+  assert.equal(matches.length, 1, "expected exactly one AI Governance item");
+  assert.equal(matches[0].label, t.items.aiGovernance);
+  assert.equal(matches[0].href, "/admin/owner/ai-governance");
+
+  const relation = sections.find((s) => s.key === "relation");
+  assert.ok(relation, "expected a 'relation' section");
+  assert.ok(relation.items.some((i) => i.href === "/admin/owner/ai-governance"), "the AI Governance item must live in the relation section");
+});
+
+test("PHASE-G3B: the AI Governance item is never duplicated under { canManageAiPolicy: true }", () => {
+  assert.equal(aiGovernanceItems(getStaffNavSections(t, { canManageAiPolicy: true })).length, 1);
+});
+
+test("PHASE-G3B: { canManageAiPolicy: false } -> no /admin/owner/ai-governance item", () => {
+  assert.equal(aiGovernanceItems(getStaffNavSections(t, { canManageAiPolicy: false })).length, 0);
+});
+
+test("PHASE-G3B: { canManageAiPolicy: undefined } -> no /admin/owner/ai-governance item", () => {
+  assert.equal(aiGovernanceItems(getStaffNavSections(t, { canManageAiPolicy: undefined })).length, 0);
+});
+
+test("PHASE-G3B: options omitted entirely -> no /admin/owner/ai-governance item", () => {
+  assert.equal(aiGovernanceItems(getStaffNavSections(t)).length, 0);
+});
+
+test("PHASE-G3B: a truthy-but-not-true canManageAiPolicy (string / number) does NOT reveal the item -- strict === true only", () => {
+  assert.equal(aiGovernanceItems(getStaffNavSections(t, { canManageAiPolicy: "true" })).length, 0);
+  assert.equal(aiGovernanceItems(getStaffNavSections(t, { canManageAiPolicy: 1 })).length, 0);
+});
+
+test("PHASE-G3B: ADMIN-like (isOwner:false, canManageAiPolicy:false) -> AI Governance absent even though ADMIN is OWNER-adjacent", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: true, canManageAiPolicy: false });
+  assert.equal(aiGovernanceItems(sections).length, 0);
+});
+
+test("PHASE-G3B: OWNER-like (isOwner:true, canManageAiPolicy:true) -> AI Providers AND AI Governance both visible", () => {
+  const sections = getStaffNavSections(t, { isOwner: true, canManageAiPolicy: true });
+  assert.equal(aiProvidersItems(sections).length, 1);
+  assert.equal(aiGovernanceItems(sections).length, 1);
+});
+
+test("PHASE-G3B: getClientNavSections() never contains /admin/owner/ai-governance, and no item labeled like it", () => {
+  const sections = getClientNavSections(t);
+  assert.equal(aiGovernanceItems(sections).length, 0);
+  assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.aiGovernance).length, 0);
 });
