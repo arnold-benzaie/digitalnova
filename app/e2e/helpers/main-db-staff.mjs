@@ -32,6 +32,15 @@
  * standing seed avoids the restore-race machinery main-db-role.mjs needs
  * for its per-test Axis-A swap.
  *
+ * G4C-4 — ensureStaffRole(roleName) generalizes the same upsert to any
+ * staff_roles name (OWNER/ADMIN/MANAGER/EMPLOYEE), for RADAR AI quota
+ * governance E2E (requireStaffMember("RADAR_AI_POLICY_MANAGE"), OWNER-only).
+ * ensureRadarStaffMember() is now a thin, BYTE-IDENTICAL-BEHAVIOR wrapper
+ * over it (still always EMPLOYEE) — every existing caller is unaffected. A
+ * spec that temporarily calls ensureStaffRole("OWNER"/"ADMIN"/"MANAGER")
+ * MUST call ensureRadarStaffMember() again afterward to restore the
+ * standing EMPLOYEE seed other specs depend on (see e2e/ai-governance.spec.ts).
+ *
  * SAFETY (mirrors main-db-role.mjs, three independent layers):
  *   - MAIN_E2E_DATABASE_URL is the hardcoded localhost constant reused from
  *     main-db-role.mjs — never process.env.DATABASE_URL (which is
@@ -81,23 +90,16 @@ async function resolveExactlyOne(client, sql, params, label) {
 }
 
 /**
- * Resolve — never create — the three ids the upsert needs: the single
- * internal workspace org, the EMPLOYEE staff_roles row (seeded by migration
- * 0034), and the shared test account's users row. Each must match exactly
- * one row.
+ * Resolve — never create — the two ids every caller needs regardless of
+ * role: the single internal workspace org, and the shared test account's
+ * users row. Each must match exactly one row.
  */
-async function resolveContext(client) {
+async function resolveOrgAndUser(client) {
   const org = await resolveExactlyOne(
     client,
     "select id from organizations where is_internal = true",
     [],
     "internal workspace (organizations.is_internal = true)",
-  );
-  const role = await resolveExactlyOne(
-    client,
-    "select id from staff_roles where name = $1",
-    [TARGET_STAFF_ROLE],
-    `staff_roles."${TARGET_STAFF_ROLE}" (seeded by migration 0034)`,
   );
   const user = await resolveExactlyOne(
     client,
@@ -105,7 +107,14 @@ async function resolveContext(client) {
     [TEST_ACCOUNT_EMAIL],
     `users row for ${TEST_ACCOUNT_EMAIL}`,
   );
-  return { orgId: org.id, roleId: role.id, userId: user.id };
+  return { orgId: org.id, userId: user.id };
+}
+
+/** Resolve — never create — a specific staff_roles id by name (seeded by
+ * migration 0034). Only needed by the write path (ensureStaffRole). */
+async function resolveRoleId(client, roleName) {
+  const role = await resolveExactlyOne(client, "select id from staff_roles where name = $1", [roleName], `staff_roles."${roleName}" (seeded by migration 0034)`);
+  return role.id;
 }
 
 async function readSnapshot(client, userId, orgId) {
@@ -124,16 +133,20 @@ async function readSnapshot(client, userId, orgId) {
 }
 
 /**
- * Idempotent: ensure contact@public-map.com has exactly one ACTIVE EMPLOYEE
- * staff_members row in the internal workspace. Upserts on
+ * Idempotent: ensure contact@public-map.com has exactly one ACTIVE
+ * `roleName` staff_members row in the internal workspace. Upserts on
  * (user_id, workspace_org_id); a pre-existing row with the wrong status or
- * role is deterministically converted back to ACTIVE / EMPLOYEE. Reads the
- * row back and hard-asserts it. Returns the verified snapshot
- * { userId, workspaceOrgId, status, roleName }.
+ * role is deterministically converted back to ACTIVE / `roleName`. Reads
+ * the row back and hard-asserts it. Returns the verified snapshot
+ * { userId, workspaceOrgId, status, roleName }. `roleName` MUST be one of
+ * the four staff_roles seeded by migration 0034 (OWNER/ADMIN/MANAGER/
+ * EMPLOYEE) — resolveExactlyOne() throws loudly for anything else rather
+ * than silently creating a new role.
  */
-export async function ensureRadarStaffMember() {
+export async function ensureStaffRole(roleName) {
   return withStaffClient(async (client) => {
-    const { orgId, roleId, userId } = await resolveContext(client);
+    const { orgId, userId } = await resolveOrgAndUser(client);
+    const roleId = await resolveRoleId(client, roleName);
     await client.query(
       `insert into staff_members (user_id, workspace_org_id, role_id, status)
        values ($1, $2, $3, $4)
@@ -145,14 +158,24 @@ export async function ensureRadarStaffMember() {
     if (!snap) {
       throw new Error("main-db-staff: upsert did not produce a staff_members row.");
     }
-    if (snap.status !== ACTIVE_STATUS || snap.roleName !== TARGET_STAFF_ROLE) {
+    if (snap.status !== ACTIVE_STATUS || snap.roleName !== roleName) {
       throw new Error(
         `main-db-staff: post-upsert verification failed — status="${snap.status}" role="${snap.roleName}", ` +
-          `expected "${ACTIVE_STATUS}" / "${TARGET_STAFF_ROLE}".`,
+          `expected "${ACTIVE_STATUS}" / "${roleName}".`,
       );
     }
     return snap;
   });
+}
+
+/**
+ * UNCHANGED CONTRACT: always EMPLOYEE. Kept as its own named export
+ * (rather than inlining `ensureStaffRole("EMPLOYEE")` at every existing
+ * call site) so e2e/crm-radar.spec.ts's own docstring/intent — "the
+ * least-privilege identity" — stays self-documenting at its call site.
+ */
+export async function ensureRadarStaffMember() {
+  return ensureStaffRole(TARGET_STAFF_ROLE);
 }
 
 /**
@@ -162,7 +185,7 @@ export async function ensureRadarStaffMember() {
  */
 export async function getRadarStaffMemberSnapshot() {
   return withStaffClient(async (client) => {
-    const { orgId, userId } = await resolveContext(client);
+    const { orgId, userId } = await resolveOrgAndUser(client);
     return readSnapshot(client, userId, orgId);
   });
 }
