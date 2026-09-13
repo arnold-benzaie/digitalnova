@@ -22,7 +22,14 @@ import { formatDate, resolveDisplayTimeZone } from "@/lib/i18n/format";
 
 const STATUS_TABS = ["pending", "active", "refused", "suspended"] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
-const ROLE_FILTER_OPTIONS = ["client", "staff", "agent", "supervisor", "admin"] as const;
+// CLOSE LAST LEGACY ROLE CREATION PATH — matches the Axis-A catalogue
+// (lib/actions/users.ts's ROLE_NAMES/APPROVAL_ROLE_NAMES, already narrowed,
+// and the `roles` table, which no longer has staff/agent/supervisor rows
+// in Production): this page is the Axis-A CLIENT/admin management screen,
+// not Workforce management (OWNER/ADMIN/MANAGER/EMPLOYEE — see
+// /admin/workforce) — so the filter reflects only the two Axis-A roles
+// that still exist, never the Axis-C catalogue.
+const ROLE_FILTER_OPTIONS = ["client", "admin"] as const;
 
 type UserRow = {
   id: string;
