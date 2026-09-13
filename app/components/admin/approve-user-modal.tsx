@@ -6,7 +6,11 @@ import { approveUser } from "@/lib/actions/users";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
-const APPROVAL_ROLES = ["client", "agent", "supervisor", "admin"] as const;
+// CLOSE LAST LEGACY ROLE CREATION PATH — matches approveUser()'s own
+// narrowed APPROVAL_ROLE_NAMES (lib/actions/users.ts): agent/supervisor
+// are no longer assignable on approval, so they are no longer offered
+// here either.
+const APPROVAL_ROLES = ["client", "admin"] as const;
 
 export function ApproveUserModal({
   userId,

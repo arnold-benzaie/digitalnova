@@ -1,9 +1,10 @@
 // Integration tests for AI Commercial Radar / Phase 1C:
 // lib/actions/radar.ts's getProspectQualification() — proving, against a
 // real local database, that:
-// - requireStaffRole() genuinely gates the action (unauthenticated and
-//   non-staff callers are rejected at runtime, not just by a page-level
-//   guard);
+// - requireStaffMember("RADAR_WORK") genuinely gates the action
+//   (unauthenticated, CLIENT, and a Workforce identity with no ACTIVE
+//   RADAR_WORK grant are all rejected at runtime, not just by a
+//   page-level guard);
 // - the strongest possible commercial signal (a proposal-stage deal)
 //   never overrides a doNotContact=true hard block — the opportunity
 //   engine is never even invoked for an ineligible prospect;
@@ -12,10 +13,16 @@
 //   functions already covered by lib/radar/qualification.test.mjs and
 //   lib/radar/score.test.mjs.
 //
-// Same mocking convention as crm-clients-radar-foundation.integration.test.mjs:
-// @/lib/session's requireSession() is faked with a mutable session state
-// (actAsStaff()/actAsClient()/actAsUnauthenticated()), so the REAL
-// requireStaffRole() (lib/dev-role.ts, never mocked) runs against it.
+// RADAR AXIS-C CLEANUP — the gate itself changed from the legacy Axis-A
+// requireStaffRole() to requireStaffMember("RADAR_WORK") (Axis-C), the one
+// function RADAR GATE UNIFICATION missed (radar-queue.ts / radar-
+// assignment.ts were already migrated). The fixtures below changed to
+// match: a REAL users.id with a REAL ACTIVE EMPLOYEE staff_members row
+// for "staff", since requireStaffMember() resolves access exclusively
+// from that table by session.userId — a hardcoded fake userId string (the
+// previous STAFF_SESSION shape) would now be denied outright, since no
+// real staff_members row could ever match it. Same conventions as
+// lib/actions/radar-queue.integration.test.mjs.
 //
 // Runs against the same fully isolated local Docker Postgres already used
 // throughout this project's other *.integration.test.mjs files
@@ -23,7 +30,7 @@
 // NEVER Production/Preview.
 //
 // Run with: npx tsx --test --experimental-test-module-mocks lib/actions/radar-qualification.integration.test.mjs
-import { test, mock, beforeEach, after } from "node:test";
+import { test, mock, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
@@ -36,33 +43,13 @@ process.env.DATABASE_URL = LOCAL_DB_URL;
 mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const STAFF_SESSION = {
-  userId: "test-staff-user",
-  clerkUserId: "test_clerk_staff",
-  email: "staff@example.com",
-  fullName: "Test Staff",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "staff",
-  previousLastLoginAt: null,
-};
-const CLIENT_SESSION = {
-  userId: "test-client-user",
-  clerkUserId: "test_clerk_client",
-  email: "client-role@example.com",
-  fullName: "Test Client",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "client",
-  previousLastLoginAt: null,
-};
-
 /** @type {{ session: object | null }} */
-let mockState = { session: STAFF_SESSION };
+let mockState = { session: null };
 function actAsStaff() {
   mockState = { session: STAFF_SESSION };
+}
+function actAsSuspendedStaff() {
+  mockState = { session: SUSPENDED_STAFF_SESSION };
 }
 function actAsClient() {
   mockState = { session: CLIENT_SESSION };
@@ -82,11 +69,82 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { crmClients, deals, interactions, crmQuotes, crmInvoices } = await import("@/db/schema");
-const { inArray } = await import("drizzle-orm");
+const { crmClients, deals, interactions, crmQuotes, crmInvoices, users, staffMembers, staffRoles, organizations } = await import("@/db/schema");
+const { inArray, eq } = await import("drizzle-orm");
 const { getProspectQualification } = await import("./radar.ts");
 
 const createdClientIds = new Set();
+const createdUserIds = new Set();
+const createdStaffMemberIds = new Set();
+
+async function makeUser({ fullName = null } = {}) {
+  const [row] = await db
+    .insert(users)
+    .values({ clerkUserId: `radar_p1c_${randomUUID()}`, email: `radar-p1c-${randomUUID()}@example.test`, fullName, status: "active" })
+    .returning();
+  createdUserIds.add(row.id);
+  return row;
+}
+
+let INTERNAL_ORG_ID;
+async function internalOrgId() {
+  if (INTERNAL_ORG_ID === undefined) {
+    const [org] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
+    INTERNAL_ORG_ID = org?.id ?? null;
+  }
+  return INTERNAL_ORG_ID;
+}
+const STAFF_ROLE_ID_CACHE = new Map();
+async function staffRoleId(name) {
+  if (!STAFF_ROLE_ID_CACHE.has(name)) {
+    const [r] = await db.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, name)).limit(1);
+    STAFF_ROLE_ID_CACHE.set(name, r?.id ?? null);
+  }
+  return STAFF_ROLE_ID_CACHE.get(name);
+}
+async function makeStaffMember(userId, status, roleName = "EMPLOYEE") {
+  const orgId = await internalOrgId();
+  const roleId = await staffRoleId(roleName);
+  if (!orgId || !roleId) return null;
+  const [row] = await db.insert(staffMembers).values({ userId, workspaceOrgId: orgId, roleId, status }).returning();
+  createdStaffMemberIds.add(row.id);
+  return row;
+}
+
+function sessionFor(user, axisARoleLabel) {
+  return {
+    userId: user.id,
+    clerkUserId: user.clerkUserId,
+    email: user.email,
+    fullName: user.fullName,
+    firstName: "Test",
+    organizationId: "test-org",
+    organizationName: "Test Org",
+    role: axisARoleLabel,
+    previousLastLoginAt: null,
+  };
+}
+
+let STAFF_SESSION, SUSPENDED_STAFF_SESSION, CLIENT_SESSION;
+
+before(async () => {
+  const employeeUser = await makeUser({ fullName: "Gate EMPLOYEE (RADAR_WORK)" });
+  await makeStaffMember(employeeUser.id, "ACTIVE", "EMPLOYEE");
+  STAFF_SESSION = sessionFor(employeeUser, "staff");
+
+  // Every StaffRole in the current catalogue (OWNER/ADMIN/MANAGER/EMPLOYEE)
+  // holds RADAR_WORK (lib/rbac/permissions.ts) — there is no role that
+  // lacks it. A SUSPENDED staff_members row is the faithful real-world
+  // shape of "Workforce identity with no ACTIVE RADAR_WORK grant":
+  // evaluateStaffPermission() denies it at "inactive-membership", before
+  // the permission catalogue is even consulted.
+  const suspendedUser = await makeUser({ fullName: "Gate SUSPENDED EMPLOYEE (no active RADAR_WORK)" });
+  await makeStaffMember(suspendedUser.id, "SUSPENDED", "EMPLOYEE");
+  SUSPENDED_STAFF_SESSION = sessionFor(suspendedUser, "staff");
+
+  // Zero staff_members row: a pure CLIENT identity.
+  CLIENT_SESSION = sessionFor(await makeUser({ fullName: "Gate CLIENT no Axis-C" }), "client");
+});
 
 beforeEach(() => {
   actAsStaff();
@@ -98,6 +156,8 @@ after(async () => {
   if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmInvoices).where(inArray(crmInvoices.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmClients).where(inArray(crmClients.id, [...createdClientIds]));
+  if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
+  if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
   await db.$client.end();
 });
 
@@ -150,6 +210,12 @@ test("UNAUTHENTICATED getProspectQualification: rejected", async () => {
 test("NON-STAFF getProspectQualification: rejected", async () => {
   const client = await makeClient();
   actAsClient();
+  await assert.rejects(() => getProspectQualification(client.id));
+});
+
+test("Workforce sans RADAR_WORK actif (staff_members SUSPENDED) getProspectQualification: rejected", async () => {
+  const client = await makeClient();
+  actAsSuspendedStaff();
   await assert.rejects(() => getProspectQualification(client.id));
 });
 

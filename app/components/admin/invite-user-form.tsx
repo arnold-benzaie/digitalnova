@@ -15,9 +15,12 @@ export function InviteUserForm({ locale = "fr" }: { locale?: Locale }) {
   const [warning, setWarning] = useState<string | null>(null);
   const t = dictionaries[locale].adminUsers;
   const ti = t.invite;
+  // RADAR AXIS-C CLEANUP — matches inviteUser()'s own narrowed
+  // isRoleName() (lib/actions/users.ts): "staff" is no longer an
+  // assignable role for a brand-new invite (legacy, superseded by the
+  // Axis-C Workforce model), so it is no longer offered here either.
   const ROLE_OPTIONS = [
     { value: "client", label: t.roleLabels.client },
-    { value: "staff", label: t.roleLabels.staff },
     { value: "admin", label: t.roleLabels.admin },
   ];
 

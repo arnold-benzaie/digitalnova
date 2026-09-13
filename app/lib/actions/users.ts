@@ -76,17 +76,34 @@ const MESSAGES = {
   },
 } as const;
 
-const ROLE_NAMES = ["admin", "staff", "agent", "supervisor", "client"] as const;
+// RADAR AXIS-C CLEANUP — narrowed from the historical 5-value catalogue
+// (admin/staff/agent/supervisor/client) to the two Axis-A roles this file
+// may still actually ASSIGN going forward: inviteUser() (a brand-new
+// account) and changeUserRole() (an existing one). staff/agent/supervisor
+// are not part of the current target architecture (OWNER/ADMIN/MANAGER/
+// EMPLOYEE via Axis-C, CLIENT via Axis-A) and must never be newly granted
+// by either function again — existing accounts that already hold one of
+// those three roles are UNCHANGED by this: the `roles` table keeps every
+// row, and lib/session.ts's AppRole union still recognizes all five as
+// valid EXISTING values. This only closes the two write paths that could
+// create a NEW one.
+const ROLE_NAMES = ["admin", "client"] as const;
 type RoleName = (typeof ROLE_NAMES)[number];
 
 function isRoleName(value: unknown): value is RoleName {
   return typeof value === "string" && (ROLE_NAMES as readonly string[]).includes(value);
 }
 
-// "staff" is deliberately excluded: it stays a functional role for
-// existing accounts (never renamed/migrated), but new approvals offer
-// exactly client/agent/supervisor/admin per the approved architecture.
-const APPROVAL_ROLE_NAMES = ["client", "agent", "supervisor", "admin"] as const;
+// CLOSE LAST LEGACY ROLE CREATION PATH — approveUser() was the last
+// remaining function able to newly grant a legacy Axis-A role
+// (agent/supervisor; "staff" was already excluded here). Narrowed to
+// exactly the same two roles as ROLE_NAMES above, closing the gap the
+// RADAR AXIS-C CLEANUP mission left open. Existing accounts that already
+// hold agent/supervisor/staff are UNCHANGED — the `roles` table keeps
+// every row, and lib/session.ts's AppRole union still recognizes all five
+// as valid EXISTING values. This only closes the last write path that
+// could create a NEW one.
+const APPROVAL_ROLE_NAMES = ["client", "admin"] as const;
 type ApprovalRoleName = (typeof APPROVAL_ROLE_NAMES)[number];
 
 function isApprovalRoleName(value: unknown): value is ApprovalRoleName {

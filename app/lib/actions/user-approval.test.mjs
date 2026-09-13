@@ -67,8 +67,8 @@ mock.module("next/cache", {
 });
 
 const { db } = await import("@/db");
-const { users, organizations, roles, memberships, notifications, auditLog } = await import("@/db/schema");
-const { eq, and } = await import("drizzle-orm");
+const { users, organizations, roles, memberships, invitations, notifications, auditLog } = await import("@/db/schema");
+const { eq, and, desc } = await import("drizzle-orm");
 const {
   approveUser,
   refuseUser,
@@ -76,6 +76,7 @@ const {
   reactivateUser,
   changeUserRole,
   changeUserOrganization,
+  inviteUser,
 } = await import("@/lib/actions/users");
 
 after(async () => {
@@ -200,7 +201,11 @@ test("attribution du rôle admin sans confirmation explicite : rejetée", async 
   await assert.rejects(() => approveUser(fd), /[Cc]onfirmation/);
 });
 
-for (const role of ["client", "agent", "supervisor", "admin"]) {
+// CLOSE LAST LEGACY ROLE CREATION PATH — "agent"/"supervisor" removed
+// from this success loop: approveUser()'s own APPROVAL_ROLE_NAMES no
+// longer accepts them (lib/actions/users.ts). Their explicit refusal is
+// covered by the dedicated loop below.
+for (const role of ["client", "admin"]) {
   test(`administrateur actif approuvant un utilisateur avec le rôle ${role}`, async () => {
     const org = await requireOrg("PUBLIC-MAP");
     const adminActor = await createActiveMember({ role: "admin", organizationId: org.id });
@@ -240,6 +245,32 @@ for (const role of ["client", "agent", "supervisor", "admin"]) {
       .where(and(eq(notifications.organizationId, org.id), eq(notifications.type, "user.approved")))
       .orderBy(notifications.createdAt);
     assert.ok(notif, "une notification doit être créée après approbation");
+  });
+}
+
+// CLOSE LAST LEGACY ROLE CREATION PATH — approveUser() was the last
+// function still able to newly grant a legacy Axis-A role. staff was
+// already refused before this mission; agent/supervisor are refused by
+// this mission's change to APPROVAL_ROLE_NAMES.
+for (const legacyRole of ["staff", "agent", "supervisor"]) {
+  test(`approveUser() refuse le rôle legacy "${legacyRole}" : l'utilisateur reste pending, aucune membership créée`, async () => {
+    const org = await requireOrg("PUBLIC-MAP");
+    const adminActor = await createActiveMember({ role: "admin", organizationId: org.id });
+    actAs(adminActor, "admin", org.id);
+    const target = await createUser({ status: "pending" });
+
+    const fd = new FormData();
+    fd.set("userId", target.id);
+    fd.set("organizationId", org.id);
+    fd.set("role", legacyRole);
+
+    await assert.rejects(() => approveUser(fd), /rôle/i);
+
+    const [updatedUser] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+    assert.equal(updatedUser.status, "pending", "le statut ne doit pas avoir changé");
+
+    const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+    assert.equal(membershipRows.length, 0, "aucune membership ne doit avoir été créée");
   });
 }
 
@@ -362,7 +393,11 @@ test("modification du rôle d'un membre actif", async () => {
   actAs(admin, "admin", org.id);
   const target = await createActiveMember({ role: "client", organizationId: org.id });
 
-  await changeUserRole(target.id, "agent");
+  // RADAR AXIS-C CLEANUP — "agent" is no longer an assignable Axis-A role
+  // (changeUserRole()'s own isRoleName() now rejects it); this test only
+  // needs SOME valid target role different from "client" to prove the
+  // change persists, so "admin" (still assignable) replaces it.
+  await changeUserRole(target.id, "admin");
 
   const [membership] = await db
     .select({ roleName: roles.name })
@@ -370,7 +405,7 @@ test("modification du rôle d'un membre actif", async () => {
     .innerJoin(roles, eq(memberships.roleId, roles.id))
     .where(eq(memberships.userId, target.id))
     .limit(1);
-  assert.equal(membership.roleName, "agent");
+  assert.equal(membership.roleName, "admin");
 
   const [audit] = await db.select().from(auditLog).where(and(eq(auditLog.targetId, target.id), eq(auditLog.action, "user.role_changed")));
   assert.ok(audit);
@@ -381,7 +416,11 @@ test("prévention : rétrogradation du dernier administrateur actif", async () =
   const soleAdmin = await createActiveMember({ role: "admin", organizationId: freshOrg.id });
   actAs(soleAdmin, "admin", freshOrg.id);
 
-  await assert.rejects(() => changeUserRole(soleAdmin.id, "staff"), /dernier administrateur/i);
+  // RADAR AXIS-C CLEANUP — "staff" is no longer an assignable Axis-A role
+  // and would now be rejected by isRoleName() BEFORE ever reaching the
+  // last-admin check this test targets; "client" is still assignable and
+  // still triggers the exact same protection (roleValue !== "admin").
+  await assert.rejects(() => changeUserRole(soleAdmin.id, "client"), /dernier administrateur/i);
 
   const [membership] = await db
     .select({ roleName: roles.name })
@@ -445,7 +484,10 @@ test("les entrées auditLog s'accumulent (append-only) : deux actions sur le mê
   actAs(admin, "admin", org.id);
   const target = await createActiveMember({ role: "client", organizationId: org.id });
 
-  await changeUserRole(target.id, "agent");
+  // RADAR AXIS-C CLEANUP — "agent" is no longer assignable; "admin" is
+  // still valid and equally proves this test's actual point (two DISTINCT
+  // actions on the same target leave two distinct audit entries).
+  await changeUserRole(target.id, "admin");
   await suspendUser(target.id);
 
   const entries = await db.select().from(auditLog).where(eq(auditLog.targetId, target.id));
@@ -455,3 +497,83 @@ test("les entrées auditLog s'accumulent (append-only) : deux actions sur le mê
     ["user.role_changed", "user.suspended"],
   );
 });
+
+// ---- 6. RADAR AXIS-C CLEANUP — inviteUser()/changeUserRole() no longer
+// assign legacy Axis-A roles ------------------------------------------
+//
+// staff/agent/supervisor are not part of the current target architecture
+// (OWNER/ADMIN/MANAGER/EMPLOYEE via Axis-C, CLIENT via Axis-A) and must
+// never be newly granted by either function again — see lib/actions/
+// users.ts's narrowed ROLE_NAMES. This does not touch approveUser()'s own
+// separate APPROVAL_ROLE_NAMES, which is intentionally out of scope here.
+
+function inviteFormData(email, role) {
+  const formData = new FormData();
+  formData.set("email", email);
+  formData.set("role", role);
+  return formData;
+}
+
+for (const legacyRole of ["staff", "agent", "supervisor"]) {
+  test(`inviteUser() refuse le rôle legacy "${legacyRole}" : aucune invitation créée`, async () => {
+    const org = await requireOrg("PUBLIC-MAP");
+    const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+    actAs(admin, "admin", org.id);
+    const email = `${randomUUID()}@test.local`;
+
+    const result = await inviteUser(inviteFormData(email, legacyRole));
+    assert.equal(result?.error, "Rôle invalide.");
+
+    const invited = await db.select().from(invitations).where(eq(invitations.email, email));
+    assert.equal(invited.length, 0, "aucune ligne invitations ne doit avoir été créée");
+  });
+}
+
+for (const validRole of ["client", "admin"]) {
+  test(`inviteUser() : le rôle encore valide "${validRole}" continue de créer une invitation normalement`, async () => {
+    const org = await requireOrg("PUBLIC-MAP");
+    const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+    actAs(admin, "admin", org.id);
+    const email = `${randomUUID()}@test.local`;
+
+    const result = await inviteUser(inviteFormData(email, validRole));
+    assert.notEqual(result?.error, "Rôle invalide.");
+
+    const [invited] = await db
+      .select({ roleName: roles.name })
+      .from(invitations)
+      .innerJoin(roles, eq(roles.id, invitations.roleId))
+      .where(eq(invitations.email, email))
+      .orderBy(desc(invitations.createdAt))
+      .limit(1);
+    assert.ok(invited, "une ligne invitations doit avoir été créée");
+    assert.equal(invited.roleName, validRole);
+
+    const [audit] = await db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "user.invited"), eq(auditLog.targetType, "invitation")))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+    assert.ok(audit, "l'entrée auditLog user.invited doit avoir été écrite");
+  });
+}
+
+for (const legacyRole of ["staff", "agent", "supervisor"]) {
+  test(`changeUserRole() refuse le rôle legacy "${legacyRole}" : le rôle actuel du membre ne change pas`, async () => {
+    const org = await requireOrg("PUBLIC-MAP");
+    const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+    actAs(admin, "admin", org.id);
+    const target = await createActiveMember({ role: "client", organizationId: org.id });
+
+    await assert.rejects(() => changeUserRole(target.id, legacyRole), /Rôle invalide/);
+
+    const [membership] = await db
+      .select({ roleName: roles.name })
+      .from(memberships)
+      .innerJoin(roles, eq(memberships.roleId, roles.id))
+      .where(eq(memberships.userId, target.id))
+      .limit(1);
+    assert.equal(membership.roleName, "client", "le rôle ne doit pas avoir changé");
+  });
+}

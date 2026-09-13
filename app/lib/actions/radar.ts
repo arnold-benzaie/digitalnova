@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, crmInvoices, crmQuotes, deals, interactions } from "@/db/schema";
-import { requireStaffRole } from "@/lib/dev-role";
+import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { assessQualification, type Eligibility, type QualificationStatus } from "@/lib/radar/qualification";
 import { assessOpportunity, type OpportunityResult } from "@/lib/radar/score";
 
@@ -29,9 +29,24 @@ export type ProspectQualificationResult = {
  * reading. Reads only staff-global CRM data (crmClients, deals,
  * interactions, crmQuotes, crmInvoices) — never organization-scoped
  * client-portal data.
+ *
+ * RADAR AXIS-C CLEANUP — gated by requireStaffMember("RADAR_WORK") (Axis-C:
+ * OWNER/ADMIN/MANAGER/EMPLOYEE via a real ACTIVE staff_members row),
+ * replacing the legacy Axis-A requireStaffRole() this function used before
+ * RADAR GATE UNIFICATION migrated radar-queue.ts / radar-assignment.ts —
+ * this was the one function that migration missed. No new permission: this
+ * is the exact capability radar-assignment.ts's claimProspect/releaseProspect
+ * already require. Not a behavior change on the real call path — the only
+ * caller, requestRadarIntelligenceAdvisory() (lib/actions/radar-intelligence.ts),
+ * already requires RADAR_QUEUE_VIEW as its own first statement before ever
+ * reaching this function, and every StaffRole holding RADAR_QUEUE_VIEW also
+ * holds RADAR_WORK in the current catalogue (lib/rbac/permissions.ts) — this
+ * is a direct, defense-in-depth gate on the function itself, matching
+ * radar-queue.ts's own pattern of gating at its own level rather than
+ * relying solely on an outer caller.
  */
 export async function getProspectQualification(clientId: string): Promise<ProspectQualificationResult> {
-  await requireStaffRole();
+  await requireStaffMember("RADAR_WORK");
 
   const [client] = await db
     .select({

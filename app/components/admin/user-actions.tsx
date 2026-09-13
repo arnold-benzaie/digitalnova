@@ -29,13 +29,21 @@ export function MemberRoleSelect({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const t = dictionaries[locale].adminUsers;
-  const ROLE_OPTIONS = [
+  // RADAR AXIS-C CLEANUP — matches changeUserRole()'s own narrowed
+  // isRoleName() (lib/actions/users.ts): staff/agent/supervisor are no
+  // longer assignable, so they are no longer offered as a NEW choice.
+  // A member who somehow still holds one of those legacy roles (none do
+  // today — see the Production census) keeps seeing their own real,
+  // current role correctly represented — appended here, not among the
+  // base choices — rather than the <select> silently misrepresenting it
+  // as whichever base option happens to come first.
+  const BASE_ROLE_OPTIONS = [
     { value: "client", label: t.roleLabels.client },
-    { value: "staff", label: t.roleLabels.staff },
-    { value: "agent", label: t.roleLabels.agent },
-    { value: "supervisor", label: t.roleLabels.supervisor },
     { value: "admin", label: t.roleLabels.admin },
   ];
+  const ROLE_OPTIONS = BASE_ROLE_OPTIONS.some((option) => option.value === role)
+    ? BASE_ROLE_OPTIONS
+    : [...BASE_ROLE_OPTIONS, { value: role, label: t.roleLabels[role as keyof typeof t.roleLabels] ?? role }];
 
   if (disabled) {
     return (
