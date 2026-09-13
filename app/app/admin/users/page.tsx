@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditLog, invitations, memberships, organizations, roles, users } from "@/db/schema";
+import { auditLog, invitations, memberships, organizations, roles, staffMembers, users } from "@/db/schema";
 import { UserManagement } from "@/components/admin/user-management";
 import { requireAdminRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
@@ -38,7 +38,17 @@ export default async function AdminUsersPage({
   const orgFilter = params.org && params.org !== "all" ? params.org : null;
   const page = parsePage(params.page);
 
-  const conditions = [eq(users.status, status)];
+  // RBAC / DATA VISIBILITY AUDIT — this screen is Axis-A only (admin/
+  // client). A user with a real ACTIVE staff_members row (Axis-C: OWNER/
+  // ADMIN/MANAGER/EMPLOYEE) is managed exclusively via /admin/workforce
+  // (and /admin/owner) — excluded here at the query level, not just in
+  // the UI, so the server never returns their row (or a dual-context
+  // row's Axis-A membership, which used to make e.g. the real OWNER's own
+  // "admin" membership appear as a plain, indistinguishable admin here)
+  // to an admin who has no jurisdiction over them. Data minimization, not
+  // a client-side filter: excluded via isWorkforceManaged's own join
+  // below, never fetched at all.
+  const conditions = [eq(users.status, status), isNull(staffMembers.id)];
   if (search) {
     conditions.push(or(ilike(users.email, `%${search}%`), ilike(users.fullName, `%${search}%`))!);
   }
@@ -54,6 +64,8 @@ export default async function AdminUsersPage({
     db
       .select({ status: users.status, count: sql<number>`count(*)::int` })
       .from(users)
+      .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
+      .where(isNull(staffMembers.id))
       .groupBy(users.status),
   ]);
   const counts: Record<StatusTab, number> = { pending: 0, active: 0, refused: 0, suspended: 0 };
@@ -80,6 +92,7 @@ export default async function AdminUsersPage({
     .leftJoin(memberships, eq(memberships.userId, users.id))
     .leftJoin(organizations, eq(memberships.organizationId, organizations.id))
     .leftJoin(roles, eq(memberships.roleId, roles.id))
+    .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
     .where(and(...conditions));
 
   const [rows, totalRows] = await Promise.all([
@@ -93,6 +106,7 @@ export default async function AdminUsersPage({
       .leftJoin(memberships, eq(memberships.userId, users.id))
       .leftJoin(organizations, eq(memberships.organizationId, organizations.id))
       .leftJoin(roles, eq(memberships.roleId, roles.id))
+      .leftJoin(staffMembers, and(eq(staffMembers.userId, users.id), eq(staffMembers.status, "ACTIVE")))
       .where(and(...conditions)),
   ]);
   const total = totalRows[0]?.count ?? 0;

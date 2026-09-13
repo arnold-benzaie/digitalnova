@@ -67,7 +67,7 @@ mock.module("next/cache", {
 });
 
 const { db } = await import("@/db");
-const { users, organizations, roles, memberships, invitations, notifications, auditLog } = await import("@/db/schema");
+const { users, organizations, roles, memberships, invitations, notifications, auditLog, staffMembers, staffRoles } = await import("@/db/schema");
 const { eq, and, desc } = await import("drizzle-orm");
 const {
   approveUser,
@@ -76,6 +76,8 @@ const {
   reactivateUser,
   changeUserRole,
   changeUserOrganization,
+  removeMember,
+  deleteUser,
   inviteUser,
 } = await import("@/lib/actions/users");
 
@@ -102,6 +104,20 @@ async function createUser({ status }) {
   const email = `${randomUUID()}@test.local`;
   const [user] = await db.insert(users).values({ clerkUserId, email, fullName: "Fixture User", status }).returning();
   return user;
+}
+
+async function staffRoleIdByName(name) {
+  const [row] = await db.select().from(staffRoles).where(eq(staffRoles.name, name)).limit(1);
+  if (!row) throw new Error(`Rôle Workforce "${name}" introuvable — le seed local doit être appliqué avant ces tests.`);
+  return row.id;
+}
+
+/** RBAC / DATA VISIBILITY AUDIT — gives an existing user a real ACTIVE
+ * staff_members row (Axis-C), simulating the exact dual-context shape
+ * found in Production (a real OWNER/ADMIN also holding an Axis-A
+ * membership) that isWorkforceManaged() must protect against. */
+async function makeActiveStaffMember(userId, workspaceOrgId, staffRoleName) {
+  await db.insert(staffMembers).values({ userId, workspaceOrgId, roleId: await staffRoleIdByName(staffRoleName), status: "ACTIVE" });
 }
 
 async function createActiveMember({ role, organizationId }) {
@@ -577,3 +593,82 @@ for (const legacyRole of ["staff", "agent", "supervisor"]) {
     assert.equal(membership.roleName, "client", "le rôle ne doit pas avoir changé");
   });
 }
+
+// ---- 7. RBAC / DATA VISIBILITY AUDIT — /admin/users must never manage a
+// dual-context user (Axis-A membership + a real ACTIVE Axis-C staff_members
+// row) -----------------------------------------------------------------
+//
+// Reproduces the exact Production shape found during this audit: the real
+// OWNER (and other Workforce members) also held an Axis-A "admin"/"client"
+// membership, making them appear as ordinary rows on the legacy /admin/users
+// screen — manageable (role change, removal, suspension, even hard delete,
+// which cascades onto staff_members.userId too) by any admin with zero
+// awareness they were actually Workforce-governed. isWorkforceManaged()
+// (lib/actions/users.ts) must refuse every one of these actions for such a
+// target, regardless of which Axis-C role (OWNER/ADMIN/MANAGER/EMPLOYEE)
+// they hold — role-agnostic, checked by Axis-C row PRESENCE only.
+
+for (const staffRoleName of ["OWNER", "ADMIN", "EMPLOYEE"]) {
+  test(`changeUserRole() refuse une cible avec staff_members ACTIVE (${staffRoleName}) : gérée via Workforce`, async () => {
+    const org = await requireOrg("PUBLIC-MAP");
+    const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+    actAs(admin, "admin", org.id);
+    const target = await createActiveMember({ role: "admin", organizationId: org.id });
+    await makeActiveStaffMember(target.id, org.id, staffRoleName);
+
+    await assert.rejects(() => changeUserRole(target.id, "client"), /Workforce/i);
+
+    const [membership] = await db
+      .select({ roleName: roles.name })
+      .from(memberships)
+      .innerJoin(roles, eq(memberships.roleId, roles.id))
+      .where(eq(memberships.userId, target.id))
+      .limit(1);
+    assert.equal(membership.roleName, "admin", "le rôle Axis-A ne doit pas avoir changé");
+  });
+}
+
+test("removeMember() refuse une cible avec staff_members ACTIVE : la membership Axis-A n'est pas retirée", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+  actAs(admin, "admin", org.id);
+  const target = await createActiveMember({ role: "client", organizationId: org.id });
+  await makeActiveStaffMember(target.id, org.id, "ADMIN");
+
+  await assert.rejects(() => removeMember(target.id), /Workforce/i);
+
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 1, "la membership Axis-A doit rester intacte");
+});
+
+test("suspendUser() refuse une cible avec staff_members ACTIVE : le compte reste actif", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+  actAs(admin, "admin", org.id);
+  const target = await createActiveMember({ role: "client", organizationId: org.id });
+  await makeActiveStaffMember(target.id, org.id, "MANAGER");
+
+  await assert.rejects(() => suspendUser(target.id), /Workforce/i);
+
+  const [updatedUser] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(updatedUser.status, "active", "le statut ne doit pas avoir changé");
+});
+
+test("deleteUser() refuse une cible avec staff_members ACTIVE : aucune cascade sur users ni staff_members", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+  actAs(admin, "admin", org.id);
+  // The exact Production shape that made this the sharpest version of the
+  // risk: a real Workforce ADMIN appearing as a plain "client" row.
+  const target = await createActiveMember({ role: "client", organizationId: org.id });
+  await makeActiveStaffMember(target.id, org.id, "ADMIN");
+
+  const result = await deleteUser(target.id);
+  assert.ok(result?.error, "deleteUser() doit retourner une erreur, jamais supprimer");
+  assert.match(result.error, /Workforce/i);
+
+  const [stillThere] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.ok(stillThere, "la ligne users ne doit pas avoir été supprimée");
+  const staffRows = await db.select().from(staffMembers).where(eq(staffMembers.userId, target.id));
+  assert.equal(staffRows.length, 1, "la ligne staff_members ne doit surtout pas avoir été cascade-supprimée");
+});

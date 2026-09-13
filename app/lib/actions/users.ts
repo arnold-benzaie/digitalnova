@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { invitations, memberships, organizations, roles, users } from "@/db/schema";
+import { invitations, memberships, organizations, roles, staffMembers, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { requireAdminRole } from "@/lib/dev-role";
 import { sendInvitationEmail } from "@/lib/email/invitation";
@@ -43,6 +43,7 @@ const MESSAGES = {
     cannotDeleteSelf: "Vous ne pouvez pas supprimer votre propre compte.",
     cannotDeleteLastAdmin: "Impossible de supprimer le dernier administrateur actif de l'organisation.",
     invitationEmailNotSent: "Invitation enregistrée, mais l'e-mail n'a pas pu être envoyé. Vous pouvez communiquer le lien de connexion vous-même en attendant.",
+    managedViaWorkforce: "Ce compte est géré via Workforce (/admin/workforce) — cette action n'est pas disponible ici.",
   },
   en: {
     roleNotFound: (name: string) => `Role "${name}" not found — the roles table is not initialized.`,
@@ -73,8 +74,37 @@ const MESSAGES = {
     cannotDeleteSelf: "You cannot delete your own account.",
     cannotDeleteLastAdmin: "Cannot delete the organization's last active administrator.",
     invitationEmailNotSent: "Invitation saved, but the email could not be sent. You can share the sign-in link yourself in the meantime.",
+    managedViaWorkforce: "This account is managed via Workforce (/admin/workforce) — this action is not available here.",
   },
 } as const;
+
+/**
+ * RBAC / DATA VISIBILITY AUDIT — a user with a real ACTIVE staff_members
+ * row (Axis-C: OWNER/ADMIN/MANAGER/EMPLOYEE) is managed exclusively via
+ * /admin/workforce (and /admin/owner for ADMIN promotion/demotion), never
+ * via this legacy Axis-A screen. Without this check, every mutating
+ * action below — none of which has ever been Axis-C-aware — could target
+ * such a user purely because they also happen to hold (or once held) an
+ * Axis-A membership row: e.g. the real OWNER's own dual-context "admin"
+ * membership made them appear here as a plain admin row, manageable by
+ * any other Axis-A/bridged-Workforce admin with zero indication they were
+ * actually the OWNER. deleteUser() is the sharpest version of this risk —
+ * staffMembers.userId is also `onDelete: "cascade"` on users.id, so
+ * deleting a dual-context row here would silently destroy a real
+ * Workforce identity too. Role-agnostic by design (checks Axis-C
+ * PRESENCE, not a specific role, email, or user id) — every one of
+ * OWNER/ADMIN/MANAGER/EMPLOYEE is equally out of this screen's
+ * jurisdiction, matching changeWorkforceMemberRole()'s own "ADMIN/OWNER
+ * unreachable from the wrong screen" precedent.
+ */
+async function isWorkforceManaged(targetUserId: string): Promise<boolean> {
+  const [staffRow] = await db
+    .select({ id: staffMembers.id })
+    .from(staffMembers)
+    .where(and(eq(staffMembers.userId, targetUserId), eq(staffMembers.status, "ACTIVE")))
+    .limit(1);
+  return Boolean(staffRow);
+}
 
 // RADAR AXIS-C CLEANUP — narrowed from the historical 5-value catalogue
 // (admin/staff/agent/supervisor/client) to the two Axis-A roles this file
@@ -315,6 +345,9 @@ export async function approveUser(formData: FormData) {
   if (roleValue === "admin" && formData.get("confirmAdmin") !== "true") {
     throw new Error(MESSAGES[locale].adminConfirmationRequired);
   }
+  if (await isWorkforceManaged(userId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [targetUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!targetUser) {
@@ -372,6 +405,9 @@ export async function approveUser(formData: FormData) {
 
 export async function refuseUser(userId: string, reason?: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  if (await isWorkforceManaged(userId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [targetUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!targetUser) {
@@ -419,6 +455,9 @@ export async function refuseUser(userId: string, reason?: string) {
 
 export async function suspendUser(userId: string, reason?: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  if (await isWorkforceManaged(userId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [targetUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!targetUser) {
@@ -467,6 +506,9 @@ export async function suspendUser(userId: string, reason?: string) {
 
 export async function reactivateUser(userId: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  if (await isWorkforceManaged(userId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [targetUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!targetUser) {
@@ -509,6 +551,9 @@ export async function changeUserRole(targetUserId: string, roleValue: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
   if (!isRoleName(roleValue)) {
     throw new Error(MESSAGES[locale].invalidRole);
+  }
+  if (await isWorkforceManaged(targetUserId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
   }
 
   const [currentMembership] = await db
@@ -564,6 +609,9 @@ export async function changeUserRole(targetUserId: string, roleValue: string) {
  */
 export async function changeUserOrganization(targetUserId: string, newOrganizationId: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  if (await isWorkforceManaged(targetUserId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [targetOrg] = await db.select().from(organizations).where(eq(organizations.id, newOrganizationId)).limit(1);
   if (!targetOrg) {
@@ -625,6 +673,9 @@ export async function changeUserOrganization(targetUserId: string, newOrganizati
 
 export async function removeMember(targetUserId: string) {
   const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  if (await isWorkforceManaged(targetUserId)) {
+    throw new Error(MESSAGES[locale].managedViaWorkforce);
+  }
 
   const [currentMembership] = await db
     .select({ organizationId: memberships.organizationId, roleName: roles.name })
@@ -662,11 +713,14 @@ export async function removeMember(targetUserId: string) {
  * Permanent, hard delete of the `users` row itself — distinct from
  * removeMember() (drops only the org membership) and suspendUser()
  * (blocks login, fully reversible). Every FK pointing at users.id is
- * either onDelete: "cascade" (their own membership row — expected) or
- * onDelete: "set null" (auditLog.actorUserId, invitations.invitedByUserId,
- * and the other *ByUserId columns — see db/schema.ts) — so this never
- * destroys audit history, it only detaches this user's identity from
- * past entries, exactly like Clerk-side deletion already would.
+ * either onDelete: "cascade" (their own membership row — expected — AND
+ * their own staff_members row, which is exactly why isWorkforceManaged()
+ * is checked below: deleting a dual-context row here would otherwise
+ * silently cascade-destroy a real Workforce identity too) or onDelete:
+ * "set null" (auditLog.actorUserId, invitations.invitedByUserId, and the
+ * other *ByUserId columns — see db/schema.ts) — so this never destroys
+ * audit history, it only detaches this user's identity from past
+ * entries, exactly like Clerk-side deletion already would.
  *
  * Expected, anticipated failures (self-delete, last admin) are returned
  * as a value rather than thrown — see inviteUser()'s docstring above for
@@ -678,6 +732,9 @@ export async function deleteUser(targetUserId: string): Promise<{ error: string 
 
   if (targetUserId === session.userId) {
     return { error: MESSAGES[locale].cannotDeleteSelf };
+  }
+  if (await isWorkforceManaged(targetUserId)) {
+    return { error: MESSAGES[locale].managedViaWorkforce };
   }
 
   const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
