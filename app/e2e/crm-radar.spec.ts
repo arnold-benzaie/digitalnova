@@ -20,9 +20,15 @@ import { ensureRadarStaffMember, getRadarStaffMemberSnapshot } from "./helpers/m
  * false, canReleaseOwn: true }: the least-privilege identity that can claim
  * its own fixture and still proves the negative (no assign-to-others
  * control). The membership is a PERSISTENT local-test seed — never deleted
- * here — because an ACTIVE Axis-C row changes no Axis-A behaviour (every
- * /admin gate and the queue read are requireStaffRole()/requireInternalStaff()),
- * so no other spec is affected and there is no restore race to lose.
+ * here.
+ *
+ * RADAR GATE UNIFICATION — the queue read (lib/actions/radar-queue.ts,
+ * app/admin/crm/radar/page.tsx) is now ALSO gated by requireStaffMember(
+ * "RADAR_QUEUE_VIEW") (Axis-C), same as the mutations — only the /admin
+ * segment boundary (requireInternalStaff(), Axis-A) remains outside this
+ * seed's concern. This standing EMPLOYEE row is therefore load-bearing
+ * for BOTH reading and mutating the queue; no other spec deletes it, and
+ * there is no restore race to lose.
  *
  * Fixture strategy: a single bare prospect CLIENT, created and torn down
  * entirely through the real browser UI ("+ Ajouter un client" on

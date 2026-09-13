@@ -35,7 +35,7 @@
 // NEVER Production/Preview.
 //
 // Run with: npx tsx --test --experimental-test-module-mocks lib/actions/radar-queue.integration.test.mjs
-import { test, mock, beforeEach, after } from "node:test";
+import { test, mock, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -50,37 +50,25 @@ process.env.DATABASE_URL = LOCAL_DB_URL;
 mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const STAFF_SESSION = {
-  userId: "test-staff-user",
-  clerkUserId: "test_clerk_staff",
-  email: "staff@example.com",
-  fullName: "Test Staff",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "staff",
-  previousLastLoginAt: null,
-};
-const CLIENT_SESSION = {
-  userId: "test-client-user",
-  clerkUserId: "test_clerk_client",
-  email: "client-role@example.com",
-  fullName: "Test Client",
-  firstName: "Test",
-  organizationId: "test-org",
-  organizationName: "Test Org",
-  role: "client",
-  previousLastLoginAt: null,
-};
-
+// RADAR GATE UNIFICATION — getRadarQueue()'s gate is now
+// requireStaffMember("RADAR_QUEUE_VIEW") (Axis-C), which resolves access
+// exclusively from a REAL staff_members row keyed by session.userId — it
+// never reads session.role (the legacy Axis-A field) or session.email.
+// Every mocked session below is therefore anchored to a REAL `users.id`
+// (created via makeUser() further down), so requireStaffMember()'s
+// Axis-C lookup runs a normal, valid query regardless of whether that
+// user happens to have a staff_members row. `role` is kept on each
+// session purely as an Axis-A LABEL for test readability/documentation —
+// it has no bearing on the outcome, which is exactly the property this
+// mission's tests exist to prove.
+//
+// Built once in `before()` (after makeUser/makeStaffMember are defined
+// below) and reused by every test — see that hook for the full fixture
+// set (OWNER/ADMIN/MANAGER/EMPLOYEE with real ACTIVE staff_members rows;
+// a SUSPENDED EMPLOYEE; and four "Axis-A label, zero staff_members" rows
+// for agent/supervisor/staff/admin/client).
 /** @type {{ session: object | null }} */
-let mockState = { session: STAFF_SESSION };
-function actAsStaff() {
-  mockState = { session: STAFF_SESSION };
-}
-function actAsClient() {
-  mockState = { session: CLIENT_SESSION };
-}
+let mockState = { session: null };
 function actAsUnauthenticated() {
   mockState = { session: null };
 }
@@ -104,23 +92,6 @@ const { getRadarQueue } = await import("./radar-queue.ts");
 const createdClientIds = new Set();
 const createdUserIds = new Set();
 const createdStaffMemberIds = new Set();
-
-beforeEach(() => {
-  actAsStaff();
-});
-
-after(async () => {
-  if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
-  if (createdClientIds.size) await db.delete(deals).where(inArray(deals.clientId, [...createdClientIds]));
-  if (createdClientIds.size) await db.delete(interactions).where(inArray(interactions.clientId, [...createdClientIds]));
-  if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
-  if (createdClientIds.size) await db.delete(crmInvoices).where(inArray(crmInvoices.clientId, [...createdClientIds]));
-  // RADAR-CORE-3B — follow-up fixtures are always hung off a created client.
-  if (createdClientIds.size) await db.delete(tasks).where(inArray(tasks.clientId, [...createdClientIds]));
-  if (createdClientIds.size) await db.delete(crmClients).where(inArray(crmClients.id, [...createdClientIds]));
-  if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
-  await db.$client.end();
-});
 
 async function makeClient(overrides = {}) {
   const values = {
@@ -161,7 +132,7 @@ async function makeUser({ fullName = null, email } = {}) {
 }
 
 let INTERNAL_ORG_ID;
-let ADMIN_STAFF_ROLE_ID;
+const STAFF_ROLE_ID_CACHE = new Map();
 async function internalOrgId() {
   if (INTERNAL_ORG_ID === undefined) {
     const [org] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
@@ -169,16 +140,21 @@ async function internalOrgId() {
   }
   return INTERNAL_ORG_ID;
 }
-async function adminStaffRoleId() {
-  if (ADMIN_STAFF_ROLE_ID === undefined) {
-    const [r] = await db.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, "ADMIN")).limit(1);
-    ADMIN_STAFF_ROLE_ID = r?.id ?? null;
+// RADAR GATE UNIFICATION — generalized from the original ADMIN-only
+// resolver so authorization tests can seed any of the four staff_roles.
+async function staffRoleId(name) {
+  if (!STAFF_ROLE_ID_CACHE.has(name)) {
+    const [r] = await db.select({ id: staffRoles.id }).from(staffRoles).where(eq(staffRoles.name, name)).limit(1);
+    STAFF_ROLE_ID_CACHE.set(name, r?.id ?? null);
   }
-  return ADMIN_STAFF_ROLE_ID;
+  return STAFF_ROLE_ID_CACHE.get(name);
 }
-async function makeStaffMember(userId, status) {
+// `roleName` defaults to "ADMIN" -- UNCHANGED BEHAVIOR for every
+// pre-existing call site (the 1B assignedUserActive fixtures below never
+// cared which staff role, only ACTIVE vs SUSPENDED).
+async function makeStaffMember(userId, status, roleName = "ADMIN") {
   const orgId = await internalOrgId();
-  const roleId = await adminStaffRoleId();
+  const roleId = await staffRoleId(roleName);
   if (!orgId || !roleId) return null;
   const [row] = await db
     .insert(staffMembers)
@@ -187,6 +163,89 @@ async function makeStaffMember(userId, status) {
   createdStaffMemberIds.add(row.id);
   return row;
 }
+
+// RADAR GATE UNIFICATION — a minimal CurrentSession-shaped mock anchored
+// to a REAL users.id. `role` is an Axis-A LABEL ONLY, for test
+// readability — requireStaffMember() never reads it.
+function sessionFor(user, axisARoleLabel) {
+  return {
+    userId: user.id,
+    clerkUserId: user.clerkUserId,
+    email: user.email,
+    fullName: user.fullName,
+    firstName: "Test",
+    organizationId: "test-org",
+    organizationName: "Test Org",
+    role: axisARoleLabel,
+    previousLastLoginAt: null,
+  };
+}
+
+// Built once, before any test runs. If the internal workspace or a
+// staff_roles row cannot be resolved (a non-migrated/non-seeded local
+// test DB), makeStaffMember() returns null and the corresponding
+// ACTIVE_SESSION stays anchored to a real user with no staff_members
+// row -- the authorization tests below would then observe every "should
+// succeed" case as a denial too, surfacing the real problem loudly
+// instead of passing on a false premise.
+let EMPLOYEE_SESSION, OWNER_SESSION, ADMIN_SESSION, MANAGER_SESSION, SUSPENDED_EMPLOYEE_SESSION;
+let CLIENT_SESSION, AGENT_NO_AXIS_C_SESSION, SUPERVISOR_NO_AXIS_C_SESSION, STAFF_NO_AXIS_C_SESSION, ADMIN_NO_AXIS_C_SESSION;
+
+before(async () => {
+  const employeeUser = await makeUser({ fullName: "Gate EMPLOYEE" });
+  await makeStaffMember(employeeUser.id, "ACTIVE", "EMPLOYEE");
+  EMPLOYEE_SESSION = sessionFor(employeeUser, "staff");
+
+  const ownerUser = await makeUser({ fullName: "Gate OWNER" });
+  await makeStaffMember(ownerUser.id, "ACTIVE", "OWNER");
+  OWNER_SESSION = sessionFor(ownerUser, "admin");
+
+  const adminUser = await makeUser({ fullName: "Gate ADMIN" });
+  await makeStaffMember(adminUser.id, "ACTIVE", "ADMIN");
+  ADMIN_SESSION = sessionFor(adminUser, "admin");
+
+  const managerUser = await makeUser({ fullName: "Gate MANAGER" });
+  await makeStaffMember(managerUser.id, "ACTIVE", "MANAGER");
+  MANAGER_SESSION = sessionFor(managerUser, "supervisor");
+
+  const suspendedUser = await makeUser({ fullName: "Gate SUSPENDED EMPLOYEE" });
+  await makeStaffMember(suspendedUser.id, "SUSPENDED", "EMPLOYEE");
+  SUSPENDED_EMPLOYEE_SESSION = sessionFor(suspendedUser, "staff");
+
+  // Zero staff_members row for each of these -- proving the Axis-A label
+  // alone (client/agent/supervisor/staff/admin) never grants RADAR access
+  // once the gate is Axis-C-only.
+  CLIENT_SESSION = sessionFor(await makeUser({ fullName: "Gate CLIENT no Axis-C" }), "client");
+  AGENT_NO_AXIS_C_SESSION = sessionFor(await makeUser({ fullName: "Gate agent no Axis-C" }), "agent");
+  SUPERVISOR_NO_AXIS_C_SESSION = sessionFor(await makeUser({ fullName: "Gate supervisor no Axis-C" }), "supervisor");
+  STAFF_NO_AXIS_C_SESSION = sessionFor(await makeUser({ fullName: "Gate staff no Axis-C" }), "staff");
+  ADMIN_NO_AXIS_C_SESSION = sessionFor(await makeUser({ fullName: "Gate admin no Axis-C" }), "admin");
+});
+
+// The default actor for every business-logic test below (unrelated to
+// authorization): the least-privilege Axis-C identity that still holds
+// RADAR_QUEUE_VIEW, mirroring this repo's existing EMPLOYEE-by-default
+// convention (e2e/helpers/main-db-staff.mjs's ensureRadarStaffMember()).
+function actAsStaff() {
+  mockState = { session: EMPLOYEE_SESSION };
+}
+
+beforeEach(() => {
+  actAsStaff();
+});
+
+after(async () => {
+  if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
+  if (createdClientIds.size) await db.delete(deals).where(inArray(deals.clientId, [...createdClientIds]));
+  if (createdClientIds.size) await db.delete(interactions).where(inArray(interactions.clientId, [...createdClientIds]));
+  if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
+  if (createdClientIds.size) await db.delete(crmInvoices).where(inArray(crmInvoices.clientId, [...createdClientIds]));
+  // RADAR-CORE-3B — follow-up fixtures are always hung off a created client.
+  if (createdClientIds.size) await db.delete(tasks).where(inArray(tasks.clientId, [...createdClientIds]));
+  if (createdClientIds.size) await db.delete(crmClients).where(inArray(crmClients.id, [...createdClientIds]));
+  if (createdUserIds.size) await db.delete(users).where(inArray(users.id, [...createdUserIds]));
+  await db.$client.end();
+});
 
 async function makeDeal(clientId, stage) {
   await db.insert(deals).values({ clientId, title: `Deal ${randomUUID()}`, stage });
@@ -242,29 +301,132 @@ function indexOfClient(items, clientId) {
 }
 
 const IMPLEMENTATION_SOURCE = readFileSync(fileURLToPath(new URL("./radar-queue.ts", import.meta.url)), "utf8");
+const ASSIGNMENT_SOURCE = readFileSync(fileURLToPath(new URL("./radar-assignment.ts", import.meta.url)), "utf8");
 
 // =========================================================
-// Authorization — runtime proof, not textual checks
+// RADAR GATE UNIFICATION — Authorization is Axis-C ONLY.
+// Runtime proof against the real requireStaffMember("RADAR_QUEUE_VIEW")
+// gate, not textual checks. Every "should succeed" fixture carries a
+// real, ACTIVE staff_members row; every "should be denied" fixture
+// carries either no staff_members row at all, or a SUSPENDED one — the
+// mocked Axis-A `role` label is deliberately varied across the denial
+// fixtures (client/agent/supervisor/staff/admin) to prove it has zero
+// effect on the outcome.
 // =========================================================
 
-test("UNAUTHENTICATED getRadarQueue: rejected", async () => {
+test("UNAUTHENTICATED getRadarQueue: rejected, no data returned", async () => {
   actAsUnauthenticated();
   await assert.rejects(() => getRadarQueue());
 });
 
-test("NON-STAFF getRadarQueue: rejected", async () => {
-  actAsClient();
-  await assert.rejects(() => getRadarQueue());
-});
-
-test("STAFF getRadarQueue: succeeds and returns the expected result shape", async () => {
-  const result = await getRadarQueue();
+function expectResultShape(result) {
   assert.equal(typeof result.page, "number");
   assert.equal(result.pageSize, 20);
   assert.equal(typeof result.totalQualified, "number");
   assert.equal(typeof result.insufficientDataCount, "number");
   assert.equal(typeof result.notEligibleCount, "number");
   assert.ok(Array.isArray(result.items));
+}
+
+test("OWNER (Axis-C, ACTIVE) getRadarQueue: allowed", async () => {
+  mockState = { session: OWNER_SESSION };
+  expectResultShape(await getRadarQueue());
+});
+
+test("ADMIN (Axis-C, ACTIVE) getRadarQueue: allowed", async () => {
+  mockState = { session: ADMIN_SESSION };
+  expectResultShape(await getRadarQueue());
+});
+
+test("MANAGER (Axis-C, ACTIVE) getRadarQueue: allowed", async () => {
+  mockState = { session: MANAGER_SESSION };
+  expectResultShape(await getRadarQueue());
+});
+
+test("EMPLOYEE (Axis-C, ACTIVE) getRadarQueue: allowed, returns the expected result shape", async () => {
+  mockState = { session: EMPLOYEE_SESSION };
+  expectResultShape(await getRadarQueue());
+});
+
+test("CLIENT (Axis-A label, no staff_members) getRadarQueue: rejected, no data returned", async () => {
+  mockState = { session: CLIENT_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("authenticated user with NO staff_members row at all getRadarQueue: rejected", async () => {
+  // Distinct from CLIENT_SESSION above only in its Axis-A label -- same
+  // underlying mechanism (no-membership), proven separately for clarity.
+  mockState = { session: STAFF_NO_AXIS_C_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("SUSPENDED staff_members row getRadarQueue: rejected -- an inactive Axis-C membership never grants access", async () => {
+  mockState = { session: SUSPENDED_EMPLOYEE_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("Axis-A 'agent' label with NO Axis-C staff_members row getRadarQueue: rejected", async () => {
+  mockState = { session: AGENT_NO_AXIS_C_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("Axis-A 'supervisor' label with NO Axis-C staff_members row getRadarQueue: rejected", async () => {
+  mockState = { session: SUPERVISOR_NO_AXIS_C_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("Axis-A 'staff' label with NO Axis-C staff_members row getRadarQueue: rejected", async () => {
+  mockState = { session: STAFF_NO_AXIS_C_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("Axis-A 'admin' label with NO Axis-C staff_members row getRadarQueue: rejected -- the legacy admin label alone is never sufficient", async () => {
+  mockState = { session: ADMIN_NO_AXIS_C_SESSION };
+  await assert.rejects(() => getRadarQueue());
+});
+
+test("a denied call never returns a partial or fabricated result -- the promise itself rejects, nothing else", async () => {
+  mockState = { session: CLIENT_SESSION };
+  let observedResult;
+  try {
+    observedResult = await getRadarQueue();
+  } catch {
+    // expected
+  }
+  assert.equal(observedResult, undefined, "no RADAR data may ever be produced before authorization succeeds");
+});
+
+test("structural: the gate call site takes exactly one permission argument -- no role/userId/permission/workspace/organization/email accepted from a caller", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /await requireStaffMember\("RADAR_QUEUE_VIEW"\);/);
+  // Property-access/import checks, not a bare substring match -- this
+  // file's own docstring legitimately names "requireStaffRole()" in prose
+  // explaining that it is NO LONGER used, which a naive substring test
+  // would false-positive on.
+  assert.equal(/from\s+"@\/lib\/dev-role"/.test(IMPLEMENTATION_SOURCE), false, "the legacy Axis-A gate must not be imported here anymore");
+  assert.equal(/await requireStaffRole\(\)/.test(IMPLEMENTATION_SOURCE), false, "the legacy Axis-A gate must not be called here anymore");
+});
+
+test("structural: getRadarQueue() itself never reads session.email or any caller-supplied role/permission for its access decision", () => {
+  // The gate line is the ENTIRE authorization surface of this function --
+  // it takes no parameters. The only other appearance of "email" in this
+  // file is resolveAssignees()'s display-name fallback, unrelated to
+  // authorization; confirmed structurally distinct from the gate line.
+  const gateLine = IMPLEMENTATION_SOURCE.match(/^.*requireStaffMember\("RADAR_QUEUE_VIEW"\);.*$/m)?.[0] ?? "";
+  assert.equal(/email|role|permission|workspace|organization/i.test(gateLine), false);
+});
+
+test("mutations in radar-assignment.ts remain unchanged: still gated by requireStaffMember(\"RADAR_WORK\"/\"RADAR_ASSIGN\"), never touched by this migration", () => {
+  assert.match(ASSIGNMENT_SOURCE, /requireStaffMember\("RADAR_WORK"\)/);
+  assert.match(ASSIGNMENT_SOURCE, /requireStaffMember\("RADAR_ASSIGN"\)/);
+  assert.equal(ASSIGNMENT_SOURCE.includes("requireStaffRole"), false, "radar-assignment.ts was already Axis-C-only and stays that way");
+});
+
+test("permission catalogue untouched: RADAR_ASSIGN is still forbidden to EMPLOYEE, RADAR_QUEUE_VIEW is still held by all four staff roles", async () => {
+  const { ROLE_PERMISSIONS } = await import("@/lib/rbac/permissions");
+  assert.equal(ROLE_PERMISSIONS.EMPLOYEE.includes("RADAR_ASSIGN"), false, "EMPLOYEE must never gain RADAR_ASSIGN as a side effect of this migration");
+  for (const role of ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"]) {
+    assert.ok(ROLE_PERMISSIONS[role].includes("RADAR_QUEUE_VIEW"), `${role} must keep RADAR_QUEUE_VIEW`);
+  }
 });
 
 // =========================================================

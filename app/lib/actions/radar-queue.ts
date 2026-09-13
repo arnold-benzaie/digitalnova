@@ -3,7 +3,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, tasks, users } from "@/db/schema";
-import { requireStaffRole } from "@/lib/dev-role";
+import { requireStaffMember } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
 import {
@@ -263,6 +263,15 @@ function groupByClientId<T extends { clientId: string }>(rows: T[]): Map<string,
  * pure assessQualification()/assessOpportunity() unchanged. Dynamic
  * computation only: no persistence, no schema change.
  *
+ * RADAR GATE UNIFICATION — the access gate is requireStaffMember(
+ * "RADAR_QUEUE_VIEW") (Axis-C: OWNER/ADMIN/MANAGER/EMPLOYEE via a real
+ * ACTIVE staff_members row), never the legacy Axis-A requireStaffRole().
+ * An Axis-A "agent"/"supervisor"/"staff"/"admin" identity with no matching
+ * Axis-C staff_members row is denied — Axis-A no longer decides RADAR
+ * read access on its own. This aligns the read gate with the mutation
+ * gates in radar-assignment.ts (RADAR_WORK / RADAR_ASSIGN), which were
+ * already Axis-C-only.
+ *
  * Candidate universe vs. Radar ranking — two distinct orderings, not to be
  * confused:
  * - The SQL `ORDER BY createdAt DESC, id` below only decides WHICH up to
@@ -280,7 +289,7 @@ function groupByClientId<T extends { clientId: string }>(rows: T[]): Map<string,
  * can never appear in `items`.
  */
 export async function getRadarQueue(params: RadarQueueParams = {}): Promise<RadarQueueResult> {
-  await requireStaffRole();
+  await requireStaffMember("RADAR_QUEUE_VIEW");
 
   const page = sanitizePage(params.page);
   const priorityFilter = sanitizePriorityFilter(params.priority);
