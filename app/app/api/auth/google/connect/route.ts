@@ -35,7 +35,7 @@ function isSafeReturnTo(value: string): boolean {
  */
 export async function GET(request: Request) {
   const session = await getCurrentSession();
-  if (!session || session.role === "client") {
+  if (!session || (session.context === "CLIENT" && session.role === "client")) {
     return new Response("Non autorisé", { status: 401 });
   }
 

@@ -11,6 +11,14 @@ import { getAccessState } from "@/lib/session";
  * complex class instances) — `role` is only present when kind is
  * "active", enough for the client to pick /dashboard vs /admin without
  * a second round trip.
+ *
+ * SESSION AUTHORITY UNIFICATION — `role` stays a plain string for the
+ * caller's own `=== "client"` check (app/access-pending/access-pending-client.tsx),
+ * unchanged. A CLIENT-context session returns its real, authoritative
+ * Axis-A role, exactly as before. A WORKFORCE-context session (no Axis-A
+ * role at all) returns the fixed literal `"workforce"` — never "client",
+ * so the caller's binary check still routes correctly to /admin without
+ * needing to know about `context` at all.
  */
 export async function checkAccessStatus(): Promise<{
   kind: "unauthenticated" | "pending" | "refused" | "suspended" | "active";
@@ -18,7 +26,7 @@ export async function checkAccessStatus(): Promise<{
 }> {
   const state = await getAccessState();
   if (state.kind === "active") {
-    return { kind: "active", role: state.session.role };
+    return { kind: "active", role: state.session.context === "CLIENT" ? state.session.role : "workforce" };
   }
   return { kind: state.kind };
 }

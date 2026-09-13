@@ -6,5 +6,5 @@ import { requireSession } from "@/lib/session";
 // session is missing or has no membership yet (see lib/session.ts).
 export default async function Home() {
   const session = await requireSession();
-  redirect(session.role === "client" ? "/dashboard" : "/admin");
+  redirect(session.context === "CLIENT" && session.role === "client" ? "/dashboard" : "/admin");
 }

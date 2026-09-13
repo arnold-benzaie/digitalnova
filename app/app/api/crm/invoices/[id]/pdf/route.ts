@@ -18,7 +18,7 @@ const NOT_FOUND = { fr: "Facture introuvable", en: "Invoice not found" };
  * app/api/invoices/[token]/pdf/route.ts. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const [session, viewerLocale] = await Promise.all([getCurrentSession(), getLocale()]);
-  if (!session || session.role === "client") {
+  if (!session || (session.context === "CLIENT" && session.role === "client")) {
     return new Response(UNAUTHORIZED[viewerLocale], { status: 401 });
   }
 

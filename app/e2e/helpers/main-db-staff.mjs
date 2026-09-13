@@ -41,6 +41,20 @@
  * MUST call ensureRadarStaffMember() again afterward to restore the
  * standing EMPLOYEE seed other specs depend on (see e2e/ai-governance.spec.ts).
  *
+ * SESSION AUTHORITY UNIFICATION — removeStaffMember() (delete, not
+ * deactivate: there is no third status between ACTIVE and "no row", and
+ * resolveAccessState() only ever checks status = 'ACTIVE') is for specs
+ * that test the Axis-A role model in isolation (e.g. e2e/staff-rbac.spec.ts,
+ * the "client" case in e2e/ai-governance.spec.ts): now that an ACTIVE
+ * staff_members row makes resolveAccessState() resolve context="WORKFORCE"
+ * UNCONDITIONALLY (strict priority over any Axis-A membership, including
+ * "client" — see lib/session.ts), the standing EMPLOYEE seed this file
+ * otherwise keeps persistent would confound any test that sets the shared
+ * account's Axis-A role and expects THAT role's legacy behavior alone to
+ * decide the outcome. Callers MUST restore the seed afterward (via
+ * ensureRadarStaffMember()) so crm-radar.spec.ts / ai-governance.spec.ts
+ * are unaffected regardless of run order.
+ *
  * SAFETY (mirrors main-db-role.mjs, three independent layers):
  *   - MAIN_E2E_DATABASE_URL is the hardcoded localhost constant reused from
  *     main-db-role.mjs — never process.env.DATABASE_URL (which is
@@ -187,5 +201,23 @@ export async function getRadarStaffMemberSnapshot() {
   return withStaffClient(async (client) => {
     const { orgId, userId } = await resolveOrgAndUser(client);
     return readSnapshot(client, userId, orgId);
+  });
+}
+
+/**
+ * Deletes the test account's staff_members row in the internal workspace,
+ * if any. Idempotent (no-op if already absent). Verifies the row is gone
+ * before returning. See the SESSION AUTHORITY UNIFICATION note above this
+ * file's export list for why this exists and why callers must restore the
+ * standing seed via ensureRadarStaffMember() afterward.
+ */
+export async function removeStaffMember() {
+  return withStaffClient(async (client) => {
+    const { orgId, userId } = await resolveOrgAndUser(client);
+    await client.query("delete from staff_members where user_id = $1 and workspace_org_id = $2", [userId, orgId]);
+    const snap = await readSnapshot(client, userId, orgId);
+    if (snap) {
+      throw new Error("main-db-staff: removeStaffMember() left a row behind — delete did not take effect.");
+    }
   });
 }

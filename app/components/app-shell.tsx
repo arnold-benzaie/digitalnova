@@ -50,7 +50,7 @@ export async function AppShell({
   canManageAiPolicy?: boolean;
 }) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
-  const visibility = notificationVisibilityWhere(org.id, session.userId, session.role);
+  const visibility = notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT");
   const [recentNotifications, unreadCount, badges, locale] = await Promise.all([
     // Preview list only — last 8, for the dropdown. The unread badge below
     // is computed from a separate, unlimited COUNT so it stays exact past

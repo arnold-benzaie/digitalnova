@@ -7,17 +7,24 @@
 // implementation — it always throws a NEXT_REDIRECT control-flow error by
 // design, so we let it throw and assert on the digest instead of stubbing
 // it out. The mock reproduces requireSession()'s own three outcomes
-// (unauthenticated → /sign-in, authenticated with no membership →
-// /access-pending, has a membership → return it) so getDevRole() and the
-// require*Role() guards built on top of it are exercised exactly as they
-// run in production, including the "never throw a raw error" behavior —
-// see lib/session.ts's requireSession().
+// (unauthenticated → /sign-in, authenticated with no membership → /access-
+// pending, has a membership OR an active staff_members row → return it) so
+// getDevRole() and the require*Role() guards built on top of it are
+// exercised exactly as they run in production, including the "never throw
+// a raw error" behavior — see lib/session.ts's requireSession().
 //
-// Scope note: this tests the MAIN app's 3-role model (admin/staff/client)
-// only. The Audit app's role model (admin/supervisor/staff, "agent" in the
-// UI, no "client" login) lives in lib/gbp-audit/session.ts — its
-// require*Role guards live in the same module as getAuditStaffSession
-// (unlike dev-role.ts, which is a separate file from lib/session.ts), and
+// SESSION AUTHORITY UNIFICATION — `legacyAppRoleForWorkforce` is ALSO
+// mocked here (a direct, byte-identical copy of lib/session.ts's own
+// implementation, documented as such): mock.module() replaces the ENTIRE
+// "@/lib/session" module for any importer, so dev-role.ts's import of
+// this function must be satisfied by this mock too, not the real module.
+//
+// Scope note: this tests the MAIN app's role model (Axis-A client/staff/
+// agent/supervisor/admin, Axis-C OWNER/ADMIN/MANAGER/EMPLOYEE) only. The
+// Audit app's role model (admin/supervisor/staff, "agent" in the UI, no
+// "client" login) lives in lib/gbp-audit/session.ts — its require*Role
+// guards live in the same module as getAuditStaffSession (unlike
+// dev-role.ts, which is a separate file from lib/session.ts), and
 // getAuditStaffSession is wrapped in React's cache(), which doesn't
 // reliably memoize/behave outside an actual render — both make the clean
 // mock.module approach used below not straightforwardly portable there.
@@ -42,6 +49,9 @@ mock.module("@/lib/session", {
       }
       return mockState.session;
     },
+    // Byte-identical copy of lib/session.ts::legacyAppRoleForWorkforce —
+    // see that function's own docstring for the exact contract this locks.
+    legacyAppRoleForWorkforce: (session) => (session.staffRole === "OWNER" || session.staffRole === "ADMIN" ? "admin" : "agent"),
   },
 });
 
@@ -50,7 +60,13 @@ const { getDevRole, requireStaffRole, requireAdminRole } = await import("./dev-r
 function withSession(role) {
   mockState = {
     kind: "session",
-    session: { userId: "u1", clerkUserId: "c1", email: "t@test.com", fullName: "Test", organizationId: "o1", organizationName: "Org", role },
+    session: { context: "CLIENT", userId: "u1", clerkUserId: "c1", email: "t@test.com", fullName: "Test", organizationId: "o1", organizationName: "Org", role },
+  };
+}
+function withWorkforceSession(staffRole) {
+  mockState = {
+    kind: "session",
+    session: { context: "WORKFORCE", userId: "u1", clerkUserId: "c1", email: "t@test.com", fullName: "Test", organizationId: "internal-org", organizationName: "PUBLIC-MAP", staffRole },
   };
 }
 function withNoRole() {
@@ -124,4 +140,55 @@ test("client essayant d'accéder à une page staff : requireStaffRole redirects 
 test("client essayant d'accéder à une page admin : requireAdminRole redirects to /dashboard, jamais l'accès", async () => {
   withSession("client");
   await assertRedirectsTo(requireAdminRole, "/dashboard");
+});
+
+// =====================================================================
+// SESSION AUTHORITY UNIFICATION — a WORKFORCE (Axis-C) session, with NO
+// Axis-A membership at all, must reach exactly the same surfaces a
+// legacy non-admin/admin Axis-A role already reached — never more, never
+// less, and never by exposing a real Axis-A role that doesn't exist for
+// this identity.
+// =====================================================================
+
+test("EMPLOYEE Axis-C pur (aucune membership Axis-A) : getDevRole ne lève jamais et ne retourne jamais 'client'", async () => {
+  withWorkforceSession("EMPLOYEE");
+  const role = await getDevRole();
+  assert.notEqual(role, "client");
+});
+
+for (const staffRole of ["EMPLOYEE", "MANAGER"]) {
+  test(`${staffRole} Axis-C pur : requireStaffRole autorise, requireAdminRole refuse (-> /admin) -- aucune élévation`, async () => {
+    withWorkforceSession(staffRole);
+    const role = await requireStaffRole();
+    assert.notEqual(role, "client");
+    await assertRedirectsTo(requireAdminRole, "/admin");
+  });
+}
+
+for (const staffRole of ["ADMIN", "OWNER"]) {
+  test(`${staffRole} Axis-C pur : requireStaffRole ET requireAdminRole autorisent tous les deux (même pouvoir qu'un admin Axis-A)`, async () => {
+    withWorkforceSession(staffRole);
+    const role = await requireStaffRole();
+    assert.notEqual(role, "client");
+    assert.equal(await requireAdminRole(), "admin");
+  });
+}
+
+test("aucune fusion : un EMPLOYEE Axis-C pur n'est jamais bloqué comme un client, même sans aucune ligne Axis-A", async () => {
+  withWorkforceSession("EMPLOYEE");
+  // Must NOT redirect to /dashboard (the client-only destination) --
+  // proves requireStaffRole()'s "client" check never accidentally fires
+  // for a Workforce session that has no `role` field at all.
+  const role = await requireStaffRole();
+  assert.ok(typeof role === "string" && role !== "client");
+});
+
+test("aucun rôle Axis-A n'est transmis comme staffRole : la valeur retournée pour un Workforce pur n'est jamais une valeur AppRole réelle inventée à partir de staffRole", async () => {
+  withWorkforceSession("MANAGER");
+  const role = await getDevRole();
+  // "MANAGER" itself is never a valid AppRole -- the compatibility bridge
+  // must map it to one of the CLOSED AppRole set, never leak the raw
+  // Axis-C label through untouched.
+  assert.ok(["admin", "staff", "agent", "supervisor", "client"].includes(role));
+  assert.notEqual(role, "MANAGER");
 });

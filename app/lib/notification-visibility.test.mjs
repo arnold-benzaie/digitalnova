@@ -2,6 +2,13 @@
 // DB needed: PgDialect().sqlToQuery() renders the same SQL/params drizzle
 // would send to Postgres, so this verifies the exact query shape a client
 // vs a staff viewer gets. Run with: npx tsx --test lib/notification-visibility.test.mjs
+//
+// SESSION AUTHORITY UNIFICATION — notificationVisibilityWhere()'s third
+// parameter changed from `role: AppRole` to a plain `isClientContext:
+// boolean` (the function only ever needed the binary distinction — see
+// its own docstring). Every call below that used to pass a role string
+// now passes the equivalent boolean; the exact same SQL/params are
+// asserted, so this proves the signature change is behavior-preserving.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -49,8 +56,8 @@ test("STAFF_ONLY_NOTIFICATION_TYPES never includes a known client-visible type",
   }
 });
 
-test("client role: SQL excludes staff-only types via NOT IN, keeps org-broadcast and personal branches", () => {
-  const { sql, params } = render(notificationVisibilityWhere("org-1", "user-1", "client"));
+test("isClientContext=true: SQL excludes staff-only types via NOT IN, keeps org-broadcast and personal branches", () => {
+  const { sql, params } = render(notificationVisibilityWhere("org-1", "user-1", true));
   assert.match(sql, /"notifications"\."organization_id" = \$1/);
   assert.match(sql, /"notifications"\."user_id" is null/);
   assert.match(sql, /"notifications"\."type" not in/);
@@ -59,32 +66,35 @@ test("client role: SQL excludes staff-only types via NOT IN, keeps org-broadcast
   assert.deepEqual(params, ["org-1", ...STAFF_ONLY_NOTIFICATION_TYPES, "user-1"]);
 });
 
-test("client role: every staff-only type appears as a bound param (no hardcoded drift)", () => {
-  const { params } = render(notificationVisibilityWhere("org-1", "user-1", "client"));
+test("isClientContext=true: every staff-only type appears as a bound param (no hardcoded drift)", () => {
+  const { params } = render(notificationVisibilityWhere("org-1", "user-1", true));
   for (const type of STAFF_ONLY_NOTIFICATION_TYPES) {
     assert.ok(params.includes(type), `${type} missing from the client NOT IN params`);
   }
 });
 
-for (const role of ["admin", "staff", "agent", "supervisor"]) {
-  test(`${role} role: SQL has no type filter — identical shape to the pre-fix broadcast query (unchanged admin scope)`, () => {
-    const { sql, params } = render(notificationVisibilityWhere("org-1", "user-1", role));
-    assert.doesNotMatch(sql, /not in/);
-    assert.equal(sql, '(("notifications"."organization_id" = $1 and "notifications"."user_id" is null) or "notifications"."user_id" = $2)');
-    assert.deepEqual(params, ["org-1", "user-1"]);
-  });
-}
+// isClientContext=false covers EVERY WORKFORCE-context viewer uniformly —
+// OWNER/ADMIN/MANAGER/EMPLOYEE (Axis-C) and, before this mission, every
+// legacy non-client Axis-A role (admin/staff/agent/supervisor): none of
+// them was ever distinguished by this predicate, only the single client/
+// not-client boundary was — unchanged by the signature change.
+test("isClientContext=false: SQL has no type filter — identical shape to the pre-fix broadcast query (unchanged staff/workforce scope)", () => {
+  const { sql, params } = render(notificationVisibilityWhere("org-1", "user-1", false));
+  assert.doesNotMatch(sql, /not in/);
+  assert.equal(sql, '(("notifications"."organization_id" = $1 and "notifications"."user_id" is null) or "notifications"."user_id" = $2)');
+  assert.deepEqual(params, ["org-1", "user-1"]);
+});
 
-test("personal branch (userId = viewer) is present unconditionally, regardless of role", () => {
-  for (const role of ["client", "admin", "staff", "agent", "supervisor"]) {
-    const { sql } = render(notificationVisibilityWhere("org-1", "viewer-42", role));
+test("personal branch (userId = viewer) is present unconditionally, regardless of isClientContext", () => {
+  for (const isClientContext of [true, false]) {
+    const { sql } = render(notificationVisibilityWhere("org-1", "viewer-42", isClientContext));
     assert.match(sql, /or "notifications"\."user_id" = \$\d+/);
   }
 });
 
 test("organizationId is scoped per-call — a different org never leaks into another org's predicate", () => {
-  const a = render(notificationVisibilityWhere("org-A", "user-1", "client"));
-  const b = render(notificationVisibilityWhere("org-B", "user-1", "client"));
+  const a = render(notificationVisibilityWhere("org-A", "user-1", true));
+  const b = render(notificationVisibilityWhere("org-B", "user-1", true));
   assert.equal(a.params[0], "org-A");
   assert.equal(b.params[0], "org-B");
   assert.notEqual(a.params[0], b.params[0]);

@@ -10,7 +10,7 @@ import { requireSession } from "@/lib/session";
 
 export async function markAllNotificationsRead() {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
-  await db.update(notifications).set({ read: true }).where(notificationVisibilityWhere(org.id, session.userId, session.role));
+  await db.update(notifications).set({ read: true }).where(notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT"));
 
   revalidatePath("/dashboard");
   revalidatePath("/admin");
@@ -25,14 +25,14 @@ export async function markAllNotificationsRead() {
  * attacker couldn't realistically guess. This is also what stops user A
  * from marking user B's personal notification as read, or a client from
  * marking a staff-only notification as read by id even if they somehow
- * learned it: neither ever matches notificationVisibilityWhere(org, A, A's role).
+ * learned it: neither ever matches notificationVisibilityWhere(org, A, A's context).
  */
 export async function markNotificationRead(id: string) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   await db
     .update(notifications)
     .set({ read: true })
-    .where(and(eq(notifications.id, id), notificationVisibilityWhere(org.id, session.userId, session.role)));
+    .where(and(eq(notifications.id, id), notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT")));
 
   revalidatePath("/dashboard");
   revalidatePath("/admin");
@@ -57,7 +57,7 @@ export async function deleteNotification(id: string): Promise<{ deleted: boolean
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const deletedRows = await db
     .delete(notifications)
-    .where(and(eq(notifications.id, id), notificationVisibilityWhere(org.id, session.userId, session.role)))
+    .where(and(eq(notifications.id, id), notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT")))
     .returning({ id: notifications.id });
 
   revalidatePath("/dashboard");
@@ -73,7 +73,7 @@ export async function deleteAllReadNotifications(): Promise<{ deletedCount: numb
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const deletedRows = await db
     .delete(notifications)
-    .where(and(eq(notifications.read, true), notificationVisibilityWhere(org.id, session.userId, session.role)))
+    .where(and(eq(notifications.read, true), notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT")))
     .returning({ id: notifications.id });
 
   revalidatePath("/dashboard");
@@ -99,7 +99,7 @@ export async function getLatestNotificationMeta(): Promise<{ id: string; created
   return db
     .select({ id: notifications.id, createdAt: notifications.createdAt })
     .from(notifications)
-    .where(notificationVisibilityWhere(org.id, session.userId, session.role))
+    .where(notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT"))
     .orderBy(desc(notifications.createdAt))
     .limit(5);
 }
@@ -116,5 +116,5 @@ export async function getNotificationsById(ids: string[]) {
   return db
     .select()
     .from(notifications)
-    .where(and(inArray(notifications.id, ids), notificationVisibilityWhere(org.id, session.userId, session.role)));
+    .where(and(inArray(notifications.id, ids), notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT")));
 }

@@ -1,6 +1,5 @@
 import { and, eq, isNull, notInArray, or, type SQL } from "drizzle-orm";
 import { notifications } from "@/db/schema";
-import type { AppRole } from "@/lib/session";
 
 /**
  * Notification `type`s that are inserted as organization-broadcasts
@@ -38,21 +37,32 @@ export const STAFF_ONLY_NOTIFICATION_TYPES = [
  *
  * A row is visible when either:
  *  - it broadcasts to the viewer's own organization (userId is null) AND,
- *    for a "client" role viewer specifically, its type is not one of
- *    STAFF_ONLY_NOTIFICATION_TYPES — every non-client role (admin, staff,
- *    agent, supervisor) keeps today's unchanged behavior, on purpose: this
- *    fix closes the client-facing leak without turning /admin/notifications
- *    into a cross-organization view, which is a separate, later change;
+ *    for a CLIENT-context viewer specifically, its type is not one of
+ *    STAFF_ONLY_NOTIFICATION_TYPES — every WORKFORCE-context viewer
+ *    (whatever their specific staff role) keeps today's unchanged
+ *    behavior, on purpose: this fix closes the client-facing leak
+ *    without turning /admin/notifications into a cross-organization
+ *    view, which is a separate, later change;
  *  - OR it's personal to the viewer (userId = them) — unconditionally, so
  *    "your account was approved" (user.approved_self) keeps working for
  *    the one person it's actually for, even though its own type isn't in
  *    the client-visible broadcast set above.
+ *
+ * SESSION AUTHORITY UNIFICATION — `isClientContext` replaces the former
+ * `role: AppRole` parameter: this predicate only ever needed the binary
+ * client/not-client distinction (never a specific Axis-A sub-role), and
+ * `CurrentSession` is now a discriminated union where a WORKFORCE session
+ * has no `role` field at all. Every call site passes
+ * `session.context === "CLIENT"` — behaviorally identical to the old
+ * `role === "client"` check for every existing CLIENT-context session,
+ * and now also correct for a WORKFORCE-context session (never treated as
+ * client-restricted, exactly like every non-client Axis-A role already
+ * was).
  */
-export function notificationVisibilityWhere(organizationId: string, userId: string, role: AppRole): SQL {
-  const orgBroadcast =
-    role === "client"
-      ? and(eq(notifications.organizationId, organizationId), isNull(notifications.userId), notInArray(notifications.type, [...STAFF_ONLY_NOTIFICATION_TYPES]))
-      : and(eq(notifications.organizationId, organizationId), isNull(notifications.userId));
+export function notificationVisibilityWhere(organizationId: string, userId: string, isClientContext: boolean): SQL {
+  const orgBroadcast = isClientContext
+    ? and(eq(notifications.organizationId, organizationId), isNull(notifications.userId), notInArray(notifications.type, [...STAFF_ONLY_NOTIFICATION_TYPES]))
+    : and(eq(notifications.organizationId, organizationId), isNull(notifications.userId));
 
   return or(orgBroadcast, eq(notifications.userId, userId))!;
 }

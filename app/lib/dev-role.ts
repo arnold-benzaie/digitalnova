@@ -1,20 +1,27 @@
 import { redirect } from "next/navigation";
-import { requireSession, type AppRole } from "@/lib/session";
+import { requireSession, legacyAppRoleForWorkforce, type AppRole } from "@/lib/session";
 
 export type DevRole = AppRole;
 
 /**
- * Returns the signed-in user's real role (admin/staff/client), resolved
- * from Clerk + the `memberships` table via lib/session.ts. Redirects —
- * rather than silently defaulting to "client" — when the caller is
- * authenticated with Clerk but has no membership row yet: there is no
- * self-service role assignment in this app, so "no membership" must never
- * fall back to any access at all. See requireSession() for the exact
- * unauthenticated vs. no-membership redirect targets.
+ * Returns the signed-in user's role, in the legacy Axis-A `AppRole` shape
+ * this function's ~30 callers still expect. Resolved from Clerk + the
+ * unified session (lib/session.ts::requireSession()) — for a CLIENT
+ * session this is the real, authoritative Axis-A role; for a WORKFORCE
+ * session (SESSION AUTHORITY UNIFICATION) there is no Axis-A role at all,
+ * so `legacyAppRoleForWorkforce()` supplies a compatibility value that
+ * preserves this function's exact current privilege boundary (see that
+ * function's own docstring) — it is never a real Axis-A row and is never
+ * written back to one. Redirects — rather than silently defaulting to
+ * "client" — when the caller is authenticated with Clerk but has neither
+ * a membership row nor an active staff_members row: there is no
+ * self-service role assignment in this app, so "no access in either axis"
+ * must never fall back to any access at all. See requireSession() for the
+ * exact unauthenticated vs. no-access redirect targets.
  */
 export async function getDevRole(): Promise<DevRole> {
   const session = await requireSession();
-  return session.role;
+  return session.context === "WORKFORCE" ? legacyAppRoleForWorkforce(session) : session.role;
 }
 
 /**

@@ -12,7 +12,7 @@ import {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
-  if (!session || session.role === "client") {
+  if (!session || (session.context === "CLIENT" && session.role === "client")) {
     return new Response("Non autorisé", { status: 401 });
   }
 

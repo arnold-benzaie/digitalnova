@@ -122,3 +122,52 @@ export async function restoreOriginalRole(ctx) {
     }
   });
 }
+
+/**
+ * SESSION AUTHORITY UNIFICATION — deletes the shared account's Axis-A
+ * membership row entirely (not just its role), to test a genuine "Axis-C
+ * staff_members ACTIVE, NO Axis-A membership at all" identity — the exact
+ * shape resolveAccessState() must resolve to context="WORKFORCE" with no
+ * Axis-A row to fall back to. Safe: memberships has no other table
+ * referencing it by foreign key (db/schema.ts), and its PK is
+ * (user_id, organization_id) — captureOriginalRole()'s returned ctx already
+ * carries everything restoreMembership() needs to put the exact same row
+ * back. MUST be paired with restoreMembership(ctx) in the same test (or its
+ * afterEach/afterAll) — never left deleted, since every other spec's
+ * captureOriginalRole() throws loudly if this row is missing.
+ */
+export async function removeMembership(ctx) {
+  return withClient(async (client) => {
+    await client.query("delete from memberships where user_id = $1 and organization_id = $2", [ctx.userId, ctx.organizationId]);
+  });
+}
+
+/**
+ * Re-inserts the exact membership row removeMembership(ctx) deleted, using
+ * the same `ctx` captureOriginalRole() returned. Idempotent: a conflicting
+ * (user_id, organization_id) row — the row was never actually removed, or
+ * setRole() changed its role_id in place rather than deleting it — is left
+ * as-is by `on conflict do nothing`. Only verifies the row EXISTS with
+ * SOME role, not that it is `admin`: a spec that called setRole() instead
+ * of removeMembership() relies on the caller also calling
+ * restoreOriginalRole() (which owns the `admin`-baseline verification) to
+ * fix the role_id afterward — asserting `admin` here would fire before
+ * that has a chance to run.
+ */
+export async function restoreMembership(ctx) {
+  return withClient(async (client) => {
+    await client.query(
+      `insert into memberships (user_id, organization_id, role_id)
+       values ($1, $2, $3)
+       on conflict (user_id, organization_id) do nothing`,
+      [ctx.userId, ctx.organizationId, ctx.originalRoleId],
+    );
+    const { rows } = await client.query("select 1 from memberships where user_id = $1 and organization_id = $2", [
+      ctx.userId,
+      ctx.organizationId,
+    ]);
+    if (rows.length === 0) {
+      throw new Error(`main-db-role: restoreMembership FAILED — no membership row for ${TEST_ACCOUNT_EMAIL} after insert.`);
+    }
+  });
+}

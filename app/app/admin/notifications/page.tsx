@@ -18,7 +18,7 @@ export default async function AdminNotificationsPage() {
   const items = await db
     .select()
     .from(notifications)
-    .where(notificationVisibilityWhere(org.id, session.userId, session.role))
+    .where(notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT"))
     .orderBy(desc(notifications.createdAt))
     .limit(100);
 

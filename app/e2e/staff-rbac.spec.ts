@@ -5,6 +5,7 @@ import {
   setRole,
   TEST_ACCOUNT_EMAIL,
 } from "./helpers/main-db-role.mjs";
+import { removeStaffMember, ensureRadarStaffMember } from "./helpers/main-db-staff.mjs";
 
 /**
  * PHASE 2A.0 — main-app RBAC coverage. First E2E in this repo to exercise
@@ -26,6 +27,17 @@ import {
  * can't leak into the next) AND afterAll, and the helper hard-fails the
  * run if the role is ever not restored to `admin`. It runs last
  * alphabetically in e2e/, so nothing else in a run depends on its state.
+ *
+ * SESSION AUTHORITY UNIFICATION — this file exercises the Axis-A role
+ * model in isolation, but the shared account also carries a standing
+ * ACTIVE EMPLOYEE staff_members row (Axis-C, e2e/helpers/main-db-staff.mjs
+ * — kept persistent for crm-radar.spec.ts / ai-governance.spec.ts).
+ * resolveAccessState() now resolves context="WORKFORCE" whenever that row
+ * is ACTIVE, unconditionally outranking any Axis-A role including
+ * "client" (see lib/session.ts) — left in place, it would make every test
+ * below pass or fail for the wrong reason. beforeAll removes it for the
+ * duration of this file; afterAll restores the standing seed so specs
+ * that depend on it are unaffected by run order.
  */
 test.describe.configure({ mode: "serial" });
 test.use({ locale: "fr-FR" });
@@ -41,6 +53,7 @@ let ctx: Awaited<ReturnType<typeof captureOriginalRole>>;
 
 test.beforeAll(async () => {
   ctx = await captureOriginalRole(); // throws unless baseline is exactly `admin`
+  await removeStaffMember(); // isolate Axis-A: no standing WORKFORCE row to outrank it
 });
 
 test.afterEach(async () => {
@@ -49,6 +62,7 @@ test.afterEach(async () => {
 
 test.afterAll(async () => {
   await restoreOriginalRole(ctx); // final backstop; throws loudly if not restored
+  await ensureRadarStaffMember(); // hand back the standing EMPLOYEE seed for other specs
 });
 
 test.describe("Main-app RBAC — /admin boundary", () => {

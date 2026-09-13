@@ -77,8 +77,9 @@ export default async function AccessPendingPage({ searchParams }: { searchParams
   const [locale, user, accessState, params] = await Promise.all([getLocale(), currentUser(), getAccessState(), searchParams]);
   const cameFromPendingGate = params.ctx === "pending";
 
-  if (accessState.kind === "active" && (cameFromPendingGate || accessState.session.role === "client")) {
-    redirect(accessState.session.role === "client" ? "/dashboard" : "/admin");
+  const isClientSession = accessState.kind === "active" && accessState.session.context === "CLIENT" && accessState.session.role === "client";
+  if (accessState.kind === "active" && (cameFromPendingGate || isClientSession)) {
+    redirect(isClientSession ? "/dashboard" : "/admin");
   }
   if (accessState.kind === "refused") {
     redirect("/access-refused");

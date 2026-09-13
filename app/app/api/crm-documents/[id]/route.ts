@@ -8,7 +8,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // CRM is agency-shared (no organizationId scoping — see db/schema.ts on
   // crmClients), so any signed-in staff/admin can fetch any CRM document;
   // clients (portal-only role) must not.
-  if (!session || session.role === "client") {
+  if (!session || (session.context === "CLIENT" && session.role === "client")) {
     return new Response("Non autorisé", { status: 401 });
   }
 

@@ -139,7 +139,7 @@ export default async function DashboardPage() {
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(and(eq(notifications.read, false), notificationVisibilityWhere(org.id, session.userId, session.role))),
+      .where(and(eq(notifications.read, false), notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT"))),
     // Reads google_oauth_connections only — no live Google API call, safe
     // to run on every dashboard render (PHASE 1A performance rule).
     getGoogleConnectionOverview(org.id),

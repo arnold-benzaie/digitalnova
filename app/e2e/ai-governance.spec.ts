@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { captureOriginalRole, restoreOriginalRole, setRole } from "./helpers/main-db-role.mjs";
-import { ensureStaffRole, ensureRadarStaffMember } from "./helpers/main-db-staff.mjs";
+import { ensureStaffRole, ensureRadarStaffMember, removeStaffMember } from "./helpers/main-db-staff.mjs";
 import { setLocalQuotaPolicy, clearLocalQuotaPolicy, setLocalQuotaCounter, clearLocalQuotaCounter } from "./helpers/main-db-quota.mjs";
 import { collectConsoleErrors } from "./helpers/console-errors";
 
@@ -77,6 +77,11 @@ test.describe("RADAR AI quota governance — /admin/owner/ai-governance", () => 
 
   test("CLIENT (Axis-A, external/no-staff account): fails closed at the /admin boundary, lands on /dashboard, no governance content leaks", async ({ page }) => {
     await setRole(staffCtx, "client");
+    // SESSION AUTHORITY UNIFICATION: the standing EMPLOYEE staff_members
+    // seed (Axis-C) would otherwise resolve context="WORKFORCE" and
+    // outrank this "client" Axis-A role (see lib/session.ts) — remove it
+    // for this one test; afterEach's ensureRadarStaffMember() restores it.
+    await removeStaffMember();
     await page.goto(ROUTE);
     await page.waitForURL(/\/dashboard/);
     expect(page.url()).toMatch(/\/dashboard/);
