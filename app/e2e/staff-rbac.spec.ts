@@ -80,6 +80,13 @@ test.describe("Main-app RBAC — /admin boundary", () => {
       await page.goto(route);
       await page.waitForURL(/\/dashboard/);
       expect(page.url(), `${route} did not fail closed for client`).toMatch(/\/dashboard/);
+      // Let the admin shell's own background requests settle (sidebar
+      // <Link> prefetch burst for every nav item, notification poll)
+      // before the next page.goto() — otherwise that leftover in-flight
+      // traffic can race the next navigation and abort it client-side.
+      // See e2e/staff-rbac.spec.ts's own flake history: this is what
+      // produced the net::ERR_ABORTED failures on /admin/crm/performance.
+      await page.waitForLoadState("networkidle");
     }
   });
 
@@ -92,6 +99,9 @@ test.describe("Main-app RBAC — /admin boundary", () => {
         // backstop) or /sign-in (no session). toHaveURL polls, so a slow
         // first compile doesn't flake it.
         await expect(page, `${route} should be reachable by ${role}`).toHaveURL((u) => u.pathname === route);
+        // See the identical comment in the "client" test above — same
+        // settle-before-next-goto rationale, same flake this closes.
+        await page.waitForLoadState("networkidle");
       }
     });
 
@@ -104,6 +114,8 @@ test.describe("Main-app RBAC — /admin boundary", () => {
         // /sign-in. `=== "/admin"` also asserts it did NOT stay on the
         // requested sub-route.
         await expect(page, `${route} should be admin-only for ${role}`).toHaveURL((u) => u.pathname === "/admin");
+        // See the identical comment on the "reaches" test above.
+        await page.waitForLoadState("networkidle");
       }
     });
   }
@@ -113,6 +125,8 @@ test.describe("Main-app RBAC — /admin boundary", () => {
     for (const route of ["/admin", "/admin/users"]) {
       await page.goto(route);
       await expect(page, `${route} should load for admin`).toHaveURL((u) => u.pathname === route);
+      // See the identical comment on the "reaches" test above.
+      await page.waitForLoadState("networkidle");
     }
     expect(TEST_ACCOUNT_EMAIL).toBe("contact@public-map.com");
   });
