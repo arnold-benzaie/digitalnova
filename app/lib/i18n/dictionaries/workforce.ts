@@ -64,6 +64,14 @@ export const workforce = {
     errorStatusUnchanged: "Ce membre a déjà ce statut — la liste a été actualisée.",
     errorInvalidTransition: "Cette transition de statut n'est pas autorisée — la liste a été actualisée.",
     errorStateChanged: "Le statut de ce membre vient de changer. Veuillez réessayer.",
+    // WORKFORCE ACCESS CONTROL UI — changement de rôle MANAGER <-> EMPLOYEE
+    // directement sur cette page. changeWorkforceMemberRoleAction()
+    // (lib/actions/workforce-ui.ts) est l'unique autorité ; ces chaînes ne
+    // conditionnent rien.
+    changingRole: "Changement de rôle…",
+    errorSelfRoleChange: "Vous ne pouvez pas modifier votre propre rôle.",
+    errorRoleUnchanged: "Ce membre a déjà ce rôle — la liste a été actualisée.",
+    errorMemberNotActive: "Ce membre doit être actif pour changer de rôle.",
   },
   en: {
     title: "Workforce",
@@ -122,5 +130,13 @@ export const workforce = {
     errorStatusUnchanged: "This member already has that status — the list has been refreshed.",
     errorInvalidTransition: "That status transition is not allowed — the list has been refreshed.",
     errorStateChanged: "This member's status just changed. Please try again.",
+    // WORKFORCE ACCESS CONTROL UI — MANAGER <-> EMPLOYEE role change
+    // directly on this page. changeWorkforceMemberRoleAction()
+    // (lib/actions/workforce-ui.ts) is the sole authority; these strings
+    // gate nothing.
+    changingRole: "Changing role…",
+    errorSelfRoleChange: "You cannot change your own role.",
+    errorRoleUnchanged: "This member already has that role — the list has been refreshed.",
+    errorMemberNotActive: "This member must be active to change their role.",
   },
 } as const;

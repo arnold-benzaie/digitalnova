@@ -35,10 +35,12 @@ import { getInternalOrganizationId } from "@/lib/notifications";
 import { isValidUuid } from "@/lib/api-v1/dto";
 import {
   addWorkforceMember,
+  changeWorkforceMemberRole,
   offboardWorkforceMember,
   reactivateWorkforceMember,
   suspendWorkforceMember,
   type ListedWorkforceRole,
+  type OrdinaryWorkforceRole,
 } from "@/lib/actions/workforce";
 
 export type AssignableUser = { id: string; email: string };
@@ -254,4 +256,81 @@ export async function reactivateWorkforceMemberAction(targetUserId: string): Pro
  */
 export async function offboardWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
   return runWorkforceLifecycleAction(targetUserId, offboardWorkforceMember);
+}
+
+/* ---------------------------------------------------------------------- *
+ * WORKFORCE ACCESS CONTROL UI — UI glue for R2C changeWorkforceMemberRole()
+ * (MANAGER <-> EMPLOYEE only). Mirrors the R2D-B lifecycle wrappers above
+ * exactly (requireStaffMember first, UUID validation, try/catch mapping a
+ * closed set of R2C's own thrown messages, revalidatePath on success
+ * only) — the only difference is the extra `newRole` argument, which is
+ * why this isn't routed through runWorkforceLifecycleAction()'s single-arg
+ * `mutate` shape. No RBAC logic is reimplemented: changeWorkforceMemberRole()
+ * itself is the sole authority (WORKFORCE_MANAGE gate, self/OWNER/ADMIN
+ * protection, ACTIVE-only, MANAGER/EMPLOYEE-only newRole) — this file
+ * writes nothing and audits nothing of its own.
+ * ---------------------------------------------------------------------- */
+
+export type WorkforceRoleChangeErrorCode =
+  | "INVALID_TARGET"
+  | "INVALID_ROLE"
+  | "SELF_ROLE_CHANGE_NOT_ALLOWED"
+  | "MEMBER_NOT_FOUND"
+  | "OWNER_PROTECTED"
+  | "ADMIN_TIER_PROTECTED"
+  | "MEMBER_NOT_ACTIVE"
+  | "ROLE_UNCHANGED";
+
+/**
+ * changeWorkforceMemberRole()'s thrown Error.message -> stable UI code.
+ * Substring match, same technique as mapWorkforceLifecycleError() above.
+ * Unknown / infra errors ("internal workspace is not configured", "staff
+ * role not seeded") return null and propagate to the route error boundary.
+ */
+function mapWorkforceRoleChangeError(message: string): WorkforceRoleChangeErrorCode | null {
+  if (message.includes("target user id must be a valid UUID")) return "INVALID_TARGET";
+  if (message.includes("workforce role must be one of")) return "INVALID_ROLE";
+  if (message.includes("workforce members cannot change their own role")) return "SELF_ROLE_CHANGE_NOT_ALLOWED";
+  if (message.includes("workforce member not found")) return "MEMBER_NOT_FOUND";
+  if (message.includes("target is the workspace owner and cannot be modified here")) return "OWNER_PROTECTED";
+  if (message.includes("changing an administrator's role requires owner privileges")) return "ADMIN_TIER_PROTECTED";
+  if (message.includes("workforce member is not active and cannot be modified")) return "MEMBER_NOT_ACTIVE";
+  if (message.includes("workforce member already has this role")) return "ROLE_UNCHANGED";
+  return null;
+}
+
+type WorkforceRoleChangeResult = { error: WorkforceRoleChangeErrorCode } | undefined;
+
+const ORDINARY_WORKFORCE_ROLE_VALUES = ["MANAGER", "EMPLOYEE"] as const;
+
+/**
+ * Changes an ACTIVE ordinary workforce member's role — MANAGER <-> EMPLOYEE
+ * ONLY — via R2C changeWorkforceMemberRole(). `newRole` is validated against
+ * a closed allowlist here (defense in depth, same allowlist R2C itself
+ * enforces) before the call; every other protection (self, OWNER, ADMIN
+ * tier, ACTIVE-only, unchanged-role) is R2C's own and surfaces here as a
+ * mapped code. revalidatePath("/admin/workforce") on success only.
+ */
+export async function changeWorkforceMemberRoleAction(targetUserId: string, newRole: string): Promise<WorkforceRoleChangeResult> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    return { error: "INVALID_TARGET" };
+  }
+  if (!(ORDINARY_WORKFORCE_ROLE_VALUES as readonly string[]).includes(newRole)) {
+    return { error: "INVALID_ROLE" };
+  }
+
+  try {
+    await changeWorkforceMemberRole(targetUserId, newRole as OrdinaryWorkforceRole);
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "";
+    const code = mapWorkforceRoleChangeError(message);
+    if (code) return { error: code };
+    throw error;
+  }
+
+  revalidatePath("/admin/workforce");
+  return undefined;
 }

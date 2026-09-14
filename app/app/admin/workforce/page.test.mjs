@@ -97,10 +97,24 @@ mock.module("@/lib/session", {
 mock.module("@/components/workforce/workforce-lifecycle-actions", {
   namedExports: { WorkforceLifecycleActions: () => null },
 });
+// WORKFORCE ACCESS CONTROL UI — same stubbing technique, for the new
+// per-row role-change control (replaces the previous plain-text role
+// cell). Its props overlap WorkforceLifecycleActions's (userId/role/
+// status/currentUserId) but never include `email` — see lifecycleActionsEls
+// / roleSelectEls below, which disambiguate on that exact difference.
+mock.module("@/components/workforce/workforce-role-select", {
+  namedExports: { WorkforceRoleSelect: () => null },
+});
 
 const { default: WorkforcePage } = await import("./page.tsx");
 
-const lifecycleActionsEls = (el) => findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p);
+// WorkforceLifecycleActions carries `email`; WorkforceRoleSelect does not
+// (its overlapping userId/role/status/currentUserId/locale props are
+// otherwise identical in shape) — that is the sole disambiguator.
+const lifecycleActionsEls = (el) =>
+  findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && "email" in p);
+const roleSelectEls = (el) =>
+  findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && !("email" in p));
 
 function reset() {
   permissionCalls = [];
@@ -184,22 +198,19 @@ test("OWNER-UI-3A page: the component declares no parameters (nothing to read ro
   assert.equal(WorkforcePage.length, 0);
 });
 
-test("OWNER-UI-3A page: renders one row per member — email + localized role + localized status", async () => {
+test("OWNER-UI-3A page: renders one row per member — email + localized status; role is delegated to WorkforceRoleSelect", async () => {
   reset();
   workforceRows = [
     member({ email: "admin@example.com", role: "ADMIN", status: "ACTIVE" }),
     member({ email: "manager@example.com", role: "MANAGER", status: "SUSPENDED" }),
     member({ email: "employee@example.com", role: "EMPLOYEE", status: "OFFBOARDING" }),
   ];
-  const text = collectText(await WorkforcePage()).join(" | ");
+  const el = await WorkforcePage();
+  const text = collectText(el).join(" | ");
 
   assert.ok(text.includes("admin@example.com"), "ADMIN row email");
   assert.ok(text.includes("manager@example.com"), "MANAGER row email");
   assert.ok(text.includes("employee@example.com"), "EMPLOYEE row email");
-
-  assert.ok(text.includes(t.roleAdmin), "localized ADMIN role label");
-  assert.ok(text.includes(t.roleManager), "localized MANAGER role label");
-  assert.ok(text.includes(t.roleEmployee), "localized EMPLOYEE role label");
 
   assert.ok(text.includes(t.statusActive), "localized ACTIVE status label");
   assert.ok(text.includes(t.statusSuspended), "localized SUSPENDED status label");
@@ -208,8 +219,18 @@ test("OWNER-UI-3A page: renders one row per member — email + localized role + 
   assert.ok(text.includes(t.columnMember) && text.includes(t.columnRole) && text.includes(t.columnStatus), "column headers");
   assert.ok(text.includes(t.title) && text.includes(t.subtitle), "hero title + subtitle");
 
-  // Raw enum values must not leak past the localization map.
-  assert.ok(!text.split("|").some((seg) => /\bADMIN\b|\bMANAGER\b|\bEMPLOYEE\b|\bACTIVE\b|\bSUSPENDED\b|\bOFFBOARDING\b/.test(seg)), "no raw role/status enum rendered");
+  // Raw status enum values must not leak past the localization map (role
+  // values legitimately appear as WorkforceRoleSelect prop values, not as
+  // inline text, since that component is stubbed to null here).
+  assert.ok(!text.split("|").some((seg) => /\bACTIVE\b|\bSUSPENDED\b|\bOFFBOARDING\b/.test(seg)), "no raw status enum rendered");
+
+  // WORKFORCE ACCESS CONTROL UI — the role cell is WorkforceRoleSelect,
+  // one per row, receiving the member's real role/status verbatim.
+  const roleEls = roleSelectEls(el);
+  assert.equal(roleEls.length, 3, "one WorkforceRoleSelect per member row");
+  assert.ok(roleEls.some((e) => e.props.role === "ADMIN" && e.props.status === "ACTIVE"));
+  assert.ok(roleEls.some((e) => e.props.role === "MANAGER" && e.props.status === "SUSPENDED"));
+  assert.ok(roleEls.some((e) => e.props.role === "EMPLOYEE" && e.props.status === "OFFBOARDING"));
 });
 
 test("OWNER-UI-3A page: an empty list renders the dictionary-backed empty state, not a table", async () => {
@@ -375,4 +396,46 @@ test("R2DB-P8. Add Member dialog still rendered exactly once alongside the new l
   const el = await WorkforcePage();
   assert.equal(addMemberForms(el).length, 1, "OWNER-UI-4A Add Member behavior is unchanged");
   assert.equal(lifecycleActionsEls(el).length, 1);
+});
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL UI — per-row role-change control (replaces the
+ * previous plain-text role cell). Mirrors the R2D-B lifecycle-column tests
+ * above exactly; visibility rules (self/ADMIN/non-ACTIVE) are proven
+ * directly against the component in
+ * components/workforce/workforce-role-select.test.mjs.
+ * ------------------------------------------------------------------------ */
+
+test("R2C-P1. exactly one WorkforceRoleSelect per member row, receiving userId/role/status verbatim + locale + server currentUserId", async () => {
+  reset();
+  const rows = [
+    member({ userId: "u-aaa", email: "a@example.com", role: "MANAGER", status: "ACTIVE" }),
+    member({ userId: "u-bbb", email: "b@example.com", role: "EMPLOYEE", status: "SUSPENDED" }),
+  ];
+  workforceRows = rows;
+  const els = roleSelectEls(await WorkforcePage());
+  assert.equal(els.length, 2, "one WorkforceRoleSelect per member row");
+  for (const row of rows) {
+    const found = els.find((e) => e.props.userId === row.userId);
+    assert.ok(found, `a role-select element for ${row.userId}`);
+    assert.equal(found.props.role, row.role);
+    assert.equal(found.props.status, row.status);
+    assert.equal(found.props.currentUserId, PAGE_SELF_UUID, "currentUserId is the requireSession() userId");
+    assert.equal(found.props.locale, "fr", "locale forwarded");
+  }
+});
+
+test("R2C-P2. currentUserId comes from requireSession().userId — forged params/searchParams cannot influence it", async () => {
+  reset();
+  workforceRows = [member({ userId: "u-x", email: "x@example.com", role: "MANAGER", status: "ACTIVE" })];
+  const el = await WorkforcePage({ searchParams: { currentUserId: "attacker" }, params: { currentUserId: "attacker" } });
+  const [only] = roleSelectEls(el);
+  assert.equal(only.props.currentUserId, PAGE_SELF_UUID, "a caller value never becomes currentUserId");
+});
+
+test("R2C-P3. empty workforce -> no WorkforceRoleSelect elements", async () => {
+  reset();
+  workforceRows = [];
+  const el = await WorkforcePage();
+  assert.equal(roleSelectEls(el).length, 0);
 });

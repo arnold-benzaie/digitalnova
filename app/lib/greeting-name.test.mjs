@@ -39,11 +39,31 @@ test("retombe sur le nom complet si aucun prénom", () => {
   assert.equal(resolveGreetingName(session({ firstName: null, fullName: "Arnaud Dupont" })), "Arnaud Dupont");
 });
 
-test("retombe sur le nom de l'organisation si ni prénom ni nom complet", () => {
-  assert.equal(resolveGreetingName(session({ firstName: null, fullName: null, organizationName: "PUBLIC-MAP" })), "PUBLIC-MAP");
+test("WORKFORCE ACCESS CONTROL UI — une session WORKFORCE ignore toujours organizationName (nom du workspace partagé, jamais personnel) et retombe directement sur l'e-mail", () => {
+  assert.equal(
+    resolveGreetingName(session({ firstName: null, fullName: null, organizationName: "PUBLIC-MAP", email: "samira.k@example.com" })),
+    "samira.k",
+    "un membre Workforce sans prénom/nom ne doit jamais voir 'Bonjour PUBLIC-MAP' — c'est le bug corrigé ici",
+  );
 });
 
-test("retombe sur la partie locale de l'e-mail en dernier recours", () => {
+test("une session CLIENT retombe bien sur le nom de l'organisation (identifiant personnel réel du tenant) si ni prénom ni nom complet", () => {
+  const clientSession = {
+    context: "CLIENT",
+    userId: "u3",
+    clerkUserId: "clerk_3",
+    email: "fallback@example.com",
+    fullName: null,
+    firstName: null,
+    organizationId: "org1",
+    organizationName: "Ma Petite Entreprise",
+    role: "client",
+    previousLastLoginAt: null,
+  };
+  assert.equal(resolveGreetingName(clientSession), "Ma Petite Entreprise");
+});
+
+test("retombe sur la partie locale de l'e-mail en dernier recours (WORKFORCE)", () => {
   assert.equal(
     resolveGreetingName(session({ firstName: null, fullName: null, organizationName: "", email: "samira.k@example.com" })),
     "samira.k",

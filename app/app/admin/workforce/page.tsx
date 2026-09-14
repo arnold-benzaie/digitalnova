@@ -7,6 +7,7 @@ import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 import { AddWorkforceMemberForm } from "@/components/workforce/add-workforce-member-form";
 import { WorkforceLifecycleActions } from "@/components/workforce/workforce-lifecycle-actions";
+import { WorkforceRoleSelect } from "@/components/workforce/workforce-role-select";
 
 /**
  * PHASE OWNER-UI-3A / OWNER-UI-4A — the internal-staff workforce on the new
@@ -55,11 +56,6 @@ export default async function WorkforcePage() {
   const locale = await getLocale();
   const t = dictionaries[locale].workforce;
 
-  const roleLabel: Record<string, string> = {
-    ADMIN: t.roleAdmin,
-    MANAGER: t.roleManager,
-    EMPLOYEE: t.roleEmployee,
-  };
   const statusLabel: Record<string, string> = {
     ACTIVE: t.statusActive,
     SUSPENDED: t.statusSuspended,
@@ -92,7 +88,15 @@ export default async function WorkforcePage() {
                 {members.map((member) => (
                   <tr key={member.userId} className="border-t border-pm-gris-2">
                     <td className="px-3 py-2 text-pm-noir">{member.email}</td>
-                    <td className="px-3 py-2 text-pm-gris">{roleLabel[member.role] ?? member.role}</td>
+                    <td className="px-3 py-2 text-pm-gris">
+                      <WorkforceRoleSelect
+                        userId={member.userId}
+                        role={member.role}
+                        status={member.status}
+                        currentUserId={currentUserId}
+                        locale={locale}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <span
                         className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${

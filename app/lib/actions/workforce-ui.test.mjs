@@ -57,6 +57,12 @@ let addBehavior = async (userId, role) => ({ userId, email: "target@example.com"
 let lifecycleCalls = [];
 /** @type {(fn: string, userId: string) => Promise<unknown>} */
 let lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
+
+// WORKFORCE ACCESS CONTROL UI — changeWorkforceMemberRole() (R2C) as a
+// configurable spy, same technique as the R2D-A lifecycle functions above.
+let roleChangeCalls = [];
+/** @type {(userId: string, newRole: string) => Promise<unknown>} */
+let roleChangeBehavior = async (userId, newRole) => ({ userId, email: "target@example.com", role: newRole, status: "ACTIVE" });
 mock.module("@/lib/actions/workforce", {
   namedExports: {
     addWorkforceMember: async (...received) => {
@@ -74,6 +80,10 @@ mock.module("@/lib/actions/workforce", {
     offboardWorkforceMember: async (...received) => {
       lifecycleCalls.push({ fn: "offboard", args: received, userId: received[0] });
       return lifecycleBehavior("offboard", received[0]);
+    },
+    changeWorkforceMemberRole: async (...received) => {
+      roleChangeCalls.push({ args: received, userId: received[0], newRole: received[1] });
+      return roleChangeBehavior(received[0], received[1]);
     },
   },
 });
@@ -124,6 +134,7 @@ const {
   suspendWorkforceMemberAction,
   reactivateWorkforceMemberAction,
   offboardWorkforceMemberAction,
+  changeWorkforceMemberRoleAction,
 } = await import("./workforce-ui.ts");
 
 function reset() {
@@ -133,6 +144,8 @@ function reset() {
   addBehavior = async (userId, role) => ({ userId, email: "target@example.com", role, status: "ACTIVE" });
   lifecycleCalls = [];
   lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
+  roleChangeCalls = [];
+  roleChangeBehavior = async (userId, newRole) => ({ userId, email: "target@example.com", role: newRole, status: "ACTIVE" });
   internalOrgId = INTERNAL_ORG_ID;
   assignableRows = [];
   assignableQueryError = null;
@@ -504,4 +517,118 @@ test("R2DB-W10. source invariants: no Axis A/B imports; the @/lib/actions/workfo
     !/WorkforceMemberAction\([^)]*\b(workspace|organization|organizationId|actor|actorUserId|expectedStatus|intent)\b/.test(src),
     "no wrapper takes a workspace/org/actor/status/intent argument",
   );
+});
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL UI — changeWorkforceMemberRoleAction(). Mirrors
+ * the R2D-B lifecycle wrapper tests above; the only structural difference
+ * is the extra `newRole` argument.
+ * ------------------------------------------------------------------------ */
+
+const R2C_UUID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+const R2C_ERROR_MAP = [
+  ["target user id must be a valid UUID", "INVALID_TARGET"],
+  ["workforce role must be one of: MANAGER, EMPLOYEE", "INVALID_ROLE"],
+  ["workforce members cannot change their own role", "SELF_ROLE_CHANGE_NOT_ALLOWED"],
+  ["workforce member not found", "MEMBER_NOT_FOUND"],
+  ["target is the workspace owner and cannot be modified here", "OWNER_PROTECTED"],
+  ["changing an administrator's role requires owner privileges", "ADMIN_TIER_PROTECTED"],
+  ["workforce member is not active and cannot be modified", "MEMBER_NOT_ACTIVE"],
+  ["workforce member already has this role", "ROLE_UNCHANGED"],
+];
+
+test("R2C-W1. takes exactly two runtime parameters (targetUserId, newRole)", () => {
+  assert.equal(changeWorkforceMemberRoleAction.length, 2);
+});
+
+test("R2C-W2. requireStaffMember('WORKFORCE_MANAGE') is first — a denial rejects before any R2C call or revalidate", async () => {
+  reset();
+  permissionAllow = false;
+  await assert.rejects(() => changeWorkforceMemberRoleAction(R2C_UUID, "MANAGER"), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.deepEqual(roleChangeCalls, []);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("R2C-W3. malformed / empty / SQL-ish / email-shaped targetUserId -> INVALID_TARGET, no R2C call, no revalidate", async () => {
+  for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --", "person@example.com", undefined]) {
+    reset();
+    const result = await changeWorkforceMemberRoleAction(bad, "MANAGER");
+    assert.deepEqual(result, { error: "INVALID_TARGET" });
+    assert.deepEqual(roleChangeCalls, []);
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("R2C-W4. newRole outside MANAGER/EMPLOYEE (including ADMIN/OWNER) -> INVALID_ROLE before any R2C call, no revalidate", async () => {
+  for (const bad of ["ADMIN", "OWNER", "client", "", "manager", undefined]) {
+    reset();
+    const result = await changeWorkforceMemberRoleAction(R2C_UUID, bad);
+    assert.deepEqual(result, { error: "INVALID_ROLE" });
+    assert.deepEqual(roleChangeCalls, []);
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("R2C-W5. valid call invokes ONLY changeWorkforceMemberRole(id, newRole) once, then revalidates /admin/workforce, returns undefined", async () => {
+  reset();
+  const result = await changeWorkforceMemberRoleAction(R2C_UUID, "MANAGER");
+  assert.equal(result, undefined);
+  assert.equal(roleChangeCalls.length, 1);
+  assert.equal(roleChangeCalls[0].userId, R2C_UUID);
+  assert.equal(roleChangeCalls[0].newRole, "MANAGER");
+  assert.equal(roleChangeCalls[0].args.length, 2, "R2C is called with exactly (targetUserId, newRole) — no third arg");
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("R2C-W6. every R2C domain message maps to its stable code, with NO revalidate", async () => {
+  for (const [message, code] of R2C_ERROR_MAP) {
+    reset();
+    roleChangeBehavior = async () => {
+      throw new Error(message);
+    };
+    const result = await changeWorkforceMemberRoleAction(R2C_UUID, "EMPLOYEE");
+    assert.deepEqual(result, { error: code }, `"${message}" must map to ${code}`);
+    assert.deepEqual(revalidateCalls, [], "a mapped error must not revalidate");
+  }
+});
+
+test("R2C-W7. infra/config errors propagate untouched (route error boundary), never a code, never a revalidate", async () => {
+  for (const message of ["internal workspace is not configured", "staff role not seeded", "connection terminated unexpectedly"]) {
+    reset();
+    roleChangeBehavior = async () => {
+      throw new Error(message);
+    };
+    await assert.rejects(
+      () => changeWorkforceMemberRoleAction(R2C_UUID, "EMPLOYEE"),
+      new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("R2C-W8. a NEXT_REDIRECT thrown from inside R2C propagates — never mapped, never revalidated", async () => {
+  reset();
+  roleChangeBehavior = async () => {
+    const err = new Error("NEXT_REDIRECT");
+    err.digest = "NEXT_REDIRECT;replace;/admin;307;";
+    throw err;
+  };
+  await assert.rejects(() => changeWorkforceMemberRoleAction(R2C_UUID, "EMPLOYEE"), /NEXT_REDIRECT/);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("R2C-W9. source invariants: imports changeWorkforceMemberRole from @/lib/actions/workforce; no Axis A/B imports; wrapper signature carries no workspace/org/actor/status/intent", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce-ui.ts", import.meta.url)), "utf8");
+  const importLines = src.split("\n").filter((l) => /^\s*import\s/.test(l));
+  for (const needle of ["@/lib/audit", "@/lib/dev-role", "@/lib/actions/users", "auditDb", "memberships"]) {
+    assert.ok(!importLines.some((l) => l.includes(needle)), `workforce-ui.ts must not import ${needle}`);
+  }
+  const workforceImport = src.match(/import\s*\{([\s\S]*?)\}\s*from\s*"@\/lib\/actions\/workforce"/);
+  assert.ok(workforceImport, "workforce-ui.ts must import from @/lib/actions/workforce");
+  assert.ok(workforceImport[1].includes("changeWorkforceMemberRole"), "the import must include changeWorkforceMemberRole");
+  const sig = src.match(/export async function changeWorkforceMemberRoleAction\(([^)]*)\)/);
+  assert.ok(sig, "changeWorkforceMemberRoleAction must be exported");
+  assert.match(sig[1].trim(), /^targetUserId: string, newRole: string$/, "signature is exactly (targetUserId: string, newRole: string)");
 });
