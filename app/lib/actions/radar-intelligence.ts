@@ -4,7 +4,7 @@
  * RADAR INTELLIGENCE V1 — Slice 5 — the opt-in AI advisory server action.
  *
  * The ONLY thing the UI calls. It is:
- *  - server-authoritative: requireStaffMember("RADAR_QUEUE_VIEW") is the
+ *  - server-authoritative: requireRadarAccess("RADAR_QUEUE_VIEW") is the
  *    FIRST statement (the exact capability the RADAR queue read already
  *    needs — OWNER / ADMIN / MANAGER / EMPLOYEE; no new permission).
  *  - opt-in only: runs solely on an explicit user click. Nothing calls it
@@ -39,7 +39,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, interactions, tasks } from "@/db/schema";
-import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { evaluateStaffPermission, requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
 import { getProspectQualification } from "@/lib/actions/radar";
@@ -146,7 +146,7 @@ export async function requestRadarIntelligenceAdvisory(
   // constrained by OWNER policy inside the resolver, never by a new/
   // different permission here — every role that could request an
   // advisory before Phase D still can, identically.
-  await requireStaffMember("RADAR_QUEUE_VIEW");
+  await requireRadarAccess("RADAR_QUEUE_VIEW");
   const { userId } = await requireSession();
 
   // RADAR INTELLIGENCE V2.1 Phase D — narrow the raw client value to a
@@ -266,7 +266,7 @@ export async function requestRadarIntelligenceAdvisory(
  * `allowUserSelection` flag.
  */
 export async function getRadarAiProviderSelectionOptions(): Promise<{ selectableProviders: PolicyConfigurableProviderId[] }> {
-  await requireStaffMember("RADAR_QUEUE_VIEW");
+  await requireRadarAccess("RADAR_QUEUE_VIEW");
 
   const ownerPolicy = await loadProviderPolicy();
   if (!ownerPolicy.allowUserSelection) {

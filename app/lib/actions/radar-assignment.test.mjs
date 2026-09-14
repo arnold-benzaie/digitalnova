@@ -36,9 +36,14 @@ let permissionCalls = [];
 let denyPerms = new Set(); // permission -> deny (NEXT_REDIRECT)
 let evaluateAssignOk = true; // evaluateStaffPermission result for the foreign-unassign escalation
 
+// WORKFORCE ACCESS CONTROL — radar-assignment.ts now calls
+// requireRadarAccess()/evaluateRadarAccess() (RADAR-permission-aware) for
+// every RADAR_WORK/RADAR_ASSIGN check, not requireStaffMember()/
+// evaluateStaffPermission() — same contracts/signatures, only the names
+// changed at the real call sites.
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
-    requireStaffMember: async (permission) => {
+    requireRadarAccess: async (permission) => {
       permissionCalls.push(permission);
       if (denyPerms.has(permission)) {
         const err = new Error("NEXT_REDIRECT");
@@ -47,7 +52,7 @@ mock.module("@/lib/rbac/require-staff-member", {
       }
       return "ADMIN";
     },
-    evaluateStaffPermission: async ({ userId, permission }) => {
+    evaluateRadarAccess: async ({ userId, permission }) => {
       evaluateCalls.push({ userId, permission });
       return evaluateAssignOk ? { ok: true, role: "MANAGER" } : { ok: false, reason: "permission-denied" };
     },
@@ -516,7 +521,7 @@ test("R1B-6. stable ordering — fullName first (alphabetical), rows with no ful
 test("R1B-7. source invariants: RADAR_ASSIGN gate before any db.select, ACTIVE + ELIGIBLE_ASSIGNEE_ROLES filter, server-resolved workspace, no caller args, no role/status leaked", () => {
   const src = readFileSync(fileURLToPath(new URL("./radar-assignment.ts", import.meta.url)), "utf8");
   const body = src.slice(src.indexOf("export async function listAssignableRadarMembers"));
-  const gateIdx = body.indexOf('requireStaffMember("RADAR_ASSIGN")');
+  const gateIdx = body.indexOf('requireRadarAccess("RADAR_ASSIGN")');
   const orgIdx = body.indexOf("getInternalOrganizationId(");
   const selectIdx = body.indexOf(".select(");
   assert.ok(gateIdx >= 0, "RADAR_ASSIGN gate present");
@@ -542,12 +547,12 @@ test("R1A-24. source invariants: Axis-C only, no legacy axis, no ownerName autho
     assert.ok(!importLines.some((l) => l.includes(forbidden)), `radar-assignment.ts must not import/use ${forbidden}`);
   }
   // Axis-C gates present
-  assert.ok(src.includes('requireStaffMember("RADAR_WORK")'), "claim/unassign gate");
-  assert.ok(src.includes('requireStaffMember("RADAR_ASSIGN")'), "assign gate");
+  assert.ok(src.includes('requireRadarAccess("RADAR_WORK")'), "claim/unassign gate");
+  assert.ok(src.includes('requireRadarAccess("RADAR_ASSIGN")'), "assign gate");
   // gate BEFORE any getInternalOrganizationId / db read in each wrapper
   for (const fn of ["claimProspect", "assignProspect", "unassignProspect"]) {
     const body = src.slice(src.indexOf(`export async function ${fn}`), src.indexOf(`export async function ${fn}`) + 600);
-    const gateIdx = body.search(/await requireStaffMember\(/);
+    const gateIdx = body.search(/await requireRadarAccess\(/);
     const uuidIdx = body.search(/isValidUuid\(/);
     const sessionIdx = body.search(/await requireSession\(\)/);
     assert.ok(gateIdx >= 0 && gateIdx < uuidIdx, `${fn}: permission gate before UUID validation`);

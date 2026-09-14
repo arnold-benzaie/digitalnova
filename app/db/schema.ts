@@ -1903,6 +1903,19 @@ export const staffMembers = pgTable(
       .notNull()
       .references(() => staffRoles.id, { onDelete: "restrict" }),
     status: text("status").notNull().default("ACTIVE"), // "ACTIVE" | "SUSPENDED" | "OFFBOARDING"
+    // WORKFORCE ACCESS CONTROL — RADAR_ACCESS. Individual override, layered
+    // ON TOP of the existing role-derived RADAR_WORK/RADAR_QUEUE_VIEW/
+    // RADAR_ASSIGN permissions (lib/rbac/permissions.ts) — never a
+    // replacement for them, never a new role, never a new ROLE_PERMISSIONS
+    // entry. A staff member's effective RADAR access is
+    // `hasPermission(role, "RADAR_WORK") AND radarAccess === true` — see
+    // lib/rbac/require-staff-member.ts::evaluateRadarAccess(). DEFAULT
+    // true so every existing row (every current staff member already has
+    // role-derived RADAR access today) keeps that access unchanged the
+    // moment this column is added — this is an opt-out control, not
+    // opt-in: OWNER/ADMIN explicitly turn it OFF for a specific person,
+    // never explicitly ON by default.
+    radarAccess: boolean("radar_access").notNull().default(true),
     invitedByUserId: uuid("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -177,6 +177,7 @@ async function demoteAdminCore(targetUserId: string, newRole: AdminDemotionRole,
       currentRoleName: staffRoles.name,
       status: staffMembers.status,
       email: users.email,
+      radarAccess: staffMembers.radarAccess,
     })
     .from(staffMembers)
     .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
@@ -200,7 +201,7 @@ async function demoteAdminCore(targetUserId: string, newRole: AdminDemotionRole,
     newRole,
   });
 
-  return { userId: targetUserId, email: member.email, role: newRole, status: status as StaffMemberStatus };
+  return { userId: targetUserId, email: member.email, role: newRole, status: status as StaffMemberStatus, radarAccess: member.radarAccess };
 }
 
 /**
@@ -341,6 +342,7 @@ async function changeAdminStatusCore(
       currentRoleName: staffRoles.name,
       currentStatus: staffMembers.status,
       email: users.email,
+      radarAccess: staffMembers.radarAccess,
     })
     .from(staffMembers)
     .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
@@ -368,7 +370,7 @@ async function changeAdminStatusCore(
     acceptedSourceStatuses,
   });
 
-  return { userId: targetUserId, email: member.email, role: roleName as WorkforceMember["role"], status: status as StaffMemberStatus };
+  return { userId: targetUserId, email: member.email, role: roleName as WorkforceMember["role"], status: status as StaffMemberStatus, radarAccess: member.radarAccess };
 }
 
 /**

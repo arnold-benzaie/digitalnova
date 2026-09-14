@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, crmInvoices, crmQuotes, deals, interactions } from "@/db/schema";
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { assessQualification, type Eligibility, type QualificationStatus } from "@/lib/radar/qualification";
 import { assessOpportunity, type OpportunityResult } from "@/lib/radar/score";
 
@@ -30,7 +30,7 @@ export type ProspectQualificationResult = {
  * interactions, crmQuotes, crmInvoices) — never organization-scoped
  * client-portal data.
  *
- * RADAR AXIS-C CLEANUP — gated by requireStaffMember("RADAR_WORK") (Axis-C:
+ * RADAR AXIS-C CLEANUP — gated by requireRadarAccess("RADAR_WORK") (Axis-C:
  * OWNER/ADMIN/MANAGER/EMPLOYEE via a real ACTIVE staff_members row),
  * replacing the legacy Axis-A requireStaffRole() this function used before
  * RADAR GATE UNIFICATION migrated radar-queue.ts / radar-assignment.ts —
@@ -46,7 +46,7 @@ export type ProspectQualificationResult = {
  * relying solely on an outer caller.
  */
 export async function getProspectQualification(clientId: string): Promise<ProspectQualificationResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
 
   const [client] = await db
     .select({

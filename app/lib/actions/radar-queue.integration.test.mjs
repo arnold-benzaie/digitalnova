@@ -51,7 +51,7 @@ mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 // RADAR GATE UNIFICATION — getRadarQueue()'s gate is now
-// requireStaffMember("RADAR_QUEUE_VIEW") (Axis-C), which resolves access
+// requireRadarAccess("RADAR_QUEUE_VIEW") (Axis-C), which resolves access
 // exclusively from a REAL staff_members row keyed by session.userId — it
 // never reads session.role (the legacy Axis-A field) or session.email.
 // Every mocked session below is therefore anchored to a REAL `users.id`
@@ -305,7 +305,7 @@ const ASSIGNMENT_SOURCE = readFileSync(fileURLToPath(new URL("./radar-assignment
 
 // =========================================================
 // RADAR GATE UNIFICATION — Authorization is Axis-C ONLY.
-// Runtime proof against the real requireStaffMember("RADAR_QUEUE_VIEW")
+// Runtime proof against the real requireRadarAccess("RADAR_QUEUE_VIEW")
 // gate, not textual checks. Every "should succeed" fixture carries a
 // real, ACTIVE staff_members row; every "should be denied" fixture
 // carries either no staff_members row at all, or a SUSPENDED one — the
@@ -397,7 +397,7 @@ test("a denied call never returns a partial or fabricated result -- the promise 
 });
 
 test("structural: the gate call site takes exactly one permission argument -- no role/userId/permission/workspace/organization/email accepted from a caller", () => {
-  assert.match(IMPLEMENTATION_SOURCE, /await requireStaffMember\("RADAR_QUEUE_VIEW"\);/);
+  assert.match(IMPLEMENTATION_SOURCE, /await requireRadarAccess\("RADAR_QUEUE_VIEW"\);/);
   // Property-access/import checks, not a bare substring match -- this
   // file's own docstring legitimately names "requireStaffRole()" in prose
   // explaining that it is NO LONGER used, which a naive substring test
@@ -411,13 +411,19 @@ test("structural: getRadarQueue() itself never reads session.email or any caller
   // it takes no parameters. The only other appearance of "email" in this
   // file is resolveAssignees()'s display-name fallback, unrelated to
   // authorization; confirmed structurally distinct from the gate line.
-  const gateLine = IMPLEMENTATION_SOURCE.match(/^.*requireStaffMember\("RADAR_QUEUE_VIEW"\);.*$/m)?.[0] ?? "";
+  const gateLine = IMPLEMENTATION_SOURCE.match(/^.*requireRadarAccess\("RADAR_QUEUE_VIEW"\);.*$/m)?.[0] ?? "";
   assert.equal(/email|role|permission|workspace|organization/i.test(gateLine), false);
 });
 
-test("mutations in radar-assignment.ts remain unchanged: still gated by requireStaffMember(\"RADAR_WORK\"/\"RADAR_ASSIGN\"), never touched by this migration", () => {
-  assert.match(ASSIGNMENT_SOURCE, /requireStaffMember\("RADAR_WORK"\)/);
-  assert.match(ASSIGNMENT_SOURCE, /requireStaffMember\("RADAR_ASSIGN"\)/);
+// WORKFORCE ACCESS CONTROL: radar-assignment.ts IS deliberately touched by
+// that later migration (requireStaffMember/evaluateStaffPermission ->
+// requireRadarAccess/evaluateRadarAccess, same permissions, same
+// signatures) -- this test now checks the CURRENT gate names, preserving
+// its real invariant: both RADAR_WORK and RADAR_ASSIGN gates still exist,
+// still correctly named, still no Axis-A fallback.
+test('mutations in radar-assignment.ts still gated by requireRadarAccess("RADAR_WORK"/"RADAR_ASSIGN")', () => {
+  assert.match(ASSIGNMENT_SOURCE, /requireRadarAccess\("RADAR_WORK"\)/);
+  assert.match(ASSIGNMENT_SOURCE, /requireRadarAccess\("RADAR_ASSIGN"\)/);
   assert.equal(ASSIGNMENT_SOURCE.includes("requireStaffRole"), false, "radar-assignment.ts was already Axis-C-only and stays that way");
 });
 

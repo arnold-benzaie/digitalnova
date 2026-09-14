@@ -1,7 +1,7 @@
 // lib/actions/employee-work.integration.test.mjs — disposable-Postgres proof
 // of PHASE EMPLOYEE-OPS Slice 1: getMyWork() in lib/actions/employee-work.ts.
 //
-// Proves the read model is (a) gated by requireStaffMember("RADAR_WORK"),
+// Proves the read model is (a) gated by requireRadarAccess("RADAR_WORK"),
 // (b) scoped ENTIRELY to the authenticated session user — one employee
 // never sees another's assigned prospects / follow-ups / tasks /
 // interactions — (c) takes no parameter through which a user/workspace

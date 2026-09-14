@@ -6,12 +6,12 @@
  * `crm_clients.assigned_user_id` FK:
  *
  *   - claimProspect(clientId)                — assign an UNASSIGNED prospect
- *     to the calling staff member. Gate: requireStaffMember("RADAR_WORK").
+ *     to the calling staff member. Gate: requireRadarAccess("RADAR_WORK").
  *   - assignProspect(clientId, assigneeUserId) — assign / reassign to a
  *     named eligible member (SET-TO-ASSIGNEE). Gate:
- *     requireStaffMember("RADAR_ASSIGN").
+ *     requireRadarAccess("RADAR_ASSIGN").
  *   - unassignProspect(clientId)             — clear the assignment. Gate:
- *     requireStaffMember("RADAR_WORK") to enter; a FOREIGN assignment (one
+ *     requireRadarAccess("RADAR_WORK") to enter; a FOREIGN assignment (one
  *     currently held by someone other than the caller) additionally
  *     requires RADAR_ASSIGN, checked non-redirecting under the row lock.
  *
@@ -39,7 +39,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, staffMembers, staffRoles, users } from "@/db/schema";
-import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { evaluateRadarAccess, requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { isValidUuid } from "@/lib/api-v1/dto";
@@ -150,8 +150,8 @@ async function runAssignmentMutation(
       if (currentAssignee !== actorUserId) {
         // Foreign assignment — the RADAR_WORK gate the wrapper already
         // passed is not enough; escalate NON-redirecting (we are already
-        // inside the transaction, past the wrapper's requireStaffMember).
-        const canAssign = await evaluateStaffPermission({ userId: actorUserId, permission: "RADAR_ASSIGN" });
+        // inside the transaction, past the wrapper's requireRadarAccess).
+        const canAssign = await evaluateRadarAccess({ userId: actorUserId, permission: "RADAR_ASSIGN" });
         if (!canAssign.ok) {
           return { error: "NOT_ALLOWED_TO_ASSIGN" };
         }
@@ -202,14 +202,14 @@ async function runAssignmentMutation(
 
 /**
  * Claim an UNASSIGNED prospect for the calling staff member. First op:
- * requireStaffMember("RADAR_WORK") — granted to OWNER/ADMIN/MANAGER/EMPLOYEE.
+ * requireRadarAccess("RADAR_WORK") — granted to OWNER/ADMIN/MANAGER/EMPLOYEE.
  * The caller must themselves be an eligible assignee, so an OWNER claiming
  * to self returns ASSIGNEE_NOT_ELIGIBLE (OWNER is never an assignee). A
  * prospect that is already assigned returns ALREADY_ASSIGNED — under
  * concurrent claims exactly one wins (SELECT ... FOR UPDATE serialisation).
  */
 export async function claimProspect(clientId: string): Promise<RadarAssignmentResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
 
   if (typeof clientId !== "string" || !isValidUuid(clientId)) {
     return { error: "INVALID_CLIENT" };
@@ -221,14 +221,14 @@ export async function claimProspect(clientId: string): Promise<RadarAssignmentRe
 
 /**
  * Assign or reassign a prospect to a named eligible staff member. First op:
- * requireStaffMember("RADAR_ASSIGN") — granted to OWNER/ADMIN/MANAGER only;
+ * requireRadarAccess("RADAR_ASSIGN") — granted to OWNER/ADMIN/MANAGER only;
  * a forged EMPLOYEE invocation is redirected here. SET-TO-ASSIGNEE: no
  * caller-supplied expected-current-assignee; assigning to the member
  * already assigned returns ASSIGNMENT_UNCHANGED. null -> B audits
  * crm.client_assigned; A -> B audits crm.client_reassigned.
  */
 export async function assignProspect(clientId: string, assigneeUserId: string): Promise<RadarAssignmentResult> {
-  await requireStaffMember("RADAR_ASSIGN");
+  await requireRadarAccess("RADAR_ASSIGN");
 
   if (typeof clientId !== "string" || !isValidUuid(clientId)) {
     return { error: "INVALID_CLIENT" };
@@ -242,7 +242,7 @@ export async function assignProspect(clientId: string, assigneeUserId: string): 
 }
 
 /**
- * Clear a prospect's assignment. First op: requireStaffMember("RADAR_WORK")
+ * Clear a prospect's assignment. First op: requireRadarAccess("RADAR_WORK")
  * — a caller with neither RADAR_WORK nor RADAR_ASSIGN is redirected here,
  * before any DB read. Releasing one's OWN assignment needs only RADAR_WORK;
  * unassigning a prospect held by SOMEONE ELSE additionally requires
@@ -251,7 +251,7 @@ export async function assignProspect(clientId: string, assigneeUserId: string): 
  * ASSIGNMENT_UNCHANGED. Audits crm.client_unassigned.
  */
 export async function unassignProspect(clientId: string): Promise<RadarAssignmentResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
 
   if (typeof clientId !== "string" || !isValidUuid(clientId)) {
     return { error: "INVALID_CLIENT" };
@@ -268,7 +268,7 @@ export async function unassignProspect(clientId: string): Promise<RadarAssignmen
  * prospect may be assigned to (isEligibleAssignee re-validates the one
  * chosen id under the row lock inside runAssignmentMutation).
  *
- * Gate: requireStaffMember("RADAR_ASSIGN") — the exact permission
+ * Gate: requireRadarAccess("RADAR_ASSIGN") — the exact permission
  * assignProspect() requires, so MANAGER (who holds it) can populate the
  * picker while EMPLOYEE (who does not) is redirected out before any DB
  * read. The internal workspace is resolved server-side; no caller supplies
@@ -280,7 +280,7 @@ export async function unassignProspect(clientId: string): Promise<RadarAssignmen
  * exposed to the client.
  */
 export async function listAssignableRadarMembers(): Promise<Array<{ userId: string; displayName: string }>> {
-  await requireStaffMember("RADAR_ASSIGN");
+  await requireRadarAccess("RADAR_ASSIGN");
 
   const internalOrgId = await getInternalOrganizationId();
   if (!internalOrgId) {

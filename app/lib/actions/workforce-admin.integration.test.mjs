@@ -200,7 +200,7 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
       const t = await freshAdmin("demote-mgr");
       const smId = await smIdOf(t);
       const res = await demoteAdmin(t, "MANAGER");
-      assert.deepEqual(res, { userId: t, email: (await pool.query("select email from users where id=$1", [t])).rows[0].email, role: "MANAGER", status: "ACTIVE" });
+      assert.deepEqual(res, { userId: t, email: (await pool.query("select email from users where id=$1", [t])).rows[0].email, role: "MANAGER", status: "ACTIVE", radarAccess: true });
       assert.equal(await roleIdOf(t), roleId.MANAGER);
       const rows = await auditRows("owner.admin_demoted", smId);
       assert.equal(rows.length, 1, "exactly one owner.admin_demoted audit");
@@ -219,7 +219,7 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
       const t = await freshAdmin("suspend");
       const smId = await smIdOf(t);
       const res = await suspendAdmin(t);
-      assert.deepEqual(res, { userId: t, email: (await pool.query("select email from users where id=$1", [t])).rows[0].email, role: "ADMIN", status: "SUSPENDED" });
+      assert.deepEqual(res, { userId: t, email: (await pool.query("select email from users where id=$1", [t])).rows[0].email, role: "ADMIN", status: "SUSPENDED", radarAccess: true });
       assert.equal(await statusOf(t), "SUSPENDED");
       assert.deepEqual((await auditRows("owner.admin_suspended", smId))[0].metadata, { targetUserId: t, previousStatus: "ACTIVE", newStatus: "SUSPENDED" });
     }
@@ -367,6 +367,7 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
         email: (await pool.query("select email from users where id=$1", [brandNew])).rows[0].email,
         role: "ADMIN",
         status: "ACTIVE",
+        radarAccess: true,
       });
       assert.equal(await roleIdOf(brandNew), roleId.ADMIN, "ADMIN may still create another ADMIN (unchanged policy)");
     }

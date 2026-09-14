@@ -233,7 +233,7 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
     // 1. authorized ADMIN caller creates the expected normal membership.
     asUser(adminUserId);
     const added = await addWorkforceMember(freshTargetId, "EMPLOYEE");
-    assert.deepEqual(added, { userId: freshTargetId, email: "fresh-target@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+    assert.deepEqual(added, { userId: freshTargetId, email: "fresh-target@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: true });
 
     // It lands only in the internal workspace (never the non-internal one
     // seeded above), with the correct role and inviter recorded.
@@ -378,7 +378,7 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
     ).rows[0];
     await new Promise((r) => setTimeout(r, 5)); // ensure updated_at can strictly advance
     const mgrResult = await changeWorkforceMemberRole(r2cManagerId, "EMPLOYEE");
-    assert.deepEqual(mgrResult, { userId: r2cManagerId, email: "r2c-manager@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+    assert.deepEqual(mgrResult, { userId: r2cManagerId, email: "r2c-manager@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: true });
     const afterMgr = (
       await pool.query(
         "select role_id, workspace_org_id, user_id, status, invited_by_user_id, updated_at from staff_members where user_id = $1",
@@ -602,7 +602,7 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
     ).rows[0];
     await new Promise((r) => setTimeout(r, 5));
     const suspResult = await suspendWorkforceMember(r2dActiveMgrId);
-    assert.deepEqual(suspResult, { userId: r2dActiveMgrId, email: "r2d-active-mgr@example.com", role: "MANAGER", status: "SUSPENDED" });
+    assert.deepEqual(suspResult, { userId: r2dActiveMgrId, email: "r2d-active-mgr@example.com", role: "MANAGER", status: "SUSPENDED", radarAccess: true });
     const afterSusp = (
       await pool.query(
         "select role_id, workspace_org_id, user_id, invited_by_user_id, status, updated_at from staff_members where user_id = $1",

@@ -7,7 +7,7 @@
 //
 // Same mocking convention as radar-assignment.integration.test.mjs:
 // @/lib/session's requireSession() is faked with a mutable session
-// state, and the REAL requireStaffMember("RADAR_WORK") (Axis-C, never
+// state, and the REAL requireRadarAccess("RADAR_WORK") (Axis-C, never
 // mocked) runs against real seeded users / staff_members rows in the
 // local internal workspace (RADAR-CORE-2A-A).
 //
@@ -31,7 +31,7 @@ mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 // RADAR-CORE-2A-A — createInteraction()'s human gate is now
-// requireStaffMember("RADAR_WORK") (Axis-C) + requireSession() for the
+// requireRadarAccess("RADAR_WORK") (Axis-C) + requireSession() for the
 // authoritative author id. So the "staff" identity here must be a REAL
 // users.id with a real ACTIVE staff_members row in the internal
 // workspace; a plain string userId would fail the uuid FK / the
@@ -589,7 +589,7 @@ test("2A: structural — createInteraction never reads a caller createdBy/create
   const { readFileSync } = await import("node:fs");
   const { fileURLToPath } = await import("node:url");
   const src = readFileSync(fileURLToPath(new URL("./crm-interactions.ts", import.meta.url)), "utf8");
-  assert.ok(src.includes('requireStaffMember("RADAR_WORK")'), "human gate is Axis-C RADAR_WORK");
+  assert.ok(src.includes('requireRadarAccess("RADAR_WORK")'), "human gate is Axis-C RADAR_WORK");
   assert.ok(src.includes("await requireSession()"), "actor id comes from the session");
   assert.ok(src.includes("createdByUserId: actorUserId"), "structured author is the session user id");
   assert.ok(!/formData\.get\(["']createdBy["']\)/.test(src), "never reads a caller createdBy");

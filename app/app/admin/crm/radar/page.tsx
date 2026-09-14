@@ -7,7 +7,7 @@ import { RadarAssignmentControls } from "@/components/crm/radar-assignment-contr
 import { RadarFollowUpQuickActions } from "@/components/crm/radar-follow-up-quick-actions";
 import { AdminPageHero, panelClass, tableWrapperClass } from "@/components/admin/page-hero";
 import { requireSession } from "@/lib/session";
-import { getRadarCapabilities, requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { getRadarCapabilities, requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
@@ -82,11 +82,11 @@ type Params = { priority?: string; assignee?: string; followup?: string; page?: 
 
 export default async function CrmRadarPage({ searchParams }: { searchParams: Promise<Params> }) {
   // RADAR GATE UNIFICATION — Axis-C is the sole authority for RADAR read
-  // access (OWNER/ADMIN/MANAGER/EMPLOYEE via requireStaffMember). The
+  // access (OWNER/ADMIN/MANAGER/EMPLOYEE via requireRadarAccess). The
   // legacy Axis-A requireStaffRole() no longer decides this page's access;
   // getRadarQueue() (lib/actions/radar-queue.ts) independently re-checks
   // the exact same permission as its own first statement.
-  await requireStaffMember("RADAR_QUEUE_VIEW");
+  await requireRadarAccess("RADAR_QUEUE_VIEW");
   const [params, locale, { userId: currentUserId }, caps] = await Promise.all([
     searchParams,
     getLocale(),
@@ -131,7 +131,7 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
   const confidenceLabel: Record<Confidence, string> = { HIGH: t.confidenceHigh, MEDIUM: t.confidenceMedium, LOW: t.confidenceLow };
 
   // The Owner/Responsable column is part of the queue READ model: it is
-  // shown to every viewer the page's requireStaffMember("RADAR_QUEUE_VIEW")
+  // shown to every viewer the page's requireRadarAccess("RADAR_QUEUE_VIEW")
   // gate admits. Axis-C `caps` govern only the interactive affordances
   // INSIDE RadarAssignmentControls (Claim / assignee select / Release) —
   // never whether the assignment data is visible.

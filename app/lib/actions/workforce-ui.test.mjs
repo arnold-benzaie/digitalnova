@@ -63,6 +63,12 @@ let lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.
 let roleChangeCalls = [];
 /** @type {(userId: string, newRole: string) => Promise<unknown>} */
 let roleChangeBehavior = async (userId, newRole) => ({ userId, email: "target@example.com", role: newRole, status: "ACTIVE" });
+
+// WORKFORCE ACCESS CONTROL UI — setWorkforceMemberRadarAccess() as a
+// configurable spy, same technique.
+let radarAccessCalls = [];
+/** @type {(userId: string, enabled: boolean) => Promise<unknown>} */
+let radarAccessBehavior = async (userId, enabled) => ({ userId, email: "target@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: enabled });
 mock.module("@/lib/actions/workforce", {
   namedExports: {
     addWorkforceMember: async (...received) => {
@@ -84,6 +90,10 @@ mock.module("@/lib/actions/workforce", {
     changeWorkforceMemberRole: async (...received) => {
       roleChangeCalls.push({ args: received, userId: received[0], newRole: received[1] });
       return roleChangeBehavior(received[0], received[1]);
+    },
+    setWorkforceMemberRadarAccess: async (...received) => {
+      radarAccessCalls.push({ args: received, userId: received[0], enabled: received[1] });
+      return radarAccessBehavior(received[0], received[1]);
     },
   },
 });
@@ -135,6 +145,7 @@ const {
   reactivateWorkforceMemberAction,
   offboardWorkforceMemberAction,
   changeWorkforceMemberRoleAction,
+  setWorkforceMemberRadarAccessAction,
 } = await import("./workforce-ui.ts");
 
 function reset() {
@@ -146,6 +157,8 @@ function reset() {
   lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
   roleChangeCalls = [];
   roleChangeBehavior = async (userId, newRole) => ({ userId, email: "target@example.com", role: newRole, status: "ACTIVE" });
+  radarAccessCalls = [];
+  radarAccessBehavior = async (userId, enabled) => ({ userId, email: "target@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: enabled });
   internalOrgId = INTERNAL_ORG_ID;
   assignableRows = [];
   assignableQueryError = null;
@@ -631,4 +644,125 @@ test("R2C-W9. source invariants: imports changeWorkforceMemberRole from @/lib/ac
   const sig = src.match(/export async function changeWorkforceMemberRoleAction\(([^)]*)\)/);
   assert.ok(sig, "changeWorkforceMemberRoleAction must be exported");
   assert.match(sig[1].trim(), /^targetUserId: string, newRole: string$/, "signature is exactly (targetUserId: string, newRole: string)");
+});
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL UI — setWorkforceMemberRadarAccessAction().
+ * Mirrors the R2C-W changeWorkforceMemberRoleAction() tests above; the
+ * structural difference is the boolean `enabled` argument instead of a
+ * role string.
+ * ------------------------------------------------------------------------ */
+
+const RAC_UUID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+const RAC_ERROR_MAP = [
+  ["target user id must be a valid UUID", "INVALID_TARGET"],
+  ["radar access value must be a boolean", "INVALID_VALUE"],
+  ["workforce members cannot change their own radar access", "SELF_RADAR_ACCESS_NOT_ALLOWED"],
+  ["workforce member not found", "MEMBER_NOT_FOUND"],
+  ["target is the workspace owner and cannot be modified here", "OWNER_PROTECTED"],
+  ["changing an administrator's radar access requires owner privileges", "ADMIN_TIER_PROTECTED"],
+  ["workforce member is not active and cannot be modified", "MEMBER_NOT_ACTIVE"],
+  ["workforce member already has this radar access value", "RADAR_ACCESS_UNCHANGED"],
+];
+
+test("RAW-1. takes exactly two runtime parameters (targetUserId, enabled)", () => {
+  assert.equal(setWorkforceMemberRadarAccessAction.length, 2);
+});
+
+test("RAW-2. requireStaffMember('WORKFORCE_MANAGE') is first — a denial rejects before any action call or revalidate", async () => {
+  reset();
+  permissionAllow = false;
+  await assert.rejects(() => setWorkforceMemberRadarAccessAction(RAC_UUID, true), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.deepEqual(radarAccessCalls, []);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("RAW-3. malformed / empty / SQL-ish / email-shaped targetUserId -> INVALID_TARGET, no action call, no revalidate", async () => {
+  for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --", "person@example.com", undefined]) {
+    reset();
+    const result = await setWorkforceMemberRadarAccessAction(bad, true);
+    assert.deepEqual(result, { error: "INVALID_TARGET" });
+    assert.deepEqual(radarAccessCalls, []);
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("RAW-4. non-boolean enabled -> INVALID_VALUE before any action call, no revalidate", async () => {
+  for (const bad of ["true", 1, 0, null, undefined, "false", {}]) {
+    reset();
+    const result = await setWorkforceMemberRadarAccessAction(RAC_UUID, bad);
+    assert.deepEqual(result, { error: "INVALID_VALUE" });
+    assert.deepEqual(radarAccessCalls, []);
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("RAW-5. valid call invokes ONLY setWorkforceMemberRadarAccess(id, enabled) once, then revalidates /admin/workforce, returns undefined", async () => {
+  reset();
+  const result = await setWorkforceMemberRadarAccessAction(RAC_UUID, false);
+  assert.equal(result, undefined);
+  assert.equal(radarAccessCalls.length, 1);
+  assert.equal(radarAccessCalls[0].userId, RAC_UUID);
+  assert.equal(radarAccessCalls[0].enabled, false);
+  assert.equal(radarAccessCalls[0].args.length, 2, "the action is called with exactly (targetUserId, enabled) — no third arg");
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("RAW-6. enabled: true is forwarded verbatim", async () => {
+  reset();
+  await setWorkforceMemberRadarAccessAction(RAC_UUID, true);
+  assert.equal(radarAccessCalls[0].enabled, true);
+});
+
+test("RAW-7. every domain message maps to its stable code, with NO revalidate", async () => {
+  for (const [message, code] of RAC_ERROR_MAP) {
+    reset();
+    radarAccessBehavior = async () => {
+      throw new Error(message);
+    };
+    const result = await setWorkforceMemberRadarAccessAction(RAC_UUID, true);
+    assert.deepEqual(result, { error: code }, `"${message}" must map to ${code}`);
+    assert.deepEqual(revalidateCalls, [], "a mapped error must not revalidate");
+  }
+});
+
+test("RAW-8. infra/config errors propagate untouched (route error boundary), never a code, never a revalidate", async () => {
+  for (const message of ["internal workspace is not configured", "staff role not seeded", "connection terminated unexpectedly"]) {
+    reset();
+    radarAccessBehavior = async () => {
+      throw new Error(message);
+    };
+    await assert.rejects(
+      () => setWorkforceMemberRadarAccessAction(RAC_UUID, true),
+      new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+    assert.deepEqual(revalidateCalls, []);
+  }
+});
+
+test("RAW-9. a NEXT_REDIRECT thrown from inside the action propagates — never mapped, never revalidated", async () => {
+  reset();
+  radarAccessBehavior = async () => {
+    const err = new Error("NEXT_REDIRECT");
+    err.digest = "NEXT_REDIRECT;replace;/admin;307;";
+    throw err;
+  };
+  await assert.rejects(() => setWorkforceMemberRadarAccessAction(RAC_UUID, true), /NEXT_REDIRECT/);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("RAW-10. source invariants: imports setWorkforceMemberRadarAccess from @/lib/actions/workforce; no Axis A/B imports; wrapper signature carries no workspace/org/actor/status/intent", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce-ui.ts", import.meta.url)), "utf8");
+  const importLines = src.split("\n").filter((l) => /^\s*import\s/.test(l));
+  for (const needle of ["@/lib/audit", "@/lib/dev-role", "@/lib/actions/users", "auditDb", "memberships"]) {
+    assert.ok(!importLines.some((l) => l.includes(needle)), `workforce-ui.ts must not import ${needle}`);
+  }
+  const workforceImport = src.match(/import\s*\{([\s\S]*?)\}\s*from\s*"@\/lib\/actions\/workforce"/);
+  assert.ok(workforceImport, "workforce-ui.ts must import from @/lib/actions/workforce");
+  assert.ok(workforceImport[1].includes("setWorkforceMemberRadarAccess"), "the import must include setWorkforceMemberRadarAccess");
+  const sig = src.match(/export async function setWorkforceMemberRadarAccessAction\(([^)]*)\)/);
+  assert.ok(sig, "setWorkforceMemberRadarAccessAction must be exported");
+  assert.match(sig[1].trim(), /^targetUserId: string, enabled: boolean$/, "signature is exactly (targetUserId: string, enabled: boolean)");
 });

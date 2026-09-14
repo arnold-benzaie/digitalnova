@@ -257,15 +257,15 @@ test("staticPreConnectionGate: RBAC migration pending but seed missing → refus
 });
 
 // ─────────────────────────── real FS (read-only) ─────────────────────────────
-test("readMigrationJournal: committed db/migrations journal valid; 44 entries; identity + fingerprint present", () => {
-  // RADAR INTELLIGENCE V2.1 Phase G4B-1 added migration 0043
-  // (radar_ai_quota_counter) -- this test reads the REAL committed
+test("readMigrationJournal: committed db/migrations journal valid; 45 entries; identity + fingerprint present", () => {
+  // WORKFORCE ACCESS CONTROL — RADAR_ACCESS added migration 0044
+  // (staff_members.radar_access) -- this test reads the REAL committed
   // journal from disk, so its expected count/last-tag are real facts
   // about the repository, not test fixtures; they are bumped
   // deliberately here to match, same as every prior migration did.
   const j = readMigrationJournal();
-  assert.equal(j.tags.length, 44);
-  assert.equal(j.tags[j.tags.length - 1], "0043_radar_ai_quota_counter");
+  assert.equal(j.tags.length, 45);
+  assert.equal(j.tags[j.tags.length - 1], "0044_old_doctor_faustus");
   j.entries.forEach((e, i) => assert.equal(e.idx, i));
   assert.equal(j.rbacSeedMigrationPresent, true);
   assert.equal(j.rbacSeedOk, true);

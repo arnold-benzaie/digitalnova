@@ -23,9 +23,14 @@ let denyMode = false;
 let evalCalls = [];
 let evalOk = false;
 let evalThrows = false;
+// WORKFORCE ACCESS CONTROL — the action now calls requireRadarAccess()
+// (RADAR-permission-aware) for its RADAR_QUEUE_VIEW gate, not
+// requireStaffMember() — same contract/signature, only the name changed
+// at the real call site. evaluateStaffPermission (SYSTEM_ADMIN, unrelated
+// to RADAR) is untouched.
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
-    requireStaffMember: async (permission) => {
+    requireRadarAccess: async (permission) => {
       permissionCalls.push(permission);
       if (denyMode) {
         const err = new Error("NEXT_REDIRECT");

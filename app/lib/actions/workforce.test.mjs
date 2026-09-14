@@ -39,7 +39,12 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { staffMembers, staffRoles, users, auditLog } from "@/db/schema";
 
-let permissionMockState = { allow: true };
+// WORKFORCE ACCESS CONTROL — `role` is now mutable (was hardcoded "ADMIN")
+// so setWorkforceMemberRadarAccess()'s actor-role-conditional ADMIN-target
+// rule (OWNER may; ADMIN may not) is testable. Defaults to "ADMIN",
+// preserving every pre-existing test's behavior unchanged — none of them
+// depend on the specific returned role value.
+let permissionMockState = { allow: true, role: "ADMIN" };
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
     requireStaffMember: async (permission) => {
@@ -49,7 +54,7 @@ mock.module("@/lib/rbac/require-staff-member", {
         err.digest = "NEXT_REDIRECT;replace;/admin;307;";
         throw err;
       }
-      return "ADMIN";
+      return permissionMockState.role;
     },
   },
 });
@@ -176,9 +181,15 @@ const fakeDb = {
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { listWorkforceMembers, addWorkforceMember, changeWorkforceMemberRole, suspendWorkforceMember, reactivateWorkforceMember, offboardWorkforceMember } = await import(
-  "./workforce.ts"
-);
+const {
+  listWorkforceMembers,
+  addWorkforceMember,
+  changeWorkforceMemberRole,
+  suspendWorkforceMember,
+  reactivateWorkforceMember,
+  offboardWorkforceMember,
+  setWorkforceMemberRadarAccess,
+} = await import("./workforce.ts");
 
 function withRows(rows) {
   listRowsOrError = { rows };
@@ -192,7 +203,7 @@ function resetMutationState() {
   roleLookupOrError = { rows: [{ id: "role-admin-uuid" }] };
   insertResultOrError = { row: { id: "staff-member-uuid", status: "ACTIVE" } };
   auditWrites = [];
-  permissionMockState = { allow: true };
+  permissionMockState = { allow: true, role: "ADMIN" };
   internalOrgIdMock = async () => "e35cbc31-9604-4324-adc6-f6f5c1ffc248";
 }
 
@@ -207,38 +218,48 @@ test("permission denial propagates unchanged — workforce.ts adds no logic of i
   }
 });
 
-test("7. ADMIN row is returned correctly (userId/email/role/status preserved)", async () => {
-  withRows([{ userId: "u-admin", email: "admin@example.com", role: "ADMIN", status: "ACTIVE" }]);
+test("7. ADMIN row is returned correctly (userId/email/role/status/radarAccess preserved)", async () => {
+  withRows([{ userId: "u-admin", email: "admin@example.com", role: "ADMIN", status: "ACTIVE", radarAccess: true }]);
   const rows = await listWorkforceMembers();
-  assert.deepEqual(rows, [{ userId: "u-admin", email: "admin@example.com", role: "ADMIN", status: "ACTIVE" }]);
+  assert.deepEqual(rows, [{ userId: "u-admin", email: "admin@example.com", role: "ADMIN", status: "ACTIVE", radarAccess: true }]);
 });
 
 test("8. MANAGER row is returned correctly", async () => {
-  withRows([{ userId: "u-mgr", email: "mgr@example.com", role: "MANAGER", status: "ACTIVE" }]);
+  withRows([{ userId: "u-mgr", email: "mgr@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: true }]);
   const rows = await listWorkforceMembers();
-  assert.deepEqual(rows, [{ userId: "u-mgr", email: "mgr@example.com", role: "MANAGER", status: "ACTIVE" }]);
+  assert.deepEqual(rows, [{ userId: "u-mgr", email: "mgr@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: true }]);
 });
 
 test("9. EMPLOYEE row is returned correctly", async () => {
-  withRows([{ userId: "u-emp", email: "emp@example.com", role: "EMPLOYEE", status: "ACTIVE" }]);
+  withRows([{ userId: "u-emp", email: "emp@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: false }]);
   const rows = await listWorkforceMembers();
-  assert.deepEqual(rows, [{ userId: "u-emp", email: "emp@example.com", role: "EMPLOYEE", status: "ACTIVE" }]);
+  assert.deepEqual(rows, [{ userId: "u-emp", email: "emp@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: false }]);
 });
 
 test("10. ACTIVE status preserved", async () => {
-  withRows([{ userId: "u1", email: "a@example.com", role: "MANAGER", status: "ACTIVE" }]);
+  withRows([{ userId: "u1", email: "a@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: true }]);
   const [row] = await listWorkforceMembers();
   assert.equal(row.status, "ACTIVE");
 });
 test("11. SUSPENDED status preserved", async () => {
-  withRows([{ userId: "u1", email: "a@example.com", role: "MANAGER", status: "SUSPENDED" }]);
+  withRows([{ userId: "u1", email: "a@example.com", role: "MANAGER", status: "SUSPENDED", radarAccess: true }]);
   const [row] = await listWorkforceMembers();
   assert.equal(row.status, "SUSPENDED");
 });
 test("12. OFFBOARDING status preserved", async () => {
-  withRows([{ userId: "u1", email: "a@example.com", role: "EMPLOYEE", status: "OFFBOARDING" }]);
+  withRows([{ userId: "u1", email: "a@example.com", role: "EMPLOYEE", status: "OFFBOARDING", radarAccess: true }]);
   const [row] = await listWorkforceMembers();
   assert.equal(row.status, "OFFBOARDING");
+});
+
+test("12b. radarAccess true/false both pass through verbatim", async () => {
+  withRows([
+    { userId: "u1", email: "on@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: true },
+    { userId: "u2", email: "off@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: false },
+  ]);
+  const rows = await listWorkforceMembers();
+  assert.equal(rows.find((r) => r.userId === "u1").radarAccess, true);
+  assert.equal(rows.find((r) => r.userId === "u2").radarAccess, false);
 });
 
 test("13-16. response never exposes role_id / workspace_org_id / invited_by_user_id / OWNER flag / Clerk id, even if the row source carries them", async () => {
@@ -248,6 +269,7 @@ test("13-16. response never exposes role_id / workspace_org_id / invited_by_user
       email: "a@example.com",
       role: "ADMIN",
       status: "ACTIVE",
+      radarAccess: true,
       role_id: "should-never-appear",
       workspace_org_id: "should-never-appear",
       invited_by_user_id: "should-never-appear",
@@ -257,7 +279,7 @@ test("13-16. response never exposes role_id / workspace_org_id / invited_by_user
     },
   ]);
   const [row] = await listWorkforceMembers();
-  assert.deepEqual(Object.keys(row).sort(), ["email", "role", "status", "userId"]);
+  assert.deepEqual(Object.keys(row).sort(), ["email", "radarAccess", "role", "status", "userId"]);
 });
 
 test("17-18. listWorkforceMembers accepts zero arguments — no parameter through which a workspace or identity could be supplied", () => {
@@ -293,7 +315,16 @@ test("empty workforce (zero rows) resolves to an empty array, not an error", asy
 test("R2B-1. authorized mutation succeeds and returns the new member", async () => {
   resetMutationState();
   const result = await addWorkforceMember("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "ADMIN");
-  assert.deepEqual(result, { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", email: "target@example.com", role: "ADMIN", status: "ACTIVE" });
+  // radarAccess: true — staff_members.radar_access's own column DEFAULT,
+  // never set explicitly by the INSERT (see lib/actions/workforce.ts's
+  // own comment at this exact return site).
+  assert.deepEqual(result, {
+    userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    email: "target@example.com",
+    role: "ADMIN",
+    status: "ACTIVE",
+    radarAccess: true,
+  });
 });
 
 test("R2B-2. authorization denial propagates unchanged, before any DB write", async () => {
@@ -442,8 +473,8 @@ function r2cReset() {
 
 /** Wire advisory + locked + tx staff_roles queue for a call that should
  * reach (or nearly reach) the UPDATE. currentRole/lockedRole default equal. */
-function r2cWire({ currentRole = "MANAGER", lockedRole = currentRole, status = "ACTIVE", newRole = "EMPLOYEE" } = {}) {
-  r2cAdvisory = { rows: [{ staffMemberId: "sm-1", currentRoleName: currentRole, status, email: "t@example.com" }] };
+function r2cWire({ currentRole = "MANAGER", lockedRole = currentRole, status = "ACTIVE", newRole = "EMPLOYEE", radarAccess = true } = {}) {
+  r2cAdvisory = { rows: [{ staffMemberId: "sm-1", currentRoleName: currentRole, status, email: "t@example.com", radarAccess }] };
   r2cLockedRow = { rows: [{ id: "sm-1", roleId: `role-${lockedRole}`, status }] };
   r2cTxStaffRolesQueue = [{ rows: [{ name: lockedRole }] }, { rows: [{ id: `role-${newRole}` }] }];
   r2cUpdateReturning = { rows: [{ status }] };
@@ -558,7 +589,9 @@ test("R2C-14. MANAGER -> EMPLOYEE success: returns member, uses FOR UPDATE, sets
   r2cReset();
   r2cWire({ currentRole: "MANAGER", newRole: "EMPLOYEE" });
   const result = await changeWorkforceMemberRole(R2C_TARGET_UUID, "EMPLOYEE");
-  assert.deepEqual(result, { userId: R2C_TARGET_UUID, email: "t@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+  // radarAccess is untouched by a role change — verbatim from the advisory
+  // row (r2cWire()'s default true).
+  assert.deepEqual(result, { userId: R2C_TARGET_UUID, email: "t@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: true });
   assert.equal(r2cUpdateForUpdateUsed, true, "the target row must be locked with SELECT ... FOR UPDATE");
   assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["roleId", "updatedAt"], "only role_id + updated_at may be written");
   assert.equal(r2cUpdateSetCapture.roleId, "role-EMPLOYEE");
@@ -657,6 +690,7 @@ test("R2C-23. source invariants: previousRole from the LOCKED row, no email auth
     "listWorkforceMembers",
     "offboardWorkforceMember",
     "reactivateWorkforceMember",
+    "setWorkforceMemberRadarAccess",
     "suspendWorkforceMember",
   ]);
 });
@@ -690,8 +724,8 @@ function r2dReset() {
 /** Wire advisory + locked-row + tx staff_roles queue + UPDATE RETURNING for
  * a lifecycle call. currentRole/lockedRole and currentStatus/lockedStatus
  * default equal; set them apart to exercise the under-lock re-checks. */
-function r2dWire({ currentRole = "MANAGER", lockedRole = currentRole, currentStatus = "ACTIVE", lockedStatus = currentStatus, resultStatus } = {}) {
-  r2cAdvisory = { rows: [{ staffMemberId: "sm-d1", currentRoleName: currentRole, currentStatus, email: "life@example.com" }] };
+function r2dWire({ currentRole = "MANAGER", lockedRole = currentRole, currentStatus = "ACTIVE", lockedStatus = currentStatus, resultStatus, radarAccess = true } = {}) {
+  r2cAdvisory = { rows: [{ staffMemberId: "sm-d1", currentRoleName: currentRole, currentStatus, email: "life@example.com", radarAccess }] };
   r2cLockedRow = { rows: [{ id: "sm-d1", roleId: `role-${lockedRole}`, status: lockedStatus }] };
   r2cTxStaffRolesQueue = [{ rows: [{ name: lockedRole }] }];
   r2cUpdateReturning = { rows: [{ status: resultStatus ?? lockedStatus }] };
@@ -798,7 +832,9 @@ test("R2D-11. ACTIVE -> SUSPENDED success: FOR UPDATE used, sets ONLY status + u
   r2dReset();
   r2dWire({ currentRole: "MANAGER", currentStatus: "ACTIVE", resultStatus: "SUSPENDED" });
   const result = await suspendWorkforceMember(R2D_TARGET_UUID);
-  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "MANAGER", status: "SUSPENDED" });
+  // radarAccess is untouched by a lifecycle status change — verbatim from
+  // the advisory row (r2dWire()'s default true).
+  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "MANAGER", status: "SUSPENDED", radarAccess: true });
   assert.equal(r2cUpdateForUpdateUsed, true, "the target row must be locked with SELECT ... FOR UPDATE");
   assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["status", "updatedAt"], "only status + updated_at may be written");
   assert.equal(r2cUpdateSetCapture.status, "SUSPENDED");
@@ -818,7 +854,7 @@ test("R2D-12. SUSPENDED -> ACTIVE success (reactivate)", async () => {
   r2dReset();
   r2dWire({ currentRole: "EMPLOYEE", currentStatus: "SUSPENDED", resultStatus: "ACTIVE" });
   const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
-  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "EMPLOYEE", status: "ACTIVE" });
+  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: true });
   assert.equal(r2cUpdateSetCapture.status, "ACTIVE");
   assert.equal(auditWrites.length, 1);
   assert.deepEqual(auditWrites[0].metadata, { targetUserId: R2D_TARGET_UUID, previousStatus: "SUSPENDED", newStatus: "ACTIVE" });
@@ -927,7 +963,7 @@ test("R2D-23. audit organization is the server-resolved internal workspace, not 
   sessionMock = { userId: R2D_SESSION_UUID };
 });
 
-test("R2D-24. source invariants: previousStatus from locked.status, only status+updatedAt in the R2D UPDATE, no Axis A/B, exactly six runtime exports", () => {
+test("R2D-24. source invariants: previousStatus from locked.status, only status+updatedAt in the R2D UPDATE, no Axis A/B, exactly seven runtime exports", () => {
   const src = readFileSync(fileURLToPath(new URL("./workforce.ts", import.meta.url)), "utf8");
   assert.ok(src.includes("previousStatus: locked.status"), "audit previousStatus must be the FOR UPDATE-locked status");
   assert.ok(!/previousStatus:\s*member\.currentStatus/.test(src), "audit previousStatus must NOT be the advisory value");
@@ -943,6 +979,220 @@ test("R2D-24. source invariants: previousStatus from locked.status, only status+
     "listWorkforceMembers",
     "offboardWorkforceMember",
     "reactivateWorkforceMember",
+    "setWorkforceMemberRadarAccess",
     "suspendWorkforceMember",
   ]);
+});
+
+// ---------------------- setWorkforceMemberRadarAccess (WORKFORCE ACCESS CONTROL) ----------------------
+// Individual RADAR access override, independent of role: OWNER/ADMIN may
+// grant/revoke a MANAGER or EMPLOYEE's RADAR access WITHOUT changing their
+// staff role. DELIBERATELY DIFFERENT target-tier rule from R2C: OWNER may
+// still change an ADMIN's radar access; ADMIN may not (only OWNER may).
+// OWNER itself is never a valid target either way. ACTIVE only, no self-
+// change, server-serialized SET-TO-VALUE (SELECT ... FOR UPDATE), audit in
+// the same transaction. Reuses the R2C @/db fake verbatim — the advisory
+// 3-join lookup, the FOR UPDATE lock, the tx staff_roles queue (here just
+// one entry for the locked role name — no "new role id" lookup, since this
+// writes a boolean, never role_id), and the tx update capture. The REAL
+// row lock / serialization / rollback are proven against a disposable
+// Postgres by lib/actions/workforce.integration.test.mjs.
+
+const RAC_SESSION_UUID = "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2"; // == default sessionMock.userId
+const RAC_TARGET_UUID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"; // != session
+const RAC_INTERNAL_ORG = "e35cbc31-9604-4324-adc6-f6f5c1ffc248";
+
+function racReset(actorRole = "ADMIN") {
+  permissionMockState = { allow: true, role: actorRole };
+  internalOrgIdMock = async () => RAC_INTERNAL_ORG;
+  sessionMock = { userId: RAC_SESSION_UUID };
+  auditWrites = [];
+  r2cAdvisory = { rows: [] };
+  r2cLockedRow = { rows: [] };
+  r2cTxStaffRolesQueue = [];
+  r2cUpdateReturning = { rows: [{ status: "ACTIVE" }] };
+  r2cUpdateSetCapture = null;
+  r2cUpdateForUpdateUsed = false;
+  r2cAuditFailure = null;
+}
+
+/** Wire advisory + locked + tx staff_roles queue for a radar-access call.
+ * Only ONE staff_roles lookup happens in the tx (locked role name) — unlike
+ * r2cWire()'s two (this action never resolves a "new role id"). */
+function racWire({ currentRole = "MANAGER", lockedRole = currentRole, status = "ACTIVE", radarAccess = true, lockedRadarAccess = radarAccess } = {}) {
+  r2cAdvisory = { rows: [{ staffMemberId: "sm-ra1", currentRoleName: currentRole, status, email: "ra@example.com", radarAccess }] };
+  r2cLockedRow = { rows: [{ id: "sm-ra1", roleId: `role-${lockedRole}`, status, radarAccess: lockedRadarAccess }] };
+  r2cTxStaffRolesQueue = [{ rows: [{ name: lockedRole }] }];
+  r2cUpdateReturning = { rows: [{ status }] };
+}
+
+test("RAC-1. first op is requireStaffMember('WORKFORCE_MANAGE'); a denial rejects, no audit", async () => {
+  racReset();
+  permissionMockState.allow = false;
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /NEXT_REDIRECT/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-2. accepts exactly two runtime parameters (targetUserId, enabled) — no workspace/org/actor arg", () => {
+  assert.equal(setWorkforceMemberRadarAccess.length, 2);
+});
+
+test("RAC-3. malformed / empty target UUID -> 'valid UUID', before any lookup, no audit", async () => {
+  for (const bad of ["not-a-uuid", "", "'; DROP TABLE staff_members; --"]) {
+    racReset();
+    await assert.rejects(() => setWorkforceMemberRadarAccess(bad, false), /target user id must be a valid UUID/);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("RAC-4. non-boolean enabled value -> 'must be a boolean', before any lookup, no audit", async () => {
+  for (const bad of ["true", 1, 0, null, undefined, "false", {}]) {
+    racReset();
+    await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, bad), /radar access value must be a boolean/);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("RAC-5. self-target rejected before any membership lookup, no UPDATE, no audit", async () => {
+  racReset();
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_SESSION_UUID, false), /cannot change their own radar access/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-6. no internal workspace -> 'internal workspace is not configured'", async () => {
+  racReset();
+  internalOrgIdMock = async () => null;
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /internal workspace is not configured/);
+});
+
+test("RAC-7. no membership row -> MEMBER_NOT_FOUND, no audit", async () => {
+  racReset();
+  r2cAdvisory = { rows: [] };
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /workforce member not found/);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-8. OWNER target is ALWAYS rejected — even when the actor is themselves OWNER", async () => {
+  for (const actorRole of ["OWNER", "ADMIN"]) {
+    racReset(actorRole);
+    racWire({ currentRole: "OWNER" });
+    await assert.rejects(
+      () => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false),
+      /workspace owner and cannot be modified here/,
+      `actor ${actorRole} must still be rejected against an OWNER target`,
+    );
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("RAC-9. ADMIN target + ADMIN actor -> ADMIN_TIER_PROTECTED, no UPDATE, no audit (DIFFERENT from R2C: here OWNER alone may proceed)", async () => {
+  racReset("ADMIN");
+  racWire({ currentRole: "ADMIN" });
+  await assert.rejects(
+    () => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false),
+    /changing an administrator's radar access requires owner privileges/,
+  );
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-10. ADMIN target + OWNER actor -> SUCCEEDS — the key behavior that differs from changeWorkforceMemberRole()'s unconditional ADMIN rejection", async () => {
+  racReset("OWNER");
+  racWire({ currentRole: "ADMIN", radarAccess: true });
+  const result = await setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false);
+  assert.equal(result.radarAccess, false);
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["radarAccess", "updatedAt"]);
+  assert.equal(r2cUpdateSetCapture.radarAccess, false);
+});
+
+test("RAC-11. advisory status SUSPENDED / OFFBOARDING -> not active, no UPDATE, no audit", async () => {
+  for (const status of ["SUSPENDED", "OFFBOARDING"]) {
+    racReset();
+    racWire({ currentRole: "MANAGER", status });
+    await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /not active and cannot be modified/);
+    assert.equal(r2cUpdateSetCapture, null);
+    assert.deepEqual(auditWrites, []);
+  }
+});
+
+test("RAC-12. advisory no-op (radarAccess already matches requested value) -> unchanged, no UPDATE, no audit", async () => {
+  racReset();
+  racWire({ currentRole: "MANAGER", radarAccess: true });
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, true), /already has this radar access value/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-13. UNDER-LOCK no-op: advisory radarAccess stale (true), locked value already false -> unchanged, no UPDATE, no audit", async () => {
+  racReset();
+  racWire({ currentRole: "MANAGER", radarAccess: true, lockedRadarAccess: false });
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /already has this radar access value/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-14. UNDER-LOCK OWNER protection: advisory MANAGER but locked role OWNER -> OWNER_PROTECTED, no UPDATE, no audit", async () => {
+  racReset();
+  racWire({ currentRole: "MANAGER", lockedRole: "OWNER" });
+  await assert.rejects(() => setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false), /workspace owner and cannot be modified here/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("RAC-15. MANAGER target, true -> false success: uses FOR UPDATE, sets ONLY radarAccess + updatedAt, one audit with previousValue/newValue", async () => {
+  racReset("ADMIN");
+  racWire({ currentRole: "MANAGER", radarAccess: true });
+  const result = await setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false);
+  assert.deepEqual(result, { userId: RAC_TARGET_UUID, email: "ra@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: false });
+  assert.equal(r2cUpdateForUpdateUsed, true, "the target row must be locked with SELECT ... FOR UPDATE");
+  assert.deepEqual(Object.keys(r2cUpdateSetCapture).sort(), ["radarAccess", "updatedAt"], "only radar_access + updated_at may be written");
+  assert.equal(r2cUpdateSetCapture.radarAccess, false);
+  assert.ok(r2cUpdateSetCapture.updatedAt instanceof Date);
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(auditWrites[0], {
+    actorUserId: RAC_SESSION_UUID,
+    organizationId: RAC_INTERNAL_ORG,
+    action: "workforce.radar_access_changed",
+    targetType: "staff_member",
+    targetId: "sm-ra1",
+    metadata: { targetUserId: RAC_TARGET_UUID, previousValue: true, newValue: false },
+  });
+});
+
+test("RAC-16. EMPLOYEE target, false -> true success (symmetric)", async () => {
+  racReset("ADMIN");
+  racWire({ currentRole: "EMPLOYEE", radarAccess: false });
+  const result = await setWorkforceMemberRadarAccess(RAC_TARGET_UUID, true);
+  assert.equal(result.radarAccess, true);
+  assert.equal(auditWrites.length, 1);
+  assert.deepEqual(auditWrites[0].metadata, { targetUserId: RAC_TARGET_UUID, previousValue: false, newValue: true });
+  assert.equal(r2cUpdateSetCapture.radarAccess, true);
+});
+
+test("RAC-17. role is NEVER part of the UPDATE — roleId is absent from the write regardless of target role", async () => {
+  racReset("OWNER");
+  racWire({ currentRole: "ADMIN", radarAccess: true });
+  await setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false);
+  assert.ok(!("roleId" in r2cUpdateSetCapture), "roleId must never be written by a radar-access change");
+  assert.ok(!("status" in r2cUpdateSetCapture), "status must never be written by a radar-access change");
+});
+
+test("RAC-18. audit organization is the server-resolved internal workspace, not any caller value", async () => {
+  racReset("ADMIN");
+  racWire({ currentRole: "MANAGER", radarAccess: true });
+  await setWorkforceMemberRadarAccess(RAC_TARGET_UUID, false);
+  assert.equal(auditWrites[0].organizationId, RAC_INTERNAL_ORG);
+});
+
+test("RAC-19. source invariants: previousValue from the LOCKED row, no email authorization, no Axis A/B imports", () => {
+  const src = readFileSync(fileURLToPath(new URL("./workforce.ts", import.meta.url)), "utf8");
+  assert.ok(src.includes("previousValue: locked.radarAccess"), "audit previousValue must be sourced from the FOR UPDATE-locked row");
+  assert.ok(!/previousValue:\s*member\.radarAccess/.test(src), "audit previousValue must NOT be the advisory value");
+  const imports = src.split("\n").filter((l) => /^\s*import\s/.test(l)).join("\n");
+  assert.ok(!imports.includes("@/lib/dev-role"), "no legacy AppRole gate import");
+  assert.ok(!imports.includes("@/lib/actions/users"), "no Axis A user-action import");
+  assert.ok(!/\bmemberships\b/.test(imports) && !/\bauditDb\b/.test(imports), "no Axis A memberships / Axis B auditDb import");
 });

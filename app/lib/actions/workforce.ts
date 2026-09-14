@@ -43,9 +43,13 @@ export type WorkforceMember = {
   email: string;
   role: ListedWorkforceRole;
   status: StaffMemberStatus;
+  // WORKFORCE ACCESS CONTROL — individual override, independent of role.
+  // See lib/rbac/require-staff-member.ts::evaluateRadarAccess() for how
+  // this combines with RADAR_WORK/RADAR_QUEUE_VIEW/RADAR_ASSIGN.
+  radarAccess: boolean;
 };
 
-type WorkforceRow = { userId: string; email: string; role: string; status: string };
+type WorkforceRow = { userId: string; email: string; role: string; status: string; radarAccess: boolean };
 
 /** Real query: workspace-scoped, positive-allowlist-filtered, deterministically
  * ordered. Kept as its own function (not inlined) so the OWNER-exclusion
@@ -58,6 +62,7 @@ async function defaultFetchWorkforceRows(workspaceOrgId: string): Promise<Workfo
       email: users.email,
       role: staffRoles.name,
       status: staffMembers.status,
+      radarAccess: staffMembers.radarAccess,
     })
     .from(staffMembers)
     .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
@@ -98,6 +103,7 @@ async function listWorkforceMembersCore(): Promise<WorkforceMember[]> {
     email: r.email,
     role: r.role as ListedWorkforceRole,
     status: r.status as StaffMemberStatus,
+    radarAccess: r.radarAccess,
   }));
 }
 
@@ -251,7 +257,10 @@ async function addWorkforceMemberCore(targetUserId: string, role: string): Promi
       roleId: roleRow.id,
       role,
     });
-    return { userId: targetUser.id, email: targetUser.email, role, status: inserted.status as StaffMemberStatus };
+    // radarAccess: true — staff_members.radar_access's own column DEFAULT
+    // (db/schema.ts), never set explicitly by defaultInsertWorkforceMember()'s
+    // INSERT above, so this mirrors the real inserted row exactly.
+    return { userId: targetUser.id, email: targetUser.email, role, status: inserted.status as StaffMemberStatus, radarAccess: true };
   } catch (error) {
     if (isPostgresUniqueViolation(error)) {
       // staff_members_user_workspace_unique (userId, workspaceOrgId) — the
@@ -444,6 +453,7 @@ async function changeWorkforceMemberRoleCore(
       currentRoleName: staffRoles.name,
       status: staffMembers.status,
       email: users.email,
+      radarAccess: staffMembers.radarAccess,
     })
     .from(staffMembers)
     .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
@@ -472,7 +482,9 @@ async function changeWorkforceMemberRoleCore(
     newRole,
   });
 
-  return { userId: targetUserId, email: member.email, role: newRole, status: status as StaffMemberStatus };
+  // radarAccess is untouched by a role change — the LOCKED-read value from
+  // above, verbatim (defaultUpdateWorkforceMemberRole() never writes it).
+  return { userId: targetUserId, email: member.email, role: newRole, status: status as StaffMemberStatus, radarAccess: member.radarAccess };
 }
 
 /**
@@ -531,6 +543,211 @@ export async function changeWorkforceMemberRole(
   }
 
   return changeWorkforceMemberRoleCore(targetUserId, newRole, session.userId);
+}
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL — RADAR_ACCESS. An individual override,
+ * independent of role: OWNER/ADMIN can grant/revoke a MANAGER or
+ * EMPLOYEE's RADAR access WITHOUT changing their staff role. Layered
+ * strictly on top of lib/rbac/permissions.ts — that catalogue and
+ * hasPermission() are never touched; this only writes
+ * staff_members.radar_access, a plain boolean column, and every RADAR-
+ * gated call site additionally checks it via evaluateRadarAccess()/
+ * requireRadarAccess() (lib/rbac/require-staff-member.ts).
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Target-tier guard for radar-access changes specifically — DELIBERATELY
+ * different from assertOrdinaryTierTargetRole()/
+ * assertOrdinaryTierTargetRoleForLifecycle() above: those categorically
+ * reject any ADMIN/OWNER target, full stop. Here OWNER may still change an
+ * ADMIN's radar access (OWNER has full authority over the whole workforce),
+ * while an ADMIN caller may not touch another ADMIN's — only OWNER may.
+ * OWNER itself is never a valid target either way (governance seat, and
+ * there is at most one — the one-owner-per-workspace invariant makes an
+ * OWNER-targeting call always either self-targeting, already rejected
+ * earlier, or nonsensical). Fail-closed: an unrecognized future role name
+ * falls through to the same "requires owner privileges" rejection as ADMIN.
+ */
+function assertRadarAccessTargetRole(targetRoleName: string, actorRole: StaffRole): void {
+  if (targetRoleName === "OWNER") {
+    throw new Error("target is the workspace owner and cannot be modified here");
+  }
+  if (targetRoleName === "ADMIN") {
+    if (actorRole !== "OWNER") {
+      throw new Error("changing an administrator's radar access requires owner privileges");
+    }
+    return;
+  }
+  if (!isOrdinaryWorkforceRole(targetRoleName)) {
+    throw new Error("changing this member's radar access requires owner privileges");
+  }
+}
+
+/**
+ * Real UPDATE: ONE transaction, the `radar_access` change and its single
+ * audit entry both commit or both roll back — same SELECT ... FOR UPDATE /
+ * re-check-under-lock / single-write shape as
+ * defaultUpdateWorkforceMemberRole() above. Only `radar_access` and
+ * `updated_at` are written — never `status`, `role_id`, `workspace_org_id`,
+ * or `user_id`.
+ */
+async function defaultUpdateWorkforceMemberRadarAccess(params: {
+  actorUserId: string;
+  actorRole: StaffRole;
+  workspaceOrgId: string;
+  targetUserId: string;
+  staffMemberId: string;
+  enabled: boolean;
+}): Promise<{ status: string; role: string }> {
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: staffMembers.id, roleId: staffMembers.roleId, status: staffMembers.status, radarAccess: staffMembers.radarAccess })
+      .from(staffMembers)
+      .where(eq(staffMembers.id, params.staffMemberId))
+      .for("update")
+      .limit(1);
+    if (!locked) {
+      // Row vanished between the advisory lookup and acquiring the lock.
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    const [lockedRole] = await tx.select({ name: staffRoles.name }).from(staffRoles).where(eq(staffRoles.id, locked.roleId)).limit(1);
+    if (!lockedRole) {
+      // staff_members.role_id is NOT NULL + FK onDelete:restrict, so this is
+      // unreachable in a consistent DB — treat as a defensive infra failure.
+      throw new Error("staff role not seeded");
+    }
+
+    assertRadarAccessTargetRole(lockedRole.name, params.actorRole);
+    if (locked.status !== "ACTIVE") {
+      throw new Error("workforce member is not active and cannot be modified");
+    }
+    if (locked.radarAccess === params.enabled) {
+      throw new Error("workforce member already has this radar access value");
+    }
+
+    const [updated] = await tx
+      .update(staffMembers)
+      .set({ radarAccess: params.enabled, updatedAt: new Date() })
+      .where(and(eq(staffMembers.id, params.staffMemberId), eq(staffMembers.roleId, locked.roleId), ne(staffMembers.roleId, OWNER_STAFF_ROLE_ID)))
+      .returning({ status: staffMembers.status });
+    if (!updated) {
+      throw new Error("workforce member state changed, please retry");
+    }
+
+    // Single write path for the audit trail (lib/audit.ts), same
+    // transaction as the UPDATE via logAudit's optional executor param —
+    // mirrors defaultUpdateWorkforceMemberRole()'s pattern exactly.
+    // previousValue is the LOCKED-read value, never the advisory one.
+    await logAudit(
+      {
+        actorUserId: params.actorUserId,
+        organizationId: params.workspaceOrgId,
+        action: "workforce.radar_access_changed",
+        targetType: "staff_member",
+        targetId: params.staffMemberId,
+        metadata: { targetUserId: params.targetUserId, previousValue: locked.radarAccess, newValue: params.enabled },
+      },
+      tx,
+    );
+
+    return { status: updated.status, role: lockedRole.name };
+  });
+}
+
+/**
+ * Module-private core: no session, no authorization — see
+ * setWorkforceMemberRadarAccess() below for those. Same validation order
+ * as changeWorkforceMemberRoleCore(): resolve the internal workspace, one
+ * advisory lookup, advisory protected-tier / status / no-op rejections —
+ * every one re-run against the FOR UPDATE-locked row before any write.
+ */
+async function setWorkforceMemberRadarAccessCore(
+  targetUserId: string,
+  enabled: boolean,
+  actorUserId: string,
+  actorRole: StaffRole,
+): Promise<WorkforceMember> {
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    throw new Error("internal workspace is not configured");
+  }
+
+  const [member] = await db
+    .select({
+      staffMemberId: staffMembers.id,
+      currentRoleName: staffRoles.name,
+      status: staffMembers.status,
+      email: users.email,
+      radarAccess: staffMembers.radarAccess,
+    })
+    .from(staffMembers)
+    .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+    .innerJoin(users, eq(users.id, staffMembers.userId))
+    .where(and(eq(staffMembers.userId, targetUserId), eq(staffMembers.workspaceOrgId, internalOrgId)))
+    .limit(1);
+  if (!member) {
+    throw new Error("workforce member not found");
+  }
+
+  // Advisory early rejections — all re-checked under the row lock in
+  // defaultUpdateWorkforceMemberRadarAccess() before the write.
+  assertRadarAccessTargetRole(member.currentRoleName, actorRole);
+  if (member.status !== "ACTIVE") {
+    throw new Error("workforce member is not active and cannot be modified");
+  }
+  if (member.radarAccess === enabled) {
+    throw new Error("workforce member already has this radar access value");
+  }
+
+  const { status, role } = await defaultUpdateWorkforceMemberRadarAccess({
+    actorUserId,
+    actorRole,
+    workspaceOrgId: internalOrgId,
+    targetUserId,
+    staffMemberId: member.staffMemberId,
+    enabled,
+  });
+
+  return { userId: targetUserId, email: member.email, role: role as ListedWorkforceRole, status: status as StaffMemberStatus, radarAccess: enabled };
+}
+
+/**
+ * Grants or revokes an ACTIVE workforce member's individual RADAR access —
+ * NEVER a role change (staff_role/role_id is untouched by this function).
+ *
+ * Gated by requireStaffMember("WORKFORCE_MANAGE") (OWNER/ADMIN only) — the
+ * SAME permission changeWorkforceMemberRole() uses, but the target-role
+ * rule differs deliberately: OWNER may change an ADMIN's radar access;
+ * ADMIN may not (see assertRadarAccessTargetRole()). OWNER itself can
+ * never be targeted. A caller cannot change their OWN radar access —
+ * `targetUserId === session.userId` is rejected before any membership
+ * lookup, mirroring changeWorkforceMemberRole()'s self-protection exactly.
+ *
+ * SET-TO-VALUE, server-serialized via SELECT ... FOR UPDATE — same
+ * concurrency contract as changeWorkforceMemberRole(): a call whose
+ * requested value already matches returns "workforce member already has
+ * this radar access value". One transaction: the `radar_access` UPDATE and
+ * exactly one "workforce.radar_access_changed" audit event commit or roll
+ * back together; only `radar_access` and `updated_at` change.
+ */
+export async function setWorkforceMemberRadarAccess(targetUserId: string, enabled: boolean): Promise<WorkforceMember> {
+  const actorRole = await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    throw new Error("target user id must be a valid UUID");
+  }
+  if (typeof enabled !== "boolean") {
+    throw new Error("radar access value must be a boolean");
+  }
+
+  const session = await requireSession();
+  if (targetUserId === session.userId) {
+    throw new Error("workforce members cannot change their own radar access");
+  }
+
+  return setWorkforceMemberRadarAccessCore(targetUserId, enabled, session.userId, actorRole);
 }
 
 /* ------------------------------------------------------------------------ *
@@ -679,6 +896,7 @@ async function changeWorkforceMemberLifecycleCore(
       currentRoleName: staffRoles.name,
       currentStatus: staffMembers.status,
       email: users.email,
+      radarAccess: staffMembers.radarAccess,
     })
     .from(staffMembers)
     .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
@@ -708,7 +926,16 @@ async function changeWorkforceMemberLifecycleCore(
     acceptedSourceStatuses,
   });
 
-  return { userId: targetUserId, email: member.email, role: roleName as ListedWorkforceRole, status: status as StaffMemberStatus };
+  // radarAccess is untouched by a lifecycle status change — the
+  // LOCKED-read value from above, verbatim (defaultUpdateWorkforceMemberStatus()
+  // never writes it).
+  return {
+    userId: targetUserId,
+    email: member.email,
+    role: roleName as ListedWorkforceRole,
+    status: status as StaffMemberStatus,
+    radarAccess: member.radarAccess,
+  };
 }
 
 /**

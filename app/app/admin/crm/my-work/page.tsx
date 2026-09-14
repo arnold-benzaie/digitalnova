@@ -1,4 +1,4 @@
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { getMyWork } from "@/lib/actions/employee-work";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
@@ -16,7 +16,7 @@ import { AvailableProspects } from "@/components/employee/available-prospects";
  * hold RADAR_WORK (OWNER / ADMIN / MANAGER / EMPLOYEE).
  *
  * Authorization is the FIRST statement and the ONLY thing that decides
- * access: requireStaffMember("RADAR_WORK") — its existing contract
+ * access: requireRadarAccess("RADAR_WORK") — its existing contract
  * redirects to /admin for an unauthenticated / pending / no-membership /
  * inactive / permission-missing caller. getMyWork() re-checks the same
  * permission and resolves identity exclusively from the Clerk session.
@@ -28,7 +28,7 @@ import { AvailableProspects } from "@/components/employee/available-prospects";
  * components/employee/* sections and my-work-shared.ts).
  */
 export default async function MyWorkPage() {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
 
   const [work, locale] = await Promise.all([getMyWork(), getLocale()]);
   const t = dictionaries[locale].employee;

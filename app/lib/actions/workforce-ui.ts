@@ -38,6 +38,7 @@ import {
   changeWorkforceMemberRole,
   offboardWorkforceMember,
   reactivateWorkforceMember,
+  setWorkforceMemberRadarAccess,
   suspendWorkforceMember,
   type ListedWorkforceRole,
   type OrdinaryWorkforceRole,
@@ -327,6 +328,76 @@ export async function changeWorkforceMemberRoleAction(targetUserId: string, newR
     unstable_rethrow(error);
     const message = error instanceof Error ? error.message : "";
     const code = mapWorkforceRoleChangeError(message);
+    if (code) return { error: code };
+    throw error;
+  }
+
+  revalidatePath("/admin/workforce");
+  return undefined;
+}
+
+/* ---------------------------------------------------------------------- *
+ * WORKFORCE ACCESS CONTROL — UI glue for setWorkforceMemberRadarAccess()
+ * (lib/actions/workforce.ts). Mirrors changeWorkforceMemberRoleAction()
+ * above exactly: requireStaffMember("WORKFORCE_MANAGE") is enforced INSIDE
+ * setWorkforceMemberRadarAccess() itself (not duplicated here), UUID
+ * validation here is defense-in-depth, and every known thrown domain
+ * message maps to a stable typed code so no raw server string reaches the
+ * browser. No RBAC logic reimplemented: setWorkforceMemberRadarAccess() is
+ * the sole authority.
+ * ---------------------------------------------------------------------- */
+
+export type WorkforceRadarAccessErrorCode =
+  | "INVALID_TARGET"
+  | "INVALID_VALUE"
+  | "SELF_RADAR_ACCESS_NOT_ALLOWED"
+  | "MEMBER_NOT_FOUND"
+  | "OWNER_PROTECTED"
+  | "ADMIN_TIER_PROTECTED"
+  | "MEMBER_NOT_ACTIVE"
+  | "RADAR_ACCESS_UNCHANGED";
+
+/**
+ * setWorkforceMemberRadarAccess()'s thrown Error.message -> stable UI
+ * code. Substring match, same technique as the other mappers in this file.
+ * Unknown / infra errors ("internal workspace is not configured", "staff
+ * role not seeded") return null and propagate to the route error boundary.
+ */
+function mapWorkforceRadarAccessError(message: string): WorkforceRadarAccessErrorCode | null {
+  if (message.includes("target user id must be a valid UUID")) return "INVALID_TARGET";
+  if (message.includes("radar access value must be a boolean")) return "INVALID_VALUE";
+  if (message.includes("workforce members cannot change their own radar access")) return "SELF_RADAR_ACCESS_NOT_ALLOWED";
+  if (message.includes("workforce member not found")) return "MEMBER_NOT_FOUND";
+  if (message.includes("target is the workspace owner and cannot be modified here")) return "OWNER_PROTECTED";
+  if (message.includes("changing an administrator's radar access requires owner privileges")) return "ADMIN_TIER_PROTECTED";
+  if (message.includes("workforce member is not active and cannot be modified")) return "MEMBER_NOT_ACTIVE";
+  if (message.includes("workforce member already has this radar access value")) return "RADAR_ACCESS_UNCHANGED";
+  return null;
+}
+
+type WorkforceRadarAccessResult = { error: WorkforceRadarAccessErrorCode } | undefined;
+
+/**
+ * Grants (`enabled: true`) or revokes (`enabled: false`) a workforce
+ * member's individual RADAR access — NEVER their staff role.
+ * revalidatePath("/admin/workforce") on success only.
+ */
+export async function setWorkforceMemberRadarAccessAction(targetUserId: string, enabled: boolean): Promise<WorkforceRadarAccessResult> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  if (typeof targetUserId !== "string" || !isValidUuid(targetUserId)) {
+    return { error: "INVALID_TARGET" };
+  }
+  if (typeof enabled !== "boolean") {
+    return { error: "INVALID_VALUE" };
+  }
+
+  try {
+    await setWorkforceMemberRadarAccess(targetUserId, enabled);
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "";
+    const code = mapWorkforceRadarAccessError(message);
     if (code) return { error: code };
     throw error;
   }

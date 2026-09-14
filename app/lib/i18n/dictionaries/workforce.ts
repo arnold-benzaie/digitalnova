@@ -14,6 +14,22 @@ export const workforce = {
     columnMember: "Membre",
     columnRole: "Rôle",
     columnStatus: "Statut",
+    // WORKFORCE ACCESS CONTROL — RADAR_ACCESS column: an individual
+    // override, independent of role (see setWorkforceMemberRadarAccessAction,
+    // lib/actions/workforce-ui.ts). Never a rôle, never une permission de
+    // plus dans le catalogue RBAC.
+    columnRadarAccess: "RADAR",
+    radarAccessOn: "Actif",
+    radarAccessOff: "Inactif",
+    radarAccessChanging: "Changement…",
+    radarAccessRevokeConfirmTitle: "Retirer l'accès RADAR ?",
+    radarAccessRevokeConfirmDescription: (email: string) =>
+      `${email} perdra immédiatement l'accès à RADAR (file de prospects, tâches liées, assistance IA). Vous pourrez le réactiver à tout moment.`,
+    radarAccessRevokeConfirmLabel: "Retirer l'accès",
+    errorInvalidValue: "Valeur invalide.",
+    errorSelfRadarAccess: "Vous ne pouvez pas modifier votre propre accès RADAR.",
+    errorRadarAccessUnchanged: "Ce membre a déjà cette valeur d'accès RADAR — la liste a été actualisée.",
+    errorRadarAccessNotActive: "Ce membre doit être actif pour changer son accès RADAR.",
     roleAdmin: "Administrateur",
     roleManager: "Manager",
     roleEmployee: "Employé",
@@ -80,6 +96,17 @@ export const workforce = {
     columnMember: "Member",
     columnRole: "Role",
     columnStatus: "Status",
+    columnRadarAccess: "RADAR",
+    radarAccessOn: "On",
+    radarAccessOff: "Off",
+    radarAccessChanging: "Changing…",
+    radarAccessRevokeConfirmTitle: "Revoke RADAR access?",
+    radarAccessRevokeConfirmDescription: (email: string) =>
+      `${email} will immediately lose access to RADAR (prospect queue, related tasks, AI assistance). You can re-enable it at any time.`,
+    radarAccessRevokeConfirmLabel: "Revoke access",
+    errorInvalidValue: "Invalid value.",
+    errorSelfRadarAccess: "You cannot change your own RADAR access.",
+    errorRadarAccessUnchanged: "This member already has that RADAR access value — the list has been refreshed.",
     roleAdmin: "Admin",
     roleManager: "Manager",
     roleEmployee: "Employee",
@@ -138,5 +165,6 @@ export const workforce = {
     errorSelfRoleChange: "You cannot change your own role.",
     errorRoleUnchanged: "This member already has that role — the list has been refreshed.",
     errorMemberNotActive: "This member must be active to change their role.",
+    errorRadarAccessNotActive: "This member must be active to change their RADAR access.",
   },
 } as const;

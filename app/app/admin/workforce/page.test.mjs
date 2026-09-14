@@ -27,6 +27,11 @@ const t = dictionaries.fr.workforce;
 
 let permissionCalls = [];
 let denyMode = false;
+// WORKFORCE ACCESS CONTROL — mutable (was hardcoded "ADMIN") so the page's
+// forwarded `viewerRole` prop (WorkforceRadarAccessToggle) is testable for
+// both OWNER and ADMIN viewers. Defaults to "ADMIN", preserving every
+// pre-existing test's behavior unchanged.
+let viewerRoleMockState = "ADMIN";
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
     requireStaffMember: async (permission) => {
@@ -36,7 +41,7 @@ mock.module("@/lib/rbac/require-staff-member", {
         err.digest = "NEXT_REDIRECT;replace;/admin;307;";
         throw err;
       }
-      return "ADMIN";
+      return viewerRoleMockState;
     },
   },
 });
@@ -105,20 +110,31 @@ mock.module("@/components/workforce/workforce-lifecycle-actions", {
 mock.module("@/components/workforce/workforce-role-select", {
   namedExports: { WorkforceRoleSelect: () => null },
 });
+// WORKFORCE ACCESS CONTROL — same stubbing technique, for the new per-row
+// RADAR ON/OFF toggle. Its props overlap WorkforceLifecycleActions's
+// (userId/email/role/status/currentUserId) but uniquely also carry
+// `radarAccess` and `viewerRole` — see radarAccessEls below, which
+// disambiguates on that.
+mock.module("@/components/workforce/workforce-radar-access-toggle", {
+  namedExports: { WorkforceRadarAccessToggle: () => null },
+});
 
 const { default: WorkforcePage } = await import("./page.tsx");
 
-// WorkforceLifecycleActions carries `email`; WorkforceRoleSelect does not
-// (its overlapping userId/role/status/currentUserId/locale props are
-// otherwise identical in shape) — that is the sole disambiguator.
+// WorkforceLifecycleActions carries `email` but never `radarAccess`;
+// WorkforceRadarAccessToggle carries both `email` AND `radarAccess`;
+// WorkforceRoleSelect carries neither. That is the full disambiguation.
 const lifecycleActionsEls = (el) =>
-  findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && "email" in p);
+  findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && "email" in p && !("radarAccess" in p));
 const roleSelectEls = (el) =>
   findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && !("email" in p));
+const radarAccessEls = (el) =>
+  findByProps(el, (p) => "userId" in p && "currentUserId" in p && "status" in p && "role" in p && "radarAccess" in p);
 
 function reset() {
   permissionCalls = [];
   denyMode = false;
+  viewerRoleMockState = "ADMIN";
   workforceRows = [];
   listCalls = 0;
   listError = null;
@@ -166,7 +182,14 @@ function collectText(node, out = []) {
   return out;
 }
 
-const member = (over) => ({ userId: "u-" + Math.random().toString(36).slice(2), email: "x@example.com", role: "ADMIN", status: "ACTIVE", ...over });
+const member = (over) => ({
+  userId: "u-" + Math.random().toString(36).slice(2),
+  email: "x@example.com",
+  role: "ADMIN",
+  status: "ACTIVE",
+  radarAccess: true,
+  ...over,
+});
 
 test("OWNER-UI-3A page: authorized -> renders, guard called exactly once with 'WORKFORCE_MANAGE' before the workforce list", async () => {
   reset();
@@ -438,4 +461,65 @@ test("R2C-P3. empty workforce -> no WorkforceRoleSelect elements", async () => {
   workforceRows = [];
   const el = await WorkforcePage();
   assert.equal(roleSelectEls(el).length, 0);
+});
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL — per-row RADAR ON/OFF toggle (replaces the
+ * previous absence of any RADAR-related control). Mirrors the R2C-P
+ * role-select-column tests above; visibility rules (self/ADMIN-for-
+ * non-OWNER-viewer/non-ACTIVE) are proven directly against the component
+ * in components/workforce/workforce-radar-access-toggle.test.mjs.
+ * ------------------------------------------------------------------------ */
+
+test("RAC-P1. exactly one WorkforceRadarAccessToggle per member row, receiving userId/role/status/radarAccess verbatim + locale + server currentUserId + viewerRole", async () => {
+  reset();
+  const rows = [
+    member({ userId: "u-aaa", email: "a@example.com", role: "MANAGER", status: "ACTIVE", radarAccess: true }),
+    member({ userId: "u-bbb", email: "b@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: false }),
+  ];
+  workforceRows = rows;
+  viewerRoleMockState = "ADMIN";
+  const els = radarAccessEls(await WorkforcePage());
+  assert.equal(els.length, 2, "one WorkforceRadarAccessToggle per member row");
+  for (const row of rows) {
+    const found = els.find((e) => e.props.userId === row.userId);
+    assert.ok(found, `a radar-access element for ${row.userId}`);
+    assert.equal(found.props.role, row.role);
+    assert.equal(found.props.status, row.status);
+    assert.equal(found.props.radarAccess, row.radarAccess);
+    assert.equal(found.props.currentUserId, PAGE_SELF_UUID, "currentUserId is the requireSession() userId");
+    assert.equal(found.props.viewerRole, "ADMIN", "viewerRole is the requireStaffMember('WORKFORCE_MANAGE') return value");
+    assert.equal(found.props.locale, "fr", "locale forwarded");
+  }
+});
+
+test("RAC-P2. viewerRole is forwarded verbatim for an OWNER viewer too — never hardcoded", async () => {
+  reset();
+  workforceRows = [member({ userId: "u-x", role: "ADMIN", status: "ACTIVE", radarAccess: true })];
+  viewerRoleMockState = "OWNER";
+  const [only] = radarAccessEls(await WorkforcePage());
+  assert.equal(only.props.viewerRole, "OWNER");
+});
+
+test("RAC-P3. currentUserId comes from requireSession().userId — forged params/searchParams cannot influence it", async () => {
+  reset();
+  workforceRows = [member({ userId: "u-x", email: "x@example.com", role: "MANAGER", status: "ACTIVE" })];
+  const el = await WorkforcePage({ searchParams: { currentUserId: "attacker" }, params: { currentUserId: "attacker" } });
+  const [only] = radarAccessEls(el);
+  assert.equal(only.props.currentUserId, PAGE_SELF_UUID, "a caller value never becomes currentUserId");
+});
+
+test("RAC-P4. empty workforce -> no WorkforceRadarAccessToggle elements", async () => {
+  reset();
+  workforceRows = [];
+  const el = await WorkforcePage();
+  assert.equal(radarAccessEls(el).length, 0);
+});
+
+test("RAC-P5. the RADAR column header is present when the table has members", async () => {
+  reset();
+  workforceRows = [member({ email: "m@example.com", role: "MANAGER", status: "ACTIVE" })];
+  const text = collectText(await WorkforcePage()).join(" | ");
+  const { dictionaries } = await import("@/lib/i18n/dictionaries");
+  assert.ok(text.includes(dictionaries.fr.workforce.columnRadarAccess), "the localized RADAR column header is present");
 });

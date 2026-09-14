@@ -24,7 +24,7 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, interactions, tasks } from "@/db/schema";
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 
 /** Open (actionable) task statuses. Mirrors lib/actions/crm-tasks.ts. */
@@ -112,12 +112,12 @@ function bucketExpr(dueCol: typeof tasks.dueDate) {
 /**
  * The authenticated staff member's operational picture. Zero parameters —
  * identity and scope come only from the session. Gated by
- * requireStaffMember("RADAR_WORK") (its own redirect contract handles
+ * requireRadarAccess("RADAR_WORK") (its own redirect contract handles
  * unauthenticated / pending / no-membership / inactive / missing
  * permission).
  */
 export async function getMyWork(): Promise<MyWork> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const { userId } = await requireSession();
 
   // --- my assigned prospects (+ whether each has an open follow-up owned by me) ---

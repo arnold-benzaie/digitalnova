@@ -2,10 +2,12 @@
 // lib/actions/crm-tasks.ts.
 //
 // Human task mutations moved from Axis-A requireStaffRole() to Axis-C
-// requireStaffMember("RADAR_WORK") + own-vs-foreign RADAR_ASSIGN
+// requireRadarAccess("RADAR_WORK") + own-vs-foreign RADAR_ASSIGN
 // escalation. So the "staff" identity here must be a REAL users.id with
 // a real ACTIVE staff_members row in the internal workspace; the REAL
-// requireStaffMember / evaluateStaffPermission run against seeded rows.
+// requireRadarAccess / evaluateRadarAccess run against seeded rows
+// (radar_access defaults to true, so every seeded row behaves exactly
+// like the pre-existing requireStaffMember/evaluateStaffPermission did).
 // Same convention as radar-assignment.integration.test.mjs /
 // crm-interactions.integration.test.mjs.
 //
@@ -449,7 +451,7 @@ test("3A-28. clientless internal task delete: ACTIVE EMPLOYEE (RADAR_WORK) allow
 
 test("3A-29. source structural: RADAR_WORK/RADAR_ASSIGN gates, session creator, no free-text/actor spoof reads", () => {
   const src = readFileSync(fileURLToPath(new URL("./crm-tasks.ts", import.meta.url)), "utf8");
-  assert.ok(src.includes('requireStaffMember("RADAR_WORK")'), "human gate is RADAR_WORK");
+  assert.ok(src.includes('requireRadarAccess("RADAR_WORK")'), "human gate is RADAR_WORK");
   assert.ok(src.includes('permission: "RADAR_ASSIGN"'), "foreign escalation uses RADAR_ASSIGN");
   assert.ok(src.includes("await requireSession()"), "creator/actor from session");
   assert.ok(src.includes("createdByUserId: actorUserId"), "structured session creator");
@@ -589,7 +591,7 @@ test("3G-13. source structural: RADAR_WORK gate, session-derived creator AND own
   assert.ok(start !== -1, "createFollowUp exists");
   const after = src.indexOf("\nexport async function", start + 1);
   const fn = src.slice(start, after === -1 ? undefined : after);
-  assert.ok(fn.includes('requireStaffMember("RADAR_WORK")'), "RADAR_WORK gate");
+  assert.ok(fn.includes('requireRadarAccess("RADAR_WORK")'), "RADAR_WORK gate");
   assert.ok(/role === "OWNER"/.test(fn) && /ownerCannotOwnFollowUp/.test(fn), "OWNER caller rejected");
   assert.ok(fn.includes("createdByUserId: actorUserId") && fn.includes("assignedUserId: actorUserId"), "creator AND owner are the session user");
   assert.ok(!/formData\.get\(["'](assignee|assignedUserId|createdByUserId|actorUserId|role)["']\)/.test(fn), "no caller identity field is read");

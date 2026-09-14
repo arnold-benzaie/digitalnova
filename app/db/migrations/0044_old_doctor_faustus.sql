@@ -1,0 +1,1 @@
+ALTER TABLE "staff_members" ADD COLUMN "radar_access" boolean DEFAULT true NOT NULL;

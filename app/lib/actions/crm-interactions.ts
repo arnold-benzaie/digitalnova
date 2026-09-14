@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { crmClients, interactions } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 
 const TYPES = ["note", "call", "email", "meeting"] as const;
@@ -86,7 +86,7 @@ export async function createInteraction(formData: FormData) {
   // and the author is ALWAYS the authenticated session — never a
   // caller-supplied name, email, or id. The machine path
   // (lib/api-v1/interactions.ts) is separate and unchanged.
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const { userId: actorUserId } = await requireSession();
   const locale = await getLocale();
 

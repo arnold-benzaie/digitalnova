@@ -23,7 +23,18 @@ import { hasPermission, type Permission, type StaffRole } from "@/lib/rbac/permi
 
 const ACTIVE_STAFF_STATUS = "ACTIVE";
 
-export type StaffPermissionDenialReason = "no-internal-workspace" | "no-membership" | "inactive-membership" | "permission-denied";
+export type StaffPermissionDenialReason =
+  | "no-internal-workspace"
+  | "no-membership"
+  | "inactive-membership"
+  | "permission-denied"
+  // WORKFORCE ACCESS CONTROL — RADAR_ACCESS. Distinct from
+  // "permission-denied" (role lacks the permission entirely) — this means
+  // the role DOES grant the permission but the individual override
+  // (staff_members.radar_access) is off. Purely additive: only
+  // evaluateRadarAccess() below ever produces it; every existing
+  // evaluateStaffPermission() caller is unaffected.
+  | "radar-access-revoked";
 
 export type StaffPermissionCheck = { ok: true; role: StaffRole } | { ok: false; reason: StaffPermissionDenialReason };
 
@@ -99,6 +110,103 @@ export async function evaluateStaffPermission({
 export async function requireStaffMember(permission: Permission): Promise<StaffRole> {
   const session = await requireSession();
   const result = await evaluateStaffPermission({ userId: session.userId, permission });
+  if (!result.ok) {
+    redirect("/admin");
+  }
+  return result.role;
+}
+
+/* ------------------------------------------------------------------------ *
+ * WORKFORCE ACCESS CONTROL — RADAR_ACCESS. An individual override layered
+ * ON TOP of the role-derived RADAR_WORK/RADAR_QUEUE_VIEW/RADAR_ASSIGN
+ * permissions — never a replacement for them, never a new entry in
+ * lib/rbac/permissions.ts's PERMISSIONS/ROLE_PERMISSIONS (both untouched).
+ * Effective RADAR access = hasPermission(role, radarPermission) AND
+ * staff_members.radar_access === true. Every RADAR-gated call site in the
+ * app uses evaluateRadarAccess()/requireRadarAccess() below INSTEAD OF
+ * evaluateStaffPermission()/requireStaffMember() for its RADAR permission
+ * check — every non-RADAR permission (CRM_READ, WORKFORCE_MANAGE,
+ * OWNER_MANAGE, ...) is completely unaffected and keeps using the
+ * original functions unchanged.
+ * ------------------------------------------------------------------------ */
+
+const RADAR_PERMISSIONS: ReadonlySet<Permission> = new Set(["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"]);
+
+/** Same shape/purpose as StaffMembershipLookup, plus radarAccess — kept as
+ * a SEPARATE type (not a widening of StaffMembershipLookup) so every
+ * existing evaluateStaffPermission() caller/fake is completely unaffected. */
+export type RadarMembershipLookup = (
+  userId: string,
+  workspaceOrgId: string,
+) => Promise<{ roleName: string; status: string; radarAccess: boolean } | undefined>;
+
+async function defaultLookupRadarMembership(userId: string, workspaceOrgId: string) {
+  const [row] = await db
+    .select({ roleName: staffRoles.name, status: staffMembers.status, radarAccess: staffMembers.radarAccess })
+    .from(staffMembers)
+    .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
+    .where(and(eq(staffMembers.userId, userId), eq(staffMembers.workspaceOrgId, workspaceOrgId)))
+    .limit(1);
+  return row;
+}
+
+/**
+ * Pure evaluation core for a RADAR permission specifically. Mirrors
+ * evaluateStaffPermission() exactly (same fail-closed branch order: no
+ * workspace, no membership, inactive, permission-denied) with ONE
+ * additional check after the role/permission grant: staff_members.radar_access
+ * must be exactly `true`. `permission` must be one of the three RADAR
+ * permissions — passing anything else is a caller bug and fails closed
+ * (never silently falls back to a non-RADAR check).
+ */
+export async function evaluateRadarAccess({
+  userId,
+  permission,
+  getInternalOrgId = getInternalOrganizationId,
+  lookupMembership = defaultLookupRadarMembership,
+}: {
+  userId: string;
+  permission: Permission;
+  getInternalOrgId?: () => Promise<string | null>;
+  lookupMembership?: RadarMembershipLookup;
+}): Promise<StaffPermissionCheck> {
+  if (!RADAR_PERMISSIONS.has(permission)) {
+    return { ok: false, reason: "permission-denied" };
+  }
+
+  const internalOrgId = await getInternalOrgId();
+  if (!internalOrgId) {
+    return { ok: false, reason: "no-internal-workspace" };
+  }
+
+  const membership = await lookupMembership(userId, internalOrgId);
+  if (!membership) {
+    return { ok: false, reason: "no-membership" };
+  }
+  if (membership.status !== ACTIVE_STAFF_STATUS) {
+    return { ok: false, reason: "inactive-membership" };
+  }
+  if (!hasPermission(membership.roleName, permission)) {
+    return { ok: false, reason: "permission-denied" };
+  }
+  if (membership.radarAccess !== true) {
+    return { ok: false, reason: "radar-access-revoked" };
+  }
+  return { ok: true, role: membership.roleName as StaffRole };
+}
+
+/**
+ * Server-side fail-closed authorization gate for a RADAR permission — the
+ * exact RADAR-aware counterpart of requireStaffMember() above, same
+ * redirect contract (unauthenticated/pending/refused/suspended are
+ * requireSession()'s own redirects; any other denial — including a
+ * revoked individual radar_access — redirects to /admin). Every RADAR-
+ * gated route/action in the app calls this INSTEAD OF
+ * requireStaffMember("RADAR_WORK" | "RADAR_QUEUE_VIEW" | "RADAR_ASSIGN").
+ */
+export async function requireRadarAccess(permission: Permission): Promise<StaffRole> {
+  const session = await requireSession();
+  const result = await evaluateRadarAccess({ userId: session.userId, permission });
   if (!result.ok) {
     redirect("/admin");
   }
@@ -226,20 +334,25 @@ export async function canCurrentUserManageAiPolicy(): Promise<boolean> {
  * signal, for deciding whether to RENDER the "Mon travail" / "My work" nav
  * entry. Same contract as isCurrentUserOwner() /
  * canCurrentUserManageWorkforce() above: NEVER an authorization gate —
- * /admin/crm/my-work independently calls requireStaffMember("RADAR_WORK")
+ * /admin/crm/my-work independently calls requireRadarAccess("RADAR_WORK")
  * as its own first statement, and getMyWork() re-checks it too. Follows
  * the "RADAR_WORK" permission catalogue entry (OWNER/ADMIN/MANAGER/EMPLOYEE
- * today) as the sole source of truth, via the exact same
- * evaluateStaffPermission() core, and returns its `ok` verbatim — no role
- * names hardcoded, no email, no client-suppliable state. Errors propagate
- * exactly as in isCurrentUserOwner().
+ * today) AND the individual radar_access override as the sole sources of
+ * truth, via the exact same evaluateRadarAccess() core, and returns its
+ * `ok` verbatim — no role names hardcoded, no email, no client-suppliable
+ * state. Errors propagate exactly as in isCurrentUserOwner().
+ *
+ * WORKFORCE ACCESS CONTROL — this now also hides the "My work" nav entry
+ * when the caller's individual radar_access is off, even though their role
+ * still grants RADAR_WORK — matches the requirement that a revoked radar
+ * access must not leave a visibly dead nav entry.
  *
  * Takes NO parameters — same reviewed API invariant as the functions
  * above.
  */
 export async function canCurrentUserWorkRadar(): Promise<boolean> {
   const session = await requireSession();
-  const result = await evaluateStaffPermission({ userId: session.userId, permission: "RADAR_WORK" });
+  const result = await evaluateRadarAccess({ userId: session.userId, permission: "RADAR_WORK" });
   return result.ok;
 }
 
@@ -291,8 +404,8 @@ export async function getRadarCapabilities(): Promise<{
 }> {
   const session = await requireSession();
   const [work, assign] = await Promise.all([
-    evaluateStaffPermission({ userId: session.userId, permission: "RADAR_WORK" }),
-    evaluateStaffPermission({ userId: session.userId, permission: "RADAR_ASSIGN" }),
+    evaluateRadarAccess({ userId: session.userId, permission: "RADAR_WORK" }),
+    evaluateRadarAccess({ userId: session.userId, permission: "RADAR_ASSIGN" }),
   ]);
   return {
     canClaimToSelf: work.ok && work.role !== "OWNER",

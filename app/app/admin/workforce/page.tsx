@@ -8,6 +8,7 @@ import { AdminPageHero, panelClass } from "@/components/admin/page-hero";
 import { AddWorkforceMemberForm } from "@/components/workforce/add-workforce-member-form";
 import { WorkforceLifecycleActions } from "@/components/workforce/workforce-lifecycle-actions";
 import { WorkforceRoleSelect } from "@/components/workforce/workforce-role-select";
+import { WorkforceRadarAccessToggle } from "@/components/workforce/workforce-radar-access-toggle";
 
 /**
  * PHASE OWNER-UI-3A / OWNER-UI-4A — the internal-staff workforce on the new
@@ -44,7 +45,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 export default async function WorkforcePage() {
-  await requireStaffMember("WORKFORCE_MANAGE");
+  const viewerRole = await requireStaffMember("WORKFORCE_MANAGE");
 
   // Guard-first is preserved: the await above fully resolves (and
   // redirect()s on any denial) before these run, and each read re-checks
@@ -81,6 +82,7 @@ export default async function WorkforcePage() {
                   <th scope="col" className="px-3 py-2">{t.columnMember}</th>
                   <th scope="col" className="px-3 py-2">{t.columnRole}</th>
                   <th scope="col" className="px-3 py-2">{t.columnStatus}</th>
+                  <th scope="col" className="px-3 py-2">{t.columnRadarAccess}</th>
                   <th scope="col" className="px-3 py-2 text-right">{t.columnActions}</th>
                 </tr>
               </thead>
@@ -105,6 +107,18 @@ export default async function WorkforcePage() {
                       >
                         {statusLabel[member.status] ?? member.status}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <WorkforceRadarAccessToggle
+                        userId={member.userId}
+                        email={member.email}
+                        role={member.role}
+                        status={member.status}
+                        radarAccess={member.radarAccess}
+                        currentUserId={currentUserId}
+                        viewerRole={viewerRole}
+                        locale={locale}
+                      />
                     </td>
                     <td className="px-3 py-2 text-right align-top">
                       <WorkforceLifecycleActions

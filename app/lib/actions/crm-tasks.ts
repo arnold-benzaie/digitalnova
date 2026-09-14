@@ -11,7 +11,7 @@
  * legacy free-text `assignee` column is never read or written on a new
  * human write — it is kept for historical rows / display only.
  *
- * Human mutation gate: requireStaffMember("RADAR_WORK"). Own-vs-foreign:
+ * Human mutation gate: requireRadarAccess("RADAR_WORK"). Own-vs-foreign:
  * a task whose locked `assigned_user_id` is another user needs
  * RADAR_ASSIGN (checked non-redirecting under the row lock) for ANY
  * change — title, description, due date, status, or assignment — so a
@@ -34,7 +34,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, staffMembers, staffRoles, tasks } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
-import { evaluateStaffPermission, requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { evaluateRadarAccess, requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { isValidUuid } from "@/lib/api-v1/dto";
@@ -183,13 +183,13 @@ async function runTaskMutation(
     // RADAR_ASSIGN — checked non-redirecting under the row lock, exactly
     // as radar-assignment.ts escalates a foreign unassign.
     if (isForeign) {
-      const canAssign = await evaluateStaffPermission({ userId: actorUserId, permission: "RADAR_ASSIGN" });
+      const canAssign = await evaluateRadarAccess({ userId: actorUserId, permission: "RADAR_ASSIGN" });
       if (!canAssign.ok) return { error: "NOT_ALLOWED" as const };
     }
     // Assigning a task to ANOTHER user always needs RADAR_ASSIGN (even from
     // an unassigned/own state).
     if (intent.kind === "assign" && intent.assigneeUserId !== actorUserId) {
-      const canAssign = await evaluateStaffPermission({ userId: actorUserId, permission: "RADAR_ASSIGN" });
+      const canAssign = await evaluateRadarAccess({ userId: actorUserId, permission: "RADAR_ASSIGN" });
       if (!canAssign.ok) return { error: "NOT_ALLOWED" as const };
     }
 
@@ -270,7 +270,7 @@ async function auditAndRevalidate(clientId: string | null, action: string, metad
 
 /** Run a decision verb: gate -> session -> shared mutation -> audit. */
 async function runFollowUpVerb(taskId: string, intent: TaskIntent): Promise<FollowUpResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   if (typeof taskId !== "string" || !isValidUuid(taskId)) return { error: "FOLLOWUP_NOT_FOUND" };
   const { userId: actorUserId } = await requireSession();
 
@@ -283,7 +283,7 @@ async function runFollowUpVerb(taskId: string, intent: TaskIntent): Promise<Foll
 // ============================ CREATION ============================
 
 export async function createTask(formData: FormData) {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const { userId: actorUserId } = await requireSession();
   const locale = await getLocale();
 
@@ -326,14 +326,14 @@ export async function createTask(formData: FormData) {
  * due_date both non-null) that is SELF-OWNED by its creator, so "add a
  * follow-up I will do" is a single step instead of create-then-claim.
  *
- * - Gate: requireStaffMember("RADAR_WORK") — same Axis-C path as every
+ * - Gate: requireRadarAccess("RADAR_WORK") — same Axis-C path as every
  *   other follow-up mutation.
  * - OWNER caller: REJECTED. OWNER holds RADAR_WORK but is a governance
  *   seat, deliberately excluded from isEligibleAssignee /
  *   getRadarCapabilities' canClaimToSelf. Since a 3G follow-up is always
  *   self-owned, an OWNER caller cannot be its owner — reject outright
  *   rather than silently create an unassigned (or OWNER-owned) row. The
- *   role comes from requireStaffMember()'s own return value, never from
+ *   role comes from requireRadarAccess()'s own return value, never from
  *   the client.
  * - clientId, title, dueDate are all REQUIRED; a blank/invalid dueDate is
  *   rejected so this call can never fall through to a Class-B generic
@@ -345,7 +345,7 @@ export async function createTask(formData: FormData) {
  * - Audit / revalidation reuse the existing crm.task_created path.
  */
 export async function createFollowUp(formData: FormData) {
-  const role = await requireStaffMember("RADAR_WORK");
+  const role = await requireRadarAccess("RADAR_WORK");
   const { userId: actorUserId } = await requireSession();
   const locale = await getLocale();
 
@@ -391,7 +391,7 @@ export async function claimFollowUp(taskId: string): Promise<FollowUpResult> {
 }
 
 export async function assignFollowUp(taskId: string, assigneeUserId: string): Promise<FollowUpResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   if (typeof assigneeUserId !== "string" || !isValidUuid(assigneeUserId)) return { error: "ASSIGNEE_NOT_ELIGIBLE" };
   return runFollowUpVerb(taskId, { kind: "assign", assigneeUserId });
 }
@@ -413,7 +413,7 @@ export async function reopenFollowUp(taskId: string): Promise<FollowUpResult> {
 }
 
 export async function rescheduleFollowUp(taskId: string, dueDate: string): Promise<FollowUpResult> {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const parsed = typeof dueDate === "string" ? new Date(dueDate) : new Date(Number.NaN);
   if (Number.isNaN(parsed.getTime())) return { error: "INVALID_DUE_AT" };
   return runFollowUpVerb(taskId, { kind: "reschedule", dueAt: parsed });
@@ -429,7 +429,7 @@ function throwFollowUp(code: FollowUpErrorCode, locale: "fr" | "en"): never {
 }
 
 export async function updateTaskStatus(id: string, status: string) {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const locale = await getLocale();
   if (!(ALL_STATUSES as readonly string[]).includes(status)) {
     throw new Error(MESSAGES[locale].invalidStatus);
@@ -444,7 +444,7 @@ export async function updateTaskStatus(id: string, status: string) {
 
 /** Full edit — title/description/due date; use updateTaskStatus for status. */
 export async function updateTask(id: string, formData: FormData) {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const locale = await getLocale();
   const title = formData.get("title");
   if (typeof title !== "string" || !title.trim()) {
@@ -465,7 +465,7 @@ export async function updateTask(id: string, formData: FormData) {
 }
 
 export async function deleteTask(id: string) {
-  await requireStaffMember("RADAR_WORK");
+  await requireRadarAccess("RADAR_WORK");
   const locale = await getLocale();
   if (typeof id !== "string" || !isValidUuid(id)) throw new Error(MESSAGES[locale].taskNotFound);
   const { userId: actorUserId } = await requireSession();
@@ -483,7 +483,7 @@ export async function deleteTask(id: string) {
     // of a client-linked follow-up is a manager cleanup path — an EMPLOYEE
     // (no RADAR_ASSIGN) must not be able to hard-delete one.
     if (locked.clientId !== null) {
-      const canAssign = await evaluateStaffPermission({ userId: actorUserId, permission: "RADAR_ASSIGN" });
+      const canAssign = await evaluateRadarAccess({ userId: actorUserId, permission: "RADAR_ASSIGN" });
       if (!canAssign.ok) return { error: "NOT_ALLOWED" as const };
     }
 

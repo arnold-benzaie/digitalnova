@@ -3,7 +3,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, tasks, users } from "@/db/schema";
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
 import {
@@ -289,7 +289,7 @@ function groupByClientId<T extends { clientId: string }>(rows: T[]): Map<string,
  * can never appear in `items`.
  */
 export async function getRadarQueue(params: RadarQueueParams = {}): Promise<RadarQueueResult> {
-  await requireStaffMember("RADAR_QUEUE_VIEW");
+  await requireRadarAccess("RADAR_QUEUE_VIEW");
 
   const page = sanitizePage(params.page);
   const priorityFilter = sanitizePriorityFilter(params.priority);

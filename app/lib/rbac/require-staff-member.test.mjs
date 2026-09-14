@@ -78,7 +78,17 @@ mock.module("@/lib/notifications", {
   },
 });
 
-const { evaluateStaffPermission, requireStaffMember, isCurrentUserOwner, canCurrentUserManageWorkforce, canCurrentUserManageAiPolicy, getRadarCapabilities } = await import("./require-staff-member.ts");
+const {
+  evaluateStaffPermission,
+  requireStaffMember,
+  isCurrentUserOwner,
+  canCurrentUserManageWorkforce,
+  canCurrentUserManageAiPolicy,
+  getRadarCapabilities,
+  canCurrentUserWorkRadar,
+  evaluateRadarAccess,
+  requireRadarAccess,
+} = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
   return async () => id;
@@ -101,9 +111,17 @@ function throwingLookup(err = new Error("db unreachable")) {
 // ---- isCurrentUserOwner()-only fixtures: it has no injectable params, so
 // its real defaultLookupStaffMembership() must hit the fake `db` above
 // instead. `internalOrgIdMock` (already set up for @/lib/notifications)
-// covers the workspace-resolution half of the same real call chain. ----
-function withMembershipRow(roleName, status = "ACTIVE") {
-  membershipRowOrError = { row: { roleName, status } };
+// covers the workspace-resolution half of the same real call chain. Also
+// used by getRadarCapabilities()/canCurrentUserWorkRadar() below — their
+// real defaultLookupRadarMembership() selects one extra column
+// (radarAccess) from the SAME fake `db` (its mock chain ignores which
+// columns are requested), so `radarAccess` defaults to `true` here to
+// match staff_members.radar_access's own column DEFAULT and keep every
+// pre-existing role-only test (which never mentions radar access)
+// correct without changes — WORKFORCE ACCESS CONTROL tests below pass
+// `false` explicitly. ----
+function withMembershipRow(roleName, status = "ACTIVE", radarAccess = true) {
+  membershipRowOrError = { row: { roleName, status, radarAccess } };
 }
 function withNoMembershipRow() {
   membershipRowOrError = { row: undefined };
@@ -118,6 +136,27 @@ async function evaluate(roleName, permission, { status = "ACTIVE", getInternalOr
     permission,
     getInternalOrgId,
     lookupMembership: lookupMembership ?? membershipOf(roleName, status),
+  });
+}
+
+// WORKFORCE ACCESS CONTROL — RADAR_ACCESS fixtures, same shape as
+// membershipOf()/evaluate() above, plus radarAccess.
+function radarMembershipOf(roleName, status = "ACTIVE", radarAccess = true) {
+  return async () => ({ roleName, status, radarAccess });
+}
+function noRadarMembership() {
+  return async () => undefined;
+}
+async function evaluateRadar(
+  roleName,
+  permission,
+  { status = "ACTIVE", radarAccess = true, getInternalOrgId = fixedInternalOrg(), lookupMembership } = {},
+) {
+  return evaluateRadarAccess({
+    userId: USER_ID,
+    permission,
+    getInternalOrgId,
+    lookupMembership: lookupMembership ?? radarMembershipOf(roleName, status, radarAccess),
   });
 }
 
@@ -621,4 +660,141 @@ test("RADAR-CORE-1B.cap-10. identity comes from requireSession() — an unauthen
   } finally {
     sessionMockState = { kind: "session", userId: USER_ID };
   }
+});
+
+// ------------- WORKFORCE ACCESS CONTROL — evaluateRadarAccess() / requireRadarAccess() -------------
+// RADAR_ACCESS: staff_members.radar_access, an individual override
+// layered strictly ON TOP of the existing role-derived RADAR_WORK /
+// RADAR_QUEUE_VIEW / RADAR_ASSIGN permissions. Effective access requires
+// BOTH hasPermission(role, permission) AND radarAccess === true.
+// lib/rbac/permissions.ts (PERMISSIONS/ROLE_PERMISSIONS/hasPermission) is
+// never touched by any of this — proven by test #19 above continuing to
+// pass unmodified, and by the mandated matrix below.
+
+test("RA-1. role authorized (RADAR_WORK) + radar ON -> ALLOW", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_WORK", { radarAccess: true });
+  assert.deepEqual(result, { ok: true, role: "EMPLOYEE" });
+});
+
+test("RA-2. role authorized (RADAR_WORK) + radar OFF -> DENY (radar-access-revoked)", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_WORK", { radarAccess: false });
+  assert.deepEqual(result, { ok: false, reason: "radar-access-revoked" });
+});
+
+test("RA-3. role NOT authorized (CLIENT-shaped/unknown role never holds RADAR_ASSIGN, e.g. EMPLOYEE) + radar ON -> DENY (permission-denied)", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_ASSIGN", { radarAccess: true });
+  assert.deepEqual(result, { ok: false, reason: "permission-denied" });
+});
+
+test("RA-4. role NOT authorized + radar OFF -> DENY (permission-denied, not radar-access-revoked — the role check runs first)", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_ASSIGN", { radarAccess: false });
+  assert.deepEqual(result, { ok: false, reason: "permission-denied" });
+});
+
+test("RA-5. no staff_members row at all -> DENY (no-membership)", async () => {
+  const result = await evaluateRadarAccess({ userId: USER_ID, permission: "RADAR_WORK", getInternalOrgId: fixedInternalOrg(), lookupMembership: noRadarMembership() });
+  assert.deepEqual(result, { ok: false, reason: "no-membership" });
+});
+
+test("RA-6. every StaffRole x RADAR permission, radar ON, matches hasPermission() exactly — proves ROLE_PERMISSIONS/hasPermission() are untouched", async () => {
+  const roles = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"];
+  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"];
+  for (const role of roles) {
+    for (const perm of radarPerms) {
+      const result = await evaluateRadar(role, perm, { radarAccess: true });
+      assert.equal(result.ok, hasPermission(role, perm), `${role} x ${perm} mismatch`);
+    }
+  }
+});
+
+test("RA-7. every StaffRole x RADAR permission, radar OFF -> DENY unconditionally, even for a role the permission would otherwise grant", async () => {
+  const roles = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"];
+  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"];
+  for (const role of roles) {
+    for (const perm of radarPerms) {
+      const result = await evaluateRadar(role, perm, { radarAccess: false });
+      if (hasPermission(role, perm)) {
+        assert.deepEqual(result, { ok: false, reason: "radar-access-revoked" }, `${role} x ${perm} should be revoked, not permission-denied`);
+      } else {
+        assert.deepEqual(result, { ok: false, reason: "permission-denied" }, `${role} x ${perm} should stay permission-denied`);
+      }
+    }
+  }
+});
+
+test("RA-8. inactive (SUSPENDED) row -> DENY (inactive-membership), even with radarAccess true", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_WORK", { status: "SUSPENDED", radarAccess: true });
+  assert.deepEqual(result, { ok: false, reason: "inactive-membership" });
+});
+
+test("RA-9. no internal workspace resolvable -> DENY (no-internal-workspace)", async () => {
+  const result = await evaluateRadar("EMPLOYEE", "RADAR_WORK", { getInternalOrgId: noInternalOrg() });
+  assert.deepEqual(result, { ok: false, reason: "no-internal-workspace" });
+});
+
+test("RA-10. a non-RADAR permission passed to evaluateRadarAccess() fails closed (permission-denied), never falls back to a plain permission check", async () => {
+  const result = await evaluateRadar("OWNER", "WORKFORCE_MANAGE", { radarAccess: true });
+  assert.deepEqual(result, { ok: false, reason: "permission-denied" });
+});
+
+test("RA-11. a membership lookup failure propagates (rejects), never resolves to ALLOW", async () => {
+  await assert.rejects(
+    () => evaluateRadarAccess({ userId: USER_ID, permission: "RADAR_WORK", getInternalOrgId: fixedInternalOrg(), lookupMembership: async () => { throw new Error("db unreachable"); } }),
+    /db unreachable/,
+  );
+});
+
+test("RA-12. requireRadarAccess() redirects to /admin on any denial, including a revoked individual radar_access", async () => {
+  withMembershipRow("EMPLOYEE", "ACTIVE", false);
+  await assert.rejects(
+    () => requireRadarAccess("RADAR_WORK"),
+    (e) => typeof e?.digest === "string" && e.digest.startsWith("NEXT_REDIRECT") && e.digest.includes("/admin"),
+  );
+});
+
+test("RA-13. requireRadarAccess() returns the role on success", async () => {
+  withMembershipRow("MANAGER", "ACTIVE", true);
+  assert.equal(await requireRadarAccess("RADAR_WORK"), "MANAGER");
+});
+
+test("RA-14. requireRadarAccess() has exactly one parameter (permission) — no way to pass an identity", () => {
+  assert.equal(requireRadarAccess.length, 1);
+});
+
+test("RA-15. unauthenticated caller: requireRadarAccess denies via requireSession()'s own existing redirect, never evaluates radar access", async () => {
+  sessionMockState = { kind: "unauthenticated" };
+  try {
+    await assert.rejects(() => requireRadarAccess("RADAR_WORK"), (e) => typeof e?.digest === "string" && e.digest.startsWith("NEXT_REDIRECT"));
+  } finally {
+    sessionMockState = { kind: "session", userId: USER_ID };
+  }
+});
+
+// ------------- WORKFORCE ACCESS CONTROL — canCurrentUserWorkRadar() now radar-access-aware -------------
+
+test("RA-16. canCurrentUserWorkRadar(): ACTIVE EMPLOYEE with radar ON -> true", async () => {
+  withMembershipRow("EMPLOYEE", "ACTIVE", true);
+  assert.equal(await canCurrentUserWorkRadar(), true);
+});
+
+test("RA-17. canCurrentUserWorkRadar(): ACTIVE EMPLOYEE with radar OFF -> false — the nav entry must not be shown for a revoked individual access even though the role still grants RADAR_WORK", async () => {
+  withMembershipRow("EMPLOYEE", "ACTIVE", false);
+  assert.equal(await canCurrentUserWorkRadar(), false);
+});
+
+test("RA-18. canCurrentUserWorkRadar(): no membership -> false", async () => {
+  withNoMembershipRow();
+  assert.equal(await canCurrentUserWorkRadar(), false);
+});
+
+// ------------- WORKFORCE ACCESS CONTROL — getRadarCapabilities() now radar-access-aware -------------
+
+test("RA-19. getRadarCapabilities(): ACTIVE MANAGER with radar OFF -> all three false, even though the role alone would grant all three", async () => {
+  withMembershipRow("MANAGER", "ACTIVE", false);
+  assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
+});
+
+test("RA-20. getRadarCapabilities(): ACTIVE MANAGER with radar ON -> unchanged from the role-only matrix already proven above", async () => {
+  withMembershipRow("MANAGER", "ACTIVE", true);
+  assert.deepEqual(await getRadarCapabilities(), { canClaimToSelf: true, canAssignOthers: true, canReleaseOwn: true });
 });

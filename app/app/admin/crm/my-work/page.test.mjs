@@ -18,9 +18,12 @@ let permissionCalls = [];
 let denyMode = false;
 let getMyWorkCalls = [];
 
+// WORKFORCE ACCESS CONTROL — the page now calls requireRadarAccess()
+// (RADAR-permission-aware), not requireStaffMember(). Same contract/
+// signature; only the name changed at the real call site.
 mock.module("@/lib/rbac/require-staff-member", {
   namedExports: {
-    requireStaffMember: async (permission) => {
+    requireRadarAccess: async (permission) => {
       permissionCalls.push(permission);
       if (denyMode) {
         const err = new Error("NEXT_REDIRECT");

@@ -5,7 +5,7 @@
  * — a plain service function future server code can call. It is NOT wired
  * into the /admin/crm/radar render path; nothing runs it automatically.
  *
- * Authorization: requireStaffMember("RADAR_QUEUE_VIEW") — the exact
+ * Authorization: requireRadarAccess("RADAR_QUEUE_VIEW") — the exact
  * capability the existing RADAR queue read already requires (OWNER / ADMIN
  * / MANAGER / EMPLOYEE). No new RBAC permission, no permissions.ts change.
  *
@@ -19,7 +19,7 @@
  * (providerUnavailable: true, source: "radar-core", intelligence: null).
  * A future slice supplies an enabled config + a real transport.
  */
-import { requireStaffMember } from "@/lib/rbac/require-staff-member";
+import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { createRadarIntelligenceGateway } from "./gateway";
 import { buildRadarIntelligenceSnapshot, type RadarIntelligenceSnapshotInput } from "./snapshot";
 import type { RadarIntelligenceSnapshot } from "./types";
@@ -37,7 +37,7 @@ export async function getRadarIntelligenceForProspect(
   input: RadarIntelligenceSnapshotInput,
   deps: GetRadarIntelligenceDeps = {},
 ): Promise<RadarIntelligenceSnapshot> {
-  await requireStaffMember("RADAR_QUEUE_VIEW");
+  await requireRadarAccess("RADAR_QUEUE_VIEW");
 
   const registry = createRadarIntelligenceRegistry(deps.registryOptions ?? {});
   const gateway = createRadarIntelligenceGateway({
