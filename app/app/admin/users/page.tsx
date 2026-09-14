@@ -92,6 +92,16 @@ export default async function AdminUsersPage({
       organizationId: organizations.id,
       organizationName: organizations.name,
       role: roles.name,
+      // USER MANAGEMENT UI CONSOLIDATION — a Workforce-governed person's
+      // REAL context, so the UI can show it instead of an invalid Axis-A
+      // role selector. Non-null here means: never offer the Axis-A role
+      // selector or Axis-A mutation controls for this row — every one of
+      // approve/refuse/suspend/reactivate/changeRole/changeOrganization/
+      // removeMember/delete already refuses server-side for such a target
+      // (isWorkforceManaged(), lib/actions/users.ts) — this only stops the
+      // UI from ever offering a control that would fail.
+      workforceRole: staffRoles.name,
+      workforceStatus: staffMembers.status,
     })
     .from(users)
     .leftJoin(memberships, eq(memberships.userId, users.id))

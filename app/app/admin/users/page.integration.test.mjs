@@ -113,7 +113,7 @@ function sessionFor(user, { context, role, staffRole, organizationId, organizati
 }
 
 let org;
-let ownerDualContextUser, adminViewerUser, plainClientUser;
+let ownerDualContextUser, adminViewerUser, plainClientUser, samiraShapeUser;
 
 before(async () => {
   org = await requireOrg("PUBLIC-MAP");
@@ -138,6 +138,13 @@ before(async () => {
   // A plain Axis-A client, no Axis-C row at all — unaffected baseline.
   plainClientUser = await createUser({ email: `${randomUUID()}@test.local` });
   await createActiveMember({ user: plainClientUser, role: "client", organizationId: org.id });
+
+  // The real Samira shape: Axis-C EMPLOYEE ACTIVE, ZERO Axis-A membership
+  // at all (no memberships row created here). Must appear with her real
+  // Workforce role/status, never blank organization/role, and never an
+  // Axis-A role selector.
+  samiraShapeUser = await createUser({ email: `${randomUUID()}@test.local` });
+  await makeActiveStaffMember(samiraShapeUser.id, org.id, "EMPLOYEE");
 });
 
 // UNLIKE lib/actions/user-approval.test.mjs's "no cleanup, disposable DB"
@@ -172,6 +179,15 @@ test("ADMIN viewer: ne reçoit jamais la ligne OWNER (dual-contexte), mais reço
   // from the raw props entirely — no email, no id, no role, no status.
   const ownerRow = element.props.users.find((u) => u.id === ownerDualContextUser.id);
   assert.equal(ownerRow, undefined, "aucune donnée OWNER (même partielle) ne doit être présente dans la réponse serveur");
+
+  // USER MANAGEMENT UI CONSOLIDATION — the real Axis-C context is exposed
+  // so the UI can render it instead of an invalid Axis-A role selector.
+  const adminRow = element.props.users.find((u) => u.id === adminViewerUser.id);
+  assert.equal(adminRow.workforceRole, "ADMIN", "le rôle Axis-C réel doit être exposé pour une ligne Workforce-gouvernée");
+  assert.equal(adminRow.workforceStatus, "ACTIVE");
+
+  const clientRow = element.props.users.find((u) => u.id === plainClientUser.id);
+  assert.equal(clientRow.workforceRole, null, "un CLIENT Axis-A pur ne doit jamais recevoir de contexte Workforce inventé");
 });
 
 test("OWNER viewer: voit tout le monde, y compris sa propre ligne dual-contexte", async () => {
@@ -189,4 +205,18 @@ test("OWNER viewer: voit tout le monde, y compris sa propre ligne dual-contexte"
   assert.ok(emails.includes(ownerDualContextUser.email), "l'OWNER doit voir la ligne OWNER dual-contexte");
   assert.ok(emails.includes(adminViewerUser.email), "l'OWNER doit voir les ADMIN");
   assert.ok(emails.includes(plainClientUser.email), "l'OWNER doit voir les CLIENT");
+});
+
+test("cas Samira (EMPLOYEE Axis-C, zéro membership Axis-A) : rôle/statut Workforce réels exposés, jamais de champs Axis-A inventés", async () => {
+  mockState = {
+    session: sessionFor(adminViewerUser, { context: "CLIENT", role: "admin", organizationId: org.id, organizationName: org.name }),
+  };
+  const element = await AdminUsersPage({ searchParams: Promise.resolve({ status: "active" }) });
+  const row = element.props.users.find((u) => u.id === samiraShapeUser.id);
+
+  assert.ok(row, "la personne Workforce-only (sans membership Axis-A) doit apparaître dans la liste des comptes actifs");
+  assert.equal(row.role, null, "aucun rôle Axis-A ne doit être inventé pour cette personne");
+  assert.equal(row.organizationId, null, "aucune organisation Axis-A ne doit être inventée pour cette personne");
+  assert.equal(row.workforceRole, "EMPLOYEE", "son vrai rôle Axis-C doit être exposé");
+  assert.equal(row.workforceStatus, "ACTIVE", "son vrai statut Axis-C doit être exposé");
 });

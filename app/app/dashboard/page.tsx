@@ -8,6 +8,7 @@ import { RatingDistributionChart } from "@/components/rating-distribution-chart"
 import { MetricsSummaryChart } from "@/components/metrics-summary-chart";
 import { getOrCreateDevOrganization } from "@/lib/dev-org";
 import { requireSession } from "@/lib/session";
+import { resolveGreetingName } from "@/lib/greeting-name";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDateTime, formatNumber, formatRelativeTime } from "@/lib/i18n/format";
@@ -18,7 +19,6 @@ import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
 import { Badge } from "@/components/crm/badges";
 import { SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
-import type { CurrentSession } from "@/lib/session";
 import { getGoogleConnectionOverview } from "@/lib/google/oauth";
 import { getClientActivityTimeline } from "@/lib/activity-timeline";
 import { notificationVisibilityWhere } from "@/lib/notification-visibility";
@@ -91,34 +91,6 @@ function buildDemoRecentReviews(locale: string) {
     publishedAt.setDate(publishedAt.getDate() - daysAgo[i]);
     return { id: `demo-${i}`, authorName, rating: ratings[i], publishedAt };
   });
-}
-
-// Per-user greeting name — never a hardcoded name, always derived from the
-// real signed-in session. Priority: personal first name > full name >
-// organization name > local part of the email (never the full address) >
-// null (generic "Bonjour/Hello 👋" fallback). Trimmed and length-capped so a
-// malformed Clerk profile field can't blow up the hero layout.
-// String.slice() cuts by UTF-16 code unit, which can split a surrogate
-// pair (e.g. an emoji in a display name) or a combined grapheme in half,
-// producing a broken character — Intl.Segmenter truncates by whole
-// grapheme instead. value.length is always >= the grapheme count, so
-// checking it first is a safe, cheap way to skip segmentation entirely
-// for the (overwhelmingly common) short-name case.
-function truncateName(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value;
-  const graphemes = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value), (s) => s.segment);
-  return graphemes.length <= maxLength ? value : `${graphemes.slice(0, maxLength).join("")}…`;
-}
-
-function resolveGreetingName(session: CurrentSession): string | null {
-  const candidates = [session.firstName, session.fullName, session.organizationName, session.email.split("@")[0]];
-  for (const candidate of candidates) {
-    const cleaned = candidate?.trim();
-    if (cleaned && cleaned.toLowerCase() !== "null" && cleaned.toLowerCase() !== "undefined") {
-      return truncateName(cleaned, 40);
-    }
-  }
-  return null;
 }
 
 export default async function DashboardPage() {

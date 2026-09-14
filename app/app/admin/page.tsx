@@ -3,10 +3,13 @@ import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memberships, organizations, googleOauthConnections, crmClients, deals, interactions, crmInvoices, crmQuotes, audits, documents } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireSession } from "@/lib/session";
+import { resolveGreetingName } from "@/lib/greeting-name";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, formatNumber, formatRelativeTime } from "@/lib/i18n/format";
 import { AdminPageHero, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+import { GreetingText } from "@/components/greeting-text";
 import { Badge } from "@/components/crm/badges";
 import { SEMANTIC_CLASS } from "@/lib/gbp-audit/status-colors";
 import { EmptyState } from "@/components/gbp-audit/ui/empty-state";
@@ -50,6 +53,7 @@ function computeProductState(
 
 export default async function AdminOverviewPage() {
   await requireStaffRole();
+  const session = await requireSession();
   const locale = await getLocale();
   const t = dictionaries[locale].dashboard.adminOverview;
   const inboxT = dictionaries[locale].dashboard.adminInbox;
@@ -171,7 +175,7 @@ export default async function AdminOverviewPage() {
 
   return (
     <>
-      <AdminPageHero title={inboxT.title} subtitle={inboxT.subtitle} />
+      <AdminPageHero title={<GreetingText name={resolveGreetingName(session)} locale={locale} />} subtitle={inboxT.subtitle} />
 
       <div className={`mt-6 ${panelClass}`}>
         <p className={panelTitleClass}>{inboxT.sections.clientsNeedingAttention}</p>

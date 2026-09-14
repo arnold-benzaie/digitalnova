@@ -44,6 +44,12 @@ type UserRow = {
   organizationId: string | null;
   organizationName: string | null;
   role: string | null;
+  // USER MANAGEMENT UI CONSOLIDATION — non-null means this person is
+  // Workforce-governed (Axis-C): the role/organization selector and
+  // Axis-A mutation actions must never be offered for this row (see
+  // WorkforceManagedBadge below and app/admin/users/page.tsx's own note).
+  workforceRole: string | null;
+  workforceStatus: string | null;
   lastModifiedBy: string | null;
   lastModifiedAt: string | null;
 };
@@ -54,6 +60,18 @@ const STATUS_BADGE_CLASS: Record<StatusTab, string> = {
   active: "bg-pm-g-green/10 text-pm-g-green",
   refused: "bg-pm-rouge/10 text-pm-rouge",
   suspended: "bg-pm-gris-2/60 text-pm-gris",
+};
+
+// USER MANAGEMENT UI CONSOLIDATION — a Workforce-governed row's real
+// status (staff_members.status), matching app/admin/workforce/page.tsx's
+// own STATUS_BADGE_CLASS exactly for visual consistency: users.status is
+// no longer updated by any action on THIS screen for such a row (they're
+// all refused server-side), so it can go stale relative to their real
+// Axis-C status and must not be shown as if authoritative.
+const WORKFORCE_STATUS_BADGE_CLASS: Record<string, string> = {
+  ACTIVE: "bg-pm-g-green/10 text-pm-g-green",
+  SUSPENDED: "bg-pm-or/10 text-pm-or",
+  OFFBOARDING: "bg-pm-rouge/10 text-pm-rouge-2",
 };
 
 export function UserManagement({
@@ -208,6 +226,19 @@ export function UserManagement({
               {users.map((row) => {
                 const isSelf = row.id === currentUserId;
                 const displayName = row.fullName ?? ([row.firstName, row.lastName].filter(Boolean).join(" ") || row.email);
+                // USER MANAGEMENT UI CONSOLIDATION — a Workforce-governed
+                // person (Axis-C) never gets the Axis-A role selector or
+                // Axis-A mutation actions here: every one of those already
+                // refuses server-side for such a target
+                // (isWorkforceManaged(), lib/actions/users.ts) — offering
+                // them anyway is exactly the "Server Components render
+                // error" this fixes. Applies equally to a dual-context row
+                // (e.g. a real ADMIN who also has an Axis-A membership) and
+                // to an Axis-C-only row with no Axis-A membership at all
+                // (e.g. Samira: EMPLOYEE, blank organization/role
+                // otherwise) — both get their real Axis-C role/status
+                // shown instead of a blank or an invalid control.
+                const isWorkforceGoverned = Boolean(row.workforceRole);
                 return (
                   <tr key={row.id} className="border-t border-pm-gris-2 align-top">
                     <td className="px-5 py-3">
@@ -223,11 +254,25 @@ export function UserManagement({
                       {row.lastLoginAt ? formatDate(row.lastLoginAt, locale, { timeZone }) : t.never}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge label={t.status[row.status]} className={STATUS_BADGE_CLASS[row.status]} />
+                      {isWorkforceGoverned && row.workforceStatus ? (
+                        <Badge
+                          label={t.workforceManaged.statusLabels[row.workforceStatus as keyof typeof t.workforceManaged.statusLabels] ?? row.workforceStatus}
+                          className={WORKFORCE_STATUS_BADGE_CLASS[row.workforceStatus] ?? "bg-pm-gris-2/60 text-pm-gris"}
+                        />
+                      ) : (
+                        <Badge label={t.status[row.status]} className={STATUS_BADGE_CLASS[row.status]} />
+                      )}
                     </td>
                     <td className="px-5 py-3 text-pm-gris">{row.organizationName ?? "—"}</td>
                     <td className="px-5 py-3">
-                      {row.status === "active" && row.role ? (
+                      {isWorkforceGoverned ? (
+                        <div>
+                          <div className="font-medium text-pm-noir">
+                            {t.workforceManaged.roleLabels[row.workforceRole as keyof typeof t.workforceManaged.roleLabels] ?? row.workforceRole}
+                          </div>
+                          <div className="text-xs text-pm-gris">{t.workforceManaged.label}</div>
+                        </div>
+                      ) : row.status === "active" && row.role ? (
                         <MemberRoleSelect userId={row.id} role={row.role} disabled={isSelf && row.role === "admin"} locale={locale} />
                       ) : row.role ? (
                         <span className="text-pm-gris">{t.roleLabels[row.role as keyof typeof t.roleLabels] ?? row.role}</span>
@@ -248,6 +293,10 @@ export function UserManagement({
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-col items-end gap-1.5">
+                        {isWorkforceGoverned ? (
+                          <span className="text-xs text-pm-gris">{t.workforceManaged.label}</span>
+                        ) : (
+                        <>
                         {row.status === "pending" && (
                           <>
                             <ApproveUserModal
@@ -287,6 +336,8 @@ export function UserManagement({
                           </>
                         )}
                         {row.status === "refused" && <DeleteUserButton userId={row.id} disabled={isSelf} locale={locale} />}
+                        </>
+                        )}
                       </div>
                     </td>
                   </tr>

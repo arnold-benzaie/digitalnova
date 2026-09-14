@@ -30,6 +30,18 @@ export const adminUsers = {
     },
     status: { pending: "En attente", active: "Actif", refused: "Refusé", suspended: "Suspendu" },
     roleLabels: { client: "Client", staff: "Staff", agent: "Agent", supervisor: "Superviseur", admin: "Administrateur" },
+    // USER MANAGEMENT UI CONSOLIDATION — a Workforce-governed person
+    // (Axis-C: OWNER/ADMIN/MANAGER/EMPLOYEE) never gets the Axis-A role
+    // selector or its actions on this screen — this badge shows their
+    // real Axis-C role/status instead. roleLabels here are this page's
+    // own (not lib/i18n/dictionaries/workforce.ts's, which deliberately
+    // excludes OWNER by design — this screen's OWNER viewer legitimately
+    // needs to see their own OWNER row labeled correctly).
+    workforceManaged: {
+      label: "Géré par l'effectif",
+      roleLabels: { OWNER: "Propriétaire", ADMIN: "Administrateur", MANAGER: "Manager", EMPLOYEE: "Employé" },
+      statusLabels: { ACTIVE: "Actif", SUSPENDED: "Suspendu", OFFBOARDING: "Départ en cours" },
+    },
     never: "Jamais",
     loading: "Chargement…",
     empty: "Aucun résultat.",
@@ -125,6 +137,11 @@ export const adminUsers = {
     },
     status: { pending: "Pending", active: "Active", refused: "Refused", suspended: "Suspended" },
     roleLabels: { client: "Client", staff: "Staff", agent: "Agent", supervisor: "Supervisor", admin: "Administrator" },
+    workforceManaged: {
+      label: "Managed by Workforce",
+      roleLabels: { OWNER: "Owner", ADMIN: "Administrator", MANAGER: "Manager", EMPLOYEE: "Employee" },
+      statusLabels: { ACTIVE: "Active", SUSPENDED: "Suspended", OFFBOARDING: "Offboarding" },
+    },
     never: "Never",
     loading: "Loading…",
     empty: "No results.",
