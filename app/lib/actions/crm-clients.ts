@@ -14,6 +14,7 @@ import {
   tickets,
 } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
 import { getOrCreateOrganizationForClient } from "@/lib/actions/crm-gbp";
@@ -72,13 +73,28 @@ export async function createClient(formData: FormData) {
   const stageValue = formData.get("stage");
   const stage = STAGES.includes(stageValue as (typeof STAGES)[number]) ? (stageValue as string) : "lead";
 
+  const email = (formData.get("email") as string) || null;
+  const phone = (formData.get("phone") as string) || null;
+
+  // PHASE A — CENTRALIZED CRM DEDUPLICATION. This form has no dedicated
+  // city/region/country field (only a single free-text `address`), so
+  // only the email/phone signals can ever apply here — never a
+  // name-based signal (see lib/crm-client-dedup.ts's own docstring on
+  // why a bare name is never sufficient). This is an explicit staff
+  // action ("create a new client"), not an ambiguous background merge
+  // decision, so a match is deliberately NOT auto-reused and creation is
+  // NOT blocked (no new UI is built in this phase to let staff choose
+  // between "create anyway" and "use the existing one") — it is only
+  // recorded in the audit entry below for visibility.
+  const possibleDuplicate = await findCrmClientMatch({ name: name.trim(), email, phone });
+
   const [client] = await db
     .insert(crmClients)
     .values({
       name: name.trim(),
       contactName: (formData.get("contactName") as string) || null,
-      email: (formData.get("email") as string) || null,
-      phone: (formData.get("phone") as string) || null,
+      email,
+      phone,
       address: (formData.get("address") as string) || null,
       source: (formData.get("source") as string) || null,
       ownerName: (formData.get("ownerName") as string) || null,
@@ -93,7 +109,11 @@ export async function createClient(formData: FormData) {
     targetType: "crm_client",
     targetId: client.id,
     clientId: client.id,
-    metadata: { name: client.name, stage: client.stage },
+    metadata: {
+      name: client.name,
+      stage: client.stage,
+      ...(possibleDuplicate.outcome !== "NO_MATCH" ? { possibleDuplicate } : {}),
+    },
   });
 
   await dispatchWebhookEvent("lead.created", { clientId: client.id, name: client.name, stage: client.stage });

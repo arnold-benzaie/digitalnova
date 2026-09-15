@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { parsePhoneNumberFromString } from "libphonenumber-js/core";
 // Same "core" build + explicit metadata as validation.ts — see that
 // file's comment: the top-level `libphonenumber-js` package triggers a
@@ -9,6 +9,7 @@ import { parsePhoneNumberFromString } from "libphonenumber-js/core";
 import metadata from "libphonenumber-js/metadata.min.json";
 import { db } from "@/db";
 import { crmClients } from "@/db/schema";
+import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import type { ChatContext } from "@/lib/chat/context";
 import { REQUEST_TYPE_LABELS_FR, type RequestTypeKey } from "@/lib/chat/request-type-catalog";
 
@@ -69,35 +70,43 @@ function buildNotesEntry(input: ChatLeadInput): string {
  * lead has no PUBLIC-MAP organization yet, same as every other CRM lead
  * created before onboarding).
  *
- * Deduplication: a case-insensitive exact email match against an
- * existing, non-archived `crmClients` row is treated as "the same
- * prospect contacting us again" — its contact details are refreshed and
- * the new message appended to `notes` rather than creating a second row.
- * This is a deliberately narrow, reliable match (exact email only, never
- * fuzzy name matching, which would risk merging two different people).
+ * Deduplication (PHASE A — centralized, lib/crm-client-dedup.ts): an
+ * EXACT_MATCH (a normalized email, or an E.164 phone, that unambiguously
+ * matches exactly one existing non-archived `crmClients` row) is treated
+ * as "the same prospect contacting us again" — its contact details are
+ * refreshed and the new message appended to `notes` rather than creating
+ * a second row, exactly as before this phase.
+ *
+ * PHASE A fix: the OLD version of this function picked an arbitrary
+ * existing row (`.limit(1)`, no `ORDER BY`) whenever more than one
+ * existing row already shared the same email — a real, silent risk if
+ * historical duplicate data exists. That case is now classified as
+ * AMBIGUOUS_MATCH and is deliberately NEVER resolved by picking one: a
+ * new row is created instead (this is a public, anonymous lead-capture
+ * form with no human decision point available — creating a duplicate is
+ * always safer than merging into the wrong existing record).
  */
 export async function captureLead(context: ChatContext, input: ChatLeadInput): Promise<{ crmClientId: string; reused: boolean }> {
   const email = input.email.trim().toLowerCase();
 
-  const [existing] = await db
-    .select({ id: crmClients.id, notes: crmClients.notes })
-    .from(crmClients)
-    .where(sql`lower(${crmClients.email}) = ${email} AND ${crmClients.archivedAt} IS NULL`)
-    .limit(1);
+  const match = await findCrmClientMatch({ email: input.email, phone: input.phone });
 
-  if (existing) {
-    const appendedNote = buildNotesEntry(input);
-    const mergedNotes = existing.notes ? `${existing.notes}\n\n${appendedNote}` : appendedNote;
-    await db
-      .update(crmClients)
-      .set({
-        contactName: input.fullName,
-        phone: input.phone ?? undefined,
-        country: input.country ?? undefined,
-        notes: mergedNotes,
-      })
-      .where(eq(crmClients.id, existing.id));
-    return { crmClientId: existing.id, reused: true };
+  if (match.outcome === "EXACT_MATCH") {
+    const [existing] = await db.select({ id: crmClients.id, notes: crmClients.notes }).from(crmClients).where(eq(crmClients.id, match.clientId)).limit(1);
+    if (existing) {
+      const appendedNote = buildNotesEntry(input);
+      const mergedNotes = existing.notes ? `${existing.notes}\n\n${appendedNote}` : appendedNote;
+      await db
+        .update(crmClients)
+        .set({
+          contactName: input.fullName,
+          phone: input.phone ?? undefined,
+          country: input.country ?? undefined,
+          notes: mergedNotes,
+        })
+        .where(eq(crmClients.id, existing.id));
+      return { crmClientId: existing.id, reused: true };
+    }
   }
 
   const [created] = await db

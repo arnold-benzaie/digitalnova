@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, tickets } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getInternalOrganizationId, notify } from "@/lib/notifications";
@@ -60,11 +61,20 @@ export async function createTicket(formData: FormData): Promise<{ error: string 
   }
 
   let clientId = clientIdRaw;
+  let possibleDuplicate: Awaited<ReturnType<typeof findCrmClientMatch>> | null = null;
   if (clientIdRaw === NEW_CLIENT_SENTINEL) {
     const newClientName = formData.get("newClientName");
     if (typeof newClientName !== "string" || !newClientName.trim()) {
       return { error: MESSAGES[locale].newClientNameRequired };
     }
+    // PHASE A — CENTRALIZED CRM DEDUPLICATION. This inline "new client"
+    // form field only ever collects a name (no email/phone/city) — per
+    // lib/crm-client-dedup.ts's own rule, a bare name alone can never
+    // produce a match (structurally: no database query is even issued),
+    // so this is currently a no-op in practice, wired in for consistency
+    // and so it activates automatically if this form ever collects more
+    // fields. Recorded in the audit entry below only if it ever does.
+    possibleDuplicate = await findCrmClientMatch({ name: newClientName.trim() });
     const [newClient] = await db.insert(crmClients).values({ name: newClientName.trim(), stage: "lead" }).returning();
     clientId = newClient.id;
   }
@@ -86,7 +96,11 @@ export async function createTicket(formData: FormData): Promise<{ error: string 
     targetType: "ticket",
     targetId: ticket.id,
     clientId,
-    metadata: { subject: ticket.subject, priority: ticket.priority },
+    metadata: {
+      subject: ticket.subject,
+      priority: ticket.priority,
+      ...(possibleDuplicate && possibleDuplicate.outcome !== "NO_MATCH" ? { possibleDuplicate } : {}),
+    },
   });
 
   await dispatchWebhookEvent("ticket.created", { ticketId: ticket.id, clientId, priority: ticket.priority });

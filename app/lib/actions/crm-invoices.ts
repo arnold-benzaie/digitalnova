@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices, type CrmInvoiceClientSnapshot } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
+import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import { computeTotals, CURRENCY_VALUES, getInvoiceStatusOptions, INVOICE_STATUS_VALUES, parseLineItems } from "@/lib/crm-billing";
 import { nextDocumentNumber } from "@/lib/crm-document-number";
 import { sanitizeServiceIds } from "@/lib/crm-service-linking";
@@ -39,6 +40,8 @@ const MESSAGES = {
     newClientNameRequired: "Nom du nouveau client requis.",
     newClientEmailRequired: "L'adresse email du client est requise pour envoyer automatiquement la facture.",
     newClientEmailInvalid: "Adresse email invalide.",
+    ambiguousClientMatch:
+      "Plusieurs clients existants pourraient correspondre à ces informations — sélectionnez le client existant dans la liste plutôt que d'en créer un nouveau.",
     deliveryFailedNotManual: "Ce statut ne peut pas être défini manuellement — utilisez « Réessayer l'envoi ».",
     resendOnlyAfterFirstSend: "Impossible de renvoyer une facture qui n'a encore jamais été envoyée.",
     noRecipientEmail: "Aucune adresse email n'est associée à ce client — impossible d'envoyer la facture.",
@@ -57,6 +60,7 @@ const MESSAGES = {
     newClientNameRequired: "New client name required.",
     newClientEmailRequired: "The client's email address is required to automatically send the invoice.",
     newClientEmailInvalid: "Invalid email address.",
+    ambiguousClientMatch: "Multiple existing clients could match this information — please select the existing client from the list instead of creating a new one.",
     deliveryFailedNotManual: "This status cannot be set manually — use “Retry sending” instead.",
     resendOnlyAfterFirstSend: "Cannot resend an invoice that has never been sent yet.",
     noRecipientEmail: "No email address is on file for this client — the invoice cannot be sent.",
@@ -133,12 +137,24 @@ function clientSnapshotFromRow(client: typeof crmClients.$inferSelect): CrmInvoi
  * future "attach a client" flow should go through, so the sentinel
  * handling, dedup, and snapshot capture logic exists exactly once.
  *
- * "Autre client…" behavior: if `saveNewClient` is checked, a real
- * crm_clients row is created (reusing an exact case-insensitive name match
- * if one already exists, to avoid an obvious duplicate) and `clientId`
- * points at it; if unchecked, `clientId` stays null and the snapshot is
- * the sole record of this client's details on the invoice — exactly the
- * "don't create a client just to throw it away" behavior requested.
+ * "Autre client…" behavior: if `saveNewClient` is checked, the manually
+ * entered details are run through the centralized dedup module
+ * (lib/crm-client-dedup.ts, PHASE A) instead of the old bare
+ * `lower(name) = lower(name)` check — that old check was a confirmed,
+ * real false-positive risk (two unrelated businesses sharing a name in
+ * different cities would silently merge, absorbing one another's billing
+ * history). Now:
+ *  - EXACT_MATCH (email or phone unambiguously matches exactly one
+ *    existing client): reused, exactly like before.
+ *  - AMBIGUOUS_MATCH (including the old name-only case, now correctly
+ *    classified as ambiguous rather than auto-merged): creation is
+ *    REFUSED with a clear, localized error — the existing client picker
+ *    dropdown already on this same form is the correct resolution path,
+ *    so no new UI is built for this.
+ *  - NO_MATCH: a new client is created, exactly like before.
+ * If unchecked, `clientId` stays null and the snapshot is the sole record
+ * of this client's details on the invoice — exactly the "don't create a
+ * client just to throw it away" behavior requested.
  */
 async function resolveInvoiceClient(
   formData: FormData,
@@ -179,13 +195,23 @@ async function resolveInvoiceClient(
     return { clientId: null, snapshot, preferredLocale: manual.preferredLocale };
   }
 
-  const [existingMatch] = await db
-    .select()
-    .from(crmClients)
-    .where(sql`lower(${crmClients.name}) = lower(${manual.name})`)
-    .limit(1);
-  if (existingMatch) {
-    return { clientId: existingMatch.id, snapshot: clientSnapshotFromRow(existingMatch), preferredLocale: isLocale(existingMatch.preferredLocale) ? existingMatch.preferredLocale : manual.preferredLocale };
+  const match = await findCrmClientMatch({
+    name: manual.name,
+    email: manual.email,
+    phone: manual.phone,
+    city: manual.city,
+    region: manual.region,
+    country: manual.country,
+  });
+
+  if (match.outcome === "AMBIGUOUS_MATCH") {
+    throw new Error(MESSAGES[locale].ambiguousClientMatch);
+  }
+  if (match.outcome === "EXACT_MATCH") {
+    const [existingMatch] = await db.select().from(crmClients).where(eq(crmClients.id, match.clientId)).limit(1);
+    if (existingMatch) {
+      return { clientId: existingMatch.id, snapshot: clientSnapshotFromRow(existingMatch), preferredLocale: isLocale(existingMatch.preferredLocale) ? existingMatch.preferredLocale : manual.preferredLocale };
+    }
   }
 
   const [created] = await db
