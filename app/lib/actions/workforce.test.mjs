@@ -887,14 +887,78 @@ test("R2D-14. no-op: suspend a SUSPENDED / reactivate an ACTIVE / offboard an OF
   }
 });
 
-test("R2D-15. INVALID_STATUS_TRANSITION: OFFBOARDING is terminal (suspend/reactivate an offboarded member)", async () => {
-  for (const fn of [() => suspendWorkforceMember, () => reactivateWorkforceMember]) {
+test("R2D-15. INVALID_STATUS_TRANSITION: an OFFBOARDING member cannot be suspended directly (must be reactivated first — WORKFORCE REACTIVATION PHASE 1)", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "OFFBOARDING" });
+  await assert.rejects(() => suspendWorkforceMember(R2D_TARGET_UUID), /this lifecycle transition is not allowed/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("WR-1. WORKFORCE REACTIVATION PHASE 1: reactivateWorkforceMember() now accepts OFFBOARDING -> ACTIVE (no longer terminal)", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "MANAGER", currentStatus: "OFFBOARDING", resultStatus: "ACTIVE" });
+  const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
+  assert.equal(result.status, "ACTIVE");
+  assert.deepEqual(r2cUpdateSetCapture, { status: "ACTIVE", updatedAt: r2cUpdateSetCapture.updatedAt });
+  assert.equal(auditWrites.length, 1);
+  assert.equal(auditWrites[0].action, "workforce.member_status_changed");
+  assert.deepEqual(auditWrites[0].metadata, { targetUserId: R2D_TARGET_UUID, previousStatus: "OFFBOARDING", newStatus: "ACTIVE" });
+});
+
+test("WR-2. reactivating from OFFBOARDING preserves role and radarAccess verbatim (never a re-add)", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "EMPLOYEE", currentStatus: "OFFBOARDING", resultStatus: "ACTIVE", radarAccess: true });
+  const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
+  assert.deepEqual(result, { userId: R2D_TARGET_UUID, email: "life@example.com", role: "EMPLOYEE", status: "ACTIVE", radarAccess: true });
+});
+
+test("WR-3. OWNER caller can reactivate an OFFBOARDING EMPLOYEE and an OFFBOARDING MANAGER", async () => {
+  for (const role of ["EMPLOYEE", "MANAGER"]) {
     r2dReset();
-    r2dWire({ currentRole: "MANAGER", currentStatus: "OFFBOARDING" });
-    await assert.rejects(() => fn()(R2D_TARGET_UUID), /this lifecycle transition is not allowed/);
-    assert.equal(r2cUpdateSetCapture, null);
-    assert.deepEqual(auditWrites, []);
+    permissionMockState = { allow: true, role: "OWNER" };
+    r2dWire({ currentRole: role, currentStatus: "OFFBOARDING", resultStatus: "ACTIVE" });
+    const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
+    assert.equal(result.status, "ACTIVE");
+    assert.equal(result.role, role);
   }
+});
+
+test("WR-4. ADMIN caller can reactivate an OFFBOARDING EMPLOYEE and an OFFBOARDING MANAGER", async () => {
+  for (const role of ["EMPLOYEE", "MANAGER"]) {
+    r2dReset();
+    permissionMockState = { allow: true, role: "ADMIN" };
+    r2dWire({ currentRole: role, currentStatus: "OFFBOARDING", resultStatus: "ACTIVE" });
+    const result = await reactivateWorkforceMember(R2D_TARGET_UUID);
+    assert.equal(result.status, "ACTIVE");
+    assert.equal(result.role, role);
+  }
+});
+
+test("WR-5. ADMIN caller cannot reactivate an OFFBOARDING ADMIN (ordinary R2D-A tier protection unchanged)", async () => {
+  r2dReset();
+  permissionMockState = { allow: true, role: "ADMIN" };
+  r2dWire({ currentRole: "ADMIN", currentStatus: "OFFBOARDING" });
+  await assert.rejects(() => reactivateWorkforceMember(R2D_TARGET_UUID), /an administrator's lifecycle requires owner privileges/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("WR-6. nobody can reactivate an OFFBOARDING OWNER (unreachable, unconditionally)", async () => {
+  r2dReset();
+  permissionMockState = { allow: true, role: "OWNER" };
+  r2dWire({ currentRole: "OWNER", currentStatus: "OFFBOARDING" });
+  await assert.rejects(() => reactivateWorkforceMember(R2D_TARGET_UUID), /target is the workspace owner and cannot be modified here/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
+});
+
+test("WR-7. self-reactivation from OFFBOARDING is still refused", async () => {
+  r2dReset();
+  r2dWire({ currentRole: "EMPLOYEE", currentStatus: "OFFBOARDING" });
+  await assert.rejects(() => reactivateWorkforceMember(R2D_SESSION_UUID), /workforce members cannot change their own lifecycle status/);
+  assert.equal(r2cUpdateSetCapture, null);
+  assert.deepEqual(auditWrites, []);
 });
 
 test("R2D-16. UNDER-LOCK no-op: advisory status stale (ACTIVE), locked status already SUSPENDED -> STATUS_UNCHANGED, no UPDATE, no audit", async () => {

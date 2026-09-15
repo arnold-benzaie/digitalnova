@@ -656,13 +656,60 @@ test("R2A integration: full authorization pipeline + real OWNER-exclusion query,
     ).rows;
     assert.deepEqual(offSAudit.metadata, { targetUserId: r2dSuspMgrId, previousStatus: "SUSPENDED", newStatus: "OFFBOARDING" });
 
-    // R2D-ix. OFFBOARDING is terminal — suspend/reactivate on an offboarded member rejected, unchanged, no audit.
+    // R2D-ix. WORKFORCE REACTIVATION PHASE 1: OFFBOARDING is no longer
+    // terminal for reactivate — suspend directly from OFFBOARDING is still
+    // rejected (that protection is unchanged), but
+    // reactivateWorkforceMember() now succeeds, restoring ACTIVE on the
+    // SAME staff_members row (id/role_id/workspace_org_id/radar_access all
+    // preserved verbatim — never a re-add).
     const offSmId = await smIdOf(r2dOffboardedId);
-    for (const fn of [suspendWorkforceMember, reactivateWorkforceMember]) {
-      await assert.rejects(() => fn(r2dOffboardedId), /this lifecycle transition is not allowed/);
-    }
-    assert.equal(await statusOf(r2dOffboardedId), "OFFBOARDING", "offboarded member unchanged");
-    assert.equal(await statusAuditCount(offSmId), 0, "no audit for a rejected terminal transition");
+    const offRoleIdBefore = await roleIdOf(r2dOffboardedId);
+    const offRadarAccessBefore = (await pool.query("select radar_access from staff_members where id = $1", [offSmId])).rows[0].radar_access;
+
+    await assert.rejects(() => suspendWorkforceMember(r2dOffboardedId), /this lifecycle transition is not allowed/);
+    assert.equal(await statusOf(r2dOffboardedId), "OFFBOARDING", "the rejected suspend attempt left status untouched");
+    assert.equal(await statusAuditCount(offSmId), 0, "no audit for the rejected suspend attempt");
+
+    const reactivated = await reactivateWorkforceMember(r2dOffboardedId);
+    assert.equal(reactivated.status, "ACTIVE");
+    assert.equal(await statusOf(r2dOffboardedId), "ACTIVE", "OFFBOARDING -> ACTIVE succeeds for real against Postgres");
+    assert.equal(await smIdOf(r2dOffboardedId), offSmId, "the SAME staff_members row — never a re-add");
+    assert.equal(await roleIdOf(r2dOffboardedId), offRoleIdBefore, "role_id untouched by reactivation");
+    const offRadarAccessAfter = (await pool.query("select radar_access from staff_members where id = $1", [offSmId])).rows[0].radar_access;
+    assert.equal(offRadarAccessAfter, offRadarAccessBefore, "radar_access untouched by reactivation");
+    assert.equal(await statusAuditCount(offSmId), 1, "exactly one audit event for the successful reactivation");
+    const [reactivateAudit] = (
+      await pool.query(
+        "select metadata from audit_log where action = 'workforce.member_status_changed' and target_id = $1 order by created_at desc limit 1",
+        [offSmId],
+      )
+    ).rows;
+    assert.deepEqual(reactivateAudit.metadata, { targetUserId: r2dOffboardedId, previousStatus: "OFFBOARDING", newStatus: "ACTIVE" });
+
+    // Now ACTIVE again: re-offboarding and re-suspending both still work
+    // normally (this row isn't special/stuck after being reactivated).
+    await assert.rejects(() => reactivateWorkforceMember(r2dOffboardedId), /already has this status/, "reactivating an already-ACTIVE member is still a no-op");
+
+    // R2D-xvii. WORKFORCE REACTIVATION PHASE 1 — concurrency: two
+    // simultaneous reactivate() calls on the SAME OFFBOARDING member
+    // (mirrors R2D-xii's same-intent pattern above, now for the newly
+    // enabled OFFBOARDING -> ACTIVE transition). Real disposable Postgres,
+    // real SELECT ... FOR UPDATE serialization — exactly one call must
+    // succeed, the other must fail with the ordinary no-op message (never
+    // MEMBER_STATE_CHANGED, which would indicate the row lock failed to
+    // serialize the two transactions), and exactly one audit event exists.
+    await offboardWorkforceMember(r2dOffboardedId); // ACTIVE -> OFFBOARDING again, for this race
+    const raceOffSmId = await smIdOf(r2dOffboardedId);
+    const raceOffAuditsBefore = await statusAuditCount(raceOffSmId);
+    const dReactivateRace = await Promise.allSettled([reactivateWorkforceMember(r2dOffboardedId), reactivateWorkforceMember(r2dOffboardedId)]);
+    assert.equal(dReactivateRace.filter((r) => r.status === "fulfilled").length, 1, "exactly one reactivate fulfils");
+    const dReactivateRejected = dReactivateRace.filter((r) => r.status === "rejected");
+    assert.equal(dReactivateRejected.length, 1);
+    assert.doesNotMatch(String(dReactivateRejected[0].reason), /state changed/, "no MEMBER_STATE_CHANGED — the row lock serialized the two transactions");
+    assert.match(String(dReactivateRejected[0].reason), /already has this status/);
+    assert.equal(await statusOf(r2dOffboardedId), "ACTIVE", "final status ACTIVE, deterministic under concurrency");
+    assert.equal(await roleIdOf(r2dOffboardedId), offRoleIdBefore, "role_id still untouched after the concurrent reactivation");
+    assert.equal((await statusAuditCount(raceOffSmId)) - raceOffAuditsBefore, 1, "exactly one new status audit under concurrent reactivation");
 
     // R2D-x. no-op: reactivate an ACTIVE / suspend a SUSPENDED -> STATUS_UNCHANGED, no audit.
     // r2dActiveMgrId is ACTIVE here (SUSPENDED then reactivated above); r2dRaceReactOffId is a seeded SUSPENDED member.

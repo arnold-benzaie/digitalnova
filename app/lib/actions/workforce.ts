@@ -758,14 +758,20 @@ export async function setWorkforceMemberRadarAccess(targetUserId: string, enable
 
 /* ------------------------------------------------------------------------ *
  * PHASE RBAC-RUNTIME-R2D-A — ordinary workforce lifecycle (suspend /
- * reactivate / offboard), MANAGER/EMPLOYEE only. OFFBOARDING is TERMINAL —
- * it is the V1 soft-removal state (the staff_members row is preserved for
- * audit linkage, tenure, invited-by and role-at-offboarding history; no
- * hard delete). ADMIN-tier lifecycle and OWNER offboarding are a separate
- * future OWNER_MANAGE-gated capability (R2D-C). R2A/R2B/R2C behaviour is
- * unchanged: R2D only ever writes `status` (+ `updated_at`); R2C still
- * reads `status` as an ACTIVE-only gate, so a SUSPENDED or OFFBOARDING
- * member cannot have their role changed until reactivated.
+ * reactivate / offboard), MANAGER/EMPLOYEE only. OFFBOARDING is the V1
+ * soft-removal state (the staff_members row is preserved for audit
+ * linkage, tenure, invited-by and role-at-offboarding history; no hard
+ * delete) — but, as of WORKFORCE REACTIVATION PHASE 1, it is no longer a
+ * dead end: reactivateWorkforceMember() accepts both SUSPENDED and
+ * OFFBOARDING as source statuses, restoring ACTIVE with the exact same
+ * staff_members.id/user_id/role_id/workspace_org_id/radar_access (only
+ * `status` + `updated_at` ever change — never a re-add, never a new
+ * invitation, never a role/radar_access write). ADMIN-tier lifecycle and
+ * OWNER offboarding remain a separate future OWNER_MANAGE-gated
+ * capability (R2D-C). R2A/R2B/R2C behaviour is unchanged: R2D only ever
+ * writes `status` (+ `updated_at`); R2C still reads `status` as an
+ * ACTIVE-only gate, so a SUSPENDED or OFFBOARDING member cannot have
+ * their role changed until reactivated.
  * ------------------------------------------------------------------------ */
 
 /** Lifecycle-specific tier guard — deliberately NOT assertOrdinaryTierTargetRole()
@@ -978,9 +984,12 @@ async function runLifecycleMutation(
  * requireStaffMember("WORKFORCE_MANAGE"). OWNER and ADMIN targets are
  * rejected (advisory + under the row lock), caller-agnostic. A caller
  * cannot suspend themselves. ACTIVE -> SUSPENDED only; SUSPENDED ->
- * "workforce member already has this status"; OFFBOARDING (terminal) ->
- * "this lifecycle transition is not allowed". Only `status` + `updated_at`
- * change; exactly one "workforce.member_status_changed" audit event in the
+ * "workforce member already has this status"; OFFBOARDING -> "this
+ * lifecycle transition is not allowed" (unchanged by WORKFORCE
+ * REACTIVATION PHASE 1 — only reactivateWorkforceMember() gained
+ * OFFBOARDING as a valid source; an OFFBOARDING member must be reactivated
+ * to ACTIVE first, never suspended directly from OFFBOARDING). Only
+ * `status` + `updated_at` change; exactly one "workforce.member_status_changed" audit event in the
  * same transaction.
  */
 export async function suspendWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
@@ -988,31 +997,45 @@ export async function suspendWorkforceMember(targetUserId: string): Promise<Work
 }
 
 /**
- * Reactivates a SUSPENDED ordinary workforce member back to ACTIVE,
- * restoring Axis-C access. Same gate / self / OWNER / ADMIN protections as
- * suspendWorkforceMember(). SUSPENDED -> ACTIVE only; ACTIVE -> "workforce
- * member already has this status"; OFFBOARDING (terminal) -> "this
- * lifecycle transition is not allowed". Only `status` + `updated_at`
- * change; one same-transaction audit event.
+ * Reactivates a SUSPENDED **or OFFBOARDING** ordinary workforce member back
+ * to ACTIVE, restoring Axis-C access — WORKFORCE REACTIVATION PHASE 1 (see
+ * offboardWorkforceMember()'s own doc comment: OFFBOARDING is no longer a
+ * dead end). Same gate / self / OWNER / ADMIN protections as
+ * suspendWorkforceMember(). SUSPENDED -> ACTIVE and OFFBOARDING -> ACTIVE
+ * both succeed; ACTIVE -> "workforce member already has this status" (a
+ * no-op reactivation is refused, not silently accepted). This is a plain
+ * status flip, never a re-add: the SAME staff_members.id/user_id/role_id/
+ * workspace_org_id/radar_access carry over unchanged — only `status` +
+ * `updated_at` change (defaultUpdateWorkforceMemberStatus() never touches
+ * any other column), one same-transaction audit event
+ * ("workforce.member_status_changed", previousStatus="OFFBOARDING" or
+ * "SUSPENDED", newStatus="ACTIVE" — no new event name introduced, same
+ * convention as every other R2D-A transition).
  */
 export async function reactivateWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
-  return runLifecycleMutation(targetUserId, "ACTIVE", ["SUSPENDED"]);
+  return runLifecycleMutation(targetUserId, "ACTIVE", ["SUSPENDED", "OFFBOARDING"]);
 }
 
 /**
- * Offboards an ordinary workforce member — the V1 TERMINAL soft-removal.
+ * Offboards an ordinary workforce member — the V1 soft-removal state.
  * ACTIVE or SUSPENDED -> OFFBOARDING; OFFBOARDING -> "workforce member
- * already has this status". There is no transition OUT of OFFBOARDING
- * (reactivate/suspend on an offboarded member -> "this lifecycle
- * transition is not allowed"). The staff_members row is preserved (audit
- * linkage, tenure, invited-by, role-at-offboarding); no hard delete. Same
- * gate / self / OWNER / ADMIN protections. Only `status` + `updated_at`
- * change; one same-transaction audit event.
+ * already has this status" (re-offboarding an already-offboarded member is
+ * a no-op, refused). As of WORKFORCE REACTIVATION PHASE 1, OFFBOARDING is
+ * no longer terminal: reactivateWorkforceMember() (above) can bring a
+ * member back to ACTIVE from here, preserving the exact same
+ * staff_members row (id/user_id/role_id/workspace_org_id/radar_access) —
+ * never a re-add, never a new invitation. The staff_members row itself is
+ * always preserved regardless (audit linkage, tenure, invited-by,
+ * role-at-offboarding); no hard delete. Same gate / self / OWNER / ADMIN
+ * protections. Only `status` + `updated_at` change; one same-transaction
+ * audit event.
  *
  * Known V1 limitation (accepted; future R2E): because
  * staff_members_user_workspace_unique(user_id, workspace_org_id) is a plain
- * unique index, a preserved OFFBOARDING row blocks addWorkforceMember()
- * from re-adding the same user to this workspace.
+ * unique index, a preserved OFFBOARDING row still blocks
+ * addWorkforceMember() (and a fresh WORKFORCE INVITATION V1 claim) from
+ * re-adding the same user to this workspace as a NEW row — the existing
+ * row must be reactivated instead, exactly what this phase enables.
  */
 export async function offboardWorkforceMember(targetUserId: string): Promise<WorkforceMember> {
   return runLifecycleMutation(targetUserId, "OFFBOARDING", ["ACTIVE", "SUSPENDED"]);

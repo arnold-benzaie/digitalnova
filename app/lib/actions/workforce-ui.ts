@@ -243,18 +243,19 @@ export async function suspendWorkforceMemberAction(targetUserId: string): Promis
 }
 
 /**
- * Reactivates a SUSPENDED ordinary workforce member via R2D-A
- * reactivateWorkforceMember(). Same protections; revalidatePath on success
- * only.
+ * Reactivates a SUSPENDED **or OFFBOARDING** (WORKFORCE REACTIVATION
+ * PHASE 1) ordinary workforce member via R2D-A reactivateWorkforceMember().
+ * Same protections; revalidatePath on success only.
  */
 export async function reactivateWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
   return runWorkforceLifecycleAction(targetUserId, reactivateWorkforceMember);
 }
 
 /**
- * Offboards an ordinary workforce member (ACTIVE or SUSPENDED -> the
- * terminal OFFBOARDING) via R2D-A offboardWorkforceMember(). Same
- * protections; revalidatePath on success only.
+ * Offboards an ordinary workforce member (ACTIVE or SUSPENDED -> OFFBOARDING,
+ * reversible via reactivateWorkforceMemberAction() above) via R2D-A
+ * offboardWorkforceMember(). Same protections; revalidatePath on success
+ * only.
  */
 export async function offboardWorkforceMemberAction(targetUserId: string): Promise<WorkforceLifecycleResult> {
   return runWorkforceLifecycleAction(targetUserId, offboardWorkforceMember);

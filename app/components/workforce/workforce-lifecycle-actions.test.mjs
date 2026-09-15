@@ -95,14 +95,24 @@ test("R2DB-C4. SUSPENDED EMPLOYEE (non-self) -> Reactivate + Offboard", () => {
   assert.ok(!out.includes(tFr.actionSuspend));
 });
 
-test("R2DB-C5. OFFBOARDING MANAGER -> no lifecycle control at all", () => {
+test("R2DB-C5. OFFBOARDING MANAGER (non-self) -> Reactivate ONLY, no Suspend, no Offboard (WORKFORCE REACTIVATION PHASE 1)", () => {
   const out = html({ role: "MANAGER", status: "OFFBOARDING" });
-  assert.equal(out, "");
+  assert.ok(out.includes(tFr.actionReactivate));
+  assert.ok(!out.includes(tFr.actionSuspend) && !out.includes(tFr.actionOffboard));
 });
 
-test("R2DB-C6. OFFBOARDING EMPLOYEE -> no lifecycle control at all", () => {
+test("R2DB-C6. OFFBOARDING EMPLOYEE (non-self) -> Reactivate ONLY", () => {
   const out = html({ role: "EMPLOYEE", status: "OFFBOARDING" });
-  assert.equal(out, "");
+  assert.ok(out.includes(tFr.actionReactivate));
+  assert.ok(!out.includes(tFr.actionSuspend) && !out.includes(tFr.actionOffboard));
+});
+
+test("R2DB-C6b. OFFBOARDING ADMIN -> no lifecycle control (owner-tier lifecycle is future R2D-C, unchanged by reactivation)", () => {
+  assert.equal(html({ role: "ADMIN", status: "OFFBOARDING" }), "");
+});
+
+test("R2DB-C6c. OFFBOARDING self row (userId === currentUserId) -> no lifecycle control", () => {
+  assert.equal(html({ role: "MANAGER", status: "OFFBOARDING", userId: ROW_USER, currentUserId: ROW_USER }), "");
 });
 
 test("R2DB-C7. ADMIN + ACTIVE -> no lifecycle control (owner-tier lifecycle is future R2D-C)", () => {

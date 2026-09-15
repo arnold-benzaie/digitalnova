@@ -110,10 +110,15 @@ const dangerButtonClass =
  * backend. This component holds no workspace / org / actor / staff-member
  * id / expected-status; it cannot bypass a single backend check.
  *
- * Nothing is rendered for the current user's own row, for an ADMIN row
- * (owner-tier lifecycle is a future R2D-C capability), or for an
- * OFFBOARDING row (terminal — no transition out). OWNER never appears in
- * this table (listWorkforceMembers()'s positive allowlist).
+ * Nothing is rendered for the current user's own row, or for an ADMIN row
+ * (owner-tier lifecycle is a future R2D-C capability). OWNER never appears
+ * in this table (listWorkforceMembers()'s positive allowlist). An
+ * OFFBOARDING row (WORKFORCE REACTIVATION PHASE 1) shows ONLY "Réactiver" —
+ * never "Faire partir" too, since offboarding an already-OFFBOARDING
+ * member is a guaranteed no-op the backend itself refuses
+ * (STATUS_UNCHANGED); the reactivate control reuses the exact same
+ * no-confirmation-dialog action as the SUSPENDED case, never a separate
+ * UX.
  */
 export function WorkforceLifecycleActions({
   userId,
@@ -137,7 +142,7 @@ export function WorkforceLifecycleActions({
   const [error, setError] = useState<WorkforceLifecycleErrorCode | null>(null);
   const { confirm, dialog } = useConfirmDialog(locale);
 
-  if (userId === currentUserId || role === "ADMIN" || status === "OFFBOARDING") {
+  if (userId === currentUserId || role === "ADMIN") {
     return null;
   }
 
@@ -181,7 +186,7 @@ export function WorkforceLifecycleActions({
             {pendingAction === "suspend" ? t.suspending : t.actionSuspend}
           </button>
         )}
-        {status === "SUSPENDED" && (
+        {(status === "SUSPENDED" || status === "OFFBOARDING") && (
           <button
             type="button"
             disabled={isPending}
@@ -191,18 +196,20 @@ export function WorkforceLifecycleActions({
             {pendingAction === "reactivate" ? t.reactivating : t.actionReactivate}
           </button>
         )}
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={run("offboard", offboardWorkforceMemberAction, {
-            title: t.offboardConfirmTitle,
-            description: t.offboardConfirmDescription(email),
-            confirmLabel: t.offboardConfirmLabel,
-          })}
-          className={dangerButtonClass}
-        >
-          {pendingAction === "offboard" ? t.offboarding : t.actionOffboard}
-        </button>
+        {status !== "OFFBOARDING" && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={run("offboard", offboardWorkforceMemberAction, {
+              title: t.offboardConfirmTitle,
+              description: t.offboardConfirmDescription(email),
+              confirmLabel: t.offboardConfirmLabel,
+            })}
+            className={dangerButtonClass}
+          >
+            {pendingAction === "offboard" ? t.offboarding : t.actionOffboard}
+          </button>
+        )}
       </div>
       {errorMessage && (
         <p role="alert" className="mt-1 text-right text-xs text-pm-rouge">
