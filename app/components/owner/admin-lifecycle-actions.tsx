@@ -93,7 +93,11 @@ type Verb = "demoteManager" | "demoteEmployee" | "suspend" | "reactivate" | "off
  * R2D-C backend's accepted states exactly:
  *   ACTIVE     -> demote (M/E), suspend, offboard
  *   SUSPENDED  -> reactivate, offboard      (demotion is ACTIVE-only in R2D-C)
- *   OFFBOARDING-> nothing (terminal)
+ *   OFFBOARDING-> reactivate ONLY (no longer terminal — mirrors R2D-A's
+ *                 own OFFBOARDING->ACTIVE fix; offboarding an
+ *                 already-OFFBOARDING ADMIN would only ever fail as a
+ *                 no-op, so "Faire partir" is never offered here, same
+ *                 convention as WorkforceLifecycleActions)
  */
 export function availableAdminActions(status: StaffMemberStatus): Verb[] {
   switch (status) {
@@ -102,7 +106,7 @@ export function availableAdminActions(status: StaffMemberStatus): Verb[] {
     case "SUSPENDED":
       return ["reactivate", "offboard"];
     case "OFFBOARDING":
-      return [];
+      return ["reactivate"];
     default:
       return [];
   }

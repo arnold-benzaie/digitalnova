@@ -40,8 +40,8 @@ test("availableAdminActions: SUSPENDED offers reactivate + offboard only — NO 
   assert.deepEqual(availableAdminActions("SUSPENDED"), ["reactivate", "offboard"]);
 });
 
-test("availableAdminActions: OFFBOARDING is terminal — zero actions", () => {
-  assert.deepEqual(availableAdminActions("OFFBOARDING"), []);
+test("availableAdminActions: OFFBOARDING offers reactivate ONLY — no longer terminal (mirrors R2D-A's fix), no offboard/suspend/demote", () => {
+  assert.deepEqual(availableAdminActions("OFFBOARDING"), ["reactivate"]);
 });
 
 test("availableAdminActions: unknown status -> zero actions (fail closed)", () => {

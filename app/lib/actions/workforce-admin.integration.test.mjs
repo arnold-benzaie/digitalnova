@@ -286,6 +286,7 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
 
     await assert.rejects(() => demoteAdmin(callerManagerId, "EMPLOYEE"), /this action only applies to administrators/);
     await assert.rejects(() => suspendAdmin(callerManagerId), /this action only applies to administrators/);
+    await assert.rejects(() => reactivateAdmin(callerManagerId), /this action only applies to administrators/);
     await assert.rejects(() => offboardAdmin(callerEmployeeId), /this action only applies to administrators/);
     assert.equal(await roleIdOf(callerManagerId), roleId.MANAGER);
     assert.equal(await statusOf(callerManagerId), "ACTIVE");
@@ -320,11 +321,13 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
       const active = await freshAdmin("txn-active");
       await assert.rejects(() => reactivateAdmin(active), /already has this status/);
 
+      // R2D-C fix: reactivateAdmin() now ACCEPTS OFFBOARDING -> ACTIVE (see
+      // dedicated section below) — only suspend/offboard from OFFBOARDING
+      // remain rejected transitions.
       const offb = await freshAdmin("txn-offb", "OFFBOARDING");
-      await assert.rejects(() => reactivateAdmin(offb), /this lifecycle transition is not allowed/);
       await assert.rejects(() => suspendAdmin(offb), /this lifecycle transition is not allowed/);
       await assert.rejects(() => offboardAdmin(offb), /already has this status/);
-      assert.equal(await statusOf(offb), "OFFBOARDING", "terminal offboarded admin unchanged");
+      assert.equal(await statusOf(offb), "OFFBOARDING", "OFFBOARDING admin unchanged by rejected suspend/offboard calls");
 
       const susp = await freshAdmin("txn-susp", "SUSPENDED");
       await assert.rejects(() => suspendAdmin(susp), /already has this status/);
@@ -350,6 +353,63 @@ test("R2D-C integration: OWNER-only ADMIN lifecycle against one disposable Postg
       assert.ok([roleId.MANAGER, roleId.EMPLOYEE].includes(await roleIdOf(t)), "final role is a demotion target");
       // at least one audit leaves the seeded ADMIN role
       assert.ok(audits.some((a) => a.metadata.previousRole === "ADMIN"), "an audit records leaving the seeded ADMIN role");
+    }
+
+    // ================================================================
+    // 6b. R2D-C FIX — reactivateAdmin() now accepts OFFBOARDING -> ACTIVE,
+    //     mirroring R2D-A's reactivateWorkforceMember() fix. Full invariant
+    //     check: staff_members.id / role_id / workspace_org_id / radar_access
+    //     all preserved verbatim, only status + updated_at change, exactly
+    //     one "owner.admin_reactivated" audit row with correct metadata.
+    //     (caller is still OWNER from section 2/4/5/6 above.)
+    // ================================================================
+    {
+      const t = await freshAdmin("offb-to-active");
+      const smIdBefore = await smIdOf(t);
+      const roleIdBefore = await roleIdOf(t);
+      const orgBefore = (await pool.query("select workspace_org_id from staff_members where id=$1", [smIdBefore])).rows[0].workspace_org_id;
+      const radarBefore = (await pool.query("select radar_access from staff_members where id=$1", [smIdBefore])).rows[0].radar_access;
+      await offboardAdmin(t);
+      assert.equal(await statusOf(t), "OFFBOARDING", "precondition: target is OFFBOARDING before the fix is exercised");
+
+      const res = await reactivateAdmin(t);
+
+      assert.equal(res.status, "ACTIVE", "a. OFFBOARDING -> ACTIVE succeeds for ADMIN");
+      assert.equal(await statusOf(t), "ACTIVE");
+      assert.equal(await smIdOf(t), smIdBefore, "b. staff_members.id preserved");
+      assert.equal(await roleIdOf(t), roleIdBefore, "c. role_id preserved");
+      assert.equal((await pool.query("select workspace_org_id from staff_members where id=$1", [smIdBefore])).rows[0].workspace_org_id, orgBefore, "d. workspace_org_id preserved");
+      assert.equal((await pool.query("select radar_access from staff_members where id=$1", [smIdBefore])).rows[0].radar_access, radarBefore, "e. radar_access preserved");
+
+      const audits = await auditRows("owner.admin_reactivated", smIdBefore);
+      assert.equal(audits.length, 1, "exactly one owner.admin_reactivated audit for this reactivation");
+      assert.equal(audits[0].actor_user_id, ownerUserId, "f. OWNER caller recorded as actor");
+      assert.deepEqual(audits[0].metadata, { targetUserId: t, previousStatus: "OFFBOARDING", newStatus: "ACTIVE" });
+    }
+
+    // ================================================================
+    // 6c. Concurrency — two simultaneous reactivateAdmin() calls on the
+    //     SAME OFFBOARDING ADMIN: exactly one fulfils, one rejects with
+    //     "already has this status" (never a stale "state changed" style
+    //     error — proving the FOR UPDATE row lock serialized correctly),
+    //     final status deterministically ACTIVE, exactly one audit row.
+    // ================================================================
+    {
+      const t = await freshAdmin("race-reactivate");
+      const smId = await smIdOf(t);
+      await offboardAdmin(t);
+      assert.equal(await statusOf(t), "OFFBOARDING");
+
+      const race = await Promise.allSettled([reactivateAdmin(t), reactivateAdmin(t)]);
+      const fulfilled = race.filter((r) => r.status === "fulfilled");
+      const rejected = race.filter((r) => r.status === "rejected");
+      assert.equal(fulfilled.length, 1, "exactly one concurrent reactivate fulfils");
+      assert.equal(rejected.length, 1, "exactly one concurrent reactivate rejects");
+      assert.match(String(rejected[0].reason), /administrator already has this status/, "the loser sees a clean already-has-this-status rejection, proving the row lock serialized the race");
+
+      assert.equal(await statusOf(t), "ACTIVE", "j. final status deterministic: ACTIVE");
+      const audits = await auditRows("owner.admin_reactivated", smId);
+      assert.equal(audits.length, 1, "exactly one audit row despite two concurrent calls");
     }
 
     // ================================================================

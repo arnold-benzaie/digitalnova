@@ -404,8 +404,11 @@ async function runAdminLifecycle(
  * staff_members row fails requireStaffMember() for every Axis-C permission.
  * OWNER-only. OWNER / MANAGER / EMPLOYEE targets rejected (advisory + under
  * the row lock). A caller cannot suspend themselves. ACTIVE -> SUSPENDED
- * only; SUSPENDED -> "administrator already has this status"; OFFBOARDING
- * (terminal) -> "this lifecycle transition is not allowed". Only `status` +
+ * only; SUSPENDED -> "administrator already has this status"; OFFBOARDING ->
+ * "this lifecycle transition is not allowed" (unchanged by the R2D-C
+ * OFFBOARDING->ACTIVE fix below — only reactivateAdmin() gained OFFBOARDING
+ * as a valid source; an offboarded ADMIN must be reactivated to ACTIVE
+ * first, never suspended directly from OFFBOARDING). Only `status` +
  * `updated_at` change; exactly one "owner.admin_suspended" audit event in
  * the same transaction.
  */
@@ -414,34 +417,45 @@ export async function suspendAdmin(targetUserId: string): Promise<WorkforceMembe
 }
 
 /**
- * Reactivates a SUSPENDED ADMIN back to ACTIVE, restoring Axis-C access.
- * OWNER-only. Same self / OWNER / non-ADMIN protections as suspendAdmin().
- * SUSPENDED -> ACTIVE only; ACTIVE -> "administrator already has this
- * status"; OFFBOARDING (terminal) -> "this lifecycle transition is not
- * allowed". Only `status` + `updated_at` change; one same-transaction
- * "owner.admin_reactivated" audit event.
+ * Reactivates a SUSPENDED **or OFFBOARDING** ADMIN back to ACTIVE, restoring
+ * Axis-C access — mirrors R2D-A's reactivateWorkforceMember() fix exactly
+ * (see offboardAdmin()'s own doc comment: OFFBOARDING is no longer a dead
+ * end for the ADMIN tier either). Same self / OWNER / non-ADMIN protections
+ * as suspendAdmin(). SUSPENDED -> ACTIVE and OFFBOARDING -> ACTIVE both
+ * succeed; ACTIVE -> "administrator already has this status" (a no-op
+ * reactivation is refused, not silently accepted). This is a plain status
+ * flip, never a re-add: the SAME staff_members.id/user_id/role_id/
+ * workspace_org_id/radar_access carry over unchanged — only `status` +
+ * `updated_at` change (defaultUpdateAdminStatus() never touches any other
+ * column), one same-transaction "owner.admin_reactivated" audit event
+ * (previousStatus="OFFBOARDING" or "SUSPENDED", newStatus="ACTIVE" — no new
+ * event name introduced).
  */
 export async function reactivateAdmin(targetUserId: string): Promise<WorkforceMember> {
-  return runAdminLifecycle(targetUserId, "ACTIVE", ["SUSPENDED"]);
+  return runAdminLifecycle(targetUserId, "ACTIVE", ["SUSPENDED", "OFFBOARDING"]);
 }
 
 /**
- * Offboards an ADMIN — the V1 TERMINAL soft-removal (mirrors R2D-A's
+ * Offboards an ADMIN — the V1 soft-removal state (mirrors R2D-A's
  * offboardWorkforceMember semantics). ACTIVE or SUSPENDED -> OFFBOARDING;
- * OFFBOARDING -> "administrator already has this status". There is no
- * transition OUT of OFFBOARDING. The staff_members row is preserved (audit
- * linkage, tenure, invited-by, role-at-offboarding); no hard delete.
- * OWNER-only. Same self / OWNER / non-ADMIN protections. Only `status` +
- * `updated_at` change; one same-transaction "owner.admin_offboarded" audit
- * event.
+ * OFFBOARDING -> "administrator already has this status" (re-offboarding an
+ * already-offboarded ADMIN is a no-op, refused). OFFBOARDING is no longer
+ * terminal: reactivateAdmin() (above) can bring an ADMIN back to ACTIVE
+ * from here, preserving the exact same staff_members row (id/user_id/
+ * role_id/workspace_org_id/radar_access) — never a re-add. The
+ * staff_members row itself is always preserved regardless (audit linkage,
+ * tenure, invited-by, role-at-offboarding); no hard delete. OWNER-only.
+ * Same self / OWNER / non-ADMIN protections. Only `status` + `updated_at`
+ * change; one same-transaction "owner.admin_offboarded" audit event.
  *
  * There is intentionally NO last-active-ADMIN floor: OWNER may offboard the
  * final ADMIN and re-create one later; a second OWNER is never a fallback.
  *
  * Known V1 limitation (accepted; inherited from R2D-A): because
  * staff_members_user_workspace_unique(user_id, workspace_org_id) is a plain
- * unique index, a preserved OFFBOARDING row blocks re-adding the same user
- * to this workspace.
+ * unique index, a preserved OFFBOARDING row still blocks re-adding the same
+ * user to this workspace as a NEW row — the existing row must be
+ * reactivated instead, exactly what reactivateAdmin() now enables.
  */
 export async function offboardAdmin(targetUserId: string): Promise<WorkforceMember> {
   return runAdminLifecycle(targetUserId, "OFFBOARDING", ["ACTIVE", "SUSPENDED"]);
