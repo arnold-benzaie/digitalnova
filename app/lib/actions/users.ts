@@ -429,8 +429,27 @@ export async function approveUser(formData: FormData) {
     // non-internal organization remains reachable, matching the
     // operational reality that internal staff serve every client tenant,
     // not one specific one.
-    const internalOrgId = await internalOrganizationIdOrThrow(locale);
-    if (organizationId === internalOrgId) {
+    //
+    // SECURITY FIX (post-038abe9 adversarial review) — this used to
+    // compare `organizationId === internalOrgId` as raw JS strings.
+    // Postgres's `uuid` type resolves case- and brace-insensitively on
+    // input (confirmed: `'0D...'::uuid = '0d...'::uuid` and
+    // `'{0d...}'::uuid = '0d...'::uuid` are both TRUE), so an EMPLOYEE
+    // could submit an uppercase or brace-wrapped variant of the internal
+    // org's id, defeat the JS string check, and still have the INSERT
+    // below resolve to the real internal organization. The check now
+    // resolves the target row from Postgres itself and reads its own
+    // `isInternal` flag — the canonical, database-normalized answer,
+    // never a second, independently-fragile string comparison. A
+    // nonexistent organizationId resolves `resolvedOrg` to `undefined`
+    // here and is caught uniformly by the existing organizationNotFound
+    // check shared with every other caller, a few lines below.
+    const [resolvedOrg] = await db
+      .select({ isInternal: organizations.isInternal })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+    if (resolvedOrg?.isInternal) {
       throw new Error(MESSAGES[locale].employeeOrganizationNotAllowed);
     }
   }
@@ -457,12 +476,37 @@ export async function approveUser(formData: FormData) {
 
   const roleId = await roleIdByName(roleValue, locale);
 
+  // RACE CONDITION FIX (post-038abe9 adversarial review) — the earlier
+  // `targetUser.status !== "pending"` check above reads OUTSIDE any
+  // transaction, so two callers approving the SAME pending user within
+  // the same short window can both pass it before either writes anything.
+  // The UPDATE below is the ONE place that atomically decides "am I the
+  // request that gets to transition this user" — it takes Postgres's
+  // normal row-level lock for the duration of the transaction, so a
+  // second, concurrent transaction's identical UPDATE blocks until the
+  // first commits, then matches zero rows (the status is no longer
+  // "pending") instead of racing past it. `matched` empty means someone
+  // else's transaction already won — this transaction throws and rolls
+  // back everything (membership insert, audit entry) via Drizzle's
+  // automatic rollback-on-throw, so a loser can never produce a stray
+  // membership, a duplicate "user.approved" audit entry, or a duplicate
+  // notification (notify() below only ever runs after a transaction that
+  // actually committed). Same idiom already established in this codebase
+  // for exactly this class of race — see
+  // lib/actions/crm-quote-response.ts::respondToQuoteByToken().
   await db.transaction(async (tx) => {
+    const [matched] = await tx
+      .update(users)
+      .set({ status: "active" })
+      .where(and(eq(users.id, userId), eq(users.status, "pending")))
+      .returning({ id: users.id });
+    if (!matched) {
+      throw new Error(MESSAGES[locale].notPendingApproval);
+    }
     await tx
       .insert(memberships)
       .values({ userId, organizationId, roleId })
       .onConflictDoNothing({ target: [memberships.userId, memberships.organizationId] });
-    await tx.update(users).set({ status: "active" }).where(eq(users.id, userId));
     await logAudit(
       {
         actorUserId: session.userId,

@@ -5,6 +5,7 @@ import { crmClients } from "@/db/schema";
 import { toCsv } from "@/lib/csv";
 import { CrmClientsReportDocument } from "@/lib/pdf/crm-clients-report";
 import { getCurrentSession } from "@/lib/session";
+import { resolveCrmEmployeeScopeForUser } from "@/lib/crm-client-access";
 
 const STAGE_LABEL: Record<string, string> = { lead: "Lead", prospect: "Prospect", client: "Client", churned: "Perdu" };
 const STAGE_VALUES = Object.keys(STAGE_LABEL);
@@ -24,6 +25,19 @@ export async function GET(request: Request) {
 
   // Same filter semantics as app/admin/crm/clients/page.tsx, so an export
   // triggered from a filtered list view exports exactly what's on screen.
+  //
+  // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — this export
+  // route shares crm_clients.select() with that same list page but is a
+  // Route Handler reachable directly by URL (it's the exact href behind
+  // the list's own "Exporter CSV/PDF" buttons): left unscoped, it would
+  // let an EMPLOYEE download every agency client as CSV/PDF regardless of
+  // the visibility restriction just applied to the list itself — a
+  // shared-query bypass, not a separate subsystem. `getCurrentSession()`
+  // (never requireSession()) is kept exactly as before: this route must
+  // return a plain 401, not an HTML redirect, for an unauthenticated or
+  // CLIENT-context caller.
+  const employeeScope = session.context === "WORKFORCE" ? await resolveCrmEmployeeScopeForUser(session.userId) : null;
+
   const conditions = [];
   if (q) {
     conditions.push(or(ilike(crmClients.name, `%${q}%`), ilike(crmClients.contactName, `%${q}%`), ilike(crmClients.email, `%${q}%`)));
@@ -31,6 +45,7 @@ export async function GET(request: Request) {
   if (stage) conditions.push(eq(crmClients.stage, stage));
   if (archivedParam === "active") conditions.push(isNull(crmClients.archivedAt));
   if (archivedParam === "archived") conditions.push(isNotNull(crmClients.archivedAt));
+  if (employeeScope) conditions.push(eq(crmClients.assignedUserId, employeeScope.userId));
   const whereClause = conditions.length ? and(...conditions) : undefined;
 
   const rows = await db.select().from(crmClients).where(whereClause).orderBy(asc(crmClients.name));

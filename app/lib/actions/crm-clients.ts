@@ -18,6 +18,7 @@ import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
 import { getOrCreateOrganizationForClient } from "@/lib/actions/crm-gbp";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireCrmClientAccess } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
@@ -108,6 +109,7 @@ export async function updateClientStage(id: string, stage: string) {
   if (!STAGES.includes(stage as (typeof STAGES)[number])) {
     throw new Error(MESSAGES[locale].invalidStage);
   }
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
 
   await db.update(crmClients).set({ stage }).where(eq(crmClients.id, id));
 
@@ -161,6 +163,7 @@ export async function updateClientMarket(id: string, market: string) {
     throw new Error(MESSAGES[locale].invalidMarket);
   }
   const resolvedMarket = market === "" ? null : (market as (typeof CLIENT_MARKET_VALUES)[number]);
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
 
   const [client] = await db.select({ organizationId: crmClients.organizationId }).from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) throw new Error(MESSAGES[locale].clientNotFound);
@@ -198,6 +201,7 @@ export async function updateClient(id: string, formData: FormData) {
   if (typeof name !== "string" || !name.trim()) {
     throw new Error(MESSAGES[locale].nameRequired);
   }
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
 
   const [client] = await db
     .update(crmClients)
@@ -259,6 +263,7 @@ export async function updateClientDoNotContact(id: string, doNotContact: boolean
   // attached to a client who is contactable again.
   const trimmedReason = reason.trim();
   const resolvedReason = doNotContact ? (trimmedReason === "" ? null : trimmedReason) : null;
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
 
   const [existing] = await db
     .select({ doNotContact: crmClients.doNotContact, doNotContactReason: crmClients.doNotContactReason })
@@ -299,6 +304,7 @@ export async function updateClientDoNotContact(id: string, doNotContact: boolean
 export async function archiveClient(id: string) {
   await requireStaffRole();
   const locale = await getLocale();
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
   const [client] = await db
     .update(crmClients)
     .set({ archivedAt: new Date() })
@@ -323,6 +329,7 @@ export async function archiveClient(id: string) {
 export async function unarchiveClient(id: string) {
   await requireStaffRole();
   const locale = await getLocale();
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
   const [client] = await db
     .update(crmClients)
     .set({ archivedAt: null })
@@ -347,6 +354,8 @@ export async function unarchiveClient(id: string) {
  * be gone (e.g. a mistaken entry, or a legal deletion request). */
 export async function deleteClient(id: string) {
   await requireStaffRole();
+  const locale = await getLocale();
+  await requireCrmClientAccess(id, new Error(MESSAGES[locale].clientNotFound));
   await db.delete(crmClients).where(eq(crmClients.id, id));
 
   await logCrmAudit({

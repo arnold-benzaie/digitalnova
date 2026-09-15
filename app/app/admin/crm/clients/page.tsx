@@ -6,6 +6,7 @@ import { Badge, CLIENT_STAGE_CLASS, CLIENT_STAGE_OPTIONS, getClientStageOptions 
 import { CreateClientForm } from "@/components/crm/create-client-form";
 import { SeedCrmButton } from "@/components/crm/seed-button";
 import { requireStaffRole } from "@/lib/dev-role";
+import { resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate } from "@/lib/i18n/format";
@@ -45,6 +46,16 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
   const archivedFilter = params.archived === "archived" || params.archived === "all" ? params.archived : "active";
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
+  // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT. `null` for
+  // OWNER/ADMIN/MANAGER (and any legacy Axis-A-only staff account) — the
+  // conditions below are then byte-identical to before this mission.
+  // `{ userId }` for a real, ACTIVE Axis-C EMPLOYEE — applied as a REAL
+  // WHERE clause on every query below (list, filtered count, AND the
+  // overall count used by the "X of Y" summary and the empty-state seed
+  // button), never as an in-memory filter after an unscoped fetch, and
+  // never a second, weaker check layered only in the UI.
+  const employeeScope = await resolveCrmEmployeeScope();
+
   const conditions = [];
   if (q) {
     conditions.push(
@@ -54,7 +65,14 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
   if (stageFilter) conditions.push(eq(crmClients.stage, stageFilter));
   if (archivedFilter === "active") conditions.push(isNull(crmClients.archivedAt));
   if (archivedFilter === "archived") conditions.push(isNotNull(crmClients.archivedAt));
+  if (employeeScope) conditions.push(eq(crmClients.assignedUserId, employeeScope.userId));
   const whereClause = conditions.length ? and(...conditions) : undefined;
+  // Same scoping condition, WITHOUT the search/stage/archived filters —
+  // mirrors the un-scoped overallCount query's own pre-existing intent
+  // ("how many clients exist at all, filters aside") but must still never
+  // leak an EMPLOYEE the agency-wide total (see t.resultsSummary below
+  // and the "no count/pagination leakage" requirement).
+  const overallWhereClause = employeeScope ? eq(crmClients.assignedUserId, employeeScope.userId) : undefined;
 
   const [clients, [{ count: totalCount }], [{ count: overallCount }]] = await Promise.all([
     db
@@ -65,7 +83,7 @@ export default async function CrmClientsPage({ searchParams }: { searchParams: P
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db.select({ count: sql<number>`count(*)::int` }).from(crmClients).where(whereClause),
-    db.select({ count: sql<number>`count(*)::int` }).from(crmClients),
+    db.select({ count: sql<number>`count(*)::int` }).from(crmClients).where(overallWhereClause),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));

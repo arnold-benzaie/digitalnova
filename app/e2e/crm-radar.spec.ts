@@ -32,14 +32,13 @@ import { ensureRadarStaffMember, getRadarStaffMemberSnapshot } from "./helpers/m
  *
  * Fixture strategy: a single bare prospect CLIENT, created and torn down
  * entirely through the real browser UI ("+ Ajouter un client" on
- * /admin/crm/clients, "Supprimer définitivement" on the client detail
- * page) — this repo exposes no guarded `@/db` handle to a .spec.ts for the
- * prospect itself, and going through the UI exercises the same code a
- * staffer would. A bare client deterministically scores (lib/radar/score.ts):
- * priority LOW, confidence LOW, no interaction — emitted reason
- * [INTERACTION_NONE], recommendedNextAction COMPLETE_CONTACT_DATA. The
- * fixture is then CLAIMED to self through the real "Me l'attribuer" control
- * on its client-detail page, after which `/admin/crm/radar?assignee=me`
+ * /admin/crm/clients) — this repo exposes no guarded `@/db` handle to a
+ * .spec.ts for the prospect itself, and going through the UI exercises the
+ * same code a staffer would. A bare client deterministically scores
+ * (lib/radar/score.ts): priority LOW, confidence LOW, no interaction —
+ * emitted reason [INTERACTION_NONE], recommendedNextAction
+ * COMPLETE_CONTACT_DATA. The fixture is then CLAIMED to self through the
+ * real "Me l'attribuer" control, after which `/admin/crm/radar?assignee=me`
  * surfaces it on page 1 regardless of how large the shared local DB has
  * grown or where the bare prospect ranks in the global cohort — the
  * discovery no longer depends on priority, confidence, recency, createdAt
@@ -48,6 +47,33 @@ import { ensureRadarStaffMember, getRadarStaffMemberSnapshot } from "./helpers/m
  * (deliberately distinct from the last-interaction column's "Aucune
  * interaction enregistrée") and next-action "Compléter les coordonnées du
  * prospect".
+ *
+ * MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — this account is
+ * a real, ACTIVE Axis-C EMPLOYEE (see ensureRadarStaffMember() above), and
+ * lib/crm-client-access.ts now restricts an EMPLOYEE to only see/open a
+ * crm_clients row whose assigned_user_id is their own — an unassigned
+ * client's detail page (app/admin/crm/clients/[id]/page.tsx) is not
+ * reachable for this account until it is claimed. The freshly-created bare
+ * fixture is therefore located and claimed via the Radar QUEUE row's own
+ * inline controls ("Voir le client" link, "Me l'attribuer" claim button —
+ * app/admin/crm/radar/page.tsx renders the exact same
+ * RadarAssignmentControls component the client-detail page does), which
+ * remains fully visible to EMPLOYEE regardless of assignment
+ * (lib/actions/radar-queue.ts has no assignedUserId scoping — a
+ * deliberate, separate policy from the CRM client list/detail, reported
+ * rather than silently changed by this mission). This mirrors the real
+ * production workflow: an EMPLOYEE always discovers and claims an
+ * unassigned prospect from the Radar queue, never from a client-detail URL
+ * they cannot yet reach. `clientDetailUrl` is captured from that same row's
+ * link (read, not navigated, while still unassigned) so the client-detail
+ * page is only ever visited by this spec once the fixture is truly the
+ * account's own. `afterAll` deletes the fixture (still self-assigned) via
+ * its detail page FIRST — the previous separate "release via ?assignee=me"
+ * step, which used to run before delete, would itself unassign the
+ * fixture and make the detail page unreachable before the delete could
+ * ever run; deleting the row outright already makes the release
+ * redundant (a deleted row can never remain visible under ?assignee=me
+ * either).
  *
  * Non-staff / other-role access is still out of scope here (it would need a
  * second Clerk identity or an Axis-A role swap with a much larger blast
@@ -66,6 +92,37 @@ const FIXTURE_EMAIL = `e2e-radar-${FIXTURE_STAMP}@example.test`;
 // exactly one <tr>. Never a cohort page-scan.
 function fixtureRow(page: import("@playwright/test").Page) {
   return page.getByRole("row", { name: new RegExp(FIXTURE_NAME) });
+}
+
+/**
+ * MISSION PHASE 3 — locates the bare, unclaimed fixture under
+ * ?assignee=unassigned. The Radar ranking comparator
+ * (lib/actions/radar-queue.ts) sorts OLDER prospects first within the same
+ * priority/confidence tier ("createdAt ascending" as the final tie-break)
+ * — a brand-new LOW/LOW fixture therefore ranks LAST among the (often
+ * hundreds of) other unassigned LOW-priority rows in this shared local DB,
+ * never near page 1. Reads "Page 1 / N" to jump straight to the LAST page
+ * (where the newest same-tier rows cluster), then scans backward a few
+ * pages as a safety margin in case of an off-by-one or a concurrent write
+ * shifting the count — never a blind forward scan from page 1, which would
+ * need to walk potentially dozens of pages to reach a freshly-created row.
+ */
+async function locateUnassignedFixtureRow(page: import("@playwright/test").Page) {
+  await page.goto("/admin/crm/radar?assignee=unassigned", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Radar prospects" })).toBeVisible();
+
+  const pageOfLocator = page.getByText(/^Page \d+ \/ \d+$/);
+  const pageOfText = (await pageOfLocator.count()) ? await pageOfLocator.textContent() : null;
+  const match = pageOfText?.match(/^Page (\d+) \/ (\d+)$/);
+  const totalPages = match ? Number(match[2]) : 1;
+
+  for (let p = totalPages; p >= Math.max(1, totalPages - 4); p--) {
+    await page.goto(`/admin/crm/radar?assignee=unassigned&page=${p}`, { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "Radar prospects" })).toBeVisible();
+    const candidate = fixtureRow(page);
+    if (await candidate.count()) return candidate;
+  }
+  return null;
 }
 
 test.describe.serial("Radar Queue — /admin/crm/radar", () => {
@@ -90,31 +147,19 @@ test.describe.serial("Radar Queue — /admin/crm/radar", () => {
     if (!clientDetailUrl) return;
     const page = await (await browser.newContext()).newPage();
 
-    // Best-effort: release our own assignment first, from the ?assignee=me
-    // Radar row (where "Retirer" + its confirm dialog are unambiguous —
-    // the client-detail page also has billing-line "Retirer" buttons). Not
-    // the cleanup gate — deleteClient() drops the crm_clients row outright
-    // (lib/actions/crm-clients.ts: plain db.delete(crmClients), no
-    // assignment guard; the assigned_user_id FK is ON DELETE SET NULL per
-    // migration 0036 / lib/actions/radar-assignment.integration.test.mjs),
-    // so the client is removed whether or not it was released — but
-    // releasing keeps ?assignee=me clean for the next run even if the
-    // delete below ever regresses.
-    try {
-      await page.goto("/admin/crm/radar?assignee=me");
-      const row = fixtureRow(page);
-      const release = row.getByRole("button", { name: "Retirer" });
-      if (await release.count()) {
-        await release.click();
-        await page.getByRole("dialog").getByRole("button", { name: "Retirer" }).click();
-        await expect(row).toHaveCount(0);
-      }
-    } catch {
-      // fall through to the authoritative delete
-    }
-
-    // Cleanup via the real delete flow, scoped to exactly this fixture's
-    // own client id — never a global crm_clients wipe, never direct SQL.
+    // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — delete FIRST,
+    // while the fixture is still self-assigned (the EMPLOYEE-seeded
+    // account can only reach a client's own detail page while it is
+    // assigned to them). The previous version of this cleanup released the
+    // assignment via the ?assignee=me Radar row BEFORE deleting — that
+    // would leave the fixture unassigned and make its own detail page
+    // unreachable for this account before the delete could ever run. A
+    // separate release step is no longer necessary anyway: deleteClient()
+    // drops the crm_clients row outright (lib/actions/crm-clients.ts:
+    // plain db.delete(crmClients), no assignment guard; the
+    // assigned_user_id FK is ON DELETE SET NULL per migration 0036 /
+    // lib/actions/radar-assignment.integration.test.mjs) — a deleted row
+    // can never remain visible under ?assignee=me either.
     page.once("dialog", (dialog) => dialog.accept());
     await page.goto(clientDetailUrl);
     await page.getByRole("button", { name: "Supprimer définitivement" }).click();
@@ -194,40 +239,59 @@ test.describe.serial("Radar Queue — /admin/crm/radar", () => {
     await page.getByPlaceholder("Email", { exact: true }).fill(FIXTURE_EMAIL);
     await page.getByRole("button", { name: "Créer le client" }).click();
 
-    // createClient's post-submit router.push() can lose a race against
-    // Next's own refresh (the same race afterAll documents for the delete
-    // flow), leaving the browser on the still-rendered clients list. Reach
-    // the fixture's detail page deterministically via the list's own
-    // name/email search filter rather than depending on that redirect.
-    await page.waitForURL(/\/admin\/crm\/clients\/[0-9a-f-]{36}$/, { timeout: 15_000 }).catch(() => null);
-    if (!/\/admin\/crm\/clients\/[0-9a-f-]{36}$/.test(page.url())) {
-      await page.goto(`/admin/crm/clients?q=${encodeURIComponent(FIXTURE_NAME)}`);
-      await page.getByRole("link", { name: FIXTURE_NAME, exact: true }).click();
-      await page.waitForURL(/\/admin\/crm\/clients\/[0-9a-f-]{36}$/);
-    }
-    clientDetailUrl = page.url();
-    await expect(page.getByRole("heading", { name: FIXTURE_NAME })).toBeVisible();
+    // createClient()'s own router.push() (components/crm/create-client-
+    // form.tsx) only fires once the Server Action has actually resolved —
+    // waiting for that URL change (never mind that THIS account, being
+    // EMPLOYEE and the fixture being unassigned, cannot see that page's
+    // content) is the completion signal that the client genuinely exists
+    // in the database before searching for it in the Radar queue below.
+    await page.waitForURL(/\/admin\/crm\/clients\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+
+    // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — this fixture
+    // is unassigned right after creation, and this account is a real
+    // EMPLOYEE: neither the client-detail page createClient()'s own
+    // router.push() might land on, nor the /admin/crm/clients list's own
+    // name/email search (both now scoped to assigned_user_id = self for
+    // EMPLOYEE — see this file's header comment), can ever show it. The
+    // Radar queue's Unassigned filter is NOT scoped by assignment (that is
+    // its entire purpose) and remains the deterministic, EMPLOYEE-visible
+    // way to confirm the fixture exists — exactly where a real EMPLOYEE
+    // would actually go next in production to claim it. See
+    // locateUnassignedFixtureRow() above for why this jumps to the LAST
+    // page rather than scanning forward from page 1.
+    const row = await locateUnassignedFixtureRow(page);
+    expect(row, `fixture "${FIXTURE_NAME}" must appear under ?assignee=unassigned right after creation`).not.toBeNull();
+
+    // Captured by READING the row's own "Voir le client" link href — never
+    // by navigating there, since this account cannot yet open that page
+    // while the fixture is unassigned. Absolute, to match page.url()'s own
+    // form for the later strict-equality check in "the client-detail link
+    // from the Radar row navigates to the real client detail route".
+    const href = await row!.getByRole("link", { name: "Voir le client" }).getAttribute("href");
+    if (!href) throw new Error("fixture row's 'Voir le client' link had no href");
+    clientDetailUrl = new URL(href, page.url()).toString();
   });
 
   test("claim the fixture to self through the real 'Me l'attribuer' control", async ({ page }) => {
-    // The client-detail page renders the same RadarAssignmentControls as the
-    // Radar row (app/admin/crm/clients/[id]/page.tsx). Navigating straight
-    // to clientDetailUrl is deterministic — no queue scan needed to reach
-    // the claim button while the prospect is still unassigned.
+    // MISSION PHASE 3 — claim from the Radar queue row itself (still
+    // unassigned, still fully visible to EMPLOYEE there), never from
+    // clientDetailUrl — that page is unreachable for this account until
+    // the claim below makes the fixture the account's own. See this
+    // file's header comment for the full rationale.
     expect(clientDetailUrl, "fixture creation must have run first").not.toBeNull();
-    await page.goto(clientDetailUrl!);
+    const row = await locateUnassignedFixtureRow(page);
+    expect(row, "fixture must still be present and unassigned before claiming").not.toBeNull();
 
-    const claim = page.getByRole("button", { name: "Me l'attribuer" });
+    const claim = row!.getByRole("button", { name: "Me l'attribuer" });
     await expect(claim, "EMPLOYEE holds RADAR_WORK -> canClaimToSelf -> claim button renders").toBeVisible();
     await claim.click();
 
     // claimProspect() + router.refresh(): once the prospect is assigned to
-    // us the claim affordance is no longer rendered. (The "assigned to me"
-    // side — the row-scoped "Retirer" release button — is asserted in the
-    // next test against the ?assignee=me row, where "Retirer" is
-    // unambiguous; on this client-detail page several billing-line "Retirer"
-    // buttons also exist, so it is not asserted here.)
-    await expect(claim, "the claim button must disappear once the prospect is claimed").toHaveCount(0);
+    // us it drops out of the Unassigned filter entirely (the row itself,
+    // not just the claim button, disappears from this view). The "assigned
+    // to me" side — the row-scoped "Retirer" release button — is asserted
+    // in the next test against the ?assignee=me row.
+    await expect(row!, "the fixture must leave the Unassigned view once claimed").toHaveCount(0);
   });
 
   test("the claimed fixture renders its RADAR-CORE-3F French copy under ?assignee=me on page 1", async ({ page }) => {

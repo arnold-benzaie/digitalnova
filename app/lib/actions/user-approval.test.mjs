@@ -77,7 +77,7 @@ mock.module("next/cache", {
 
 const { db } = await import("@/db");
 const { users, organizations, roles, memberships, invitations, notifications, auditLog, staffMembers, staffRoles } = await import("@/db/schema");
-const { eq, and, desc } = await import("drizzle-orm");
+const { eq, and, desc, gte } = await import("drizzle-orm");
 const {
   approveUser,
   refuseUser,
@@ -939,4 +939,153 @@ test("EMPLOYEE approuvant un userId arbitraire (inexistant) : rejeté", async ()
     () => approveUser(approvalFormData({ userId: randomUUID(), organizationId: clientOrg.id, role: "client" })),
     /introuvable/i,
   );
+});
+
+// ---- 9. SECURITY FIX (post-038abe9 adversarial review) — UUID case/format
+// bypass of the EMPLOYEE workspace-isolation check ------------------------
+//
+// The original check compared `organizationId === internalOrgId` as raw JS
+// strings. Postgres's `uuid` type resolves case- and brace-insensitively on
+// input, so an EMPLOYEE forging a non-canonical variant of the internal
+// org's own id (uppercase, or brace-wrapped) defeated the JS string check
+// while the INSERT below still resolved to the real internal organization.
+// The fix resolves the target row from Postgres itself and reads its own
+// `isInternal` flag — these tests reproduce the exact bypass forms and
+// confirm the internal organization stays unreachable by EMPLOYEE under
+// every one of them.
+
+test("EMPLOYEE forgeant l'UUID interne EN MAJUSCULES : toujours rejeté, aucune mutation", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: internalOrg.id.toUpperCase(), role: "client" })),
+    /organisation/i,
+  );
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending", "le statut ne doit pas avoir changé");
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 0, "aucune membership ne doit avoir été créée dans l'organisation interne, même via l'UUID en majuscules");
+});
+
+test("EMPLOYEE forgeant l'UUID interne ENTOURÉ D'ACCOLADES : toujours rejeté, aucune mutation", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: `{${internalOrg.id}}`, role: "client" })),
+    /organisation/i,
+  );
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending", "le statut ne doit pas avoir changé");
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 0, "aucune membership ne doit avoir été créée dans l'organisation interne, même via l'UUID entre accolades");
+});
+
+test("EMPLOYEE approuvant une organisation réelle non-interne, UUID soumis en MAJUSCULES : ALLOW quand même (le fix ne doit pas sur-bloquer une org légitime)", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id.toUpperCase(), role: "client" }));
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "active", "une organisation cliente réelle, même soumise en majuscules, doit rester approuvable");
+  const [membership] = await db
+    .select({ organizationId: memberships.organizationId })
+    .from(memberships)
+    .where(eq(memberships.userId, target.id))
+    .limit(1);
+  assert.equal(membership.organizationId, clientOrg.id, "la membership doit pointer vers la VRAIE organisation cliente (forme canonique), pas vers une variante orpheline");
+});
+
+// ---- 10. RACE CONDITION FIX (post-038abe9 adversarial review) — deux
+// approbations concurrentes du même utilisateur pending --------------------
+//
+// Real concurrent calls against the real local Postgres (Promise.allSettled,
+// never sequential awaits) — a structural/mocked test cannot prove a DB-level
+// race fix, so this deliberately exercises two genuinely simultaneous
+// transactions on the exact same row.
+
+test("deux approbations concurrentes du même pending vers la MÊME organisation : une seule gagne, aucun doublon audit/notification", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+  actAs(admin, "admin", org.id);
+  const target = await createUser({ status: "pending" });
+
+  const fd1 = approvalFormData({ userId: target.id, organizationId: org.id, role: "client" });
+  const fd2 = approvalFormData({ userId: target.id, organizationId: org.id, role: "client" });
+
+  // Notifications are org-scoped, and "PUBLIC-MAP" is reused by dozens of
+  // OTHER fixtures across this file (and across every prior run of this
+  // suite against this shared local DB) — scope the notification
+  // assertion below to activity created by THIS test only, the same
+  // "since" convention already used by the e2e helpers in this codebase
+  // (e.g. e2e/helpers/main-db-last-login.mjs's loginProductEventCountSince).
+  const since = new Date();
+
+  const results = await Promise.allSettled([approveUser(fd1), approveUser(fd2)]);
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(fulfilled.length, 1, "exactement un des deux appels concurrents doit réussir");
+  assert.equal(rejected.length, 1, "l'autre doit échouer proprement, jamais silencieusement réussir en double");
+  assert.match(rejected[0].reason.message, /attente/i, "l'échec du perdant doit être le même message que pour une ré-approbation séquentielle (notPendingApproval)");
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "active");
+
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 1, "une seule membership, jamais deux");
+
+  const auditRows = await db
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.targetId, target.id), eq(auditLog.action, "user.approved")));
+  assert.equal(auditRows.length, 1, "une seule entrée auditLog user.approved, jamais un doublon issu du perdant de la course");
+
+  const notifRows = await db
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.organizationId, org.id), eq(notifications.type, "user.approved"), gte(notifications.createdAt, since)));
+  assert.equal(notifRows.length, 1, "une seule notification admin-facing créée par CE test, jamais une notification dupliquée par le perdant");
+});
+
+test("deux approbations concurrentes du même pending vers DEUX organisations différentes : une seule gagne, jamais deux memberships", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const orgA = await requireOrg("Organisation Démo");
+  const [orgB] = await db.insert(organizations).values({ name: `Org Test ${randomUUID()}` }).returning();
+  const admin = await createActiveMember({ role: "admin", organizationId: org.id });
+  actAs(admin, "admin", org.id);
+  const target = await createUser({ status: "pending" });
+
+  const fdA = approvalFormData({ userId: target.id, organizationId: orgA.id, role: "client" });
+  const fdB = approvalFormData({ userId: target.id, organizationId: orgB.id, role: "client" });
+
+  const results = await Promise.allSettled([approveUser(fdA), approveUser(fdB)]);
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(fulfilled.length, 1, "exactement un des deux appels concurrents doit réussir, même avec deux organisations cibles différentes");
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason.message, /attente/i);
+
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 1, "jamais deux memberships dans deux organisations différentes issues d'une course entre deux approbations");
+  assert.ok(
+    membershipRows[0].organizationId === orgA.id || membershipRows[0].organizationId === orgB.id,
+    "la membership unique créée doit correspondre à l'appel qui a réellement gagné la course",
+  );
+
+  const auditRows = await db
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.targetId, target.id), eq(auditLog.action, "user.approved")));
+  assert.equal(auditRows.length, 1, "une seule entrée auditLog, même avec deux organisations cibles différentes en course");
 });

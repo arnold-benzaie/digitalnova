@@ -62,6 +62,7 @@ import { updateTaskStatus } from "@/lib/actions/crm-tasks";
 import { updateTicketStatus } from "@/lib/actions/crm-tickets";
 import { requireStaffRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
+import { isCrmClientVisibleToScope, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 import { getRadarCapabilities } from "@/lib/rbac/require-staff-member";
 import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
 import { getInternalOrganizationId } from "@/lib/notifications";
@@ -99,6 +100,13 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
   if (!client) notFound();
+  // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — an EMPLOYEE
+  // scope (null for OWNER/ADMIN/MANAGER, unchanged) may only open a client
+  // assigned to them; anyone else, or an unassigned client, gets the SAME
+  // notFound() as a genuinely nonexistent id — no existence disclosure via
+  // a different error for "real but not yours" vs. "doesn't exist".
+  const employeeScope = await resolveCrmEmployeeScope();
+  if (!isCrmClientVisibleToScope(employeeScope, client.assignedUserId)) notFound();
 
   const gbpStatus = client.organizationId
     ? await (async () => {
