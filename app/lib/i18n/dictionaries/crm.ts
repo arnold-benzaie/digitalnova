@@ -209,6 +209,16 @@ export const crm = {
         errNotAllowedToAssign: "Vous ne pouvez retirer que vos propres prospects.",
         errAssignmentChangedRetry: "Ce prospect vient d'être modifié. La liste a été actualisée — réessayez.",
       },
+      // WORKFORCE — MANAGER "MON ÉQUIPE" — read-only panel, MANAGER only.
+      // roleEmployee reuses the exact label a MANAGER already sees
+      // elsewhere for this role (see lib/i18n/dictionaries/workforce.ts's
+      // own roleEmployee) — no new role vocabulary invented here.
+      myTeam: {
+        title: "Mon équipe",
+        subtitle: "Employés actifs",
+        roleEmployee: "Employé",
+        emptyState: "Aucun employé actif dans votre équipe.",
+      },
     },
     pipeline: {
       title: "Pipeline commercial",
@@ -1051,6 +1061,12 @@ export const crm = {
         errAssignmentUnchanged: "No change.",
         errNotAllowedToAssign: "You can only release your own prospects.",
         errAssignmentChangedRetry: "This prospect was just updated. The list has been refreshed — try again.",
+      },
+      myTeam: {
+        title: "My team",
+        subtitle: "Active employees",
+        roleEmployee: "Employee",
+        emptyState: "No active employees in your team.",
       },
     },
     pipeline: {

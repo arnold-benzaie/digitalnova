@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { getRadarQueue, type RadarAssigneeFilter } from "@/lib/actions/radar-queue";
 import { listAssignableRadarMembers } from "@/lib/actions/radar-assignment";
+import { listManagerTeamMembers } from "@/lib/actions/manager-team";
 import type { Confidence, Priority, RadarReason } from "@/lib/radar/score";
 import { Badge, CLIENT_STAGE_CLASS, getClientStageOptions } from "@/components/crm/badges";
 import { RadarAssignmentControls } from "@/components/crm/radar-assignment-controls";
 import { RadarFollowUpQuickActions } from "@/components/crm/radar-follow-up-quick-actions";
+import { ManagerTeamPanel } from "@/components/crm/manager-team-panel";
 import { AdminPageHero, panelClass, tableWrapperClass } from "@/components/admin/page-hero";
 import { requireSession } from "@/lib/session";
 import { getRadarCapabilities, requireRadarAccess } from "@/lib/rbac/require-staff-member";
@@ -86,13 +88,18 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
   // legacy Axis-A requireStaffRole() no longer decides this page's access;
   // getRadarQueue() (lib/actions/radar-queue.ts) independently re-checks
   // the exact same permission as its own first statement.
-  await requireRadarAccess("RADAR_QUEUE_VIEW");
+  const viewerRole = await requireRadarAccess("RADAR_QUEUE_VIEW");
   const [params, locale, { userId: currentUserId }, caps] = await Promise.all([
     searchParams,
     getLocale(),
     requireSession(),
     getRadarCapabilities(),
   ]);
+  // WORKFORCE — MANAGER "MON ÉQUIPE" — read-only, MANAGER only. Not tied to
+  // caps/RADAR_ASSIGN/radar_access: listManagerTeamMembers() does its own
+  // independent, dedicated authorization (see that file's own doc
+  // comment) — viewerRole here only decides whether to bother fetching it.
+  const managerTeam = viewerRole === "MANAGER" ? await listManagerTeamMembers() : null;
   const t = dictionaries[locale].crm.radar;
   const stageLabel = Object.fromEntries(getClientStageOptions(locale).map((o) => [o.value, o.label]));
 
@@ -150,6 +157,8 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
+
+      {managerTeam && <ManagerTeamPanel members={managerTeam} locale={locale} />}
 
       <form action="/admin/crm/radar" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <label htmlFor="priority" className="sr-only">
