@@ -13,6 +13,7 @@
  * unrecognized role, or an unrecognized permission all resolve to DENY.
  * There is no fallback to legacy admin status anywhere in this file.
  */
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -214,6 +215,62 @@ export async function requireRadarAccess(permission: Permission): Promise<StaffR
 }
 
 /**
+ * PERF — ADMIN NAV VISIBILITY CONSOLIDATION. The five non-redirecting
+ * "should this nav entry render" probes below (isCurrentUserOwner,
+ * canCurrentUserManageWorkforce, canCurrentUserWorkRadar,
+ * canCurrentUserManageAiPolicy, isCurrentUserEmployeeTier) each used to
+ * call evaluateStaffPermission()/evaluateRadarAccess() independently — a
+ * getInternalOrganizationId() query PLUS a staff_members/staff_roles read
+ * PER PROBE, i.e. up to 10 DB round-trips for app/admin/layout.tsx's own
+ * `Promise.all([...5 probes])`, even though all five ask about the exact
+ * same caller/workspace/row within the same request.
+ *
+ * This resolver is the ONLY thing that changed: it fetches that one row
+ * ONCE per request (React's cache(), the same per-request memoization
+ * primitive lib/session.ts's resolveAccessState()/lib/dev-org.ts's
+ * getOrCreateDevOrganization() already use elsewhere in this codebase —
+ * not a new pattern), keyed on `userId`. Calling it five times with the
+ * same userId within one request — sequentially or via Promise.all, in
+ * any order — performs the getInternalOrganizationId() call and the
+ * staff_members read EXACTLY ONCE; every further call resolves from the
+ * cache with no DB round-trip at all. Each probe below still does its own
+ * LOCAL, PURE derivation from that one row via hasPermission() (imported,
+ * unchanged) — the five functional decisions themselves are byte-identical
+ * to before this change, only the data-fetching underneath is shared.
+ *
+ * Selects the RADAR-shaped superset of columns (role, status, radarAccess)
+ * — the same shape defaultLookupRadarMembership() below already reads for
+ * evaluateRadarAccess() — so canCurrentUserWorkRadar()'s radar_access
+ * check never needs a second query for that one extra column.
+ *
+ * Deliberately NEVER used by evaluateStaffPermission(), evaluateRadarAccess(),
+ * requireStaffMember(), or requireRadarAccess() — the actual authorization
+ * gates keep their exact existing per-call freshness/behavior, completely
+ * untouched by this change. This resolver exists ONLY for the five
+ * non-authorizing nav-visibility signals below; a real access decision
+ * never depends on it.
+ *
+ * `{ ok: false }` uniformly covers every fail-closed branch
+ * evaluateStaffPermission()/evaluateRadarAccess() already distinguish (no
+ * internal workspace, no membership, inactive membership) — the five
+ * probes below don't need to tell those apart, they only ever return
+ * `false` for any of them, exactly as before.
+ */
+type CallerNavState = { ok: false } | { ok: true; role: StaffRole; radarAccess: boolean };
+
+const resolveCallerNavState = cache(async (userId: string): Promise<CallerNavState> => {
+  const internalOrgId = await getInternalOrganizationId();
+  if (!internalOrgId) {
+    return { ok: false };
+  }
+  const membership = await defaultLookupRadarMembership(userId, internalOrgId);
+  if (!membership || membership.status !== ACTIVE_STAFF_STATUS) {
+    return { ok: false };
+  }
+  return { ok: true, role: membership.roleName as StaffRole, radarAccess: membership.radarAccess };
+});
+
+/**
  * PHASE OWNER-UI-1 — non-redirecting OWNER visibility signal, for deciding
  * whether to RENDER an OWNER-only affordance (e.g. a future nav entry),
  * never for deciding whether to ALLOW an OWNER-only action or route —
@@ -223,15 +280,17 @@ export async function requireRadarAccess(permission: Permission): Promise<StaffR
  * treated as a substitute authorization gate.
  *
  * Reuses "OWNER_MANAGE" — the one permission lib/rbac/permissions.ts
- * documents as OWNER-exclusive — as the sole source of truth, via the
- * exact same evaluateStaffPermission() core requireStaffMember() itself
- * uses. No second OWNER lookup, no email, no client-suppliable state, no
- * duplicated allowlist: every evaluateStaffPermission() denial branch
- * (no internal workspace, no membership, inactive membership,
- * permission-denied) already resolves to `ok: false` here, so this is
- * fail-closed by construction — `false` covers every non-OWNER case
- * uniformly, with no case that must be special-cased to avoid an
- * accidental `true`.
+ * documents as OWNER-exclusive — as the sole source of truth, derived from
+ * resolveCallerNavState() above (see its own doc comment for why this no
+ * longer calls evaluateStaffPermission() directly — same fail-closed
+ * result, shared per-request data fetch). No second OWNER lookup, no
+ * email, no client-suppliable state, no duplicated allowlist: `state.ok
+ * === false` already covers every denial branch uniformly (no internal
+ * workspace, no membership, inactive membership), so this is fail-closed
+ * by construction — `false` covers every non-OWNER case uniformly, with
+ * the `role === "OWNER"` refinement kept as defense-in-depth exactly as
+ * before (never relying solely on the permission catalogue staying that
+ * way).
  *
  * Deliberately does not catch a genuine infrastructure failure (e.g. the
  * DB being unreachable): every other await in the admin layout/AppShell
@@ -243,23 +302,16 @@ export async function requireRadarAccess(permission: Permission): Promise<StaffR
  *
  * Takes NO parameters — reviewed API invariant (see the compile-time
  * @ts-expect-error proof in require-staff-member.permission-type-check.ts):
- * unlike evaluateStaffPermission() (this function's own pure core, kept
- * injectable for its own tests), this exported wrapper accepts no
- * workspace resolver, membership lookup, user id, role, or any other
- * override — every real dependency below is the repository's real
- * production implementation, always. There is no parameter through which
- * a caller could substitute a test double, another identity, or another
- * workspace at runtime.
+ * this exported wrapper accepts no workspace resolver, membership lookup,
+ * user id, role, or any other override — every real dependency below is
+ * the repository's real production implementation, always. There is no
+ * parameter through which a caller could substitute a test double, another
+ * identity, or another workspace at runtime.
  */
 export async function isCurrentUserOwner(): Promise<boolean> {
   const session = await requireSession();
-  // Same two-argument call shape as requireStaffMember() above — relies
-  // on evaluateStaffPermission()'s own default getInternalOrgId/
-  // lookupMembership (getInternalOrganizationId / defaultLookupStaffMembership),
-  // never re-specified here, so there is exactly one place in this file
-  // that names the real production dependencies.
-  const result = await evaluateStaffPermission({ userId: session.userId, permission: "OWNER_MANAGE" });
-  return result.ok && result.role === "OWNER";
+  const state = await resolveCallerNavState(session.userId);
+  return state.ok && hasPermission(state.role, "OWNER_MANAGE") && state.role === "OWNER";
 }
 
 /**
@@ -272,8 +324,9 @@ export async function isCurrentUserOwner(): Promise<boolean> {
  * boolean can at most render a dead link in its own browser.
  *
  * Follows the "WORKFORCE_MANAGE" permission catalogue entry as the sole
- * source of truth — via the exact same evaluateStaffPermission() core the
- * two functions above use — and returns its `ok` verbatim. It deliberately
+ * source of truth — derived from resolveCallerNavState() above, the same
+ * shared per-request data fetch isCurrentUserOwner() uses — and returns
+ * the equivalent of `ok` verbatim. It deliberately
  * does NOT additionally hardcode role names (unlike isCurrentUserOwner()'s
  * `role === "OWNER"` refinement): the permission grant in
  * lib/rbac/permissions.ts (OWNER + ADMIN today) is the authoritative
@@ -294,8 +347,8 @@ export async function isCurrentUserOwner(): Promise<boolean> {
  */
 export async function canCurrentUserManageWorkforce(): Promise<boolean> {
   const session = await requireSession();
-  const result = await evaluateStaffPermission({ userId: session.userId, permission: "WORKFORCE_MANAGE" });
-  return result.ok;
+  const state = await resolveCallerNavState(session.userId);
+  return state.ok && hasPermission(state.role, "WORKFORCE_MANAGE");
 }
 
 /**
@@ -325,8 +378,8 @@ export async function canCurrentUserManageWorkforce(): Promise<boolean> {
  */
 export async function canCurrentUserManageAiPolicy(): Promise<boolean> {
   const session = await requireSession();
-  const result = await evaluateStaffPermission({ userId: session.userId, permission: "RADAR_AI_POLICY_MANAGE" });
-  return result.ok;
+  const state = await resolveCallerNavState(session.userId);
+  return state.ok && hasPermission(state.role, "RADAR_AI_POLICY_MANAGE");
 }
 
 /**
@@ -338,8 +391,9 @@ export async function canCurrentUserManageAiPolicy(): Promise<boolean> {
  * as its own first statement, and getMyWork() re-checks it too. Follows
  * the "RADAR_WORK" permission catalogue entry (OWNER/ADMIN/MANAGER/EMPLOYEE
  * today) AND the individual radar_access override as the sole sources of
- * truth, via the exact same evaluateRadarAccess() core, and returns its
- * `ok` verbatim — no role names hardcoded, no email, no client-suppliable
+ * truth, derived from resolveCallerNavState() above (the same shared
+ * per-request fetch, already carrying radar_access — no second query for
+ * that column) — no role names hardcoded, no email, no client-suppliable
  * state. Errors propagate exactly as in isCurrentUserOwner().
  *
  * WORKFORCE ACCESS CONTROL — this now also hides the "My work" nav entry
@@ -352,8 +406,8 @@ export async function canCurrentUserManageAiPolicy(): Promise<boolean> {
  */
 export async function canCurrentUserWorkRadar(): Promise<boolean> {
   const session = await requireSession();
-  const result = await evaluateRadarAccess({ userId: session.userId, permission: "RADAR_WORK" });
-  return result.ok;
+  const state = await resolveCallerNavState(session.userId);
+  return state.ok && hasPermission(state.role, "RADAR_WORK") && state.radarAccess === true;
 }
 
 /**
@@ -430,8 +484,8 @@ export async function getRadarCapabilities(): Promise<{
  *
  * Reuses "CRM_READ" — a permission every staff tier holds today — purely as
  * a cheap way to resolve the caller's real Axis-C role via
- * evaluateStaffPermission()'s existing fail-closed lookup, then refines on
- * `role === "EMPLOYEE"` (same `ok` + role-refinement shape
+ * resolveCallerNavState()'s shared, fail-closed, per-request lookup, then
+ * refines on `role === "EMPLOYEE"` (same `ok` + role-refinement shape
  * isCurrentUserOwner() already uses for `role === "OWNER"`). No new
  * permission, no email, no client-suppliable state.
  *
@@ -447,6 +501,6 @@ export async function getRadarCapabilities(): Promise<{
  */
 export async function isCurrentUserEmployeeTier(): Promise<boolean> {
   const session = await requireSession();
-  const result = await evaluateStaffPermission({ userId: session.userId, permission: "CRM_READ" });
-  return result.ok && result.role === "EMPLOYEE";
+  const state = await resolveCallerNavState(session.userId);
+  return state.ok && hasPermission(state.role, "CRM_READ") && state.role === "EMPLOYEE";
 }

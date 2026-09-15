@@ -15,8 +15,15 @@
 // rather than a raw db chain.
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { redirect } from "next/navigation";
 import { hasPermission } from "./permissions.ts";
+
+// PERF — ADMIN NAV VISIBILITY CONSOLIDATION structural proof source, same
+// pattern lib/actions/radar-ai-quota-governance.test.mjs's own "delegation"
+// tests already use in this codebase.
+const SOURCE = readFileSync(fileURLToPath(new URL("./require-staff-member.ts", import.meta.url)), "utf8");
 
 const INTERNAL_ORG_ID = "e35cbc31-9604-4324-adc6-f6f5c1ffc248";
 const USER_ID = "32371e8f-fc5e-4add-a7e4-9d4baf84252e";
@@ -850,4 +857,137 @@ test("EMP-TIER-8. has exactly zero parameters — reviewed API invariant, same a
 test("RA-20. getRadarCapabilities(): ACTIVE MANAGER with radar ON -> unchanged from the role-only matrix already proven above", async () => {
   withMembershipRow("MANAGER", "ACTIVE", true);
   assert.deepEqual(await getRadarCapabilities(), { canClaimToSelf: true, canAssignOthers: true, canReleaseOwn: true });
+});
+
+// ============================================================================
+// PERF — ADMIN NAV VISIBILITY CONSOLIDATION (app/admin/layout.tsx's 5 probes)
+// ============================================================================
+//
+// Structural proof (source-text inspection, same pattern
+// lib/actions/radar-ai-quota-governance.test.mjs's own "delegation" tests
+// already use in this codebase) that the five nav-visibility probes below
+// share ONE per-request data fetch instead of each independently calling
+// evaluateStaffPermission()/evaluateRadarAccess() (which each internally
+// default to their own getInternalOrganizationId() + staff_members read).
+//
+// NOTE on why this is structural, not a live DB-call-count test: the shared
+// fetch is wrapped in React's cache() (the same per-request memoization
+// primitive lib/session.ts::resolveAccessState() and
+// lib/dev-org.ts::getOrCreateDevOrganization() already rely on elsewhere in
+// this exact codebase). cache() only dedupes within an actual Next.js
+// Server Component render/request — outside that context (a bare Node
+// script, or this test file) it has no request boundary to scope a cache
+// to and does not dedupe at all, so a call-count assertion here would
+// measure the WRONG thing (it would report "not deduped" even though the
+// real Next.js render correctly dedupes) and could not reliably prove the
+// optimization either way. This is exactly why neither resolveAccessState()
+// nor getOrCreateDevOrganization() has a dedup-count test anywhere in this
+// codebase today — the same limitation applies here, not a gap specific to
+// this change. Source-text inspection is therefore the reliable way to
+// prove the consolidation actually happened.
+
+function functionBody(name) {
+  const re = new RegExp(`export async function ${name}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n\\}`, "m");
+  const match = SOURCE.match(re);
+  assert.ok(match, `could not locate function body for ${name}`);
+  return match[1];
+}
+
+const NAV_PROBE_NAMES = [
+  "isCurrentUserOwner",
+  "canCurrentUserManageWorkforce",
+  "canCurrentUserManageAiPolicy",
+  "canCurrentUserWorkRadar",
+  "isCurrentUserEmployeeTier",
+];
+
+test("PERF: resolveCallerNavState is wrapped in React's cache() -- the shared per-request memoization primitive", () => {
+  assert.match(SOURCE, /import\s*\{\s*cache\s*\}\s*from\s*"react"/);
+  assert.match(SOURCE, /const resolveCallerNavState = cache\(async/);
+});
+
+for (const name of NAV_PROBE_NAMES) {
+  test(`PERF: ${name}() calls resolveCallerNavState() -- never evaluateStaffPermission()/evaluateRadarAccess() directly`, () => {
+    const body = functionBody(name);
+    assert.match(body, /resolveCallerNavState\(session\.userId\)/, `${name} must call the shared resolver`);
+    assert.equal(/evaluateStaffPermission\(/.test(body), false, `${name} must not call evaluateStaffPermission() directly`);
+    assert.equal(/evaluateRadarAccess\(/.test(body), false, `${name} must not call evaluateRadarAccess() directly`);
+    assert.equal(/getInternalOrganizationId\(/.test(body), false, `${name} must not call getInternalOrganizationId() directly`);
+  });
+}
+
+test("PERF: getInternalOrganizationId() is called from exactly one place for the nav-visibility path -- inside resolveCallerNavState() only", () => {
+  const resolverBody = SOURCE.slice(SOURCE.indexOf("const resolveCallerNavState = cache(async"), SOURCE.indexOf("});", SOURCE.indexOf("const resolveCallerNavState = cache(async")));
+  assert.match(resolverBody, /getInternalOrganizationId\(\)/);
+  // The staff row fetched by resolveCallerNavState() is the RADAR-shaped
+  // superset (role, status, radarAccess) -- a single query serves both the
+  // plain-permission probes and the radar_access-aware probe, never two.
+  assert.match(resolverBody, /defaultLookupRadarMembership\(/);
+});
+
+test("PERF: evaluateStaffPermission()/evaluateRadarAccess()/requireStaffMember()/requireRadarAccess() are completely untouched by the consolidation -- resolveCallerNavState is never referenced by any of them", () => {
+  for (const gate of ["evaluateStaffPermission", "evaluateRadarAccess", "requireStaffMember", "requireRadarAccess"]) {
+    const re = new RegExp(`export async function ${gate}\\([\\s\\S]*?\\n\\}`, "m");
+    const match = SOURCE.match(re);
+    assert.ok(match, `could not locate ${gate}`);
+    assert.equal(/resolveCallerNavState/.test(match[0]), false, `${gate} must never reference resolveCallerNavState -- the real authorization gates keep their own independent, unmemoized fetch`);
+  }
+});
+
+// ---------------- functional parity: the five decisions together, mirroring app/admin/layout.tsx's own Promise.all([...5 probes]) ----------------
+
+async function allFiveNavProbes() {
+  const [isOwner, canManageWorkforce, canManageAiPolicy, canWorkRadar, isEmployeeTier] = await Promise.all([
+    isCurrentUserOwner(),
+    canCurrentUserManageWorkforce(),
+    canCurrentUserManageAiPolicy(),
+    canCurrentUserWorkRadar(),
+    isCurrentUserEmployeeTier(),
+  ]);
+  return { isOwner, canManageWorkforce, canManageAiPolicy, canWorkRadar, isEmployeeTier };
+}
+
+test("PERF-PARITY-1. OWNER: all five probes agree -- isOwner true, canManageWorkforce/canManageAiPolicy/canWorkRadar true, isEmployeeTier false", async () => {
+  withMembershipRow("OWNER", "ACTIVE", true);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: true, canManageWorkforce: true, canManageAiPolicy: true, canWorkRadar: true, isEmployeeTier: false });
+});
+
+test("PERF-PARITY-2. ADMIN: isOwner false, canManageWorkforce true, canManageAiPolicy false (OWNER-exclusive), canWorkRadar true, isEmployeeTier false", async () => {
+  withMembershipRow("ADMIN", "ACTIVE", true);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: true, canManageAiPolicy: false, canWorkRadar: true, isEmployeeTier: false });
+});
+
+test("PERF-PARITY-3. MANAGER: isOwner false, canManageWorkforce false, canManageAiPolicy false, canWorkRadar true, isEmployeeTier false", async () => {
+  withMembershipRow("MANAGER", "ACTIVE", true);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: true, isEmployeeTier: false });
+});
+
+test("PERF-PARITY-4. EMPLOYEE: isOwner false, canManageWorkforce false, canManageAiPolicy false, canWorkRadar true, isEmployeeTier true", async () => {
+  withMembershipRow("EMPLOYEE", "ACTIVE", true);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: true, isEmployeeTier: true });
+});
+
+test("PERF-PARITY-5. EMPLOYEE with radar_access=false: canWorkRadar false, every other probe unaffected by that individual override", async () => {
+  withMembershipRow("EMPLOYEE", "ACTIVE", false);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: false, isEmployeeTier: true });
+});
+
+test("PERF-PARITY-6. no internal workspace resolvable (workspace isolation: no workspace, no fallback role) -- all five false", async () => {
+  withMembershipRow("OWNER", "ACTIVE", true); // present but must never be reached
+  internalOrgIdMock = async () => null;
+  try {
+    assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: false, isEmployeeTier: false });
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("PERF-PARITY-7. no staff_members membership at all -- all five false, nav stays exactly as a legacy Axis-A-only account sees it today", async () => {
+  withNoMembershipRow();
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: false, isEmployeeTier: false });
+});
+
+test("PERF-PARITY-8. SUSPENDED OWNER -- inactive membership denies every probe, including isOwner (a suspended OWNER never sees Owner Control)", async () => {
+  withMembershipRow("OWNER", "SUSPENDED", true);
+  assert.deepEqual(await allFiveNavProbes(), { isOwner: false, canManageWorkforce: false, canManageAiPolicy: false, canWorkRadar: false, isEmployeeTier: false });
 });
