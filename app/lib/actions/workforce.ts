@@ -30,8 +30,10 @@ import type { StaffRole } from "@/lib/rbac/permissions";
 
 /** OWNER is categorically excluded — see file header. Explicit, not derived
  * by filtering STAFF_ROLES, so adding a future 5th role never silently
- * appears here. */
-const LISTED_WORKFORCE_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"] as const;
+ * appears here. Exported so lib/actions/workforce-invitations.ts (WORKFORCE
+ * INVITATION V1) shares the exact same allowlist rather than maintaining a
+ * second one that could drift. */
+export const LISTED_WORKFORCE_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"] as const;
 export type ListedWorkforceRole = Exclude<StaffRole, "OWNER">;
 
 /** Mirrors the DB CHECK constraint on staff_members.status exactly (no
@@ -152,14 +154,14 @@ const POSTGRES_UNIQUE_VIOLATION = "23505";
  * without drizzle in between) therefore never matches here; both shapes
  * are checked so this works whether or not a future refactor changes
  * which layer performs the insert. */
-function isPostgresUniqueViolation(error: unknown): boolean {
+export function isPostgresUniqueViolation(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   if (code === POSTGRES_UNIQUE_VIOLATION) return true;
   const causeCode = (error as { cause?: { code?: string } } | null)?.cause?.code;
   return causeCode === POSTGRES_UNIQUE_VIOLATION;
 }
 
-function isListedWorkforceRole(value: unknown): value is ListedWorkforceRole {
+export function isListedWorkforceRole(value: unknown): value is ListedWorkforceRole {
   return typeof value === "string" && (LISTED_WORKFORCE_ROLES as readonly string[]).includes(value);
 }
 

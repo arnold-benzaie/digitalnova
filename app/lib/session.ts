@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { invitations, memberships, organizations, roles, staffMembers, staffRoles, users } from "@/db/schema";
+import { auditLog, invitations, memberships, organizations, roles, staffInvitations, staffMembers, staffRoles, users } from "@/db/schema";
 import { registerPendingUser } from "@/lib/pending-user-registration";
 import { recordProductEvent } from "@/lib/product-events";
 import type { StaffRole } from "@/lib/rbac/permissions";
@@ -161,18 +161,28 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
 
   const [staffMember, membership] = await Promise.all([lookupActiveStaffMember(appUser.id), lookupMembership(appUser.id)]);
 
-  if (staffMember) {
+  // WORKFORCE INVITATION V1 — a Workforce claim is attempted whenever no
+  // ACTIVE staff_members row exists yet, REGARDLESS of whether an Axis-A
+  // membership already exists (see claimPendingStaffInvitation()'s own
+  // header comment for why: an existing CLIENT membership must never block
+  // a Workforce invitation claim, and must never be touched by it either).
+  // Priority order itself is completely unchanged: an ACTIVE staff_members
+  // row (now or freshly claimed) always wins over Axis-A, exactly as
+  // SESSION AUTHORITY UNIFICATION already documents below.
+  const resolvedStaffMember = staffMember ?? (await claimPendingStaffInvitation(appUser.id, appUser.email));
+
+  if (resolvedStaffMember) {
     if (isNewLoginSession) {
-      await recordProductEvent({ organizationId: staffMember.workspaceOrgId, userId: appUser.id, eventType: "login" });
+      await recordProductEvent({ organizationId: resolvedStaffMember.workspaceOrgId, userId: appUser.id, eventType: "login" });
     }
     return {
       kind: "active",
       session: {
         ...baseFields,
         context: "WORKFORCE",
-        staffRole: staffMember.staffRole,
-        organizationId: staffMember.workspaceOrgId,
-        organizationName: staffMember.workspaceOrgName,
+        staffRole: resolvedStaffMember.staffRole,
+        organizationId: resolvedStaffMember.workspaceOrgId,
+        organizationName: resolvedStaffMember.workspaceOrgName,
       },
     };
   }
@@ -325,6 +335,119 @@ async function lookupActiveStaffMember(userId: string): Promise<ResolvedStaffMem
     .where(and(eq(staffMembers.userId, userId), eq(staffMembers.status, "ACTIVE")))
     .limit(1);
   return row ? { ...row, staffRole: row.staffRole as StaffRole } : undefined;
+}
+
+const POSTGRES_UNIQUE_VIOLATION = "23505";
+
+/** Same detection as lib/actions/workforce.ts's isPostgresUniqueViolation()
+ * — duplicated (not imported) deliberately: this file must stay importable
+ * on its own, and lib/actions/workforce.ts is Axis-C UI-action surface,
+ * not session-resolution infrastructure. drizzle-orm wraps the real pg
+ * error (the one carrying `.code`) onto `.cause`. */
+function isPostgresUniqueViolation(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === POSTGRES_UNIQUE_VIOLATION) return true;
+  const causeCode = (error as { cause?: { code?: string } } | null)?.cause?.code;
+  return causeCode === POSTGRES_UNIQUE_VIOLATION;
+}
+
+/**
+ * WORKFORCE INVITATION V1 — Axis-C counterpart of claimPendingInvitation()
+ * below, same shape/rationale (no Clerk webhook provisions access on
+ * sign-up, so the first Clerk session seen for this email claims its own
+ * pending invitation), different tables: staff_invitations -> staff_members
+ * instead of invitations -> memberships, and NO users.status write (Axis-C
+ * has no "pending approval" concept — staff_members.status's own DEFAULT
+ * 'ACTIVE' is what activates the member, identically to the direct-add
+ * path in lib/actions/workforce.ts's addWorkforceMemberCore()).
+ *
+ * Matched ONLY by the Clerk-verified email on this request — never a
+ * caller-suppliable parameter — so a forged/mismatched email cannot claim
+ * someone else's invitation, and workspaceOrgId/roleId are always read
+ * back off the matched invitation row itself, never supplied by the
+ * caller, so a claim can never cross into a different workspace than the
+ * one the inviter actually chose.
+ *
+ * Called REGARDLESS of whether an Axis-A membership already exists for
+ * this user (see the call site in resolveAccessState()): a person who
+ * already has a CLIENT membership must still be able to claim a Workforce
+ * invitation, and this function never reads or writes memberships/
+ * invitations/users.status — the existing CLIENT row (if any) is left
+ * completely untouched, exactly like claimPendingInvitation() leaves a
+ * Workforce identity's Axis-A state untouched in the mirror-image case.
+ *
+ * A unique-violation on (userId, workspaceOrgId) — this person already has
+ * SOME staff_members row in this workspace, from a direct /admin/workforce
+ * add or a concurrent claim — is swallowed to `undefined`, never thrown:
+ * this runs on every request via resolveAccessState(), so it must never
+ * crash a session resolution. The invitation is deliberately left pending
+ * (not silently marked claimed) for a human to reconcile; the very next
+ * request resolves WORKFORCE normally via lookupActiveStaffMember() once
+ * that other row is visible, since AN ACTIVE staff_members row (however it
+ * was created) is what actually grants access — this claim path is not
+ * the only door.
+ */
+export async function claimPendingStaffInvitation(userId: string, email: string): Promise<ResolvedStaffMember | undefined> {
+  return db.transaction(async (tx) => {
+    const [invitation] = await tx
+      .select()
+      .from(staffInvitations)
+      .where(and(eq(staffInvitations.email, email.toLowerCase()), eq(staffInvitations.status, "pending")))
+      .orderBy(desc(staffInvitations.createdAt))
+      .limit(1);
+    if (!invitation) return undefined;
+
+    let inserted: { id: string } | undefined;
+    try {
+      [inserted] = await tx
+        .insert(staffMembers)
+        .values({
+          userId,
+          workspaceOrgId: invitation.workspaceOrgId,
+          roleId: invitation.roleId,
+          invitedByUserId: invitation.invitedByUserId,
+        })
+        .returning({ id: staffMembers.id });
+    } catch (err) {
+      if (isPostgresUniqueViolation(err)) return undefined;
+      throw err;
+    }
+    if (!inserted) return undefined;
+
+    await tx
+      .update(staffInvitations)
+      .set({ status: "claimed", claimedAt: new Date() })
+      .where(eq(staffInvitations.id, invitation.id));
+
+    const [joined] = await tx
+      .select({
+        workspaceOrgId: staffMembers.workspaceOrgId,
+        workspaceOrgName: organizations.name,
+        staffRole: staffRoles.name,
+      })
+      .from(staffMembers)
+      .innerJoin(organizations, eq(staffMembers.workspaceOrgId, organizations.id))
+      .innerJoin(staffRoles, eq(staffMembers.roleId, staffRoles.id))
+      .where(eq(staffMembers.id, inserted.id))
+      .limit(1);
+    if (!joined) return undefined;
+
+    // Single write path for the audit trail (lib/audit.ts's own logAudit())
+    // is NOT reused here — importing lib/audit.ts would create a module
+    // cycle (lib/audit.ts's logCrmAudit() imports getCurrentSession from
+    // THIS file). Same insert shape, same table, same transaction/executor
+    // pattern as logAudit() itself.
+    await tx.insert(auditLog).values({
+      actorUserId: userId,
+      organizationId: invitation.workspaceOrgId,
+      action: "workforce.invitation_claimed",
+      targetType: "staff_member",
+      targetId: inserted.id,
+      metadata: { invitationId: invitation.id, role: joined.staffRole },
+    });
+
+    return { ...joined, staffRole: joined.staffRole as StaffRole };
+  });
 }
 
 /**

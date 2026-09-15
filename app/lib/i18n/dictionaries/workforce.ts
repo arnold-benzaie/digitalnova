@@ -53,6 +53,23 @@ export const workforce = {
     errorNoEligibleUsers: "Aucun utilisateur éligible à ajouter.",
     errorGeneric: "L'ajout a échoué. Veuillez réessayer.",
     eligibleUsersLimited: "Seuls les 50 premiers utilisateurs éligibles sont affichés.",
+    // WORKFORCE INVITATION V1 — the "Ajouter un membre" dialog now has two
+    // clearly separated tabs: an existing-user attach (above) and an
+    // invite-by-email (below), never a single ambiguous field mixing both.
+    tabExistingUser: "Utilisateur existant",
+    tabInviteEmail: "Inviter par e-mail",
+    inviteEmailLabel: "Adresse e-mail",
+    inviteEmailPlaceholder: "personne@example.com",
+    inviteSubmitButton: "Envoyer l'invitation",
+    inviteSubmitting: "Envoi…",
+    inviteDescription: "La personne recevra un e-mail pour créer son compte et rejoindre l'équipe interne. Elle n'a pas besoin d'avoir déjà un compte PUBLIC-MAP.",
+    inviteErrorInvalidEmail: "Adresse e-mail invalide.",
+    inviteErrorInvalidRole: "Rôle non valide.",
+    inviteErrorSelfInvite: "Vous ne pouvez pas vous inviter vous-même.",
+    inviteErrorOwnerTarget: "Le propriétaire de l'espace ne peut pas être invité.",
+    inviteErrorAlreadyMember: "Cette personne fait déjà partie de l'effectif.",
+    inviteErrorAlreadyPending: "Une invitation est déjà en attente pour cette adresse e-mail.",
+    inviteErrorGeneric: "L'invitation a échoué. Veuillez réessayer.",
     // PHASE RBAC-RUNTIME-R2D-B — ordinary workforce lifecycle actions
     // (suspend / reactivate / offboard) on MANAGER/EMPLOYEE rows. The
     // backend (lib/actions/workforce.ts) is authoritative; none of these
@@ -130,6 +147,20 @@ export const workforce = {
     errorNoEligibleUsers: "No eligible users to add.",
     errorGeneric: "Could not add the member. Please try again.",
     eligibleUsersLimited: "Only the first 50 eligible users are shown.",
+    tabExistingUser: "Existing user",
+    tabInviteEmail: "Invite by email",
+    inviteEmailLabel: "Email address",
+    inviteEmailPlaceholder: "person@example.com",
+    inviteSubmitButton: "Send invitation",
+    inviteSubmitting: "Sending…",
+    inviteDescription: "This person will receive an email to create their account and join the internal team. They don't need a PUBLIC-MAP account yet.",
+    inviteErrorInvalidEmail: "Invalid email address.",
+    inviteErrorInvalidRole: "Invalid role.",
+    inviteErrorSelfInvite: "You cannot invite yourself.",
+    inviteErrorOwnerTarget: "The workspace owner cannot be invited.",
+    inviteErrorAlreadyMember: "This person is already a workforce member.",
+    inviteErrorAlreadyPending: "An invitation is already pending for this email address.",
+    inviteErrorGeneric: "The invitation failed. Please try again.",
     // PHASE RBAC-RUNTIME-R2D-B — ordinary workforce lifecycle actions
     // (suspend / reactivate / offboard) on MANAGER/EMPLOYEE rows. The
     // backend (lib/actions/workforce.ts) is authoritative; none of these

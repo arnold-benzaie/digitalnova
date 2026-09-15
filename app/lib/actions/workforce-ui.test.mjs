@@ -98,6 +98,20 @@ mock.module("@/lib/actions/workforce", {
   },
 });
 
+// WORKFORCE INVITATION V1 — inviteWorkforceMember() as a configurable spy,
+// same technique as every other lib/actions/workforce* function above.
+let inviteCalls = [];
+/** @type {(email: string, role: string) => Promise<unknown>} */
+let inviteBehavior = async (email, role) => ({ id: "invitation-1", email, role, status: "pending", emailSent: true });
+mock.module("@/lib/actions/workforce-invitations", {
+  namedExports: {
+    inviteWorkforceMember: async (...received) => {
+      inviteCalls.push({ args: received, email: received[0], role: received[1] });
+      return inviteBehavior(received[0], received[1]);
+    },
+  },
+});
+
 let internalOrgId = INTERNAL_ORG_ID;
 mock.module("@/lib/notifications", {
   namedExports: { getInternalOrganizationId: async () => internalOrgId },
@@ -141,6 +155,7 @@ mock.module("next/navigation", {
 const {
   listAssignableWorkforceUsers,
   addWorkforceMemberFromForm,
+  inviteWorkforceMemberFromForm,
   suspendWorkforceMemberAction,
   reactivateWorkforceMemberAction,
   offboardWorkforceMemberAction,
@@ -153,6 +168,8 @@ function reset() {
   permissionCalls = [];
   addCalls = [];
   addBehavior = async (userId, role) => ({ userId, email: "target@example.com", role, status: "ACTIVE" });
+  inviteCalls = [];
+  inviteBehavior = async (email, role) => ({ id: "invitation-1", email, role, status: "pending", emailSent: true });
   lifecycleCalls = [];
   lifecycleBehavior = async (fn, userId) => ({ userId, email: "target@example.com", role: "MANAGER", status: "SUSPENDED" });
   roleChangeCalls = [];
@@ -384,6 +401,165 @@ test("4A-M17. imports only Axis-C + identity-discovery modules — no @/lib/audi
   }
   const schemaImport = imports.find((l) => l.includes("@/db/schema")) ?? "";
   assert.match(schemaImport, /\{\s*staffMembers,\s*users\s*\}/, "the @/db/schema import must be limited to { staffMembers, users }");
+});
+
+// ==================== WORKFORCE INVITATION V1 ====================
+// inviteWorkforceMemberFromForm() — FormData -> inviteWorkforceMember()
+// (lib/actions/workforce-invitations.ts) with stable typed error codes.
+// Same technique as addWorkforceMemberFromForm() above: every dependency
+// mocked at the module boundary, inviteWorkforceMember() itself a
+// configurable spy. The REAL email/role validation + duplicate/self/OWNER
+// rules are proven against a disposable Postgres by the companion
+// lib/actions/workforce-invitations.integration.test.mjs.
+
+test("4A-N1. accepts exactly one runtime parameter (FormData) — no workspace/actor/role args", () => {
+  assert.equal(inviteWorkforceMemberFromForm.length, 1);
+});
+
+test("4A-N2. requireStaffMember('WORKFORCE_MANAGE') runs first — a denial rejects before parsing/mutation", async () => {
+  reset();
+  permissionAllow = false;
+  await assert.rejects(() => inviteWorkforceMemberFromForm(form({ email: "garbage", role: "OWNER" })), /NEXT_REDIRECT/);
+  assert.deepEqual(permissionCalls, ["WORKFORCE_MANAGE"]);
+  assert.deepEqual(inviteCalls, []);
+});
+
+test("4A-N3. valid FormData calls inviteWorkforceMember(email, role) exactly once, then revalidates, then returns undefined", async () => {
+  reset();
+  const result = await inviteWorkforceMemberFromForm(form({ email: "new-hire@example.com", role: "MANAGER" }));
+  assert.equal(result, undefined);
+  assert.equal(inviteCalls.length, 1);
+  assert.deepEqual(inviteCalls[0].args, ["new-hire@example.com", "MANAGER"]);
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+});
+
+test("4A-N4. every allowlisted role (ADMIN/MANAGER/EMPLOYEE) reaches the invite action unchanged", async () => {
+  for (const role of ["ADMIN", "MANAGER", "EMPLOYEE"]) {
+    reset();
+    const result = await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role }));
+    assert.equal(result, undefined);
+    assert.equal(inviteCalls[0].role, role);
+  }
+});
+
+test("4A-N5. role 'OWNER' -> INVALID_ROLE before the invite action runs, nothing revalidated", async () => {
+  reset();
+  const result = await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "OWNER" }));
+  assert.deepEqual(result, { error: "INVALID_ROLE" });
+  assert.deepEqual(inviteCalls, []);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("4A-N6. unknown / empty / missing role -> INVALID_ROLE, no invite call", async () => {
+  for (const role of ["MANAGE", "employee", "", undefined]) {
+    reset();
+    const result = await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role }));
+    assert.deepEqual(result, { error: "INVALID_ROLE" });
+    assert.deepEqual(inviteCalls, []);
+  }
+});
+
+test("4A-N7. empty / missing / whitespace-only email -> INVALID_EMAIL, no invite call", async () => {
+  for (const email of ["", "   ", undefined]) {
+    reset();
+    const result = await inviteWorkforceMemberFromForm(form({ email, role: "EMPLOYEE" }));
+    assert.deepEqual(result, { error: "INVALID_EMAIL" });
+    assert.deepEqual(inviteCalls, []);
+  }
+});
+
+test("4A-N8. the raw (unnormalized) email string is forwarded verbatim — normalization/validation is the invite action's own job", async () => {
+  reset();
+  await inviteWorkforceMemberFromForm(form({ email: "  Jean.Dupont@Example.com  ", role: "EMPLOYEE" }));
+  assert.equal(inviteCalls[0].email, "  Jean.Dupont@Example.com  ");
+});
+
+test("4A-N9. invite-action 'invitation email must be a valid e-mail address' -> INVALID_EMAIL", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("invitation email must be a valid e-mail address");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "not-an-email", role: "EMPLOYEE" })), { error: "INVALID_EMAIL" });
+});
+
+test("4A-N10. invite-action 'workforce role must be one of' -> INVALID_ROLE", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("workforce role must be one of: ADMIN, MANAGER, EMPLOYEE");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" })), { error: "INVALID_ROLE" });
+});
+
+test("4A-N11. invite-action 'you cannot invite yourself' -> SELF_INVITE_NOT_ALLOWED", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("you cannot invite yourself");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "self@example.com", role: "EMPLOYEE" })), { error: "SELF_INVITE_NOT_ALLOWED" });
+});
+
+test("4A-N12. invite-action 'target is the workspace owner and cannot be invited' -> OWNER_TARGET", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("target is the workspace owner and cannot be invited");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "owner@example.com", role: "EMPLOYEE" })), { error: "OWNER_TARGET" });
+});
+
+test("4A-N13. invite-action 'target is already a workforce member of this workspace' -> ALREADY_WORKFORCE_MEMBER", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("target is already a workforce member of this workspace");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "existing@example.com", role: "EMPLOYEE" })), { error: "ALREADY_WORKFORCE_MEMBER" });
+});
+
+test("4A-N14. invite-action 'a pending workforce invitation already exists for this email' -> INVITATION_ALREADY_PENDING", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("a pending workforce invitation already exists for this email");
+  };
+  assert.deepEqual(await inviteWorkforceMemberFromForm(form({ email: "pending@example.com", role: "EMPLOYEE" })), { error: "INVITATION_ALREADY_PENDING" });
+});
+
+test("4A-N15. a NEXT_REDIRECT thrown from inside the invite action propagates — never mapped to a business code", async () => {
+  reset();
+  inviteBehavior = async () => {
+    const err = new Error("NEXT_REDIRECT");
+    err.digest = "NEXT_REDIRECT;replace;/admin;307;";
+    throw err;
+  };
+  await assert.rejects(() => inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" })), /NEXT_REDIRECT/);
+});
+
+test("4A-N16. 'internal workspace is not configured' propagates (error boundary), not a friendly code", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("internal workspace is not configured");
+  };
+  await assert.rejects(() => inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" })), /internal workspace is not configured/);
+});
+
+test("4A-N17. an arbitrary DB/connectivity error propagates (fails closed), never a false success", async () => {
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("connection terminated unexpectedly");
+  };
+  await assert.rejects(() => inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" })), /connection terminated unexpectedly/);
+  assert.deepEqual(revalidateCalls, []);
+});
+
+test("4A-N18. revalidatePath('/admin/workforce') is called ONLY on success", async () => {
+  reset();
+  await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" }));
+  assert.deepEqual(revalidateCalls, ["/admin/workforce"]);
+
+  reset();
+  inviteBehavior = async () => {
+    throw new Error("a pending workforce invitation already exists for this email");
+  };
+  await inviteWorkforceMemberFromForm(form({ email: "target@example.com", role: "EMPLOYEE" }));
+  assert.deepEqual(revalidateCalls, [], "no revalidate on a mapped error");
 });
 
 // ==================== PHASE RBAC-RUNTIME-R2D-B ====================

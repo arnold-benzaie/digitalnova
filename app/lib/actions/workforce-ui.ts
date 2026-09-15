@@ -43,6 +43,7 @@ import {
   type ListedWorkforceRole,
   type OrdinaryWorkforceRole,
 } from "@/lib/actions/workforce";
+import { inviteWorkforceMember } from "@/lib/actions/workforce-invitations";
 
 export type AssignableUser = { id: string; email: string };
 
@@ -398,6 +399,74 @@ export async function setWorkforceMemberRadarAccessAction(targetUserId: string, 
     unstable_rethrow(error);
     const message = error instanceof Error ? error.message : "";
     const code = mapWorkforceRadarAccessError(message);
+    if (code) return { error: code };
+    throw error;
+  }
+
+  revalidatePath("/admin/workforce");
+  return undefined;
+}
+
+/* ---------------------------------------------------------------------- *
+ * WORKFORCE INVITATION V1 — UI glue for inviteWorkforceMember() (lib/
+ * actions/workforce-invitations.ts). Same shape as addWorkforceMemberFromForm()
+ * above: requireStaffMember("WORKFORCE_MANAGE") is enforced INSIDE
+ * inviteWorkforceMember() itself (not duplicated here), and every known
+ * thrown domain message maps to a stable typed code so no raw server
+ * string reaches the browser.
+ * ---------------------------------------------------------------------- */
+
+export type WorkforceInviteErrorCode =
+  | "INVALID_EMAIL"
+  | "INVALID_ROLE"
+  | "SELF_INVITE_NOT_ALLOWED"
+  | "OWNER_TARGET"
+  | "ALREADY_WORKFORCE_MEMBER"
+  | "INVITATION_ALREADY_PENDING";
+
+/** inviteWorkforceMember()'s thrown Error.message -> stable UI code. Same
+ * substring-match technique as every other mapper in this file. Unknown /
+ * infra errors ("internal workspace is not configured", "staff role not
+ * seeded: ...") return null and propagate to the route error boundary. */
+function mapWorkforceInviteError(message: string): WorkforceInviteErrorCode | null {
+  if (message.includes("invitation email must be a valid e-mail address")) return "INVALID_EMAIL";
+  if (message.includes("workforce role must be one of")) return "INVALID_ROLE";
+  if (message.includes("you cannot invite yourself")) return "SELF_INVITE_NOT_ALLOWED";
+  if (message.includes("target is the workspace owner and cannot be invited")) return "OWNER_TARGET";
+  if (message.includes("target is already a workforce member of this workspace")) return "ALREADY_WORKFORCE_MEMBER";
+  if (message.includes("a pending workforce invitation already exists for this email")) return "INVITATION_ALREADY_PENDING";
+  return null;
+}
+
+type WorkforceInviteResult = { error: WorkforceInviteErrorCode } | undefined;
+
+/**
+ * Parses the "invite by email" dialog's FormData and delegates to
+ * inviteWorkforceMember(). Accepts ONLY FormData — no workspace/org, no
+ * actor id, no caller role, no OWNER, no audit metadata. Never creates a
+ * `users` row, a `staff_members` row, or a CLIENT membership — see
+ * inviteWorkforceMember()'s own doc comment. This function writes nothing
+ * itself and logs no audit event of its own.
+ */
+export async function inviteWorkforceMemberFromForm(formData: FormData): Promise<WorkforceInviteResult> {
+  await requireStaffMember("WORKFORCE_MANAGE");
+
+  const emailRaw = formData.get("email");
+  if (typeof emailRaw !== "string" || !emailRaw.trim()) {
+    return { error: "INVALID_EMAIL" };
+  }
+
+  const role = parseListedRole(formData.get("role"));
+  if (!role) {
+    return { error: "INVALID_ROLE" };
+  }
+
+  try {
+    await inviteWorkforceMember(emailRaw, role);
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "";
+    const code = mapWorkforceInviteError(message);
     if (code) return { error: code };
     throw error;
   }
