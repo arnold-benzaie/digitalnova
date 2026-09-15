@@ -7,7 +7,8 @@
 //     stops everything
 //   - identity/scope come from the session only; the action takes just
 //     (clientId) — no provider / model / userId / workspace parameter
-//   - a per-user in-memory cooldown returns rate_limited on a fast repeat
+//   - a per-user, durable (checkRateLimit-backed, G4D) cooldown returns
+//     rate_limited on a fast repeat, and fails OPEN if the store errors
 //   - it delegates to produceRadarAdvisory with the real production deps
 //     (getProspectQualification + a display loader + the configured registry)
 //
@@ -129,6 +130,39 @@ mock.module("@/lib/radar-intelligence/advisory-core", {
   },
 });
 
+// RADAR INTELLIGENCE V2.1 — Phase G4D — the durable, per-user advisory
+// cooldown now delegates to checkRateLimit() (lib/api-v1/rate-limit.ts)
+// instead of an in-memory Map. Faked here exactly like every other
+// dependency in this file (mock.module(), never a real DB) — a tiny,
+// deterministic in-memory model of "one admitted request per identifier
+// per window" is enough to prove the ACTION's own wiring/contract; the
+// store's real durability/atomicity is proven separately, against a real
+// Postgres, by lib/api-v1/rate-limit.integration.test.mjs and (same SQL
+// shape) quota-counter-store.concurrency.integration.test.mjs.
+let rateLimitCalls = [];
+let rateLimitAdmittedByIdentifier = new Map();
+let rateLimitThrows = false;
+mock.module("@/lib/api-v1/rate-limit", {
+  namedExports: {
+    checkRateLimit: async (scope, identifier, limit, windowSeconds) => {
+      rateLimitCalls.push({ scope, identifier, limit, windowSeconds });
+      if (rateLimitThrows) {
+        throw new Error("checkRateLimit: simulated store outage");
+      }
+      const alreadyAdmitted = rateLimitAdmittedByIdentifier.get(identifier) ?? 0;
+      const admitted = alreadyAdmitted < limit;
+      rateLimitAdmittedByIdentifier.set(identifier, alreadyAdmitted + 1);
+      return {
+        allowed: admitted,
+        limit,
+        remaining: Math.max(0, limit - alreadyAdmitted - 1),
+        resetAt: new Date(Date.now() + windowSeconds * 1000),
+        retryAfterSeconds: windowSeconds,
+      };
+    },
+  },
+});
+
 const { requestRadarIntelligenceAdvisory, getRadarAiProviderSelectionOptions } = await import("./radar-intelligence.ts");
 
 const CLIENT = "22222222-2222-4222-8222-222222222222";
@@ -149,6 +183,9 @@ function reset() {
   ownerPolicyMock = { allowUserSelection: false, userSelectableProviders: [] };
   modelOverridesMock = {};
   configuredRegistryCalls = [];
+  rateLimitCalls = [];
+  rateLimitAdmittedByIdentifier = new Map();
+  rateLimitThrows = false;
 }
 
 async function withCapturedWarn(fn) {
@@ -206,6 +243,58 @@ test("action: per-user cooldown — a fast repeat for the SAME session user retu
   assert.deepEqual(second, { status: "rate_limited" });
   assert.equal(coreCalls.length, 1, "the core ran only once");
   assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW", "RADAR_QUEUE_VIEW"], "auth still runs on the throttled call");
+});
+
+test("action: G4D — the durable cooldown is called with the exact scope/identifier/limit/window contract", async () => {
+  reset();
+  sessionUserId = "scope-check-user";
+  await requestRadarIntelligenceAdvisory(CLIENT);
+  assert.equal(rateLimitCalls.length, 1);
+  assert.deepEqual(rateLimitCalls[0], { scope: "radar_advisory", identifier: "scope-check-user", limit: 1, windowSeconds: 8 });
+});
+
+test("action: G4D — a checkRateLimit store failure FAILS OPEN (advisory still runs, denial never silently produced)", async () => {
+  reset();
+  sessionUserId = "cooldown-outage-user";
+  rateLimitThrows = true;
+  let firstResult;
+  let secondResult;
+  const warnCalls = await withCapturedWarn(async () => {
+    firstResult = await requestRadarIntelligenceAdvisory(CLIENT);
+    secondResult = await requestRadarIntelligenceAdvisory(CLIENT);
+  });
+  assert.deepEqual(firstResult, { status: "unavailable" }, "a cooldown-store outage must never block the advisory itself");
+  assert.deepEqual(secondResult, { status: "unavailable" }, "a SECOND immediate call is also never falsely throttled while the store is down");
+  assert.equal(coreCalls.length, 2, "the core ran on every call despite the store outage — fail OPEN, never a phantom rate_limited");
+  assert.ok(
+    warnCalls.some((args) => args[1]?.code === "COOLDOWN_STORE_UNAVAILABLE"),
+    "the outage is still logged for operator visibility",
+  );
+});
+
+test("action: G4D — repeated rapid requests from the SAME user beyond the 1-per-window budget are ALL rate_limited, not just the second", async () => {
+  reset();
+  sessionUserId = "repeat-spam-user";
+  const results = [];
+  for (let i = 0; i < 5; i++) {
+    results.push(await requestRadarIntelligenceAdvisory(CLIENT));
+  }
+  assert.deepEqual(results[0], { status: "unavailable" });
+  for (let i = 1; i < 5; i++) {
+    assert.deepEqual(results[i], { status: "rate_limited" }, `request #${i + 1} must still be throttled`);
+  }
+  assert.equal(coreCalls.length, 1, "only the first of five rapid requests ever reached the core");
+});
+
+test("action: G4D — concurrent (Promise.all) requests from the SAME user: exactly one reaches the core, the rest are rate_limited", async () => {
+  reset();
+  sessionUserId = "concurrent-user";
+  const outcomes = await Promise.all(Array.from({ length: 5 }, () => requestRadarIntelligenceAdvisory(CLIENT)));
+  const admitted = outcomes.filter((o) => o.status !== "rate_limited");
+  const throttled = outcomes.filter((o) => o.status === "rate_limited");
+  assert.equal(admitted.length, 1, "exactly one concurrent call should reach the core");
+  assert.equal(throttled.length, 4);
+  assert.equal(coreCalls.length, 1, "the core itself was invoked exactly once, even under concurrency");
 });
 
 test("action: a different session user is not throttled by another user's recent request", async () => {
@@ -749,5 +838,5 @@ test("G4B-2: the 8-second cooldown still applies identically regardless of a 'li
   const first = await requestRadarIntelligenceAdvisory(CLIENT);
   assert.equal(first.status, "limited");
   const second = await requestRadarIntelligenceAdvisory(CLIENT);
-  assert.equal(second.status, "rate_limited", "the PRE-EXISTING in-memory cooldown (unrelated to G4B) still fires on the very next call from the same user, unmodified by this phase");
+  assert.equal(second.status, "rate_limited", "the durable G4D cooldown (unrelated to G4B's own quota gate) still fires on the very next call from the same user, unmodified by this phase");
 });

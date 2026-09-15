@@ -96,13 +96,17 @@ test("no log line, however constructed, ever contains a UUID shape or an auth he
   assert.equal(/x-api-key|authorization|bearer|sk-ant-/i.test(s), false);
 });
 
-test("the blind-path code catalogue is exactly the twelve documented codes", () => {
+test("the blind-path code catalogue is exactly the thirteen documented codes", () => {
   // RADAR INTELLIGENCE V2.1 Phase G4B-2 added four AI-quota-gate
   // sub-cause codes (AI_QUOTA_*); the G4B-2 policy-store-failure
   // correction added a fifth, AI_QUOTA_POLICY_UNAVAILABLE, deliberately
-  // distinct from AI_QUOTA_COUNTER_UNAVAILABLE (two different stores) --
-  // bumped deliberately here to match, same as every prior phase that
-  // added a blind-path code did.
+  // distinct from AI_QUOTA_COUNTER_UNAVAILABLE (two different stores).
+  // Phase G4D added a thirteenth, COOLDOWN_STORE_UNAVAILABLE, for the
+  // durable per-user advisory cooldown's own store failure -- deliberately
+  // distinct from every AI_QUOTA_* code above (a different store, and,
+  // unlike those, never a `{ status: "limited" }` outcome: the cooldown
+  // fails OPEN on this one) -- bumped deliberately here to match, same as
+  // every prior phase that added a blind-path code did.
   assert.deepEqual(
     [...RADAR_INTELLIGENCE_BLIND_PATH_CODES].sort(),
     [
@@ -118,6 +122,7 @@ test("the blind-path code catalogue is exactly the twelve documented codes", () 
       "AI_QUOTA_TOKEN_LIMIT_REACHED",
       "AI_QUOTA_COUNTER_UNAVAILABLE",
       "AI_QUOTA_POLICY_UNAVAILABLE",
+      "COOLDOWN_STORE_UNAVAILABLE",
     ].sort(),
   );
 });

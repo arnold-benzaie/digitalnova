@@ -55,7 +55,7 @@ import {
 } from "./errors";
 import { isIntelligenceProviderId } from "./types";
 
-export type RadarIntelligenceLogSource = "advisory_core" | "diagnostic_permission_check" | "server_action_boundary";
+export type RadarIntelligenceLogSource = "advisory_core" | "diagnostic_permission_check" | "server_action_boundary" | "advisory_cooldown";
 
 /**
  * Internal codes for the diagnostic-BLIND paths — i.e. failures (or, for
@@ -92,6 +92,16 @@ export const RADAR_INTELLIGENCE_BLIND_PATH_CODES = [
   "AI_QUOTA_TOKEN_LIMIT_REACHED",
   "AI_QUOTA_COUNTER_UNAVAILABLE",
   "AI_QUOTA_POLICY_UNAVAILABLE",
+  // RADAR INTELLIGENCE V2.1 — Phase G4D. The durable per-user advisory
+  // cooldown (lib/actions/radar-intelligence.ts, checkRateLimit() against
+  // integration_api_rate_limit_hits) failed to read/write — logged for
+  // operator visibility only; this code is NEVER returned to the UI and,
+  // unlike every AI_QUOTA_* code above, does NOT correspond to a
+  // `{ status: "limited" }` (or any blocking) result — the cooldown fails
+  // OPEN on this specific failure (see that file's own docstring for why
+  // that is the correct, deliberately opposite fail-direction from the
+  // quota gate).
+  "COOLDOWN_STORE_UNAVAILABLE",
 ] as const;
 
 export type RadarIntelligenceBlindPathCode = (typeof RADAR_INTELLIGENCE_BLIND_PATH_CODES)[number];

@@ -35,6 +35,37 @@
  * requested provider is actually usable (OWNER policy + registration) —
  * this file never re-implements that check; it only prevents an
  * ill-typed value from reaching it.
+ *
+ * RADAR INTELLIGENCE V2.1 — Phase G4D (finalization). The per-user
+ * advisory cooldown below is now backed by the SAME durable, atomic,
+ * already-proven fixed-window rate limiter every other abuse-resistant
+ * surface in this codebase uses (lib/api-v1/rate-limit.ts::checkRateLimit
+ * — also reused, outside /api/v1, by lib/actions/crm-quote-access.ts,
+ * crm-invoice-access.ts, crm-invoice-payment.ts, crm-quotes.ts, and
+ * app/api/chat/route.ts) instead of an in-memory `Map`. See this file's
+ * own G4D audit: the cooldown and the OWNER-configured durable AI quota
+ * gate (advisory-core.ts::evaluateAiQuotaGate, G4B-2) are COMPLEMENTARY,
+ * never redundant — the quota gate is a GLOBAL, OWNER-opt-in daily budget
+ * (quota-counter-store.ts: "G4B's quota is workspace-wide, never
+ * per-user"; its documented DEFAULT is `enabled: true, dailyRequestLimit:
+ * null` — i.e. UNLIMITED until an OWNER deliberately configures a cap),
+ * while the cooldown is a PER-USER, always-on floor against a single
+ * scripted/rapid-click caller that has nothing to do with whether any
+ * OWNER limit is configured. Removing the cooldown on the theory that the
+ * durable quota already "proves" equivalent protection would be
+ * incorrect in the DEFAULT (unlimited) policy state — the two invariants
+ * are computed independently, and the cooldown is the only thing standing
+ * between one user's rapid clicking and unbounded real provider dispatch
+ * when no OWNER cap is configured. What DID need fixing was the
+ * IMPLEMENTATION: an in-memory `Map` is per-server-instance and does not
+ * durably survive a serverless cold start / horizontal scale-out, so its
+ * real-world protection was weaker than intended. Reusing checkRateLimit()
+ * keeps the exact same 8-second, one-request-per-user contract, but now
+ * durable and cross-instance, via the already-atomic, already-concurrency-
+ * proven `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` technique (same
+ * SQL shape independently proven under real concurrency by
+ * lib/radar-intelligence/quota-counter-store.concurrency.integration.test.mjs)
+ * — zero new table, zero migration.
  */
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -43,6 +74,7 @@ import { evaluateStaffPermission, requireRadarAccess } from "@/lib/rbac/require-
 import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
 import { getProspectQualification } from "@/lib/actions/radar";
+import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { createConfiguredRadarIntelligenceRegistry } from "@/lib/radar-intelligence/configured-registry";
 import { produceRadarAdvisory, type AdvisoryDisplayContext, type RadarAdvisoryUiResult } from "@/lib/radar-intelligence/advisory-core";
 import { logRadarIntelligenceEvent } from "@/lib/radar-intelligence/observability";
@@ -84,11 +116,22 @@ function stripAdminOnlyFields(result: RadarAdvisoryUiResult): RadarAdvisoryUiRes
   };
 }
 
-/** Small, best-effort anti-spam: one advisory per user per window, per
- * server instance. In-memory ONLY — no Redis, no DB schema. The UI button
- * lock is the primary guard; this backstops a scripted caller. */
-const ADVISORY_COOLDOWN_MS = 8_000;
-const lastAdvisoryRequestByUser = new Map<string, number>();
+/**
+ * RADAR INTELLIGENCE V2.1 — Phase G4D. Small anti-spam floor: one advisory
+ * per user per 8-second fixed window, durable (checkRateLimit(), see this
+ * file's own header comment for why this is complementary to — never a
+ * duplicate of — the OWNER-configured durable AI quota gate). The UI
+ * button lock is the primary guard; this backstops a scripted/rapid
+ * caller regardless of whether the button lock was bypassed.
+ *
+ * `scope` is a dedicated, collision-free namespace within the shared
+ * `integration_api_rate_limit_hits` table — other reusers of
+ * checkRateLimit() (api-v1 routes, crm-quote-access.ts, etc.) each use
+ * their own distinct scope string; there is no cross-feature interaction.
+ */
+const ADVISORY_COOLDOWN_SCOPE = "radar_advisory";
+const ADVISORY_COOLDOWN_REQUESTS_PER_WINDOW = 1;
+const ADVISORY_COOLDOWN_WINDOW_SECONDS = 8;
 
 const OPEN_TASK_STATUSES = ["todo", "in_progress"] as const;
 const RECENT_SUMMARY_LIMIT = 3;
@@ -160,12 +203,28 @@ export async function requestRadarIntelligenceAdvisory(
     : null;
 
   try {
-    const now = Date.now();
-    const last = lastAdvisoryRequestByUser.get(userId);
-    if (typeof last === "number" && now - last < ADVISORY_COOLDOWN_MS) {
-      return { status: "rate_limited" };
+    // RADAR INTELLIGENCE V2.1 — Phase G4D. Durable per-user cooldown — see
+    // this file's own header comment for the full complementary-vs-quota
+    // rationale. Deliberately FAILS OPEN (logs, does not block) if the
+    // rate-limit store itself errors: this check is a lightweight,
+    // non-authoritative anti-spam floor on an opt-in, non-authoritative
+    // advisory feature, never RADAR CORE's own authority — a transient
+    // outage of this ONE table must never take the advisory button down
+    // for every user. This is intentionally the OPPOSITE fail-direction
+    // from the OWNER-configured AI quota gate (advisory-core.ts::
+    // evaluateAiQuotaGate), which stays strictly fail-closed because it is
+    // the actual binding cost/abuse boundary; even a fail-open cooldown
+    // still cannot cause unbounded spend, because every request — cooldown
+    // outage or not — still passes through that unchanged, fail-closed
+    // gate immediately afterward.
+    try {
+      const cooldown = await checkRateLimit(ADVISORY_COOLDOWN_SCOPE, userId, ADVISORY_COOLDOWN_REQUESTS_PER_WINDOW, ADVISORY_COOLDOWN_WINDOW_SECONDS);
+      if (!cooldown.allowed) {
+        return { status: "rate_limited" };
+      }
+    } catch {
+      logRadarIntelligenceEvent({ source: "advisory_cooldown", code: "COOLDOWN_STORE_UNAVAILABLE" });
     }
-    lastAdvisoryRequestByUser.set(userId, now);
 
     // The app's CURRENT interface locale — resolved server-side, the same
     // way every page already does (lib/i18n/locale.ts::getLocale()).
