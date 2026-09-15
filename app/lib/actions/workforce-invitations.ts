@@ -33,7 +33,25 @@ import { logAudit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import type { sendWorkforceInvitationEmail } from "@/lib/email/workforce-invitation";
-import { LISTED_WORKFORCE_ROLES, isListedWorkforceRole, type ListedWorkforceRole } from "@/lib/actions/workforce";
+import type { ListedWorkforceRole } from "@/lib/actions/workforce";
+
+/**
+ * Same role catalogue + allowlist check as lib/actions/workforce.ts's own
+ * (private) LISTED_WORKFORCE_ROLES/isListedWorkforceRole() — duplicated,
+ * not imported, because BOTH this file and lib/actions/workforce.ts have
+ * `"use server"` at their top: Next's Server Actions compiler requires
+ * EVERY export of such a module to be an async function, so neither file
+ * can export a plain `const` array or a synchronous helper for the other
+ * to import (tried, and fails `npm run build:e2e` with "A 'use server'
+ * file can only export async functions"). Only the TYPE ListedWorkforceRole
+ * is shared (type exports are erased before this restriction ever applies)
+ * — so a future 5th role still can't silently diverge at the type level,
+ * even though the two runtime literals are separate.
+ */
+const LISTED_WORKFORCE_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"] as const;
+function isListedWorkforceRole(value: unknown): value is ListedWorkforceRole {
+  return typeof value === "string" && (LISTED_WORKFORCE_ROLES as readonly string[]).includes(value);
+}
 
 export type StaffInvitationResult = {
   id: string;

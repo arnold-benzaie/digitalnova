@@ -30,10 +30,14 @@ import type { StaffRole } from "@/lib/rbac/permissions";
 
 /** OWNER is categorically excluded — see file header. Explicit, not derived
  * by filtering STAFF_ROLES, so adding a future 5th role never silently
- * appears here. Exported so lib/actions/workforce-invitations.ts (WORKFORCE
- * INVITATION V1) shares the exact same allowlist rather than maintaining a
- * second one that could drift. */
-export const LISTED_WORKFORCE_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"] as const;
+ * appears here. NOT exported: this file has `"use server"` at its top, and
+ * Next's Server Actions compiler requires every export of such a file to be
+ * an async function — a plain `const` array (or a non-async function, see
+ * isListedWorkforceRole()/isPostgresUniqueViolation() below) fails
+ * `npm run build:e2e` with "A 'use server' file can only export async
+ * functions". lib/actions/workforce-invitations.ts (WORKFORCE INVITATION
+ * V1) duplicates this exact literal rather than importing it. */
+const LISTED_WORKFORCE_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE"] as const;
 export type ListedWorkforceRole = Exclude<StaffRole, "OWNER">;
 
 /** Mirrors the DB CHECK constraint on staff_members.status exactly (no
@@ -154,14 +158,14 @@ const POSTGRES_UNIQUE_VIOLATION = "23505";
  * without drizzle in between) therefore never matches here; both shapes
  * are checked so this works whether or not a future refactor changes
  * which layer performs the insert. */
-export function isPostgresUniqueViolation(error: unknown): boolean {
+function isPostgresUniqueViolation(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   if (code === POSTGRES_UNIQUE_VIOLATION) return true;
   const causeCode = (error as { cause?: { code?: string } } | null)?.cause?.code;
   return causeCode === POSTGRES_UNIQUE_VIOLATION;
 }
 
-export function isListedWorkforceRole(value: unknown): value is ListedWorkforceRole {
+function isListedWorkforceRole(value: unknown): value is ListedWorkforceRole {
   return typeof value === "string" && (LISTED_WORKFORCE_ROLES as readonly string[]).includes(value);
 }
 
