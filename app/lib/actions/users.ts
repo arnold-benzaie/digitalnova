@@ -2,14 +2,16 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { invitations, memberships, organizations, roles, staffMembers, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { requireAdminRole } from "@/lib/dev-role";
+import { requireAdminRole, requireStaffRole } from "@/lib/dev-role";
 import { sendInvitationEmail } from "@/lib/email/invitation";
 import { notify } from "@/lib/notifications";
 import { requireSession } from "@/lib/session";
+import { evaluateStaffPermission } from "@/lib/rbac/require-staff-member";
 import { getLocale } from "@/lib/i18n/locale";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -44,6 +46,8 @@ const MESSAGES = {
     cannotDeleteLastAdmin: "Impossible de supprimer le dernier administrateur actif de l'organisation.",
     invitationEmailNotSent: "Invitation enregistrée, mais l'e-mail n'a pas pu être envoyé. Vous pouvez communiquer le lien de connexion vous-même en attendant.",
     managedViaWorkforce: "Ce compte est géré via Workforce (/admin/workforce) — cette action n'est pas disponible ici.",
+    employeeClientRoleOnly: "En tant qu'employé, vous ne pouvez approuver que des comptes client.",
+    employeeOrganizationNotAllowed: "Cette organisation n'est pas autorisée pour une approbation par un employé.",
   },
   en: {
     roleNotFound: (name: string) => `Role "${name}" not found — the roles table is not initialized.`,
@@ -75,6 +79,8 @@ const MESSAGES = {
     cannotDeleteLastAdmin: "Cannot delete the organization's last active administrator.",
     invitationEmailNotSent: "Invitation saved, but the email could not be sent. You can share the sign-in link yourself in the meantime.",
     managedViaWorkforce: "This account is managed via Workforce (/admin/workforce) — this action is not available here.",
+    employeeClientRoleOnly: "As an employee, you can only approve client accounts.",
+    employeeOrganizationNotAllowed: "This organization is not allowed for an employee approval.",
   },
 } as const;
 
@@ -144,6 +150,58 @@ function isApprovalRoleName(value: unknown): value is ApprovalRoleName {
 async function requireAdminSession() {
   await requireAdminRole();
   return requireSession();
+}
+
+/**
+ * MISSION RADAR/CLIENT APPROVAL — PHASE 2 — dual-path authorization for
+ * approveUser() ONLY. Every other action in this file keeps calling
+ * requireAdminSession() unmodified.
+ *
+ * requireStaffRole() is called first, UNCHANGED from before this mission:
+ * a CLIENT-context caller is redirected to /dashboard here, exactly as
+ * requireAdminRole() (which is built on the very same requireStaffRole())
+ * already did for approveUser() pre-mission — this path is byte-identical
+ * to the old behavior, not a new redirect destination. A CLIENT session
+ * can never hold a real staff_members row either (SESSION AUTHORITY
+ * UNIFICATION's strict WORKFORCE > CLIENT priority, lib/session.ts), so
+ * the permission check below is structurally unreachable for one anyway.
+ *
+ * `role === "admin"` (getDevRole()'s bridged value for Axis-C OWNER/ADMIN,
+ * or a real legacy Axis-A "admin" row) grants the EXACT SAME unrestricted
+ * path approveUser() has always had — "Ne pas remplacer brutalement
+ * l'ancien guard Axis-A pour OWNER/ADMIN": no new check is ever evaluated
+ * for this branch.
+ *
+ * Everyone else (Axis-C MANAGER/EMPLOYEE, bridged to "agent" — or any
+ * other non-admin legacy Axis-A role) is evaluated against the new
+ * CLIENT_CONNECTION_APPROVE permission (lib/rbac/permissions.ts: OWNER/
+ * ADMIN/EMPLOYEE only — MANAGER is deliberately NOT granted it, so a
+ * MANAGER's staff_members row resolves `ok: false` here every time). A
+ * denial redirects to /admin — the exact same destination
+ * requireAdminRole() already used for a non-admin staff caller, so this
+ * change is invisible to every caller that isn't a real Axis-C EMPLOYEE.
+ *
+ * evaluateStaffPermission() re-derives the caller's staff_members row
+ * fresh from the database by session.userId, scoped to the real internal
+ * workspace (getInternalOrganizationId()) — never trusts the session
+ * object's own cached role. Its `ok: true` already proves the caller is a
+ * genuine ACTIVE member of the one real internal workspace; approveUser()
+ * itself is responsible for the OTHER half of workspace isolation — never
+ * trusting the client-submitted target `organizationId` — see its own
+ * "client-only" branch below.
+ */
+async function authorizeApproval(): Promise<{ kind: "unrestricted" } | { kind: "client-only" }> {
+  const role = await requireStaffRole();
+  if (role === "admin") {
+    return { kind: "unrestricted" };
+  }
+
+  const session = await requireSession();
+  const check = await evaluateStaffPermission({ userId: session.userId, permission: "CLIENT_CONNECTION_APPROVE" });
+  if (!check.ok) {
+    redirect("/admin");
+  }
+  return { kind: "client-only" };
 }
 
 /**
@@ -326,9 +384,17 @@ export async function revokeInvitation(id: string) {
  * requires an explicit organization + role choice, never defaults either.
  * Granting "admin" additionally requires the caller to have completed the
  * modal's second confirmation step (confirmAdmin=true) — checked here,
- * server-side, never trusted from the client alone. */
+ * server-side, never trusted from the client alone.
+ *
+ * MISSION RADAR/CLIENT APPROVAL — PHASE 2 — callable by OWNER/ADMIN
+ * (unrestricted, unchanged) AND by EMPLOYEE (restricted: "client" role
+ * only, into a real non-internal organization only) — see
+ * authorizeApproval() above for the full authorization contract. Every
+ * validation below that existed before this mission runs in the EXACT
+ * SAME order for the "unrestricted" path; the new "client-only" checks are
+ * inserted as an additional gate, never a replacement of any existing one. */
 export async function approveUser(formData: FormData) {
-  const [session, locale] = await Promise.all([requireAdminSession(), getLocale()]);
+  const [authorization, session, locale] = await Promise.all([authorizeApproval(), requireSession(), getLocale()]);
 
   const userId = formData.get("userId");
   if (typeof userId !== "string" || !userId) {
@@ -342,6 +408,33 @@ export async function approveUser(formData: FormData) {
   if (!isApprovalRoleName(roleValue)) {
     throw new Error(MESSAGES[locale].selectRole);
   }
+
+  if (authorization.kind === "client-only") {
+    // EMPLOYEE may never grant anything but "client" — this is the ONLY
+    // place a forged formData role="admin" (or any other value) is
+    // refused for this caller; the admin-confirmation branch just below
+    // is therefore structurally unreachable for an EMPLOYEE.
+    if (roleValue !== "client") {
+      throw new Error(MESSAGES[locale].employeeClientRoleOnly);
+    }
+    // WORKSPACE ISOLATION (EMPLOYEE path only) — closes the Phase-1-
+    // identified gap (approveUser() trusted the submitted organizationId
+    // blindly) for this new path specifically, WITHOUT touching OWNER/
+    // ADMIN's existing unrestricted scope below. The one internal
+    // PUBLIC-MAP workspace is structurally singular (organizations_is_
+    // internal_unique) and is never a valid target for a "client"
+    // approval — attempting to approve a client INTO it is exactly the
+    // "cross-workspace" attack this mission's test matrix names
+    // ("EMPLOYEE + CLIENT autre workspace → DENY"). Every real,
+    // non-internal organization remains reachable, matching the
+    // operational reality that internal staff serve every client tenant,
+    // not one specific one.
+    const internalOrgId = await internalOrganizationIdOrThrow(locale);
+    if (organizationId === internalOrgId) {
+      throw new Error(MESSAGES[locale].employeeOrganizationNotAllowed);
+    }
+  }
+
   if (roleValue === "admin" && formData.get("confirmAdmin") !== "true") {
     throw new Error(MESSAGES[locale].adminConfirmationRequired);
   }

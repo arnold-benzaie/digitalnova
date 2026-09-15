@@ -56,6 +56,17 @@ export const PERMISSIONS = [
   // governance, exactly like OWNER_MANAGE's own scope — so it gets its
   // own explicit permission, granted to OWNER alone.
   "RADAR_AI_POLICY_MANAGE",
+  // MISSION RADAR/CLIENT APPROVAL — PHASE 2 — a THIRD, deliberately narrow
+  // permission, not a reuse of WORKFORCE_MANAGE: that permission governs
+  // the internal-staff roster itself (invite/approve/suspend/role-change a
+  // Workforce member, Axis-C) and must keep meaning exactly that. Approving
+  // a pending CLIENT account (Axis-A) is a different, much narrower
+  // capability — granted to EMPLOYEE precisely because it is NOT
+  // WORKFORCE_MANAGE, which EMPLOYEE must never hold. See
+  // lib/actions/users.ts's approveUser()/authorizeApproval() for the sole
+  // enforcement point: this permission alone never lets a holder grant any
+  // role other than "client", nor target anyone but a pending user.
+  "CLIENT_CONNECTION_APPROVE",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -72,6 +83,7 @@ const OWNER_PERMISSIONS: readonly Permission[] = [
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
   "RADAR_AI_POLICY_MANAGE",
+  "CLIENT_CONNECTION_APPROVE",
 ];
 
 const ADMIN_PERMISSIONS: readonly Permission[] = [
@@ -85,6 +97,7 @@ const ADMIN_PERMISSIONS: readonly Permission[] = [
   "RADAR_ASSIGN",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
+  "CLIENT_CONNECTION_APPROVE",
 ];
 
 const MANAGER_PERMISSIONS: readonly Permission[] = [
@@ -103,6 +116,11 @@ const EMPLOYEE_PERMISSIONS: readonly Permission[] = [
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
   "GBP_INTEGRATION_MANAGE",
+  // MISSION RADAR/CLIENT APPROVAL — PHASE 2 — the one deliberate expansion
+  // of EMPLOYEE's authority in this mission: approving a pending CLIENT
+  // account. Never WORKFORCE_MANAGE (that stays OWNER/ADMIN-only, unchanged)
+  // and never a path to granting "admin" — see lib/actions/users.ts.
+  "CLIENT_CONNECTION_APPROVE",
 ];
 
 /**

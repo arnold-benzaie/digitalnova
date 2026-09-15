@@ -12,7 +12,7 @@ type NavDict = {
   sections: { auditGbp: string; clientRelation: string; crm: string; business: string };
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
-    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; aiGovernance: string; myWork: string;
+    team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; aiGovernance: string; myWork: string; clientApprovals: string;
     auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
@@ -64,6 +64,15 @@ export function getStaffNavSections(
   // canCurrentUserWorkRadar(), RADAR_WORK). Never a gate: /admin/crm/my-work
   // calls requireStaffMember("RADAR_WORK") server-side itself.
   const myWorkItem: NavItem = { label: t.items.myWork, href: "/admin/crm/my-work", icon: "checkSquare" };
+  // MISSION RADAR/CLIENT APPROVAL — PHASE 2 — the EMPLOYEE-only dedicated
+  // surface for approving pending CLIENT accounts (CLIENT_CONNECTION_APPROVE).
+  // Emitted ONLY on `opts.isEmployeeTier === true` — the SAME flag that
+  // already hides `usersItem` for EMPLOYEE below, reused rather than a new
+  // probe: OWNER/ADMIN/MANAGER never see this item (they either already
+  // have /admin/users, or lack the permission entirely) and keep their nav
+  // completely unaffected. Cosmetic only: /admin/client-approvals
+  // independently calls requireEmployeeForClientApprovals() server-side.
+  const clientApprovalsItem: NavItem = { label: t.items.clientApprovals, href: "/admin/client-approvals", icon: "checkSquare" };
   const usersItem: NavItem = { label: t.items.users, href: "/admin/users", icon: "users" };
   return [
     {
@@ -97,7 +106,7 @@ export function getStaffNavSections(
         // never "admin"). Omitted ONLY on an explicit
         // opts.isEmployeeTier === true; OWNER/ADMIN/MANAGER (and any
         // Axis-A-only legacy account) keep seeing this exactly as before.
-        ...(opts?.isEmployeeTier === true ? [] : [usersItem]),
+        ...(opts?.isEmployeeTier === true ? [clientApprovalsItem] : [usersItem]),
         ...(opts?.canManageWorkforce === true ? [workforceItem] : []),
         { label: t.items.auditLog, href: "/admin/audit-log", icon: "history" },
         { label: t.items.systemHealth, href: "/admin/system-health", icon: "gauge" },

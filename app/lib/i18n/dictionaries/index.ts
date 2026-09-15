@@ -20,6 +20,7 @@ import { adminOnboarding } from "./admin-onboarding";
 import { ownerControl } from "./owner";
 import { workforce } from "./workforce";
 import { employee } from "./employee";
+import { clientApprovals } from "./client-approvals";
 import { dashboard } from "./dashboard";
 import { settings } from "./settings";
 import { notificationsPage } from "./notifications";
@@ -58,6 +59,7 @@ export const dictionaries = {
     ownerControl: ownerControl.fr,
     workforce: workforce.fr,
     employee: employee.fr,
+    clientApprovals: clientApprovals.fr,
     dashboard: dashboard.fr,
     settings: settings.fr,
     notificationsPage: notificationsPage.fr,
@@ -92,6 +94,7 @@ export const dictionaries = {
     ownerControl: ownerControl.en,
     workforce: workforce.en,
     employee: employee.en,
+    clientApprovals: clientApprovals.en,
     dashboard: dashboard.en,
     settings: settings.en,
     notificationsPage: notificationsPage.en,

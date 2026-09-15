@@ -53,6 +53,15 @@ mock.module("@/lib/session", {
       if (mockState.kind === "unauthenticated") redirect("/sign-in");
       return mockState.session;
     },
+    // MISSION RADAR/CLIENT APPROVAL — PHASE 2 — lib/dev-role.ts's
+    // getDevRole() imports this from @/lib/session too; mock.module()'s
+    // namedExports REPLACES the module's whole export surface, so it must
+    // be re-provided here or getDevRole() throws on a WORKFORCE-context
+    // fixture. Verbatim copy of the real, trivial, pure implementation
+    // (lib/session.ts) — never re-derived from a mock's own state, and
+    // already independently covered by lib/dev-role.test.mjs /
+    // lib/session-last-login-throttle.test.mjs for correctness.
+    legacyAppRoleForWorkforce: (session) => (session.staffRole === "OWNER" || session.staffRole === "ADMIN" ? "admin" : "agent"),
   },
 });
 
@@ -671,4 +680,263 @@ test("deleteUser() refuse une cible avec staff_members ACTIVE : aucune cascade s
   assert.ok(stillThere, "la ligne users ne doit pas avoir été supprimée");
   const staffRows = await db.select().from(staffMembers).where(eq(staffMembers.userId, target.id));
   assert.equal(staffRows.length, 1, "la ligne staff_members ne doit surtout pas avoir été cascade-supprimée");
+});
+
+// ---- 8. MISSION RADAR/CLIENT APPROVAL — PHASE 2 — EMPLOYEE approval of
+// pending CLIENT accounts (CLIENT_CONNECTION_APPROVE) --------------------
+//
+// authorizeApproval() (lib/actions/users.ts) is exercised here via a real
+// WORKFORCE-context session (context: "WORKFORCE", staffRole), matching
+// lib/session.ts's actual CurrentSession shape for an Axis-C identity —
+// distinct from actAs()'s CLIENT-context fixtures used everywhere else in
+// this file. evaluateStaffPermission() re-derives the caller's
+// staff_members row fresh from the real local DB (via makeActiveStaffMember
+// fixtures below), never from the mocked session object itself — so these
+// tests prove the real authorization/permission-catalogue wiring, not just
+// the mock.
+
+function actAsWorkforce(user, staffRole, workspaceOrgId, workspaceOrgName = "PUBLIC-MAP") {
+  mockState = {
+    kind: "session",
+    session: {
+      context: "WORKFORCE",
+      userId: user.id,
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+      fullName: user.fullName,
+      firstName: null,
+      organizationId: workspaceOrgId,
+      organizationName: workspaceOrgName,
+      staffRole,
+      previousLastLoginAt: null,
+    },
+  };
+}
+
+async function createWorkforceActor(staffRoleName, workspaceOrgId) {
+  const user = await createUser({ status: "active" });
+  await makeActiveStaffMember(user.id, workspaceOrgId, staffRoleName);
+  return user;
+}
+
+function approvalFormData({ userId, organizationId, role, confirmAdmin }) {
+  const fd = new FormData();
+  fd.set("userId", userId);
+  if (organizationId !== undefined) fd.set("organizationId", organizationId);
+  if (role !== undefined) fd.set("role", role);
+  if (confirmAdmin !== undefined) fd.set("confirmAdmin", confirmAdmin);
+  return fd;
+}
+
+test("OWNER (Axis-C) approuvant un pending CLIENT : ALLOW", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  // No real staff_members row needed here: authorizeApproval()'s
+  // "unrestricted" branch (role === "admin", derived from the mocked
+  // session's own staffRole via legacyAppRoleForWorkforce()) short-
+  // circuits before ever touching the database — and staff_members has a
+  // DB-enforced AT-MOST-ONE-OWNER-per-workspace partial unique index, so
+  // inserting a second real OWNER row here (on top of the one other tests
+  // in this file already create) would fail regardless.
+  const owner = await createUser({ status: "active" });
+  actAsWorkforce(owner, "OWNER", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" }));
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "active");
+});
+
+test("ADMIN (Axis-C) approuvant un pending CLIENT : ALLOW", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const admin = await createWorkforceActor("ADMIN", internalOrg.id);
+  actAsWorkforce(admin, "ADMIN", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" }));
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "active");
+});
+
+test("MANAGER (Axis-C) essayant d'approuver un pending CLIENT : redirige vers /admin, jamais l'action", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const manager = await createWorkforceActor("MANAGER", internalOrg.id);
+  actAsWorkforce(manager, "MANAGER", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await assertRedirectsTo(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" })),
+    "/admin",
+  );
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending", "le statut ne doit pas avoir changé");
+});
+
+test("EMPLOYEE (Axis-C) approuvant un pending CLIENT dans une organisation réelle : ALLOW — membership, statut, audit et notifications corrects", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" }));
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "active", "users.status doit passer à active");
+
+  const [membership] = await db
+    .select({ roleName: roles.name, organizationId: memberships.organizationId })
+    .from(memberships)
+    .innerJoin(roles, eq(memberships.roleId, roles.id))
+    .where(eq(memberships.userId, target.id))
+    .limit(1);
+  assert.equal(membership.roleName, "client", "le rôle accordé doit être exactement client");
+  assert.equal(membership.organizationId, clientOrg.id);
+
+  const [audit] = await db
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.targetId, target.id), eq(auditLog.action, "user.approved")))
+    .limit(1);
+  assert.ok(audit, "une entrée auditLog user.approved doit exister");
+  assert.equal(audit.actorUserId, employee.id, "l'acteur enregistré doit être l'EMPLOYEE qui a approuvé, jamais un autre id");
+
+  const notifs = await db
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.organizationId, clientOrg.id), eq(notifications.type, "user.approved")));
+  assert.ok(notifs.length >= 1, "la notification admin-facing user.approved doit être créée");
+  const selfNotifs = await db
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.userId, target.id), eq(notifications.type, "user.approved_self")));
+  assert.ok(selfNotifs.length >= 1, "la notification personnelle user.approved_self doit être créée");
+});
+
+test("CLIENT (Axis-A) essayant d'approuver un pending CLIENT : redirige vers /dashboard, jamais l'action", async () => {
+  const org = await requireOrg("PUBLIC-MAP");
+  const client = await createActiveMember({ role: "client", organizationId: org.id });
+  actAs(client, "client", org.id);
+  const target = await createUser({ status: "pending" });
+
+  await assertRedirectsTo(() => approveUser(approvalFormData({ userId: target.id, organizationId: org.id, role: "client" })), "/dashboard");
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending");
+});
+
+test("EMPLOYEE essayant de forger role=admin sur un pending : rejeté, aucune mutation", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "admin", confirmAdmin: "true" })),
+    /client/i,
+  );
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending", "le statut ne doit pas avoir changé");
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 0, "aucune membership ne doit avoir été créée — même avec confirmAdmin forgé");
+});
+
+test("EMPLOYEE essayant d'approuver dans l'organisation interne (cross-workspace) : rejeté", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "pending" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: internalOrg.id, role: "client" })),
+    /organisation/i,
+  );
+
+  const [row] = await db.select().from(users).where(eq(users.id, target.id)).limit(1);
+  assert.equal(row.status, "pending", "le statut ne doit pas avoir changé");
+  const membershipRows = await db.select().from(memberships).where(eq(memberships.userId, target.id));
+  assert.equal(membershipRows.length, 0, "aucune membership ne doit avoir été créée dans l'organisation interne");
+});
+
+test("EMPLOYEE approuvant un utilisateur déjà actif (pending CLIENT autre workspace couvert ci-dessus) : rejeté — comportement existant conservé", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const activeTarget = await createActiveMember({ role: "client", organizationId: clientOrg.id });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: activeTarget.id, organizationId: clientOrg.id, role: "client" })),
+    /attente/i,
+  );
+});
+
+test("EMPLOYEE approuvant un utilisateur refusé : rejeté — comportement existant conservé", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "refused" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" })),
+    /attente/i,
+  );
+});
+
+test("EMPLOYEE approuvant un utilisateur suspendu : rejeté — comportement existant conservé", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  const target = await createUser({ status: "suspended" });
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" })),
+    /attente/i,
+  );
+});
+
+test("EMPLOYEE approuvant une cible avec staff_members ACTIVE (gérée via Workforce) : rejeté", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+  // A pending self-signup user normally never has a staff_members row, but
+  // isWorkforceManaged() must still be enforced defensively on this new
+  // path — never bypassed for the EMPLOYEE authorization branch.
+  const target = await createUser({ status: "pending" });
+  await makeActiveStaffMember(target.id, internalOrg.id, "EMPLOYEE");
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" })),
+    /Workforce/i,
+  );
+});
+
+test("approveUser() sans authentification : redirige vers /sign-in, jamais l'action", async () => {
+  mockState = { kind: "unauthenticated" };
+  const clientOrg = await requireOrg("Organisation Démo");
+  const target = await createUser({ status: "pending" });
+
+  await assertRedirectsTo(() => approveUser(approvalFormData({ userId: target.id, organizationId: clientOrg.id, role: "client" })), "/sign-in");
+});
+
+test("EMPLOYEE approuvant un userId arbitraire (inexistant) : rejeté", async () => {
+  const internalOrg = await requireOrg("PUBLIC-MAP");
+  const clientOrg = await requireOrg("Organisation Démo");
+  const employee = await createWorkforceActor("EMPLOYEE", internalOrg.id);
+  actAsWorkforce(employee, "EMPLOYEE", internalOrg.id);
+
+  await assert.rejects(
+    () => approveUser(approvalFormData({ userId: randomUUID(), organizationId: clientOrg.id, role: "client" })),
+    /introuvable/i,
+  );
 });

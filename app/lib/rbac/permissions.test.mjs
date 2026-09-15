@@ -26,6 +26,7 @@ const EXPECTED_PERMISSIONS = [
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
   "RADAR_AI_POLICY_MANAGE",
+  "CLIENT_CONNECTION_APPROVE",
 ];
 
 // ---- catalogue shape --------------------------------------------------
@@ -36,10 +37,10 @@ test("STAFF_ROLES is exactly the four workforce roles, CLIENT absent", () => {
   assert.ok(!STAFF_ROLES.includes("client"));
 });
 
-test("PERMISSIONS is exactly the 12 permissions (V1's 11 + RADAR_AI_POLICY_MANAGE), no duplicates", () => {
+test("PERMISSIONS is exactly the 13 permissions (V1's 11 + RADAR_AI_POLICY_MANAGE + CLIENT_CONNECTION_APPROVE), no duplicates", () => {
   assert.deepEqual([...PERMISSIONS], EXPECTED_PERMISSIONS);
-  assert.equal(PERMISSIONS.length, 12);
-  assert.equal(new Set(PERMISSIONS).size, 12, "no duplicate permission ids");
+  assert.equal(PERMISSIONS.length, 13);
+  assert.equal(new Set(PERMISSIONS).size, 13, "no duplicate permission ids");
 });
 
 test("no deferred/speculative permissions leaked in (RADAR_ASSIGN now landed with RADAR-CORE-1A)", () => {
@@ -77,11 +78,11 @@ test("every granted permission is a member of the PERMISSIONS catalogue", () => 
 });
 
 // ---- explicit V1 grants --------------------------------------------
-test("OWNER holds all 12 permissions", () => {
+test("OWNER holds all 13 permissions", () => {
   for (const p of PERMISSIONS) {
     assert.equal(hasPermission("OWNER", p), true, `OWNER should have ${p}`);
   }
-  assert.equal(ROLE_PERMISSIONS.OWNER.length, 12);
+  assert.equal(ROLE_PERMISSIONS.OWNER.length, 13);
 });
 
 test("OWNER_MANAGE is OWNER-only", () => {
@@ -147,12 +148,26 @@ test("EMPLOYEE lacks OWNER/ADMIN-only capabilities AND the MANAGER-tier ANALYTIC
   }
 });
 
-test("EMPLOYEE has exactly its five operational capabilities", () => {
-  const expected = ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "GBP_INTEGRATION_MANAGE"];
+test("EMPLOYEE has exactly its six operational capabilities (five pre-existing + CLIENT_CONNECTION_APPROVE)", () => {
+  const expected = ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "GBP_INTEGRATION_MANAGE", "CLIENT_CONNECTION_APPROVE"];
   for (const p of expected) {
     assert.equal(hasPermission("EMPLOYEE", p), true, `EMPLOYEE should have ${p}`);
   }
   assert.equal(ROLE_PERMISSIONS.EMPLOYEE.length, expected.length);
+});
+
+// ---- MISSION RADAR/CLIENT APPROVAL — PHASE 2 — CLIENT_CONNECTION_APPROVE ----
+
+test("CLIENT_CONNECTION_APPROVE target matrix: OWNER/ADMIN/EMPLOYEE=true, MANAGER=false", () => {
+  assert.equal(hasPermission("OWNER", "CLIENT_CONNECTION_APPROVE"), true);
+  assert.equal(hasPermission("ADMIN", "CLIENT_CONNECTION_APPROVE"), true);
+  assert.equal(hasPermission("EMPLOYEE", "CLIENT_CONNECTION_APPROVE"), true);
+  assert.equal(hasPermission("MANAGER", "CLIENT_CONNECTION_APPROVE"), false, "MANAGER must never gain approval capability");
+});
+
+test("CLIENT_CONNECTION_APPROVE is independent of WORKFORCE_MANAGE -- EMPLOYEE gains it without gaining any Workforce-roster authority", () => {
+  assert.equal(hasPermission("EMPLOYEE", "WORKFORCE_MANAGE"), false, "EMPLOYEE must still never manage the Workforce roster");
+  assert.equal(hasPermission("EMPLOYEE", "CLIENT_CONNECTION_APPROVE"), true);
 });
 
 // ---- fail-closed --------------------------------------------------
