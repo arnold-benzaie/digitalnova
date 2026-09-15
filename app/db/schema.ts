@@ -2233,3 +2233,152 @@ export const radarAiQuotaCounter = pgTable(
     check("radar_ai_quota_counter_token_count_check", sql`${table.tokenCount} >= 0`),
   ],
 );
+
+// RADAR DISCOVERY ENGINE — Phase B — the STAGING/DISCOVERY LAYER for a
+// future external prospect-discovery pipeline (Google Places or any other
+// real-world business-data provider — see lib/radar-discovery/'s own
+// header). A `discovery_results` row is NEVER a CRM client and NEVER a
+// new RBAC boundary: it is untrusted, provider-sourced data awaiting an
+// EXPLICIT, separately-authorized human conversion into `crm_clients`
+// (a future phase). No conversion logic, provider adapter, or ingestion
+// pipeline exists yet — this table only stores what a future adapter
+// would produce, so the schema can be built and tested independently of
+// any real provider (per this phase's own scope boundary).
+//
+// PROVENANCE (mission requirement): `source` + `sourceId` together
+// identify ONE specific record at ONE specific provider — e.g.
+// source="google_places", sourceId="ChIJ...". Both are free TEXT, not a
+// closed enum: unlike radar_ai_provider_attempt_telemetry.provider_id
+// (a small, fixed set of ALREADY-REGISTERED AI adapters compiled into
+// this codebase), no discovery provider adapter exists yet at all, and
+// the whole point of this layer is to stay provider-agnostic (mission:
+// "évite les noms de colonnes spécifiques à Google") — hardcoding a
+// closed CHECK here would force a migration for every future provider,
+// defeating that goal. The UNIQUE index on (source, source_id) below is
+// the real identity guarantee: it prevents a second ingestion of the
+// exact same provider record from silently creating a duplicate row,
+// while deliberately NOT constraining name/phone/website/geography in
+// any way — the SAME real-world business legitimately appearing at
+// MULTIPLE different providers (a different sourceId at each) is
+// expected and always allowed; reconciling those into a single CRM
+// client is exactly what lib/crm-client-dedup.ts (Phase A) already does,
+// reused as-is by a future ingestion/conversion action — this table
+// never re-implements that matching logic itself.
+//
+// TENANCY (documented decision, mission section 15): NO organizationId
+// column. crm_clients itself carries no workspace-scoping column today
+// (its own organizationId is a nullable post-onboarding CRM-to-tenant
+// link, not an access boundary — see that column's own docstring above)
+// and the whole CRM/RADAR domain is staff-global, shared across the
+// single internal workspace (lib/audit.ts's own logCrmAudit() docstring:
+// "CRM domain is agency-shared"). Introducing a NEW multi-tenant
+// boundary on this upstream staging table, when its own downstream
+// destination has none, would be an improvised, inconsistent scoping
+// model — exactly what this phase was told not to invent. If a real
+// multi-workspace model is ever built, it would need to start at
+// crm_clients itself, not here.
+//
+// NO RAW PROVIDER PAYLOAD (mission section 12): deliberately no jsonb
+// "raw response" column. Every field a future provider might supply that
+// is actually USEFUL to this pipeline already has a dedicated, typed
+// column below; a generic catch-all blob would risk unbounded size,
+// undeclared PII, and (per this phase's own instruction) has no concrete
+// justified use case yet. `openingHours` is the one jsonb column here,
+// and is NOT a raw-payload exception: it mirrors the already-established,
+// narrow, well-understood shape db/audit-schema.ts's own
+// `auditBusinesses.openingHours` already uses in this exact codebase —
+// not an arbitrary blob.
+//
+// STATUS (mission section 7): a closed set mirroring every other
+// enum-shaped text column in this file (e.g. crm_clients.stage) — no
+// automatic transition between them exists yet; only `createDiscoveryResult()`
+// (lib/radar-discovery/discovery-result-store.ts) writes a row, and it
+// always starts at "discovered". The CHECK below ties `status` and
+// `crm_client_id` together in the one direction that is always true even
+// before any real conversion flow exists: a row linked to a real
+// crm_clients row must be marked "converted" — never the reverse (a
+// "converted" status does not, by itself, require a link, avoiding any
+// assumption about a future conversion flow's exact write order).
+export const discoveryResults = pgTable(
+  "discovery_results",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    // ---- identity / provenance ----
+    source: text("source").notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceUrl: text("source_url"),
+    discoveredAt: timestamp("discovered_at", { withTimezone: true }).defaultNow().notNull(),
+    // Not auto-updated by a DB trigger (no other table in this schema
+    // uses one for this column either) — written by application code on
+    // a genuine future enrichment/status write. Left untouched by every
+    // Phase B code path beyond the initial insert.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+
+    // ---- business / establishment data — ALL of it is UNTRUSTED
+    // external data, exactly like every field on crmClients sourced from
+    // a form; never treated as verified, never used for authorization ----
+    name: text("name").notNull(),
+    category: text("category"),
+    address: text("address"),
+    country: text("country"),
+    region: text("region"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    phone: text("phone"),
+    email: text("email"),
+    website: text("website"),
+    // Standard ~11cm-precision geo coordinate storage (precision 9, scale
+    // 6 — matches this schema's own numeric(10,2) money-column precedent
+    // in shape, sized for degrees instead of currency). Nullable: no
+    // geocoding happens in this phase (mission section 6) — populated
+    // only when a future provider supplies it directly.
+    // {mode: "number"} — unlike this schema's own money numeric()
+    // columns (kept as strings on purpose, cent-precision matters
+    // exactly there), a coordinate is naturally a JS number and 6-decimal
+    // precision has no floating-point rounding concern worth the string
+    // friction.
+    latitude: numeric("latitude", { precision: 9, scale: 6, mode: "number" }),
+    longitude: numeric("longitude", { precision: 9, scale: 6, mode: "number" }),
+
+    // ---- time / localization — schema-only in this phase (mission
+    // section 6): no geocoding, no timezone computation, no opening-hours
+    // fetch. Populated only once a future provider adapter supplies the
+    // value directly. ----
+    // Raw provider-supplied string (e.g. "America/Montreal"), never
+    // validated against the IANA tz database and never derived from
+    // country — same unvalidated-free-text convention already used by
+    // organizations.timezone elsewhere in this file.
+    timezone: text("timezone"),
+    // Mirrors db/audit-schema.ts's own auditBusinesses.openingHours shape
+    // (a small, structured weekly-hours object) — see this table's own
+    // header comment on why this is not a "raw payload" exception.
+    openingHours: jsonb("opening_hours"),
+
+    // ---- pipeline state ----
+    status: text("status").notNull().default("discovered"), // "discovered" | "enriched" | "converted" | "ignored"
+
+    // ---- link to CRM, ONLY after an EXPLICIT, separately-authorized
+    // conversion (a future phase — never written by anything in Phase B).
+    // Nullable = not yet converted, the state of every row this phase can
+    // ever create. ON DELETE SET NULL mirrors crm_clients.assigned_user_id's
+    // own convention: deleting the linked CRM client unlinks this row
+    // rather than deleting discovery/provenance history. ----
+    crmClientId: uuid("crm_client_id").references(() => crmClients.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    // THE provenance identity guarantee (mission section 10): a second
+    // ingestion of the same (source, sourceId) can never silently create
+    // a second row. Deliberately NOT unique on name/phone/website/
+    // geography — see this table's own header comment.
+    uniqueIndex("discovery_results_source_source_id_idx").on(table.source, table.sourceId),
+    index("discovery_results_status_idx").on(table.status),
+    index("discovery_results_crm_client_id_idx").on(table.crmClientId),
+    check("discovery_results_status_check", sql`${table.status} IN ('discovered','enriched','converted','ignored')`),
+    check("discovery_results_latitude_check", sql`${table.latitude} IS NULL OR (${table.latitude} BETWEEN -90 AND 90)`),
+    check("discovery_results_longitude_check", sql`${table.longitude} IS NULL OR (${table.longitude} BETWEEN -180 AND 180)`),
+    // A row genuinely linked to a CRM client must be marked converted —
+    // see this table's own header comment for why this is one-directional.
+    check("discovery_results_converted_link_check", sql`${table.crmClientId} IS NULL OR ${table.status} = 'converted'`),
+  ],
+);
