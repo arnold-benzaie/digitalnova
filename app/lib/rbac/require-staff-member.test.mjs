@@ -88,6 +88,7 @@ const {
   canCurrentUserWorkRadar,
   evaluateRadarAccess,
   requireRadarAccess,
+  isCurrentUserEmployeeTier,
 } = await import("./require-staff-member.ts");
 
 function fixedInternalOrg(id = INTERNAL_ORG_ID) {
@@ -792,6 +793,58 @@ test("RA-18. canCurrentUserWorkRadar(): no membership -> false", async () => {
 test("RA-19. getRadarCapabilities(): ACTIVE MANAGER with radar OFF -> all three false, even though the role alone would grant all three", async () => {
   withMembershipRow("MANAGER", "ACTIVE", false);
   assert.deepEqual(await getRadarCapabilities(), ALL_CAPS_FALSE);
+});
+
+// ------------- WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE — isCurrentUserEmployeeTier() -------------
+// Non-redirecting — decides only whether the sidebar OMITS the
+// "Utilisateurs" nav item. Same composition-only testing philosophy as
+// isCurrentUserOwner() above: the role matrix itself (CRM_READ granted to
+// every tier) is already proven by tests 1-20; these tests prove this
+// function's own composition (real session -> real
+// evaluateStaffPermission("CRM_READ") -> ok && role === "EMPLOYEE").
+
+test("EMP-TIER-1. real EMPLOYEE membership -> true", async () => {
+  withMembershipRow("EMPLOYEE");
+  assert.equal(await isCurrentUserEmployeeTier(), true);
+});
+
+test("EMP-TIER-2. OWNER -> false", async () => {
+  withMembershipRow("OWNER");
+  assert.equal(await isCurrentUserEmployeeTier(), false);
+});
+
+test("EMP-TIER-3. ADMIN -> false", async () => {
+  withMembershipRow("ADMIN");
+  assert.equal(await isCurrentUserEmployeeTier(), false);
+});
+
+test("EMP-TIER-4. MANAGER -> false", async () => {
+  withMembershipRow("MANAGER");
+  assert.equal(await isCurrentUserEmployeeTier(), false);
+});
+
+test("EMP-TIER-5. missing staff_members membership -> false, never true (legacy Axis-A-only account keeps seeing the nav item)", async () => {
+  withNoMembershipRow();
+  assert.equal(await isCurrentUserEmployeeTier(), false);
+});
+
+test("EMP-TIER-6. inactive (SUSPENDED) EMPLOYEE membership -> false", async () => {
+  withMembershipRow("EMPLOYEE", "SUSPENDED");
+  assert.equal(await isCurrentUserEmployeeTier(), false);
+});
+
+test("EMP-TIER-7. no internal workspace resolvable -> false, never true", async () => {
+  withMembershipRow("EMPLOYEE"); // present but must never be reached — no-workspace denies first
+  internalOrgIdMock = async () => null;
+  try {
+    assert.equal(await isCurrentUserEmployeeTier(), false);
+  } finally {
+    internalOrgIdMock = async () => INTERNAL_ORG_ID;
+  }
+});
+
+test("EMP-TIER-8. has exactly zero parameters — reviewed API invariant, same as isCurrentUserOwner()", () => {
+  assert.equal(isCurrentUserEmployeeTier.length, 0);
 });
 
 test("RA-20. getRadarCapabilities(): ACTIVE MANAGER with radar ON -> unchanged from the role-only matrix already proven above", async () => {

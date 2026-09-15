@@ -380,3 +380,63 @@ test("PHASE-G3B: getClientNavSections() never contains /admin/owner/ai-governanc
   assert.equal(aiGovernanceItems(sections).length, 0);
   assert.equal(sections.flatMap((s) => s.items).filter((i) => i.label === t.items.aiGovernance).length, 0);
 });
+
+// ------------- WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE — { isEmployeeTier } -------------
+// The ONE flag that OMITS an otherwise-unconditional item ("Utilisateurs" /
+// "Users", /admin/users) instead of adding one. /admin/users' own
+// requireAdminRole() guard already redirects EMPLOYEE away — this only
+// stops the sidebar from offering a dead link. Every other role/flag
+// combination must keep seeing "Utilisateurs" exactly as before.
+
+const usersItems = (sections) => sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/users");
+
+test("EMP-NAV-1: options omitted entirely -> Users item present (unaffected default)", () => {
+  assert.equal(usersItems(getStaffNavSections(t)).length, 1);
+});
+
+test("EMP-NAV-2: { isEmployeeTier: false } -> Users item present", () => {
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: false })).length, 1);
+});
+
+test("EMP-NAV-3: { isEmployeeTier: undefined } -> Users item present", () => {
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: undefined })).length, 1);
+});
+
+test("EMP-NAV-4: { isEmployeeTier: true } -> Users item absent", () => {
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: true })).length, 0);
+});
+
+test("EMP-NAV-5: a truthy-but-not-true isEmployeeTier (string / number) does NOT hide the item -- strict === true only", () => {
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: "true" })).length, 1);
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: 1 })).length, 1);
+});
+
+test("EMP-NAV-6: OWNER-like (isOwner:true, canManageWorkforce:true, isEmployeeTier:false) -> Users item still present alongside Workforce/Owner Control", () => {
+  const sections = getStaffNavSections(t, { isOwner: true, canManageWorkforce: true, isEmployeeTier: false });
+  assert.equal(usersItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 1);
+  assert.equal(workforceItems(sections).length, 1);
+});
+
+test("EMP-NAV-7: MANAGER-like (isOwner:false, canManageWorkforce:false, isEmployeeTier:false) -> Users item present, Workforce/Owner Control absent (MANAGER's own nav is completely unaffected by this flag)", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: false, isEmployeeTier: false });
+  assert.equal(usersItems(sections).length, 1);
+  assert.equal(ownerItems(sections).length, 0);
+  assert.equal(workforceItems(sections).length, 0);
+});
+
+test("EMP-NAV-8: EMPLOYEE-like (isOwner:false, canManageWorkforce:false, isEmployeeTier:true) -> Users item absent, Workforce/Owner Control also absent", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: false, isEmployeeTier: true });
+  assert.equal(usersItems(sections).length, 0);
+  assert.equal(ownerItems(sections).length, 0);
+  assert.equal(workforceItems(sections).length, 0);
+});
+
+test("EMP-NAV-9: the Users item is never duplicated under any isEmployeeTier value", () => {
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: false })).length, 1);
+  assert.equal(usersItems(getStaffNavSections(t, { isEmployeeTier: true })).length, 0);
+});
+
+test("EMP-NAV-10: getClientNavSections() never contains /admin/users regardless (client portal is unaffected)", () => {
+  assert.equal(usersItems(getClientNavSections(t)).length, 0);
+});

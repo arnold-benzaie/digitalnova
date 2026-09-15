@@ -1,5 +1,6 @@
 import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { getMyWork } from "@/lib/actions/employee-work";
+import { listEmployeeColleagues } from "@/lib/actions/employee-colleagues";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero } from "@/components/admin/page-hero";
@@ -10,6 +11,7 @@ import { MyFollowUps } from "@/components/employee/my-follow-ups";
 import { MyTasks } from "@/components/employee/my-tasks";
 import { MyRecentInteractions } from "@/components/employee/my-recent-interactions";
 import { AvailableProspects } from "@/components/employee/available-prospects";
+import { EmployeeColleaguesPanel } from "@/components/crm/employee-colleagues-panel";
 
 /**
  * PHASE EMPLOYEE-OPS (Slice 2) — the operational self-view for staff who
@@ -26,11 +28,26 @@ import { AvailableProspects } from "@/components/employee/available-prospects";
  * URL selects another user, workspace or role. No DB write happens here.
  * No raw userId / client / task / interaction UUID is rendered (see the
  * components/employee/* sections and my-work-shared.ts).
+ *
+ * WORKFORCE — EMPLOYEE "MES COLLÈGUES" (read-only) — captures the return
+ * value of requireRadarAccess("RADAR_WORK") (previously discarded, exactly
+ * the same pattern app/admin/crm/radar/page.tsx already uses for its own
+ * "Mon équipe" panel) so the colleagues panel can be rendered ONLY when the
+ * viewer's role is EMPLOYEE — never for OWNER/ADMIN/MANAGER, all of whom
+ * can also reach this page via RADAR_WORK. listEmployeeColleagues() itself
+ * independently re-verifies this identity server-side and would redirect
+ * a non-EMPLOYEE caller anyway; this check only decides whether to even
+ * fetch/render the panel, exactly like the radar page's own
+ * `viewerRole === "MANAGER"` gate.
  */
 export default async function MyWorkPage() {
-  await requireRadarAccess("RADAR_WORK");
+  const viewerRole = await requireRadarAccess("RADAR_WORK");
 
-  const [work, locale] = await Promise.all([getMyWork(), getLocale()]);
+  const [work, locale, colleagues] = await Promise.all([
+    getMyWork(),
+    getLocale(),
+    viewerRole === "EMPLOYEE" ? listEmployeeColleagues() : Promise.resolve(null),
+  ]);
   const t = dictionaries[locale].employee;
 
   return (
@@ -52,6 +69,8 @@ export default async function MyWorkPage() {
       </div>
 
       <AvailableProspects prospects={work.claimableUnassigned} locale={locale} />
+
+      {colleagues !== null && <EmployeeColleaguesPanel colleagues={colleagues} locale={locale} />}
     </>
   );
 }

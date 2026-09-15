@@ -77,6 +77,15 @@ export const employee = {
     errActionNotAllowed: "Cette action n'est plus autorisée.",
     errInvalidDate: "Date invalide.",
     errGeneric: "Une erreur est survenue.",
+
+    // WORKFORCE — EMPLOYEE "MES COLLÈGUES" — read-only panel, EMPLOYEE only.
+    // roleEmployee label matches the exact wording already used elsewhere
+    // for this role (see lib/i18n/dictionaries/workforce.ts /
+    // crm.ts's own myTeam.roleEmployee) — no new role vocabulary invented.
+    colleaguesTitle: "Mes collègues",
+    colleaguesSubtitle: "Employés actifs",
+    colleaguesRoleEmployee: "Employé",
+    colleaguesEmptyState: "Aucun autre employé actif dans votre équipe.",
   },
   en: {
     myWorkTitle: "My work",
@@ -143,5 +152,10 @@ export const employee = {
     errActionNotAllowed: "This action is no longer allowed.",
     errInvalidDate: "Invalid date.",
     errGeneric: "Something went wrong.",
+
+    colleaguesTitle: "My colleagues",
+    colleaguesSubtitle: "Active employees",
+    colleaguesRoleEmployee: "Employee",
+    colleaguesEmptyState: "No other active employees on your team.",
   },
 } as const;

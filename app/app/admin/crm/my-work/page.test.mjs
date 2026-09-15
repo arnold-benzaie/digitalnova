@@ -17,6 +17,8 @@ import assert from "node:assert/strict";
 let permissionCalls = [];
 let denyMode = false;
 let getMyWorkCalls = [];
+/** @type {"OWNER"|"ADMIN"|"MANAGER"|"EMPLOYEE"} */
+let mockViewerRole = "EMPLOYEE";
 
 // WORKFORCE ACCESS CONTROL — the page now calls requireRadarAccess()
 // (RADAR-permission-aware), not requireStaffMember(). Same contract/
@@ -30,7 +32,22 @@ mock.module("@/lib/rbac/require-staff-member", {
         err.digest = "NEXT_REDIRECT;replace;/admin;307;";
         throw err;
       }
-      return "EMPLOYEE";
+      return mockViewerRole;
+    },
+  },
+});
+
+// WORKFORCE — EMPLOYEE "MES COLLÈGUES" — the page now also captures
+// requireRadarAccess()'s return value and conditionally calls
+// listEmployeeColleagues() only for an EMPLOYEE viewer. Mocked here so no
+// live Postgres/Next runtime is needed, mirroring getMyWork()'s own mock
+// above.
+let listEmployeeColleaguesCalls = 0;
+mock.module("@/lib/actions/employee-colleagues", {
+  namedExports: {
+    listEmployeeColleagues: async () => {
+      listEmployeeColleaguesCalls += 1;
+      return [{ userId: "colleague-1", displayName: "Colleague One", role: "EMPLOYEE" }];
     },
   },
 });
@@ -75,6 +92,8 @@ function reset() {
   permissionCalls = [];
   denyMode = false;
   getMyWorkCalls = [];
+  mockViewerRole = "EMPLOYEE";
+  listEmployeeColleaguesCalls = 0;
 }
 
 test("my-work page: authorized -> renders; guard called exactly once with 'RADAR_WORK'; data read via getMyWork() with no argument", async () => {
@@ -92,6 +111,39 @@ test("my-work page: a guard denial (NEXT_REDIRECT) propagates — no data read, 
   await assert.rejects(() => MyWorkPage(), /NEXT_REDIRECT/);
   assert.deepEqual(permissionCalls, ["RADAR_WORK"], "the guard still ran, with exactly RADAR_WORK, before any read");
   assert.equal(getMyWorkCalls.length, 0, "a denied caller never reaches the data read");
+  assert.equal(listEmployeeColleaguesCalls, 0, "a denied caller never reaches the colleagues read either");
+});
+
+// ------------- WORKFORCE — EMPLOYEE "MES COLLÈGUES" -------------
+
+test("my-work page: EMPLOYEE viewer -> listEmployeeColleagues() is called exactly once, panel is rendered", async () => {
+  reset();
+  mockViewerRole = "EMPLOYEE";
+  const el = await MyWorkPage();
+  assert.equal(listEmployeeColleaguesCalls, 1, "an EMPLOYEE viewer fetches the colleagues panel data");
+  assert.ok(el);
+});
+
+test("my-work page: MANAGER viewer -> listEmployeeColleagues() is never called, no colleagues panel data fetched", async () => {
+  reset();
+  mockViewerRole = "MANAGER";
+  const el = await MyWorkPage();
+  assert.equal(listEmployeeColleaguesCalls, 0, "a MANAGER viewer must never trigger the EMPLOYEE-only colleagues read");
+  assert.ok(el);
+});
+
+test("my-work page: ADMIN viewer -> listEmployeeColleagues() is never called", async () => {
+  reset();
+  mockViewerRole = "ADMIN";
+  await MyWorkPage();
+  assert.equal(listEmployeeColleaguesCalls, 0);
+});
+
+test("my-work page: OWNER viewer -> listEmployeeColleagues() is never called", async () => {
+  reset();
+  mockViewerRole = "OWNER";
+  await MyWorkPage();
+  assert.equal(listEmployeeColleaguesCalls, 0);
 });
 
 test("my-work page: authorization ignores caller-supplied input — a forged { searchParams } / { params } changes nothing", async () => {

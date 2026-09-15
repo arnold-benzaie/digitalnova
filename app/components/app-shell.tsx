@@ -20,19 +20,20 @@ import { AppShellClient } from "@/components/app-shell-client";
  * AppShellClient — this stays a Server Component so it can fetch org,
  * notifications and badge counts directly.
  *
- * `isOwner` (PHASE OWNER-UI-1), `canManageWorkforce` (PHASE OWNER-UI-3B) and
- * `canManageAiPolicy` (RADAR INTELLIGENCE V2.1 Phase C) are OPTIONAL,
- * purely-additive visibility signals from the separate internal-staff RBAC
- * axis (lib/rbac/require-staff-member.ts's isCurrentUserOwner() /
- * canCurrentUserManageWorkforce() / canCurrentUserManageAiPolicy()) — only
- * app/admin/layout.tsx computes and passes them; app/dashboard/layout.tsx
- * (client portal) omits all three, defaulting to `false`, since none is a
- * concept there. They carry no capability of their own: they only decide
- * whether getStaffNavSections() emits the "Owner Control" / "Workforce" /
- * "AI Providers" nav items; the corresponding routes each re-check their
- * own permission server-side. No RBAC call and no route authorization
- * happens in this
- * component.
+ * `isOwner` (PHASE OWNER-UI-1), `canManageWorkforce` (PHASE OWNER-UI-3B),
+ * `canManageAiPolicy` (RADAR INTELLIGENCE V2.1 Phase C) and `isEmployeeTier`
+ * (WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE) are OPTIONAL, purely-additive
+ * visibility signals from the separate internal-staff RBAC axis
+ * (lib/rbac/require-staff-member.ts's isCurrentUserOwner() /
+ * canCurrentUserManageWorkforce() / canCurrentUserManageAiPolicy() /
+ * isCurrentUserEmployeeTier()) — only app/admin/layout.tsx computes and
+ * passes them; app/dashboard/layout.tsx (client portal) omits all of them,
+ * defaulting to `false`, since none is a concept there. They carry no
+ * capability of their own: they only decide whether getStaffNavSections()
+ * emits (or, for `isEmployeeTier`, omits) the "Owner Control" / "Workforce" /
+ * "AI Providers" / "Utilisateurs" nav items; the corresponding routes each
+ * re-check their own permission server-side. No RBAC call and no route
+ * authorization happens in this component.
  */
 export async function AppShell({
   children,
@@ -41,6 +42,7 @@ export async function AppShell({
   canManageWorkforce = false,
   canWorkRadar = false,
   canManageAiPolicy = false,
+  isEmployeeTier = false,
 }: {
   children: ReactNode;
   role: DevRole;
@@ -48,6 +50,7 @@ export async function AppShell({
   canManageWorkforce?: boolean;
   canWorkRadar?: boolean;
   canManageAiPolicy?: boolean;
+  isEmployeeTier?: boolean;
 }) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const visibility = notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT");
@@ -75,6 +78,7 @@ export async function AppShell({
       canManageWorkforce={canManageWorkforce}
       canWorkRadar={canWorkRadar}
       canManageAiPolicy={canManageAiPolicy}
+      isEmployeeTier={isEmployeeTier}
       badges={badges}
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}

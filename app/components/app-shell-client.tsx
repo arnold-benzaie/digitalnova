@@ -140,6 +140,7 @@ export function AppShellClient({
   canManageWorkforce = false,
   canWorkRadar = false,
   canManageAiPolicy = false,
+  isEmployeeTier = false,
   badges,
   recentNotifications,
   unreadCount,
@@ -166,6 +167,12 @@ export function AppShellClient({
   // item. Never a gate: /admin/crm/my-work calls
   // requireStaffMember("RADAR_WORK") server-side itself.
   canWorkRadar?: boolean;
+  // WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE: same kind of server-derived
+  // visibility boolean, but decides whether getStaffNavSections() OMITS the
+  // "Utilisateurs" item instead of adding one — see that function's own
+  // doc comment. Never a gate: /admin/users keeps its own
+  // requireAdminRole() check unchanged.
+  isEmployeeTier?: boolean;
   badges: NavBadgeCounts;
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
@@ -177,8 +184,11 @@ export function AppShellClient({
   const pathname = usePathname() ?? "";
   const isAuditArea = pathname === "/admin/audit" || pathname.startsWith("/admin/audit/");
   const sections = useMemo(
-    () => (role === "client" ? getClientNavSections(t) : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy })),
-    [role, t, isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy],
+    () =>
+      role === "client"
+        ? getClientNavSections(t)
+        : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier }),
+    [role, t, isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier],
   );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 

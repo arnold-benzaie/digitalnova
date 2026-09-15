@@ -30,7 +30,13 @@ type NavDict = {
  * client.tsx, which calls these with `dictionaries[locale].navigation`. */
 export function getStaffNavSections(
   t: NavDict,
-  opts?: { isOwner?: boolean; canManageWorkforce?: boolean; canWorkRadar?: boolean; canManageAiPolicy?: boolean },
+  opts?: {
+    isOwner?: boolean;
+    canManageWorkforce?: boolean;
+    canWorkRadar?: boolean;
+    canManageAiPolicy?: boolean;
+    isEmployeeTier?: boolean;
+  },
 ): NavSection[] {
   // PHASE OWNER-UI-2 (`ownerControl`), PHASE OWNER-UI-3B (`workforce`), and
   // RADAR INTELLIGENCE V2.1 Phase C (`aiProviders`) — conditional
@@ -58,6 +64,7 @@ export function getStaffNavSections(
   // canCurrentUserWorkRadar(), RADAR_WORK). Never a gate: /admin/crm/my-work
   // calls requireStaffMember("RADAR_WORK") server-side itself.
   const myWorkItem: NavItem = { label: t.items.myWork, href: "/admin/crm/my-work", icon: "checkSquare" };
+  const usersItem: NavItem = { label: t.items.users, href: "/admin/users", icon: "users" };
   return [
     {
       key: "audit",
@@ -82,7 +89,15 @@ export function getStaffNavSections(
       items: [
         { label: t.items.organizations, href: "/admin", icon: "building" },
         { label: t.items.messaging, href: "/admin/messages", icon: "mail" },
-        { label: t.items.users, href: "/admin/users", icon: "users" },
+        // WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE: the only OMITTED (never
+        // CSS-hidden) item in this list — /admin/users is a generic Axis-A
+        // user/access console, not an internal-team view, and its own
+        // requireAdminRole() guard already redirects EMPLOYEE away before
+        // any content renders (an EMPLOYEE's legacy AppRole is "agent",
+        // never "admin"). Omitted ONLY on an explicit
+        // opts.isEmployeeTier === true; OWNER/ADMIN/MANAGER (and any
+        // Axis-A-only legacy account) keep seeing this exactly as before.
+        ...(opts?.isEmployeeTier === true ? [] : [usersItem]),
         ...(opts?.canManageWorkforce === true ? [workforceItem] : []),
         { label: t.items.auditLog, href: "/admin/audit-log", icon: "history" },
         { label: t.items.systemHealth, href: "/admin/system-health", icon: "gauge" },

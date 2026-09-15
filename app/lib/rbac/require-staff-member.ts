@@ -413,3 +413,40 @@ export async function getRadarCapabilities(): Promise<{
     canReleaseOwn: work.ok,
   };
 }
+
+/**
+ * WORKFORCE — FINALIZE EMPLOYEE EXPERIENCE — non-redirecting EMPLOYEE-tier
+ * visibility signal, for deciding whether to HIDE the "Utilisateurs" /
+ * "Users" nav entry (/admin/users). Like isCurrentUserOwner() above, it is
+ * NEVER an authorization gate: /admin/users independently calls
+ * requireAdminRole() (the legacy Axis-A guard) as its own first statement,
+ * and that remains the only thing that decides route access — it already
+ * denies EMPLOYEE today (an EMPLOYEE's legacy AppRole resolves to "agent",
+ * never "admin"). This signal exists purely so the sidebar stops offering a
+ * link that server-side authorization already refuses for this one role,
+ * without changing what OWNER/ADMIN/MANAGER see: their nav is completely
+ * unaffected by this function (see canManageWorkforce/isOwner above for the
+ * same additive, non-authorizing convention).
+ *
+ * Reuses "CRM_READ" — a permission every staff tier holds today — purely as
+ * a cheap way to resolve the caller's real Axis-C role via
+ * evaluateStaffPermission()'s existing fail-closed lookup, then refines on
+ * `role === "EMPLOYEE"` (same `ok` + role-refinement shape
+ * isCurrentUserOwner() already uses for `role === "OWNER"`). No new
+ * permission, no email, no client-suppliable state.
+ *
+ * A caller with no staff_members row at all (e.g. a legacy Axis-A-only
+ * account) resolves `ok: false` here and this function returns `false` —
+ * the nav entry stays visible for them exactly as before, unaffected.
+ *
+ * Errors propagate exactly as in isCurrentUserOwner(): a real
+ * infrastructure failure fails the whole request rather than silently
+ * resolving to `false`.
+ *
+ * Takes NO parameters — same reviewed API invariant as the functions above.
+ */
+export async function isCurrentUserEmployeeTier(): Promise<boolean> {
+  const session = await requireSession();
+  const result = await evaluateStaffPermission({ userId: session.userId, permission: "CRM_READ" });
+  return result.ok && result.role === "EMPLOYEE";
+}
