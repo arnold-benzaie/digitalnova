@@ -34,6 +34,17 @@ test("L. retryable codes are exactly PROVIDER_TIMEOUT, PROVIDER_RATE_LIMITED, PR
   assert.equal(isRetryableDiscoveryErrorCode("INVALID_SEARCH_REQUEST"), false, "retrying a malformed request can never succeed");
 });
 
+test("PHASE C-1: QUOTA_EXCEEDED is never retryable -- retrying immediately against our own just-enforced guard-rail cannot help", () => {
+  assert.equal(isRetryableDiscoveryErrorCode("QUOTA_EXCEEDED"), false);
+});
+
+test("PHASE C-1: QUOTA_EXCEEDED is a distinct code from PROVIDER_RATE_LIMITED -- our own gate vs. the provider's own 429 must stay distinguishable", () => {
+  const ours = makeDiscoveryError("QUOTA_EXCEEDED");
+  const providers = makeDiscoveryError("PROVIDER_RATE_LIMITED");
+  assert.notEqual(ours.code, providers.code);
+  assert.notEqual(ours.message, providers.message);
+});
+
 test("RETRYABLE_DISCOVERY_ERROR_CODES and isRetryableDiscoveryErrorCode agree for every code", () => {
   for (const code of DISCOVERY_ERROR_CODES) {
     assert.equal(isRetryableDiscoveryErrorCode(code), RETRYABLE_DISCOVERY_ERROR_CODES.has(code));

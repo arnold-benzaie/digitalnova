@@ -1,0 +1,57 @@
+import "server-only";
+
+/**
+ * RADAR DISCOVERY ENGINE — Phase C-1 — build the real Google Places
+ * provider from server config, mirroring
+ * lib/radar-intelligence/configured-registry.ts's exact flow:
+ *
+ *   load server config
+ *   -> effectiveEnabled (flag AND credential) ?
+ *        yes -> construct the REAL HTTP transport with the key, then the
+ *               provider, then let the key fall out of scope
+ *        no  -> return null (mission section 9: absence of a key, or the
+ *               flag being off, is NEVER itself a reason a call happens —
+ *               there is structurally no provider object to call)
+ *
+ * The api key never leaves this function: read from the loaded config,
+ * passed ONLY into createGooglePlacesHttpTransport()'s constructor.
+ * Nothing here returns, logs, or persists it.
+ */
+import { loadRadarDiscoveryConfig, type LoadedRadarDiscoveryConfig } from "../config-loader";
+import type { DiscoveryProvider } from "../provider";
+import { createGooglePlacesHttpTransport } from "./google-places-http-transport";
+import { createGooglePlacesProvider } from "./google-places-provider";
+
+export type ConfiguredGooglePlacesDeps = {
+  /** Injected for tests — defaults to reading process.env via the loader. */
+  loadedConfig?: LoadedRadarDiscoveryConfig;
+  fetchImpl?: typeof fetch;
+  clock?: () => number;
+  requestTimeoutMs?: number;
+};
+
+/**
+ * Returns a real, network-capable DiscoveryProvider, or `null` when the
+ * provider is not configured (flag off, or no credential) — never a
+ * provider object that would attempt a call anyway.
+ */
+export function createConfiguredGooglePlacesProvider(deps: ConfiguredGooglePlacesDeps = {}): DiscoveryProvider | null {
+  const config = deps.loadedConfig ?? loadRadarDiscoveryConfig();
+  const g = config.googlePlaces;
+
+  if (!g?.effectiveEnabled || g.apiKey === null) {
+    return null;
+  }
+
+  const transport = createGooglePlacesHttpTransport({
+    apiKey: g.apiKey,
+    ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+    ...(typeof deps.requestTimeoutMs === "number" ? { requestTimeoutMs: deps.requestTimeoutMs } : {}),
+  });
+  // `g.apiKey` is not referenced again below — it goes out of scope here.
+
+  return createGooglePlacesProvider({
+    transport,
+    ...(deps.clock ? { clock: deps.clock } : {}),
+  });
+}

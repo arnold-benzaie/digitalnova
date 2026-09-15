@@ -31,6 +31,13 @@ export const DISCOVERY_ERROR_CODES = [
   "PROVIDER_ERROR",
   "NO_CAPABLE_PROVIDER",
   "INVALID_SEARCH_REQUEST",
+  // PHASE C-1 — deliberately distinct from PROVIDER_RATE_LIMITED: that
+  // code means the PROVIDER itself rejected us (a genuine Google 429);
+  // this one means OUR OWN internal guard-rail (rate-limit-gate.ts)
+  // refused the call BEFORE it ever reached Google — the two facts must
+  // stay distinguishable (same reasoning already applied to G4B-2's
+  // AI_QUOTA_* codes vs. a provider's own rate limit).
+  "QUOTA_EXCEEDED",
 ] as const;
 
 export type DiscoveryErrorCode = (typeof DISCOVERY_ERROR_CODES)[number];
@@ -48,6 +55,7 @@ export const SAFE_DISCOVERY_ERROR_MESSAGES: Record<DiscoveryErrorCode, string> =
   PROVIDER_ERROR: "The discovery provider returned an error.",
   NO_CAPABLE_PROVIDER: "No connected provider can serve this request.",
   INVALID_SEARCH_REQUEST: "The search request is invalid.",
+  QUOTA_EXCEEDED: "The discovery request budget has been reached for this window.",
 };
 
 /**
