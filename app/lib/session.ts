@@ -83,8 +83,11 @@ export type AccessState =
  * both, never merged. Cached per request (React `cache()`) so the many
  * call sites that need this don't each hit Clerk/Postgres separately, and
  * so the side effects below (user creation, lastLoginAt touch, pending
- * notification, login product event) each run at most once per request
- * regardless of how many callers await this.
+ * notification, login product event) each run AT MOST once per request
+ * regardless of how many callers await this — the lastLoginAt touch and
+ * the login product event additionally only fire at all when
+ * `isNewLoginSession` is true (first-ever visit, or > 4h since the
+ * previous one), never on every request within an already-active session.
  *
  * Distinguishes every state getCurrentSession()/requireSession() need:
  * unauthenticated, pending (no membership yet AND no active staff_members
@@ -140,15 +143,30 @@ const resolveAccessState = cache(async (): Promise<AccessState> => {
   // CurrentSession.previousLastLoginAt.
   const previousLastLoginAt = appUser.lastLoginAt;
 
-  // "À chaque connexion valide" — every request that resolves a real
-  // Clerk session touches this, not just first-ever sign-in.
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, appUser.id));
-
+  // A refused/suspended account never gets a functional session — it must
+  // never look "recently active" either. Return BEFORE any write, exactly
+  // like every other early-return in this function.
   if (appUser.status === "refused") return { kind: "refused" };
   if (appUser.status === "suspended") return { kind: "suspended" };
 
   const isNewLoginSession =
     previousLastLoginAt === null || Date.now() - previousLastLoginAt.getTime() > LOGIN_EVENT_INACTIVITY_THRESHOLD_MS;
+
+  // PERF — THROTTLE LAST LOGIN WRITES. Was previously unconditional on
+  // every single request that reaches this point (one UPDATE per request,
+  // every page load, every /access-pending poll every 7s) — this function
+  // already computes `isNewLoginSession` (above) to decide whether to fire
+  // the "login" product event below, so this reuses the EXACT SAME boolean
+  // rather than introducing a second time-comparison: the write now only
+  // happens once per real new session (first-ever visit, or > 4h since the
+  // previous one), not on every request within that session. No consumer
+  // of `lastLoginAt`/`previousLastLoginAt` needs finer granularity than
+  // this — see the last_login_at audit report for the full analysis of
+  // every reader (Morning Brief, weekly "Connexions" KPI, /admin/users
+  // display): all three already tolerate an hours-wide window.
+  if (isNewLoginSession) {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, appUser.id));
+  }
 
   const baseFields = {
     userId: appUser.id,
