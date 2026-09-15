@@ -238,6 +238,51 @@ test("WORKFORCE INVITATION V1 integration: claimPendingStaffInvitation() + post-
     assert.equal((await invitationStatus(newInvitationId)).status, "claimed");
     assert.equal((await invitationStatus(oldInvitationId)).status, "pending", "the older, un-claimed invitation is left exactly as-is");
 
+    // ---- 8. SECURITY (PHASE 2 review, section 3) — genuine CONCURRENT
+    // double-claim: two simultaneous callers claiming the SAME invitation
+    // for the SAME user (e.g. a double-tab reload / a network retry).
+    // staff_members_user_workspace_unique (userId, workspaceOrgId) forces
+    // Postgres to serialize the two concurrent INSERTs; the loser's INSERT
+    // fails with a unique violation INSIDE its own transaction, which
+    // claimPendingStaffInvitation() catches and turns into `undefined`
+    // (never a thrown error, never a crash of resolveAccessState()) —
+    // proven here against real concurrent execution, not just sequential
+    // reuse (test #3 above already proves the sequential case). ----
+    const concurrentUserId = await seedUser("concurrent.claim@example.com");
+    const concurrentInvitationId = await seedInvitation("concurrent.claim@example.com", "EMPLOYEE");
+
+    const [resultA, resultB] = await Promise.all([
+      claimPendingStaffInvitation(concurrentUserId, "concurrent.claim@example.com"),
+      claimPendingStaffInvitation(concurrentUserId, "concurrent.claim@example.com"),
+    ]);
+    const outcomes = [resultA, resultB];
+    const winners = outcomes.filter((r) => r !== undefined);
+    const losers = outcomes.filter((r) => r === undefined);
+    assert.equal(winners.length, 1, "exactly one of the two concurrent claims must succeed");
+    assert.equal(losers.length, 1, "the other must gracefully return undefined, never throw");
+    assert.equal(winners[0].staffRole, "EMPLOYEE");
+
+    const concurrentStaffRows = (await pool.query("select count(*)::int n from staff_members where user_id=$1", [concurrentUserId])).rows[0].n;
+    assert.equal(concurrentStaffRows, 1, "exactly one staff_members row exists — no duplicate from the race");
+    assert.equal((await invitationStatus(concurrentInvitationId)).status, "claimed", "the invitation ends up claimed exactly once, no inconsistent state");
+
+    // ---- 9. SECURITY (PHASE 2 review, section 7/12-19) — workspace
+    // isolation: an invitation recorded against a DIFFERENT (non-internal)
+    // organization must create its staff_members row in THAT exact
+    // organization, never the caller's/session's own workspace, never any
+    // other — workspace_org_id comes exclusively from the matched
+    // invitation row, never assumed to be "the" internal workspace. ----
+    const isolationUserId = await seedUser("workspace.isolation@example.com");
+    const isolationInvitationId = await seedInvitation("workspace.isolation@example.com", "MANAGER", otherOrgId);
+
+    const claimedIsolation = await claimPendingStaffInvitation(isolationUserId, "workspace.isolation@example.com");
+    assert.ok(claimedIsolation);
+    assert.equal(claimedIsolation.workspaceOrgId, otherOrgId, "the claim lands in the invitation's OWN workspace, not the internal org");
+    assert.notEqual(claimedIsolation.workspaceOrgId, orgId, "never the internal workspace when the invitation itself points elsewhere");
+    const isolationRow = (await pool.query("select workspace_org_id from staff_members where user_id=$1", [isolationUserId])).rows[0];
+    assert.equal(isolationRow.workspace_org_id, otherOrgId);
+    assert.equal((await invitationStatus(isolationInvitationId)).status, "claimed");
+
     // @/db's own module-scoped Pool (db/index.ts caches it on
     // globalThis.pgPool) was opened as a side effect of importing
     // lib/session.ts above and is never otherwise closed — end it BEFORE

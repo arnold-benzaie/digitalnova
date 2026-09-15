@@ -193,16 +193,24 @@ async function inviteWorkforceMemberCore(
 
   const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existingUser) {
+    // SECURITY — deliberately NOT distinguishing "the OWNER's email" from
+    // "an ordinary already-workforce email" here, even internally: OWNER
+    // is excluded from every workforce listing (listWorkforceMembers()) so
+    // an ADMIN cannot normally discover who holds that role, but this
+    // action takes a caller-supplied EMAIL (unlike the UUID-keyed
+    // setWorkforceMemberRadarAccess()/changeWorkforceMemberRole(), whose
+    // equivalent OWNER-protection message requires already knowing an
+    // opaque staff_members id). A distinct "target is the workspace owner"
+    // message would let any ADMIN who merely knows/guesses the OWNER's
+    // email address confirm that guess directly — an oracle this action
+    // must not offer. A single ACTIVE staff_members row of ANY role
+    // (OWNER included) is therefore always reported identically.
     const [existingStaffRow] = await db
-      .select({ roleName: staffRoles.name })
+      .select({ id: staffMembers.id })
       .from(staffMembers)
-      .innerJoin(staffRoles, eq(staffRoles.id, staffMembers.roleId))
       .where(and(eq(staffMembers.userId, existingUser.id), eq(staffMembers.workspaceOrgId, internalOrgId)))
       .limit(1);
     if (existingStaffRow) {
-      if (existingStaffRow.roleName === "OWNER") {
-        throw new Error("target is the workspace owner and cannot be invited");
-      }
       throw new Error("target is already a workforce member of this workspace");
     }
   }

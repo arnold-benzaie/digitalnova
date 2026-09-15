@@ -218,14 +218,35 @@ test("WORKFORCE INVITATION V1 integration: inviteWorkforceMember() full authoriz
     assert.equal(r7.email, "existing-no-staff@example.com");
     assert.equal((await countInvitations("existing-no-staff@example.com")).length, 1);
 
-    // ---- 7. existing OWNER's email -> DENY, distinct reason, no write ----
+    // ---- 7. existing OWNER's email -> DENY, no write, and the SAME error
+    // message as any other already-workforce-member email (SECURITY: an
+    // ADMIN must not be able to fingerprint "this specific email is the
+    // OWNER" via a distinct error — see inviteWorkforceMemberCore()'s own
+    // comment on this exact point). ----
     asUser(adminUserId);
-    await assert.rejects(() => inviteWorkforceMember("owner@example.com", "EMPLOYEE"), /target is the workspace owner and cannot be invited/);
+    await assert.rejects(() => inviteWorkforceMember("owner@example.com", "EMPLOYEE"), /target is already a workforce member of this workspace/);
     assert.equal((await countInvitations("owner@example.com")).length, 0);
 
     // ---- 8. existing ADMIN's email (already a workforce member) -> DENY ----
     asUser(ownerUserId);
     await assert.rejects(() => inviteWorkforceMember("admin2@example.com", "EMPLOYEE"), /target is already a workforce member of this workspace/);
+
+    // ---- 8b. SECURITY: the OWNER's email and an ordinary member's email
+    // produce the EXACT SAME error message — no OWNER-identity oracle. ----
+    asUser(adminUserId);
+    let ownerError, ordinaryError;
+    try {
+      await inviteWorkforceMember("owner@example.com", "EMPLOYEE");
+    } catch (e) {
+      ownerError = e.message;
+    }
+    try {
+      await inviteWorkforceMember("admin2@example.com", "EMPLOYEE");
+    } catch (e) {
+      ordinaryError = e.message;
+    }
+    assert.ok(ownerError && ordinaryError, "both attempts must fail");
+    assert.equal(ownerError, ordinaryError, "an ADMIN must not be able to distinguish the OWNER's email from any other already-workforce email via the error message");
 
     // ---- 9. duplicate pending invitation for the same email -> DENY, no second row ----
     asUser(ownerUserId);
