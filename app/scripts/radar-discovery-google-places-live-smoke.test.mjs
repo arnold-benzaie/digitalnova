@@ -1,35 +1,29 @@
-// RADAR DISCOVERY ENGINE — Phase C-1 — offline tests for the guarded
-// live-smoke harness. ZERO network: an injected fake `fetch` simulates
-// the Google Places response. This file IS wired into `npm test`; the
-// live script itself is never invoked by any automation. Mirrors
-// scripts/radar-intelligence-live-smoke.test.mjs's exact structure.
+// RADAR DISCOVERY ENGINE — Phase C-1, DB-independence fixed in
+// MISSION C-2D-0-FIX — offline tests for the guarded live-smoke harness.
+// ZERO network: an injected fake `fetch` simulates the Google Places
+// response. ZERO database: this file deliberately mocks NEITHER
+// "@/lib/api-v1/rate-limit" NOR "@/db" — the script now supplies its own
+// real, in-memory checkRateLimit override
+// (lib/radar-discovery/in-memory-rate-limit.ts) to
+// createConfiguredGooglePlacesProvider(), so the DB-backed default
+// (rate-limit-gate.ts -> @/lib/api-v1/rate-limit -> @/db, which requires
+// DATABASE_URL at module-load time) is never reached anywhere in this
+// script's import graph. Before the fix, this file had to fake a working
+// @/db insert chain just to let that unavoidable DB-backed path succeed —
+// its absence below is itself part of the proof. This file IS wired into
+// `npm test`; the live script itself is never invoked by any automation.
+// Mirrors scripts/radar-intelligence-live-smoke.test.mjs's exact structure.
 //
 // Run: npx tsx --test --experimental-test-module-mocks scripts/radar-discovery-google-places-live-smoke.test.mjs
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 
+// Sanity guard for the test environment itself: this suite's entire point
+// is proving DB-independence, so it must never accidentally run with a
+// real DATABASE_URL already exported that would mask a real bug.
+delete process.env.DATABASE_URL;
+
 mock.module("server-only", { namedExports: {} });
-// The real createConfiguredGooglePlacesProvider() -> createGooglePlacesProvider()
-// path calls the REAL, DB-backed checkDiscoveryProviderRateLimit() (this
-// script exposes no override for it, by design -- keeping its own
-// surface minimal). A working fake @/db (same onConflictDoUpdate/
-// returning() shape lib/api-v1/rate-limit.ts::checkRateLimit() actually
-// issues) lets that real path succeed here rather than fail-closed on a
-// bare {} mock, so these tests exercise the guard/wiring logic this file
-// exists to prove, not an incidental DB-shape mismatch.
-mock.module("@/db", {
-  namedExports: {
-    db: {
-      insert: () => ({
-        values: () => ({
-          onConflictDoUpdate: () => ({
-            returning: () => Promise.resolve([{ count: 1 }]),
-          }),
-        }),
-      }),
-    },
-  },
-});
 
 const { runGooglePlacesLiveSmoke, ACK_FLAG, SMOKE_MAX_RESULTS, SMOKE_SEARCH_REQUEST } = await import("./radar-discovery-google-places-live-smoke.mjs");
 
@@ -169,6 +163,39 @@ test("this module never IMPORTS the discovery-result-store -- structurally canno
     assert.doesNotMatch(line, /discovery-result-store/);
     assert.doesNotMatch(line, /crm_clients|crm-clients/i);
   }
+});
+
+// ---------------- MISSION C-2D-0-FIX — genuinely DB-free ----------------
+
+test("DB-FREE: the full guarded flow (all guards pass, one fetch call) succeeds with NO @/db mock present and NO DATABASE_URL set anywhere in this process", async () => {
+  assert.equal(process.env.DATABASE_URL, undefined, "this test's own premise requires DATABASE_URL to genuinely be unset");
+  const { res, fetchCalls } = await run();
+  assert.equal(fetchCalls, 1);
+  assert.equal(res.exitCode, 0);
+  assert.equal(res.reason, "search-completed");
+});
+
+test("DB-FREE: this script's import graph never reaches @/lib/api-v1/rate-limit or @/db -- source-level guard on the two files that carry the real DB-backed rate limiter", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const scriptSource = await readFile(new URL("./radar-discovery-google-places-live-smoke.mjs", import.meta.url), "utf8");
+  const configuredSource = await readFile(new URL("../lib/radar-discovery/adapters/configured-google-places.ts", import.meta.url), "utf8");
+
+  for (const [label, source] of [["live-smoke script", scriptSource], ["configured-google-places.ts", configuredSource]]) {
+    const importLines = source.split("\n").filter((line) => /^\s*import\b/.test(line));
+    assert.equal(importLines.some((line) => line.includes("@/lib/api-v1/rate-limit")), false, `${label} must never import @/lib/api-v1/rate-limit`);
+    assert.equal(importLines.some((line) => /@\/db\b/.test(line)), false, `${label} must never import @/db`);
+    // Any reference to rate-limit-gate.ts (configured-google-places.ts has
+    // one, for a type) must be type-only -- erased at compile time.
+    const rateLimitGateLine = importLines.find((line) => line.includes("rate-limit-gate"));
+    if (rateLimitGateLine) assert.match(rateLimitGateLine, /^\s*import type\b/, `${label}'s rate-limit-gate reference must be type-only`);
+  }
+});
+
+test("DB-FREE: the live-smoke script supplies its own in-memory checkRateLimit override to createConfiguredGooglePlacesProvider() -- it never relies on the DB-backed default", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("./radar-discovery-google-places-live-smoke.mjs", import.meta.url), "utf8");
+  assert.match(source, /createInMemoryDiscoveryRateLimit/);
+  assert.match(source, /checkRateLimit:\s*createInMemoryDiscoveryRateLimit\(\)/);
 });
 
 test("importing this module runs nothing (no CLI branch executes on import)", async () => {

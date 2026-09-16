@@ -39,7 +39,17 @@ import "server-only";
 import { canAttempt, beginProbe, recordFailure, recordSuccess, initCircuit, DEFAULT_CIRCUIT_CONFIG, type CircuitBreakerConfig, type CircuitBreakerSnapshot } from "@/lib/radar-intelligence/circuit-breaker";
 import { MAX_DISCOVERY_RETRY_ATTEMPTS, makeDiscoveryError, toDiscoveryError, type DiscoveryError } from "../errors";
 import { logDiscoveryProviderEvent } from "../observability";
-import { checkDiscoveryProviderRateLimit, type DiscoveryRateLimitDecision } from "../rate-limit-gate";
+// MISSION C-2D-0-FIX — TYPE-ONLY import. rate-limit-gate.ts transitively
+// imports @/lib/api-v1/rate-limit -> @/db, which throws at MODULE LOAD
+// TIME (not call time) when DATABASE_URL is unset — a plain `import { x }`
+// here would evaluate that whole chain the instant ANYTHING imports this
+// file, even a caller that always supplies its own `checkRateLimit`
+// override and never needs the DB-backed default. `import type` is erased
+// entirely at compile time (zero runtime import), so referencing this
+// module for its TYPE ONLY costs nothing. The real function is resolved
+// LAZILY inside search() below, via a dynamic import, only on the code
+// path that actually needs it (no override was given).
+import type { DiscoveryRateLimitDecision } from "../rate-limit-gate";
 import type { DiscoveryProviderCapability, DiscoveryProviderStatus, DiscoverySearchOutcome, DiscoverySearchRequest } from "../types";
 import type { DiscoveryProvider } from "../provider";
 import {
@@ -99,7 +109,14 @@ function circuitToConnectionState(circuit: CircuitBreakerSnapshot): "connected" 
  */
 export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps): DiscoveryProvider {
   const transport = deps.transport;
-  const checkRateLimit = deps.checkRateLimit ?? checkDiscoveryProviderRateLimit;
+  // MISSION C-2D-0-FIX — the injected override, if any, is captured here
+  // (synchronously, costs nothing). The DB-backed DEFAULT is resolved
+  // LAZILY, inside search() below, via a dynamic import — so a caller
+  // that always supplies its own `checkRateLimit` (e.g. the guarded
+  // live-smoke script, via configured-google-places.ts) never causes
+  // rate-limit-gate.ts (and therefore @/lib/api-v1/rate-limit -> @/db) to
+  // be evaluated at all. See this file's own import comment.
+  const injectedCheckRateLimit = deps.checkRateLimit;
   const nowFn = deps.clock ?? (() => Date.now());
   const circuitConfig = deps.circuitConfig ?? DEFAULT_CIRCUIT_CONFIG;
 
@@ -139,6 +156,9 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
         circuit = beginProbe(circuit, startedAt, circuitConfig);
       }
 
+      // Resolved on first use, never at module load — see this file's own
+      // import comment and the constructor's own comment above.
+      const checkRateLimit = injectedCheckRateLimit ?? (await import("../rate-limit-gate")).checkDiscoveryProviderRateLimit;
       const rateLimit = await checkRateLimit(GOOGLE_PLACES_PROVIDER_ID);
       if (!rateLimit.allowed) {
         // Deliberately does NOT touch circuit state — see this file's

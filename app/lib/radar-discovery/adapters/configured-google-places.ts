@@ -19,6 +19,11 @@ import "server-only";
  */
 import { loadRadarDiscoveryConfig, type LoadedRadarDiscoveryConfig } from "../config-loader";
 import type { DiscoveryProvider } from "../provider";
+// TYPE-ONLY — see google-places-provider.ts's own comment on why this
+// module (rate-limit-gate.ts) must never be imported for a runtime value
+// here: it transitively requires DATABASE_URL at module-load time. Erased
+// entirely at compile time.
+import type { DiscoveryRateLimitDecision } from "../rate-limit-gate";
 import { createGooglePlacesHttpTransport } from "./google-places-http-transport";
 import { createGooglePlacesProvider } from "./google-places-provider";
 
@@ -28,6 +33,19 @@ export type ConfiguredGooglePlacesDeps = {
   fetchImpl?: typeof fetch;
   clock?: () => number;
   requestTimeoutMs?: number;
+  /**
+   * MISSION C-2D-0-FIX — overrides the provider-level rate-limit check.
+   * Omitted (the real application's only current usage): the DB-backed
+   * default is resolved lazily inside createGooglePlacesProvider()'s own
+   * search() — production behavior is unchanged. Supplied (e.g. the
+   * guarded live-smoke script, via
+   * lib/radar-discovery/in-memory-rate-limit.ts): the DB-backed default is
+   * NEVER imported, so this whole call graph never requires DATABASE_URL.
+   * This is a real, functioning rate-limit check either way — never a
+   * bypass (see in-memory-rate-limit.ts's own header for why an in-memory
+   * guard is the architecturally correct choice for a one-shot caller).
+   */
+  checkRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
 };
 
 /**
@@ -53,5 +71,6 @@ export function createConfiguredGooglePlacesProvider(deps: ConfiguredGooglePlace
   return createGooglePlacesProvider({
     transport,
     ...(deps.clock ? { clock: deps.clock } : {}),
+    ...(deps.checkRateLimit ? { checkRateLimit: deps.checkRateLimit } : {}),
   });
 }

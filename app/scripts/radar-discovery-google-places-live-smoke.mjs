@@ -32,6 +32,15 @@
  *    table, ever.
  *  - never creates/edits any .env file
  *  - importing this module runs NOTHING (only the CLI branch executes)
+ *  - MISSION C-2D-0-FIX: genuinely DB-free / independent of DATABASE_URL.
+ *    createConfiguredGooglePlacesProvider() is supplied an in-memory
+ *    checkRateLimit override (lib/radar-discovery/in-memory-rate-limit.ts)
+ *    so the DB-backed default (rate-limit-gate.ts -> @/lib/api-v1/
+ *    rate-limit -> @/db, which requires DATABASE_URL at module-load time)
+ *    is never imported anywhere in this script's call graph — a REAL
+ *    rate-limit check still runs, just process-local instead of
+ *    Postgres-backed (correct for a one-shot CLI invocation with no other
+ *    concurrent instance to coordinate a shared counter with).
  *
  * This module transitively imports `server-only` modules; run it with
  * the react-server condition, same as the Anthropic smoke's own runbook.
@@ -41,6 +50,13 @@
 import { pathToFileURL } from "node:url";
 import { loadRadarDiscoveryConfig } from "../lib/radar-discovery/config-loader.ts";
 import { createConfiguredGooglePlacesProvider } from "../lib/radar-discovery/adapters/configured-google-places.ts";
+// MISSION C-2D-0-FIX — a real, DB-FREE rate-limit check (see that file's
+// own header for the full rationale). WITHOUT this override,
+// createGooglePlacesProvider() would lazily import rate-limit-gate.ts on
+// first search() call, which transitively requires DATABASE_URL — this
+// script must remain independent of any database, so it supplies its own
+// genuine, in-memory guard instead of ever reaching the DB-backed default.
+import { createInMemoryDiscoveryRateLimit } from "../lib/radar-discovery/in-memory-rate-limit.ts";
 
 export const ACK_FLAG = "--i-understand-this-is-a-live-call";
 export const SMOKE_MAX_RESULTS = 1;
@@ -114,6 +130,10 @@ export async function runGooglePlacesLiveSmoke({ argv = [], env = {}, fetchImpl,
     const provider = createConfiguredGooglePlacesProvider({
       loadedConfig: { googlePlaces: cfg },
       ...(countingFetch ? { fetchImpl: countingFetch } : {}),
+      // DB-free, real guard — see this file's own import comment. A fresh
+      // limiter per invocation (this script runs once and exits), never
+      // the DB-backed default.
+      checkRateLimit: createInMemoryDiscoveryRateLimit(),
     });
     if (!provider) {
       err("Refused: provider could not be configured despite guards passing. Zero provider calls were made.");
