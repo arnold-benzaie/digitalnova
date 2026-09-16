@@ -440,3 +440,42 @@ test("EMP-NAV-9: the Users item is never duplicated under any isEmployeeTier val
 test("EMP-NAV-10: getClientNavSections() never contains /admin/users regardless (client portal is unaffected)", () => {
   assert.equal(usersItems(getClientNavSections(t)).length, 0);
 });
+
+// -------------------- MISSION C-2C-1 — Discovery nav item --------------------
+
+test("C-2C-1: getStaffNavSections() includes a Discovery link to /admin/crm/discovery in the crm section", () => {
+  const sections = getStaffNavSections(t);
+  const crm = sections.find((s) => s.key === "crm");
+  assert.ok(crm, "expected a 'crm' section to exist");
+
+  const discoveryItem = crm.items.find((i) => i.href === "/admin/crm/discovery");
+  assert.ok(discoveryItem, "expected an item linking to /admin/crm/discovery in the crm section");
+  assert.equal(discoveryItem.label, t.items.discovery);
+});
+
+test("C-2C-1: getStaffNavSections() has exactly one item pointing to /admin/crm/discovery, across all sections", () => {
+  const sections = getStaffNavSections(t);
+  const matches = sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/crm/discovery");
+  assert.equal(matches.length, 1);
+});
+
+test("C-2C-1: the Discovery link is visible under the same conditions as the plain Radar link (no gating option required) — present regardless of opts", () => {
+  const noOpts = getStaffNavSections(t);
+  const employeeLike = getStaffNavSections(t, { isOwner: false, canManageWorkforce: false, isEmployeeTier: true, canWorkRadar: true });
+  for (const sections of [noOpts, employeeLike]) {
+    const matches = sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/crm/discovery");
+    assert.equal(matches.length, 1, "Discovery must be visible in the nav the same way Radar already is — the page's own requireRadarAccess() gate is the real, server-side authority, never this list");
+  }
+});
+
+test("C-2C-1: getClientNavSections() never links to /admin/crm/discovery — CLIENT never sees the Discovery link", () => {
+  const sections = getClientNavSections(t);
+  const matches = sections.flatMap((s) => s.items).filter((i) => i.href === "/admin/crm/discovery");
+  assert.equal(matches.length, 0);
+});
+
+test("C-2C-1: getClientNavSections() has no item labeled like the Discovery nav entry", () => {
+  const sections = getClientNavSections(t);
+  const matches = sections.flatMap((s) => s.items).filter((i) => i.label === t.items.discovery);
+  assert.equal(matches.length, 0);
+});

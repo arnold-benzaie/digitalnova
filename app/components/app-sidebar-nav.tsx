@@ -13,7 +13,7 @@ type NavDict = {
   items: {
     dashboard: string; newAudit: string; audits: string; reports: string; quoteRequests: string; offers: string;
     team: string; notifications: string; settings: string; organizations: string; messaging: string; users: string; workforce: string; ownerControl: string; aiProviders: string; aiGovernance: string; myWork: string; clientApprovals: string;
-    auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
+    auditLog: string; systemHealth: string; siteAnalytics: string; crmDashboard: string; clients: string; radar: string; discovery: string; commercialPerformance: string; pipeline: string; contracts: string; quotes: string;
     invoices: string; tickets: string; tasks: string; calendar: string; projects: string; billing: string;
     automations: string; catalogue: string; googleBusinessProfile: string; googleSearchConsole: string; googleAnalytics: string; documents: string; integrations: string;
   };
@@ -124,6 +124,15 @@ export function getStaffNavSections(
         { label: t.items.crmDashboard, href: "/admin/crm", icon: "briefcase" },
         { label: t.items.clients, href: "/admin/crm/clients", icon: "userCircle" },
         { label: t.items.radar, href: "/admin/crm/radar", icon: "star" },
+        // MISSION C-2C-1 — a separate surface from Radar above (external
+        // prospect search vs. scoring existing crm_clients). Visible to
+        // every staff viewer reaching this section, exactly like the plain
+        // `radar` item above — the page's own requireRadarAccess(
+        // "RADAR_QUEUE_VIEW") gate (identical to Radar's) is the sole
+        // authority; this list never decides real access. CLIENT never
+        // reaches this list at all (getClientNavSections() is a completely
+        // separate function with no CRM items).
+        { label: t.items.discovery, href: "/admin/crm/discovery", icon: "search" },
         { label: t.items.commercialPerformance, href: "/admin/crm/performance", icon: "gauge" },
         { label: t.items.pipeline, href: "/admin/crm/pipeline", icon: "trendingUp" },
         { label: t.items.contracts, href: "/admin/crm/contracts", icon: "fileSignature" },

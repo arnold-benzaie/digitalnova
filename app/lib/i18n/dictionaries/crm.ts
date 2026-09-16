@@ -220,6 +220,51 @@ export const crm = {
         emptyState: "Aucun employé actif dans votre équipe.",
       },
     },
+    // MISSION C-2C-1 — RADAR Discovery UI. A separate surface from `radar`
+    // above (RADAR Core scores EXISTING crm_clients; Discovery searches an
+    // EXTERNAL provider for new prospects) — see app/admin/crm/discovery/
+    // page.tsx and components/crm/discovery-search-panel.tsx. Columns are
+    // deliberately limited to name/source/status: the C-2A contract
+    // (lib/actions/radar-discovery-search.ts::RadarDiscoverySearchItem)
+    // carries no category/address/city/region/country on its result items
+    // (those exist only on the SEARCH REQUEST, not the response) — this UI
+    // never invents data the backend does not actually return.
+    discovery: {
+      title: "Discovery",
+      subtitle:
+        "Recherchez de nouveaux prospects auprès d'un fournisseur externe (actuellement Google Places). Les résultats restent séparés du CRM tant qu'ils ne sont pas ajoutés explicitement — cette étape n'existe pas encore dans cette version.",
+      countryLabel: "Pays",
+      countryPlaceholder: "ex. France",
+      regionLabel: "Région / État / Province",
+      regionPlaceholder: "ex. Île-de-France",
+      cityLabel: "Ville",
+      cityPlaceholder: "ex. Paris",
+      categoryLabel: "Catégorie",
+      categoryPlaceholder: "ex. agences digitales",
+      searchButton: "Rechercher",
+      searching: "Recherche en cours…",
+      loadMore: "Charger plus",
+      loadingMore: "Chargement…",
+      readyTitle: "Prêt à rechercher",
+      readyDescription: "Renseignez au moins un critère (pays, région, ville ou catégorie) puis lancez une recherche.",
+      noResultsTitle: "Aucun résultat trouvé pour ces critères.",
+      noResultsDescription: "Essayez d'autres critères de recherche.",
+      validationEmptyCriteria: "Renseignez au moins un critère : pays, région, ville ou catégorie.",
+      columns: { name: "Nom", source: "Source", status: "Statut" },
+      statusCreated: "Nouveau",
+      statusAlreadyDiscovered: "Déjà découvert",
+      statusAlreadyInCrm: "Déjà dans le CRM",
+      summaryCreated: (count: number) => `${count} nouveau(x)`,
+      summaryAlreadyDiscovered: (count: number) => `${count} déjà découvert(s)`,
+      summaryAlreadyInCrm: (count: number) => `${count} déjà dans le CRM`,
+      errInvalidRequest: "Requête de recherche invalide. Vérifiez les critères saisis.",
+      errActorRateLimited: (retryAfterSeconds: number) =>
+        `Vous avez atteint votre limite de recherches. Réessayez dans ${retryAfterSeconds} secondes.`,
+      errProviderUnavailable: "Le fournisseur de recherche est temporairement indisponible.",
+      errProviderRateLimited: "Trop de recherches en ce moment. Réessayez plus tard.",
+      errProviderTimeout: "La recherche a pris trop de temps. Réessayez.",
+      errProviderError: "Une erreur est survenue pendant la recherche. Réessayez.",
+    },
     pipeline: {
       title: "Pipeline commercial",
       summary: (count: number, totalValue: string) =>
@@ -1068,6 +1113,45 @@ export const crm = {
         roleEmployee: "Employee",
         emptyState: "No active employees in your team.",
       },
+    },
+    // MISSION C-2C-1 — see the FR block above. FR/EN key sets kept
+    // identical by convention (no automated parity test for this domain,
+    // unlike radar.reasons/nextActions above).
+    discovery: {
+      title: "Discovery",
+      subtitle:
+        "Search for new prospects through an external provider (currently Google Places). Results stay separate from the CRM until explicitly added — that step does not exist yet in this version.",
+      countryLabel: "Country",
+      countryPlaceholder: "e.g. France",
+      regionLabel: "Region / State / Province",
+      regionPlaceholder: "e.g. Île-de-France",
+      cityLabel: "City",
+      cityPlaceholder: "e.g. Paris",
+      categoryLabel: "Category",
+      categoryPlaceholder: "e.g. digital agencies",
+      searchButton: "Search",
+      searching: "Searching…",
+      loadMore: "Load more",
+      loadingMore: "Loading…",
+      readyTitle: "Ready to search",
+      readyDescription: "Enter at least one criterion (country, region, city, or category), then run a search.",
+      noResultsTitle: "No results found for these criteria.",
+      noResultsDescription: "Try different search criteria.",
+      validationEmptyCriteria: "Enter at least one criterion: country, region, city, or category.",
+      columns: { name: "Name", source: "Source", status: "Status" },
+      statusCreated: "New",
+      statusAlreadyDiscovered: "Already discovered",
+      statusAlreadyInCrm: "Already in CRM",
+      summaryCreated: (count: number) => `${count} new`,
+      summaryAlreadyDiscovered: (count: number) => `${count} already discovered`,
+      summaryAlreadyInCrm: (count: number) => `${count} already in CRM`,
+      errInvalidRequest: "Invalid search request. Check the criteria you entered.",
+      errActorRateLimited: (retryAfterSeconds: number) =>
+        `You've reached your search limit. Try again in ${retryAfterSeconds} seconds.`,
+      errProviderUnavailable: "The search provider is temporarily unavailable.",
+      errProviderRateLimited: "Too many searches right now. Try again later.",
+      errProviderTimeout: "The search took too long. Try again.",
+      errProviderError: "Something went wrong during the search. Try again.",
     },
     pipeline: {
       title: "Sales pipeline",
