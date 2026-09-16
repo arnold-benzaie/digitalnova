@@ -49,12 +49,38 @@ test("B. maxResults must be a positive integer within the ceiling", () => {
   assert.equal(validateDiscoverySearchRequest(base({ maxResults: 100 })).ok, true);
 });
 
-test("B. fieldSet must be one of the closed set", () => {
-  assert.equal(validateDiscoverySearchRequest(base({ fieldSet: "bogus" })).ok, false);
-  assert.equal(validateDiscoverySearchRequest(base({ fieldSet: undefined })).ok, false);
-  for (const fieldSet of ["minimal_discovery", "enrichment", "details"]) {
-    assert.equal(validateDiscoverySearchRequest(base({ fieldSet })).ok, true);
+// ---- SECURITY (MISSION C-2D-4-C): fieldSet is locked, never caller-influenced ----
+//
+// search-request.ts no longer reads `fieldSet` from the candidate AT ALL
+// (see that file's own header) -- the validated request's fieldSet is a
+// fixed constant, always "minimal_discovery", regardless of what (if
+// anything) the caller sent. This replaces the pre-C-2D-4-C test that
+// accepted "enrichment"/"details" as valid caller-chosen values -- that
+// was precisely the vulnerability this mission closes.
+
+test("SECURITY (C-2D-4-C): fieldSet in the candidate NEVER influences the validated request -- always locked to minimal_discovery, whatever the caller sends", () => {
+  const candidateFieldSets = ["minimal_discovery", "enrichment", "details", "bogus", "enterprise", undefined, null, {}, 42, ["details"]];
+  for (const fieldSet of candidateFieldSets) {
+    const r = validateDiscoverySearchRequest(base({ fieldSet }));
+    assert.equal(r.ok, true, `fieldSet=${JSON.stringify(fieldSet)} must never affect validity`);
+    assert.equal(r.request.fieldSet, "minimal_discovery", `fieldSet=${JSON.stringify(fieldSet)} must never leak through -- always minimal_discovery`);
   }
+});
+
+test("SECURITY (C-2D-4-C): fieldSet key entirely absent from the candidate still yields minimal_discovery -- the field is not required from the caller at all", () => {
+  const withoutFieldSet = base();
+  delete withoutFieldSet.fieldSet;
+  const r = validateDiscoverySearchRequest(withoutFieldSet);
+  assert.equal(r.ok, true);
+  assert.equal(r.request.fieldSet, "minimal_discovery");
+});
+
+test("SECURITY (C-2D-4-C) POISONED OBJECT: a malicious request object carrying a privileged fieldSet cannot transmit it through validation -- the returned request always diverges from the poisoned input on this field", () => {
+  const poisoned = base({ fieldSet: "details", maxResults: 20 });
+  const r = validateDiscoverySearchRequest(poisoned);
+  assert.equal(r.ok, true);
+  assert.equal(r.request.fieldSet, "minimal_discovery");
+  assert.notEqual(r.request.fieldSet, poisoned.fieldSet);
 });
 
 test("B. latitude/longitude out of range are rejected", () => {

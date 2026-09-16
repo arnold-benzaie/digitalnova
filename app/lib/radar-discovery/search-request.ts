@@ -6,8 +6,22 @@
  * exactly like advisory-core.ts validates `clientId` before touching a
  * registry/router. Never trusts a caller-supplied value merely because it
  * type-checked; every field is independently re-validated here.
+ *
+ * SECURITY HARDENING (MISSION C-2D-4-C) — `fieldSet` is DELIBERATELY NOT
+ * read from the caller's candidate at all, in either direction: not
+ * validated, not copied, not even inspected. This is the ONE validator
+ * lib/actions/radar-discovery-search.ts uses, and that action is a mass-
+ * discovery search — it must stay a cheap, "minimal_discovery"-only
+ * operation, structurally, not merely by convention. A caller (UI or a
+ * forged payload sent directly to the Server Action) requesting
+ * `"enrichment"`/`"details"` — or any other value, valid or not — has
+ * nothing to influence here: the returned request's `fieldSet` is a fixed
+ * constant, always. A future gated enrichment/Details path (not built
+ * here — see mission section on "Enrichment/Details = futur chemin
+ * individuel séparé") would need its OWN, separately-authorized request
+ * shape/validator — never a widened version of this one.
  */
-import { DISCOVERY_FIELD_SETS, DISCOVERY_SEARCH_MAX_RESULTS_CEILING, isDiscoveryFieldSet, type DiscoverySearchRequest } from "./types";
+import { DISCOVERY_SEARCH_MAX_RESULTS_CEILING, type DiscoverySearchRequest } from "./types";
 
 export type SearchRequestValidationResult = { ok: true; request: DiscoverySearchRequest } | { ok: false; reason: string };
 
@@ -59,10 +73,6 @@ export function validateDiscoverySearchRequest(candidate: unknown): SearchReques
     return { ok: false, reason: `maxResults must be an integer between 1 and ${DISCOVERY_SEARCH_MAX_RESULTS_CEILING}` };
   }
 
-  if (!isDiscoveryFieldSet(raw.fieldSet)) {
-    return { ok: false, reason: `fieldSet must be one of ${DISCOVERY_FIELD_SETS.join(", ")}` };
-  }
-
   // At least one geographic OR category signal is required — an entirely
   // empty request ("search everything, everywhere") is never valid in
   // this phase. World-scale search is explicitly a LATER phase's concern
@@ -84,7 +94,9 @@ export function validateDiscoverySearchRequest(candidate: unknown): SearchReques
       radiusMeters: radiusMeters.value,
       cursor: cursor.value,
       maxResults: raw.maxResults,
-      fieldSet: raw.fieldSet,
+      // SECURITY HARDENING (C-2D-4-C) — a fixed constant, NEVER
+      // `raw.fieldSet`. See this file's own header.
+      fieldSet: "minimal_discovery",
     },
   };
 }

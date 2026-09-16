@@ -199,7 +199,7 @@ test("REQUEST: a valid request proceeds to the provider", async () => {
   assert.equal(result.status, "ok");
 });
 
-test("REQUEST: an invalid request (missing maxResults/fieldSet) is rejected -- ZERO downstream calls", async () => {
+test("REQUEST: an invalid request (missing maxResults) is rejected -- ZERO downstream calls", async () => {
   const result = await searchRadarDiscovery({ category: "restaurants" });
   assert.equal(result.status, "invalid_request");
   assert.equal(typeof result.reason, "string");
@@ -273,6 +273,81 @@ test("PROVIDER: nextCursor is relayed verbatim from the provider outcome", async
   providerInstance.search = async () => ({ results: [], nextCursor: "opaque-token" });
   const result = await searchRadarDiscovery(VALID_REQUEST);
   assert.equal(result.nextCursor, "opaque-token");
+});
+
+// ---- SECURITY (MISSION C-2D-4-C): fieldSet is server-locked, never caller-influenced ----
+//
+// Closes the vulnerability identified in the C-2D-4-B audit: a payload
+// forged directly against this Server Action (bypassing the UI, which
+// itself always sent "minimal_discovery") could previously request
+// "enrichment"/"details" and have that value reach the Google provider,
+// triggering the more expensive Google SKU tier and silently persisting
+// phone/website/openingHours nobody asked to see. These tests prove the
+// provider NEVER receives anything but "minimal_discovery", regardless of
+// what the raw payload's `fieldSet` claims.
+
+test("SECURITY (C-2D-4-C): a forged fieldSet=\"details\" never reaches the provider -- it always receives minimal_discovery", async () => {
+  let observedFieldSet;
+  providerInstance.search = async (request) => {
+    observedFieldSet = request.fieldSet;
+    return { results: [fakePlace()], nextCursor: null };
+  };
+  const result = await searchRadarDiscovery({ ...VALID_REQUEST, fieldSet: "details" });
+  assert.equal(result.status, "ok");
+  assert.equal(observedFieldSet, "minimal_discovery");
+});
+
+test("SECURITY (C-2D-4-C): a forged fieldSet=\"enrichment\" never reaches the provider -- it always receives minimal_discovery", async () => {
+  let observedFieldSet;
+  providerInstance.search = async (request) => {
+    observedFieldSet = request.fieldSet;
+    return { results: [fakePlace()], nextCursor: null };
+  };
+  const result = await searchRadarDiscovery({ ...VALID_REQUEST, fieldSet: "enrichment" });
+  assert.equal(result.status, "ok");
+  assert.equal(observedFieldSet, "minimal_discovery");
+});
+
+test("SECURITY (C-2D-4-C): every unexpected fieldSet value (bogus string, null, object, array, a fabricated 'enterprise' tier, or entirely absent) still reaches the provider as exactly minimal_discovery -- none of them ever change the request that leaves this action, and the search still succeeds normally", async () => {
+  for (const forged of ["details", "enrichment", "bogus", "enterprise", null, {}, ["details"], undefined]) {
+    let observedFieldSet;
+    providerInstance.search = async (request) => {
+      observedFieldSet = request.fieldSet;
+      return { results: [fakePlace()], nextCursor: null };
+    };
+    const payload = forged === undefined ? VALID_REQUEST : { ...VALID_REQUEST, fieldSet: forged };
+    const result = await searchRadarDiscovery(payload);
+    assert.equal(result.status, "ok", `forged fieldSet=${JSON.stringify(forged)} must not break a valid search`);
+    assert.equal(observedFieldSet, "minimal_discovery", `forged fieldSet=${JSON.stringify(forged)} must never reach the provider`);
+  }
+});
+
+test("SECURITY (C-2D-4-C) POISONED OBJECT: the request object handed to the provider is a clean literal with exactly the documented DiscoverySearchRequest keys -- no extra field (fieldSet or otherwise) smuggled through from a poisoned payload", async () => {
+  let observedRequest;
+  providerInstance.search = async (request) => {
+    observedRequest = request;
+    return { results: [fakePlace()], nextCursor: null };
+  };
+  const poisoned = { ...VALID_REQUEST, fieldSet: "details", extraDangerousField: "should never appear", __proto__: { polluted: true } };
+  await searchRadarDiscovery(poisoned);
+  assert.deepEqual(
+    Object.keys(observedRequest).sort(),
+    ["category", "city", "country", "cursor", "fieldSet", "latitude", "longitude", "maxResults", "radiusMeters", "region"].sort(),
+  );
+  assert.equal(observedRequest.fieldSet, "minimal_discovery");
+  assert.equal("extraDangerousField" in observedRequest, false);
+  assert.equal("polluted" in observedRequest, false);
+});
+
+test("SECURITY (C-2D-4-C): minimal_discovery itself (the legitimate, expected value) still works exactly as before -- the hardening never breaks the real UI's own request", async () => {
+  let observedFieldSet;
+  providerInstance.search = async (request) => {
+    observedFieldSet = request.fieldSet;
+    return { results: [fakePlace()], nextCursor: null };
+  };
+  const result = await searchRadarDiscovery({ ...VALID_REQUEST, fieldSet: "minimal_discovery" });
+  assert.equal(result.status, "ok");
+  assert.equal(observedFieldSet, "minimal_discovery");
 });
 
 // ---- DEDUP ----

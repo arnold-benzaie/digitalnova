@@ -43,6 +43,24 @@
  * treated as "not yet a confirmed duplicate" and the discovery result is
  * still created normally, exactly matching Phase A's own "never merge on
  * an ambiguous signal" philosophy.
+ *
+ * FIELD-MASK SECURITY (MISSION C-2D-4-C): this action is, and must always
+ * remain, a cheap MASS-DISCOVERY search — never a channel to request
+ * Google's costlier "enrichment"/"details" field-set tiers (phone,
+ * website, opening hours — Enterprise-tier Google fields, per the
+ * verified official SKU documentation). Enforced at TWO independent
+ * points, neither of which trusts the caller's payload: (1)
+ * validateDiscoverySearchRequest() never reads `fieldSet` from the raw
+ * candidate at all (search-request.ts's own header); (2) the
+ * `providerRequest` literal built just before `provider.search()` below
+ * hand-builds every field from `validated.request` and hard-codes
+ * `fieldSet: "minimal_discovery"` unconditionally — never a spread that
+ * could inherit a different value. A forged payload sent directly to this
+ * Server Action (bypassing the UI, which itself never offered anything
+ * else) requesting `fieldSet: "enrichment"`/`"details"` has NOTHING to
+ * influence at either point. A future, SEPARATELY-AUTHORIZED enrichment
+ * path (not built here) would need its own dedicated action and request
+ * shape — never a widening of this one.
  */
 import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
@@ -53,7 +71,7 @@ import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import { createDiscoveryResult } from "@/lib/radar-discovery/discovery-result-store";
 import { logDiscoveryProviderEvent } from "@/lib/radar-discovery/observability";
 import type { DiscoveryError } from "@/lib/radar-discovery/errors";
-import type { DiscoveryProviderResult } from "@/lib/radar-discovery/types";
+import type { DiscoverySearchRequest, DiscoveryProviderResult } from "@/lib/radar-discovery/types";
 
 /**
  * MISSION C-2C-1.5 — additive widening of the "created"/"already_discovered"
@@ -178,10 +196,33 @@ export async function searchRadarDiscovery(rawRequest: unknown): Promise<RadarDi
     return { status: "provider_unavailable" };
   }
 
+  // SECURITY HARDENING (MISSION C-2D-4-C) — DEFENSE IN DEPTH, independent
+  // of validateDiscoverySearchRequest()'s own guarantee (that validator
+  // never reads `fieldSet` from the caller at all — see search-request.ts).
+  // This is a SECOND, independent enforcement point: even if a future
+  // change to that validator (or to DiscoverySearchRequest's own shape)
+  // ever let a caller-influenced fieldSet slip through, THIS action —
+  // the one public entry point for mass Discovery search — still never
+  // forwards anything but "minimal_discovery" to a provider. A hand-built
+  // literal, never a spread that could silently inherit a different
+  // fieldSet from `validated.request`.
+  const providerRequest: DiscoverySearchRequest = {
+    country: validated.request.country,
+    region: validated.request.region,
+    city: validated.request.city,
+    category: validated.request.category,
+    latitude: validated.request.latitude,
+    longitude: validated.request.longitude,
+    radiusMeters: validated.request.radiusMeters,
+    cursor: validated.request.cursor,
+    maxResults: validated.request.maxResults,
+    fieldSet: "minimal_discovery",
+  };
+
   const startedAt = Date.now();
   let outcome;
   try {
-    outcome = await provider.search(validated.request);
+    outcome = await provider.search(providerRequest);
   } catch (thrown) {
     const error = thrown as DiscoveryError;
     logDiscoveryProviderEvent({
