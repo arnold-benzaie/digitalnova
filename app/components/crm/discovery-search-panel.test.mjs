@@ -41,6 +41,17 @@ mock.module("@/lib/actions/radar-discovery-search", {
   },
 });
 
+// MISSION C-2C-2-C — never invoked below (no click simulation, no
+// act()-capable harness — see this file's own header); present only so
+// the module import resolves.
+mock.module("@/lib/actions/radar-discovery-convert", {
+  namedExports: {
+    convertDiscoveryResult: async () => {
+      throw new Error("convertDiscoveryResult must not be called in this test file");
+    },
+  },
+});
+
 const {
   DiscoverySearchPanel,
   DISCOVERY_UI_FIELD_SET,
@@ -56,6 +67,10 @@ const {
   shouldShowEmptyResultsMessage,
   canSubmitDiscoverySearch,
   canLoadMore,
+  canShowConvertButton,
+  isConvertButtonDisabled,
+  mapConvertOutcomeToState,
+  discoveryConversionMessage,
 } = await import("./discovery-search-panel.tsx");
 
 const T = {
@@ -78,7 +93,7 @@ const T = {
   noResultsTitle: "Aucun résultat trouvé pour ces critères.",
   noResultsDescription: "Essayez d'autres critères.",
   validationEmptyCriteria: "Renseignez au moins un critère.",
-  columns: { name: "Nom", category: "Catégorie", address: "Adresse", city: "Ville", region: "Région", country: "Pays", source: "Source", status: "Statut" },
+  columns: { name: "Nom", category: "Catégorie", address: "Adresse", city: "Ville", region: "Région", country: "Pays", source: "Source", status: "Statut", actions: "Actions" },
   noValue: "—",
   statusCreated: "Nouveau",
   statusAlreadyDiscovered: "Déjà découvert",
@@ -92,6 +107,11 @@ const T = {
   errProviderRateLimited: "Trop de recherches.",
   errProviderTimeout: "Délai dépassé.",
   errProviderError: "Erreur du fournisseur.",
+  addToCrm: "Ajouter au CRM",
+  addingToCrm: "Ajout en cours…",
+  addedToCrm: "Ajouté",
+  convertAmbiguous: "À vérifier manuellement dans le CRM",
+  convertNotFound: "Résultat introuvable. Réessayez.",
 };
 
 const EMPTY = { country: "", region: "", city: "", category: "" };
@@ -212,6 +232,7 @@ test("E. created item -> row carries name/source/status/category/address/country
   assert.deepEqual(row, {
     key: "google_places::abc", name: "Le Petit Café", source: "google_places", status: "created",
     category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+    discoveryResultId: "d-1",
   });
   assert.equal(discoveryStatusLabel(row.status, T), "Nouveau");
 });
@@ -273,12 +294,16 @@ test("G/P. already_in_crm item -> row EXPLICITLY nulls category/address/country/
     longitude: 2.35,
     candidateClientIds: ["a", "b"],
     matchReason: "email match",
+    // MISSION C-2C-2-C — a poisoned discoveryResultId must never surface
+    // either: already_in_crm always resolves to null, structurally.
+    discoveryResultId: "should-never-appear",
   };
   const row = toDiscoveryRow(poisoned);
-  assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "key", "latitude", "longitude", "name", "region", "source", "status"]);
+  assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "discoveryResultId", "key", "latitude", "longitude", "name", "region", "source", "status"]);
   assert.deepEqual(row, {
     key: "google_places::abc", name: "X", source: "google_places", status: "already_in_crm",
     category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null,
+    discoveryResultId: null,
   });
   assert.equal(discoveryStatusLabel(row.status, T), "Déjà dans le CRM");
   assert.equal(JSON.stringify(row).includes("crmClientId"), false);
@@ -349,5 +374,73 @@ test("P. no error-message branch ever includes a raw stack trace, SQL, or provid
     const message = mapDiscoverySearchErrorMessage(c, T);
     assert.equal(typeof message, "string");
     assert.doesNotMatch(message, /at |Error:|SELECT |INSERT |sk-|AIza/i);
+  }
+});
+
+// ------------------------- MISSION C-2C-2-C — "Add to CRM" -------------------------
+
+test("idle render: no 'Add to CRM' button exists before any search (no results, nothing to convert yet)", () => {
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T }));
+  assert.doesNotMatch(markup, /Ajouter au CRM/);
+});
+
+test("canShowConvertButton: true for created/already_discovered, false for already_in_crm", () => {
+  assert.equal(canShowConvertButton("created"), true);
+  assert.equal(canShowConvertButton("already_discovered"), true);
+  assert.equal(canShowConvertButton("already_in_crm"), false);
+});
+
+test("isConvertButtonDisabled: false when idle or after an error (retryable); true while pending or once done", () => {
+  assert.equal(isConvertButtonDisabled({ kind: "idle" }), false);
+  assert.equal(isConvertButtonDisabled({ kind: "error" }), false);
+  assert.equal(isConvertButtonDisabled({ kind: "pending" }), true);
+  assert.equal(isConvertButtonDisabled({ kind: "done", outcome: "converted" }), true);
+  assert.equal(isConvertButtonDisabled({ kind: "done", outcome: "already_converted" }), true);
+  assert.equal(isConvertButtonDisabled({ kind: "done", outcome: "already_in_crm" }), true);
+  assert.equal(isConvertButtonDisabled({ kind: "done", outcome: "ambiguous_match" }), true);
+});
+
+test("mapConvertOutcomeToState: exhaustive over every real ConvertDiscoveryResultOutcome status", () => {
+  assert.deepEqual(mapConvertOutcomeToState("converted"), { kind: "done", outcome: "converted" });
+  assert.deepEqual(mapConvertOutcomeToState("already_converted"), { kind: "done", outcome: "already_converted" });
+  assert.deepEqual(mapConvertOutcomeToState("already_in_crm"), { kind: "done", outcome: "already_in_crm" });
+  assert.deepEqual(mapConvertOutcomeToState("ambiguous_match"), { kind: "done", outcome: "ambiguous_match" });
+  assert.deepEqual(mapConvertOutcomeToState("not_found"), { kind: "error" });
+});
+
+test("discoveryConversionMessage: converted/already_converted -> 'Ajouté' badge", () => {
+  assert.equal(discoveryConversionMessage({ kind: "done", outcome: "converted" }, T), "Ajouté");
+  assert.equal(discoveryConversionMessage({ kind: "done", outcome: "already_converted" }, T), "Ajouté");
+});
+
+test("discoveryConversionMessage: already_in_crm -> the SAME 'Déjà dans le CRM' wording as the search-time status badge", () => {
+  assert.equal(discoveryConversionMessage({ kind: "done", outcome: "already_in_crm" }, T), T.statusAlreadyInCrm);
+});
+
+test("discoveryConversionMessage: ambiguous_match -> a neutral manual-review message", () => {
+  assert.equal(discoveryConversionMessage({ kind: "done", outcome: "ambiguous_match" }, T), "À vérifier manuellement dans le CRM");
+});
+
+test("discoveryConversionMessage: error (not_found) -> a generic, retryable message", () => {
+  assert.equal(discoveryConversionMessage({ kind: "error" }, T), "Résultat introuvable. Réessayez.");
+});
+
+test("discoveryConversionMessage: idle/pending -> null (the button itself already communicates the state)", () => {
+  assert.equal(discoveryConversionMessage({ kind: "idle" }, T), null);
+  assert.equal(discoveryConversionMessage({ kind: "pending" }, T), null);
+});
+
+test("SECURITY: no conversion message for any outcome ever contains a CRM client id, name, or email-shaped string", () => {
+  const states = [
+    { kind: "done", outcome: "converted" },
+    { kind: "done", outcome: "already_converted" },
+    { kind: "done", outcome: "already_in_crm" },
+    { kind: "done", outcome: "ambiguous_match" },
+    { kind: "error" },
+  ];
+  for (const state of states) {
+    const message = discoveryConversionMessage(state, T);
+    assert.equal(typeof message, "string");
+    assert.doesNotMatch(message, /@|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
   }
 });

@@ -27,9 +27,14 @@
  * structurally separate member of the discriminated union, untouched by
  * C-2C-1.5's widening), not just by this component's own discipline.
  *
- * NO CONVERSION IN THIS MISSION: there is deliberately no "Add to CRM"
- * affordance anywhere below — createClient()/convertDiscoveryResult() are
- * out of scope for C-2C-1 (a later mission).
+ * CONVERSION (MISSION C-2C-2-C): "Add to CRM" calls convertDiscoveryResult()
+ * (lib/actions/radar-discovery-convert.ts) directly — the ONLY channel,
+ * never a second fetch/API. Only `discoveryResultId` is ever sent; this
+ * component holds no role/userId/assignedUserId to send even if it
+ * wanted to. The button exists only for created/already_discovered (never
+ * already_in_crm, which has nothing to convert). Its per-row result is
+ * rendered as a badge, never as an existing CRM client's id/name/email —
+ * the action's own contract structurally cannot return one.
  *
  * PAGINATION: `nextCursor` is opaque and only ever round-tripped verbatim
  * into the next call's `cursor` — never decoded, constructed, or guessed.
@@ -38,6 +43,7 @@
  */
 import { useState, useTransition, type FormEvent } from "react";
 import { searchRadarDiscovery, type RadarDiscoverySearchItem, type RadarDiscoverySearchResult } from "@/lib/actions/radar-discovery-search";
+import { convertDiscoveryResult, type ConvertDiscoveryResultOutcome } from "@/lib/actions/radar-discovery-convert";
 
 /** The one field set this mission uses — see this file's own header and
  * lib/radar-discovery/field-masks.ts: minimal_discovery already supplies
@@ -82,7 +88,7 @@ export type DiscoverySearchDict = {
   noResultsTitle: string;
   noResultsDescription: string;
   validationEmptyCriteria: string;
-  columns: { name: string; category: string; address: string; city: string; region: string; country: string; source: string; status: string };
+  columns: { name: string; category: string; address: string; city: string; region: string; country: string; source: string; status: string; actions: string };
   /** Displayed for any of the new optional fields when null (mirrors
    * crm.radar's own `noValue` convention) — never a blank cell. */
   noValue: string;
@@ -98,6 +104,11 @@ export type DiscoverySearchDict = {
   errProviderRateLimited: string;
   errProviderTimeout: string;
   errProviderError: string;
+  addToCrm: string;
+  addingToCrm: string;
+  addedToCrm: string;
+  convertAmbiguous: string;
+  convertNotFound: string;
 };
 
 /** True when at least one of the four supported criteria has real (post
@@ -163,6 +174,10 @@ export type DiscoveryResultRow = {
   city: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** null for already_in_crm (structurally absent on that branch) — the
+   * id "Add to CRM" (MISSION C-2C-2-C) targets for created/
+   * already_discovered. Never a CRM-internal identifier. */
+  discoveryResultId: string | null;
 };
 
 /**
@@ -193,6 +208,7 @@ export function toDiscoveryRow(item: RadarDiscoverySearchItem): DiscoveryResultR
       city: null,
       latitude: null,
       longitude: null,
+      discoveryResultId: null,
     };
   }
   return {
@@ -207,6 +223,7 @@ export function toDiscoveryRow(item: RadarDiscoverySearchItem): DiscoveryResultR
     city: item.city,
     latitude: item.latitude,
     longitude: item.longitude,
+    discoveryResultId: item.discoveryResultId,
   };
 }
 
@@ -286,6 +303,73 @@ export function canLoadMore(args: { isBusy: boolean; nextCursor: string | null; 
   return !args.isBusy && args.nextCursor !== null && args.activeQuery !== null;
 }
 
+/**
+ * MISSION C-2C-2-C — "Add to CRM" per-row state. Presentation-only: every
+ * real decision (RBAC, dedup, transaction, assignment) is made by
+ * convertDiscoveryResult() (lib/actions/radar-discovery-convert.ts) — this
+ * component only tracks, per discoveryResultId, what that action last
+ * returned, and renders accordingly. Never a spread of the outcome, never
+ * a stored clientId/existing-CRM field (the outcome itself never carries
+ * one — see that file's own header).
+ */
+export type DiscoveryConversionState =
+  | { kind: "idle" }
+  | { kind: "pending" }
+  | { kind: "done"; outcome: "converted" | "already_converted" | "already_in_crm" | "ambiguous_match" }
+  /** covers `not_found` and any unexpected rejection — generic and
+   * retryable, never distinguishing the two (mirrors the action's own
+   * not_found opacity contract). */
+  | { kind: "error" };
+
+/** The button exists ONLY for a result the caller might plausibly still
+ * want to convert — never for `already_in_crm` (nothing to convert: it is
+ * structurally already a CRM client). */
+export function canShowConvertButton(status: RadarDiscoverySearchItem["status"]): boolean {
+  return status === "created" || status === "already_discovered";
+}
+
+/** Disabled while a conversion is in flight, or once a terminal decision
+ * has been rendered (converted/already_converted/already_in_crm/
+ * ambiguous_match) — re-enabled on `error` so the user can retry (mission
+ * section 10's "permettre un rafraîchissement de la ligne" for
+ * not_found), and on `idle` (nothing attempted yet). */
+export function isConvertButtonDisabled(state: DiscoveryConversionState): boolean {
+  return state.kind === "pending" || state.kind === "done";
+}
+
+/** Maps a real ConvertDiscoveryResultOutcome status to the per-row state
+ * this component tracks — exhaustive over the closed union (a missing
+ * case is a compile error). */
+export function mapConvertOutcomeToState(status: ConvertDiscoveryResultOutcome["status"]): DiscoveryConversionState {
+  switch (status) {
+    case "converted":
+    case "already_converted":
+      return { kind: "done", outcome: status };
+    case "already_in_crm":
+      return { kind: "done", outcome: "already_in_crm" };
+    case "ambiguous_match":
+      return { kind: "done", outcome: "ambiguous_match" };
+    case "not_found":
+      return { kind: "error" };
+  }
+}
+
+/** The badge/message shown next to (or instead of) the button — `null`
+ * while idle/pending (the button itself already communicates that). */
+export function discoveryConversionMessage(state: DiscoveryConversionState, t: DiscoverySearchDict): string | null {
+  if (state.kind !== "done" && state.kind !== "error") return null;
+  if (state.kind === "error") return t.convertNotFound;
+  switch (state.outcome) {
+    case "converted":
+    case "already_converted":
+      return t.addedToCrm;
+    case "already_in_crm":
+      return t.statusAlreadyInCrm;
+    case "ambiguous_match":
+      return t.convertAmbiguous;
+  }
+}
+
 const inputClass = "w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir";
 const labelClass = "block text-xs font-medium text-pm-gris";
 
@@ -309,8 +393,28 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
   const [isLoadingMore, startLoadMoreTransition] = useTransition();
   const isBusy = isSearching || isLoadingMore;
 
+  // MISSION C-2C-2-C — per-row "Add to CRM" state, keyed by
+  // discoveryResultId. A shared useTransition wraps every conversion call
+  // (never a direct fetch); the per-row disabled/pending state is driven
+  // by this map, not by the hook's own (necessarily shared) isPending, so
+  // converting one row never disables another row's button.
+  const [conversions, setConversions] = useState<Record<string, DiscoveryConversionState>>({});
+  const [, startConvertTransition] = useTransition();
+
   function onFieldChange(field: keyof DiscoverySearchFormValues, value: string) {
     setFormValues((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function onConvert(discoveryResultId: string) {
+    const current = conversions[discoveryResultId] ?? { kind: "idle" as const };
+    if (isConvertButtonDisabled(current)) return;
+    setConversions((prev) => ({ ...prev, [discoveryResultId]: { kind: "pending" } }));
+    startConvertTransition(async () => {
+      // convertDiscoveryResult() is the ONLY channel here — no userId,
+      // role, or assignedUserId is ever sent; the id is the sole input.
+      const outcome = await convertDiscoveryResult(discoveryResultId);
+      setConversions((prev) => ({ ...prev, [discoveryResultId]: mapConvertOutcomeToState(outcome.status) }));
+    });
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -487,11 +591,15 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
                   <th className="px-5 py-3">{t.columns.country}</th>
                   <th className="px-5 py-3">{t.columns.source}</th>
                   <th className="px-5 py-3">{t.columns.status}</th>
+                  <th className="px-5 py-3">{t.columns.actions}</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => {
                   const row = toDiscoveryRow(item);
+                  const conversionState = row.discoveryResultId ? (conversions[row.discoveryResultId] ?? { kind: "idle" as const }) : null;
+                  const showConvert = row.discoveryResultId !== null && canShowConvertButton(row.status);
+                  const conversionMessage = conversionState ? discoveryConversionMessage(conversionState, t) : null;
                   return (
                     <tr key={row.key} className="border-t border-pm-gris-2">
                       <td className="px-5 py-3 font-medium text-pm-noir">{row.name}</td>
@@ -502,6 +610,27 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
                       <td className="px-5 py-3 text-pm-gris">{row.country ?? t.noValue}</td>
                       <td className="px-5 py-3 text-pm-gris">{row.source}</td>
                       <td className="px-5 py-3 text-pm-gris">{discoveryStatusLabel(row.status, t)}</td>
+                      <td className="px-5 py-3">
+                        {showConvert && conversionState && (
+                          <div className="flex flex-col items-start gap-1">
+                            {conversionState.kind === "done" ? (
+                              <span className="text-xs text-pm-gris">{conversionMessage}</span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onConvert(row.discoveryResultId as string)}
+                                  disabled={isConvertButtonDisabled(conversionState)}
+                                  className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-xs text-pm-noir transition hover:bg-pm-gris-2/30 disabled:opacity-50"
+                                >
+                                  {conversionState.kind === "pending" ? t.addingToCrm : t.addToCrm}
+                                </button>
+                                {conversionState.kind === "error" && <span className="text-xs text-pm-rouge">{conversionMessage}</span>}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

@@ -250,7 +250,7 @@ export const crm = {
       noResultsTitle: "Aucun résultat trouvé pour ces critères.",
       noResultsDescription: "Essayez d'autres critères de recherche.",
       validationEmptyCriteria: "Renseignez au moins un critère : pays, région, ville ou catégorie.",
-      columns: { name: "Nom", category: "Catégorie", address: "Adresse", city: "Ville", region: "Région", country: "Pays", source: "Source", status: "Statut" },
+      columns: { name: "Nom", category: "Catégorie", address: "Adresse", city: "Ville", region: "Région", country: "Pays", source: "Source", status: "Statut", actions: "Actions" },
       noValue: "—",
       statusCreated: "Nouveau",
       statusAlreadyDiscovered: "Déjà découvert",
@@ -265,6 +265,12 @@ export const crm = {
       errProviderRateLimited: "Trop de recherches en ce moment. Réessayez plus tard.",
       errProviderTimeout: "La recherche a pris trop de temps. Réessayez.",
       errProviderError: "Une erreur est survenue pendant la recherche. Réessayez.",
+      // MISSION C-2C-2-C — Discovery result -> CRM conversion.
+      addToCrm: "Ajouter au CRM",
+      addingToCrm: "Ajout en cours…",
+      addedToCrm: "Ajouté",
+      convertAmbiguous: "À vérifier manuellement dans le CRM",
+      convertNotFound: "Résultat introuvable. Réessayez.",
     },
     pipeline: {
       title: "Pipeline commercial",
@@ -1139,7 +1145,7 @@ export const crm = {
       noResultsTitle: "No results found for these criteria.",
       noResultsDescription: "Try different search criteria.",
       validationEmptyCriteria: "Enter at least one criterion: country, region, city, or category.",
-      columns: { name: "Name", category: "Category", address: "Address", city: "City", region: "Region", country: "Country", source: "Source", status: "Status" },
+      columns: { name: "Name", category: "Category", address: "Address", city: "City", region: "Region", country: "Country", source: "Source", status: "Status", actions: "Actions" },
       noValue: "—",
       statusCreated: "New",
       statusAlreadyDiscovered: "Already discovered",
@@ -1154,6 +1160,12 @@ export const crm = {
       errProviderRateLimited: "Too many searches right now. Try again later.",
       errProviderTimeout: "The search took too long. Try again.",
       errProviderError: "Something went wrong during the search. Try again.",
+      // MISSION C-2C-2-C — Discovery result -> CRM conversion.
+      addToCrm: "Add to CRM",
+      addingToCrm: "Adding…",
+      addedToCrm: "Added",
+      convertAmbiguous: "Needs manual review in the CRM",
+      convertNotFound: "Result not found. Try again.",
     },
     pipeline: {
       title: "Sales pipeline",
