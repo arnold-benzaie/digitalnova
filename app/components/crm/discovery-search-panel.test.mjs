@@ -78,7 +78,8 @@ const T = {
   noResultsTitle: "Aucun résultat trouvé pour ces critères.",
   noResultsDescription: "Essayez d'autres critères.",
   validationEmptyCriteria: "Renseignez au moins un critère.",
-  columns: { name: "Nom", source: "Source", status: "Statut" },
+  columns: { name: "Nom", category: "Catégorie", address: "Adresse", city: "Ville", region: "Région", country: "Pays", source: "Source", status: "Statut" },
+  noValue: "—",
   statusCreated: "Nouveau",
   statusAlreadyDiscovered: "Déjà découvert",
   statusAlreadyInCrm: "Déjà dans le CRM",
@@ -202,19 +203,51 @@ test("canLoadMore: false when busy, when no further page, or when there is no ac
 
 // ------------------------- E/F/G/P. result rows + no CRM leak -------------------------
 
-test("E. created item -> row carries name/source/status + a stable key; status label is 'Nouveau'", () => {
-  const item = { status: "created", source: "google_places", sourceId: "abc", name: "Le Petit Café", discoveryResultId: "d-1" };
+test("E. created item -> row carries name/source/status/category/address/country/region/city/lat/long + a stable key; status label is 'Nouveau'", () => {
+  const item = {
+    status: "created", source: "google_places", sourceId: "abc", name: "Le Petit Café", discoveryResultId: "d-1",
+    category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+  };
   const row = toDiscoveryRow(item);
-  assert.deepEqual(row, { key: "google_places::abc", name: "Le Petit Café", source: "google_places", status: "created" });
+  assert.deepEqual(row, {
+    key: "google_places::abc", name: "Le Petit Café", source: "google_places", status: "created",
+    category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+  });
   assert.equal(discoveryStatusLabel(row.status, T), "Nouveau");
 });
 
-test("F. already_discovered item -> status label 'Déjà découvert'", () => {
-  const item = { status: "already_discovered", source: "google_places", sourceId: "abc", name: "X", discoveryResultId: "d-1" };
-  assert.equal(discoveryStatusLabel(toDiscoveryRow(item).status, T), "Déjà découvert");
+test("C-2C-1.5: a 'created' item with null category/address/country/region/city/lat/long comes through as null on the row, never fabricated", () => {
+  const item = {
+    status: "created", source: "google_places", sourceId: "abc", name: "X", discoveryResultId: "d-1",
+    category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null,
+  };
+  const row = toDiscoveryRow(item);
+  assert.equal(row.category, null);
+  assert.equal(row.address, null);
+  assert.equal(row.country, null);
+  assert.equal(row.region, null);
+  assert.equal(row.city, null);
+  assert.equal(row.latitude, null);
+  assert.equal(row.longitude, null);
 });
 
-test("G/P. already_in_crm item -> row is exactly {key,name,source,status}, status label 'Déjà dans le CRM', and NOTHING else leaks even when the backend object is poisoned with extra CRM fields", () => {
+test("F. already_discovered item -> status label 'Déjà découvert', same widened fields as created", () => {
+  const item = {
+    status: "already_discovered", source: "google_places", sourceId: "abc", name: "X", discoveryResultId: "d-1",
+    category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+  };
+  const row = toDiscoveryRow(item);
+  assert.equal(discoveryStatusLabel(row.status, T), "Déjà découvert");
+  assert.equal(row.category, "restaurant");
+  assert.equal(row.address, "1 Main St");
+  assert.equal(row.country, "France");
+  assert.equal(row.region, "Île-de-France");
+  assert.equal(row.city, "Paris");
+  assert.equal(row.latitude, 48.85);
+  assert.equal(row.longitude, 2.35);
+});
+
+test("G/P. already_in_crm item -> row EXPLICITLY nulls category/address/country/region/city/lat/long, status label 'Déjà dans le CRM', and NOTHING else leaks even when the backend object is poisoned with extra CRM fields AND a full address/coordinates set", () => {
   const poisoned = {
     status: "already_in_crm",
     source: "google_places",
@@ -228,18 +261,34 @@ test("G/P. already_in_crm item -> row is exactly {key,name,source,status}, statu
     email: "hidden@example.com",
     phone: "+15145550000",
     address: "123 secret street",
+    // MISSION C-2C-1.5 NON-REGRESSION — even a fully-populated address/
+    // geo set on the raw object (as if some future bug tried to widen
+    // this branch too) must never survive toDiscoveryRow()'s dedicated
+    // already_in_crm handling.
+    category: "restaurant",
+    country: "France",
+    region: "Île-de-France",
+    city: "Paris",
+    latitude: 48.85,
+    longitude: 2.35,
     candidateClientIds: ["a", "b"],
     matchReason: "email match",
   };
   const row = toDiscoveryRow(poisoned);
-  assert.deepEqual(Object.keys(row).sort(), ["key", "name", "source", "status"]);
-  assert.deepEqual(row, { key: "google_places::abc", name: "X", source: "google_places", status: "already_in_crm" });
+  assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "key", "latitude", "longitude", "name", "region", "source", "status"]);
+  assert.deepEqual(row, {
+    key: "google_places::abc", name: "X", source: "google_places", status: "already_in_crm",
+    category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null,
+  });
   assert.equal(discoveryStatusLabel(row.status, T), "Déjà dans le CRM");
   assert.equal(JSON.stringify(row).includes("crmClientId"), false);
   assert.equal(JSON.stringify(row).includes("assignedUserId"), false);
   assert.equal(JSON.stringify(row).includes("hidden@example.com"), false);
-  assert.equal(JSON.stringify(row).includes("secret street"), false);
+  assert.equal(JSON.stringify(row).includes("123 secret street"), false);
   assert.equal(JSON.stringify(row).includes("candidateClientIds"), false);
+  assert.equal(JSON.stringify(row).includes("restaurant"), false);
+  assert.equal(JSON.stringify(row).includes("Île-de-France"), false);
+  assert.equal(JSON.stringify(row).includes("48.85"), false);
 });
 
 test("P. discoveryResultKey never embeds any CRM-internal identifier — only source::sourceId", () => {

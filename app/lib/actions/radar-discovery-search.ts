@@ -55,12 +55,38 @@ import { logDiscoveryProviderEvent } from "@/lib/radar-discovery/observability";
 import type { DiscoveryError } from "@/lib/radar-discovery/errors";
 import type { DiscoveryProviderResult } from "@/lib/radar-discovery/types";
 
+/**
+ * MISSION C-2C-1.5 — additive widening of the "created"/"already_discovered"
+ * shapes only, per the read-only audit's own recommendation: category/
+ * address/country/region/city/latitude/longitude are already persisted on
+ * the discovery_results row at the moment this item is built (no extra
+ * query, no new provider field-set tier) and originate exclusively from
+ * the PROVIDER (Google) — never from crm_clients — so exposing them here
+ * carries no CRM-visibility risk. `already_in_crm` is DELIBERATELY EXCLUDED
+ * from this widening and stays byte-for-byte the shape it has always been
+ * (see this file's own header on why — an EXACT_MATCH never reaches
+ * createDiscoveryResult() at all, so there is no `row` to widen from for
+ * that branch even in principle).
+ */
 export type RadarDiscoverySearchItem =
-  | { status: "created"; source: string; sourceId: string; name: string; discoveryResultId: string }
-  | { status: "already_discovered"; source: string; sourceId: string; name: string; discoveryResultId: string }
+  | {
+      status: "created" | "already_discovered";
+      source: string;
+      sourceId: string;
+      name: string;
+      discoveryResultId: string;
+      category: string | null;
+      address: string | null;
+      country: string | null;
+      region: string | null;
+      city: string | null;
+      latitude: number | null;
+      longitude: number | null;
+    }
   /** Deliberately carries NOTHING beyond what the caller already has from
    * Google (source/sourceId/name) — never a crm_clients id, never any
-   * other CRM-internal field. See this file's own header. */
+   * other CRM-internal field. See this file's own header. NOT widened by
+   * C-2C-1.5 on purpose. */
   | { status: "already_in_crm"; source: string; sourceId: string; name: string };
 
 export type RadarDiscoverySearchResult =
@@ -232,11 +258,25 @@ async function processDiscoveryResult(result: DiscoveryProviderResult): Promise<
     openingHours: result.openingHours,
   });
 
+  // MISSION C-2C-1.5 — explicit, hand-built literal (never a spread of
+  // `row`): only the exact fields the widened contract documents, read
+  // from the row ALREADY fetched/inserted above — no additional query, no
+  // new provider call. `row` also carries postalCode/phone/email/website/
+  // timezone/openingHours/status/crmClientId/sourceUrl/discoveredAt/
+  // updatedAt — none of those are part of this mission's contract and
+  // none are copied here.
   return {
     status: created ? "created" : "already_discovered",
     source: row.source,
     sourceId: row.sourceId,
     name: row.name,
     discoveryResultId: row.id,
+    category: row.category,
+    address: row.address,
+    country: row.country,
+    region: row.region,
+    city: row.city,
+    latitude: row.latitude,
+    longitude: row.longitude,
   };
 }

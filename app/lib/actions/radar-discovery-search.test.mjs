@@ -70,9 +70,32 @@ mock.module("@/lib/crm-client-dedup", {
 });
 
 // ---- discovery-result-store ----
+// MISSION C-2C-1.5 — fakeRow() mirrors the REAL store's own behavior
+// (createDiscoveryResult() always returns a row carrying exactly the
+// fields it was given, plus id/status/crmClientId) so these unit tests
+// exercise the same category/address/country/region/city/latitude/
+// longitude widening the real store would actually produce.
+function fakeRow(input, overrides = {}) {
+  return {
+    id: "drow-1",
+    source: input.source,
+    sourceId: input.sourceId,
+    name: input.name,
+    category: input.category ?? null,
+    address: input.address ?? null,
+    country: input.country ?? null,
+    region: input.region ?? null,
+    city: input.city ?? null,
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
+    status: "discovered",
+    crmClientId: null,
+    ...overrides,
+  };
+}
 let createDiscoveryResultCalls = [];
 let createDiscoveryResultImpl = async (input) => ({
-  result: { id: "drow-1", source: input.source, sourceId: input.sourceId, name: input.name, status: "discovered", crmClientId: null },
+  result: fakeRow(input),
   created: true,
 });
 mock.module("@/lib/radar-discovery/discovery-result-store", {
@@ -128,7 +151,7 @@ function reset() {
   crmMatchResult = { outcome: "NO_MATCH" };
   createDiscoveryResultCalls = [];
   createDiscoveryResultImpl = async (input) => ({
-    result: { id: "drow-1", source: input.source, sourceId: input.sourceId, name: input.name, status: "discovered", crmClientId: null },
+    result: fakeRow(input),
     created: true,
   });
 }
@@ -296,7 +319,7 @@ test("DEDUP: findCrmClientMatch is called with the discovered fields, never a cl
 
 // ---- PERSISTENCE ----
 
-test("PERSISTENCE: a newly created discovery result reports status=discovered (via the store's own row), source/sourceId/name only -- no status/crmClientId settable from this action", async () => {
+test("PERSISTENCE: a newly created discovery result reports status=discovered (via the store's own row) -- no status/crmClientId settable from this action", async () => {
   const result = await searchRadarDiscovery(VALID_REQUEST);
   assert.equal(result.items[0].status, "created");
   assert.ok(!("crmClientId" in createDiscoveryResultCalls[0]));
@@ -305,12 +328,98 @@ test("PERSISTENCE: a newly created discovery result reports status=discovered (v
 
 test("PERSISTENCE: an already-discovered result (created=false) is reported as already_discovered", async () => {
   createDiscoveryResultImpl = async (input) => ({
-    result: { id: "existing-row", source: input.source, sourceId: input.sourceId, name: input.name, status: "discovered", crmClientId: null },
+    result: fakeRow(input, { id: "existing-row" }),
     created: false,
   });
   const result = await searchRadarDiscovery(VALID_REQUEST);
   assert.equal(result.items[0].status, "already_discovered");
   assert.equal(result.alreadyDiscoveredCount, 1);
+});
+
+// ---- MISSION C-2C-1.5 — result contract widening ----
+
+test("C-2C-1.5: a 'created' item exposes category/address/country/region/city/latitude/longitude straight from the stored row -- no extra query, same values as the store's own return", async () => {
+  createDiscoveryResultImpl = async (input) => ({
+    result: fakeRow(input, {
+      category: "restaurant",
+      address: "1 Main St",
+      country: "Canada",
+      region: "Quebec",
+      city: "Montreal",
+      latitude: 45.5,
+      longitude: -73.5,
+    }),
+    created: true,
+  });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].status, "created");
+  assert.deepEqual(result.items[0], {
+    status: "created",
+    source: "google_places",
+    sourceId: "ChIJ_place_1",
+    name: "Test Place",
+    discoveryResultId: "drow-1",
+    category: "restaurant",
+    address: "1 Main St",
+    country: "Canada",
+    region: "Quebec",
+    city: "Montreal",
+    latitude: 45.5,
+    longitude: -73.5,
+  });
+});
+
+test("C-2C-1.5: an 'already_discovered' item exposes the SAME widened fields as 'created'", async () => {
+  createDiscoveryResultImpl = async (input) => ({
+    result: fakeRow(input, { id: "existing-row", category: "restaurant", address: "1 Main St", country: "Canada", region: "Quebec", city: "Montreal", latitude: 45.5, longitude: -73.5 }),
+    created: false,
+  });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].status, "already_discovered");
+  assert.deepEqual(Object.keys(result.items[0]).sort(), ["address", "category", "city", "country", "discoveryResultId", "latitude", "longitude", "name", "region", "source", "sourceId", "status"].sort());
+  assert.equal(result.items[0].category, "restaurant");
+  assert.equal(result.items[0].address, "1 Main St");
+  assert.equal(result.items[0].country, "Canada");
+  assert.equal(result.items[0].region, "Quebec");
+  assert.equal(result.items[0].city, "Montreal");
+  assert.equal(result.items[0].latitude, 45.5);
+  assert.equal(result.items[0].longitude, -73.5);
+});
+
+test("C-2C-1.5: null fields on the stored row (e.g. no category/coordinates known) come through as null, never undefined or a fabricated value", async () => {
+  providerInstance.search = async () => ({
+    results: [fakePlace({ category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null })],
+    nextCursor: null,
+  });
+  createDiscoveryResultImpl = async (input) => ({ result: fakeRow(input), created: true });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].category, null);
+  assert.equal(result.items[0].address, null);
+  assert.equal(result.items[0].country, null);
+  assert.equal(result.items[0].region, null);
+  assert.equal(result.items[0].city, null);
+  assert.equal(result.items[0].latitude, null);
+  assert.equal(result.items[0].longitude, null);
+});
+
+test("C-2C-1.5 NON-REGRESSION: widening created/already_discovered NEVER widens already_in_crm -- its shape stays EXACTLY name/source/sourceId/status", async () => {
+  crmMatchResult = { outcome: "EXACT_MATCH", clientId: "hidden-crm-client-id", matchedSignals: ["email"], confidence: "HIGH", reason: "x" };
+  // Even if the provider result itself carries a full address/category/
+  // coordinates set, already_in_crm must still never read or forward any
+  // of it -- that branch returns before createDiscoveryResult() is ever
+  // called, so there is no row to widen from even in principle.
+  providerInstance.search = async () => ({
+    results: [fakePlace({ category: "restaurant", address: "1 Main St", country: "Canada", region: "Quebec", city: "Montreal", latitude: 45.5, longitude: -73.5 })],
+    nextCursor: null,
+  });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].status, "already_in_crm");
+  assert.deepEqual(Object.keys(result.items[0]).sort(), ["name", "source", "sourceId", "status"].sort());
+  assert.equal(createDiscoveryResultCalls.length, 0, "already_in_crm never reaches the store at all -- confirms there is no row available to widen from");
+  const serialized = JSON.stringify(result);
+  assert.ok(!serialized.includes("restaurant"));
+  assert.ok(!serialized.includes("Main St"));
+  assert.ok(!serialized.includes("45.5"));
 });
 
 test("PERSISTENCE: multiple provider results each go through dedup+persistence independently", async () => {

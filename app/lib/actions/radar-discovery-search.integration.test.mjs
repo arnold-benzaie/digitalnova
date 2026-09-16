@@ -240,10 +240,15 @@ test("DEDUP: a real crm_clients row matching by email is detected as already_in_
   const email = `dedup-${randomUUID()}@example.test`;
   await makeClient({ email });
 
-  nextProviderOutcome = { results: [fakePlace({ email })], nextCursor: null };
+  // MISSION C-2C-1.5 — a real, fully-populated provider result (category/
+  // address/coordinates included) still produces a STRICTLY unchanged
+  // already_in_crm shape: this branch never reaches createDiscoveryResult()
+  // at all, so there is no row to widen from even in principle.
+  nextProviderOutcome = { results: [fakePlace({ email, category: "restaurant", address: "1 Main St", country: "Canada", region: "Quebec", city: "Montreal", latitude: 45.5, longitude: -73.5 })], nextCursor: null };
   const result = await trackResult(await searchRadarDiscovery(VALID_REQUEST));
   assert.equal(result.items[0].status, "already_in_crm");
   assert.equal(result.alreadyInCrmCount, 1);
+  assert.deepEqual(Object.keys(result.items[0]).sort(), ["name", "source", "sourceId", "status"].sort());
 
   const rows = await db.select({ id: discoveryResults.id }).from(discoveryResults).where(eq(discoveryResults.email, email));
   assert.equal(rows.length, 0, "no discovery_results row was created for a confirmed CRM duplicate");
@@ -276,7 +281,10 @@ test("DEDUP: no matching crm_clients row -> a real discovery_results row is crea
   mockState = { session: sessionFor(owner, "admin") };
 
   const sourceId = uniqueSourceId();
-  nextProviderOutcome = { results: [fakePlace({ sourceId, name: "Genuinely New Co" })], nextCursor: null };
+  nextProviderOutcome = {
+    results: [fakePlace({ sourceId, name: "Genuinely New Co", category: "restaurant", address: "1 Main St", country: "Canada", region: "Quebec", city: "Montreal", latitude: 45.5, longitude: -73.5 })],
+    nextCursor: null,
+  };
   const result = await trackResult(await searchRadarDiscovery(VALID_REQUEST));
   assert.equal(result.items[0].status, "created");
 
@@ -284,6 +292,25 @@ test("DEDUP: no matching crm_clients row -> a real discovery_results row is crea
   assert.ok(row);
   assert.equal(row.status, "discovered");
   assert.equal(row.crmClientId, null);
+
+  // MISSION C-2C-1.5 — the widened item fields must be the EXACT values
+  // persisted in the real discovery_results row, read back through the
+  // real store (no mock) — a genuine round trip, not just a unit-level
+  // pass-through.
+  assert.equal(result.items[0].category, row.category);
+  assert.equal(result.items[0].address, row.address);
+  assert.equal(result.items[0].country, row.country);
+  assert.equal(result.items[0].region, row.region);
+  assert.equal(result.items[0].city, row.city);
+  assert.equal(result.items[0].latitude, row.latitude);
+  assert.equal(result.items[0].longitude, row.longitude);
+  assert.equal(result.items[0].category, "restaurant");
+  assert.equal(result.items[0].address, "1 Main St");
+  assert.equal(result.items[0].country, "Canada");
+  assert.equal(result.items[0].region, "Quebec");
+  assert.equal(result.items[0].city, "Montreal");
+  assert.equal(result.items[0].latitude, 45.5);
+  assert.equal(result.items[0].longitude, -73.5);
 });
 
 // ---- DEDUP: discovery-level (same source/sourceId) ----

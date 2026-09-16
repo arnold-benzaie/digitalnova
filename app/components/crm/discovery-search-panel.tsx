@@ -9,19 +9,23 @@
  * bypasses any of it. It holds no role, permission, session, or CRM data
  * of its own.
  *
- * DATA DISCIPLINE: `RadarDiscoverySearchItem` (the C-2A contract, frozen
- * for this mission) carries ONLY `status`, `source`, `sourceId`, `name`,
- * and — for created/already_discovered — `discoveryResultId`. It has NO
- * category/address/city/region/country/phone/email/website/timezone on
- * the response items (those exist only on the SEARCH REQUEST, never the
- * result). toDiscoveryRow() below is a hand-built literal, never a spread
- * of `item`, so this component can never accidentally surface a field the
+ * DATA DISCIPLINE: `RadarDiscoverySearchItem` (the C-2A contract; widened
+ * additively by MISSION C-2C-1.5) carries `status`, `source`, `sourceId`,
+ * `name` on every branch, plus — for created/already_discovered only —
+ * `discoveryResultId`, `category`, `address`, `country`, `region`, `city`,
+ * `latitude`, `longitude`. It still has NO phone/email/website/timezone/
+ * postalCode/openingHours on the response items (those remain
+ * enrichment/details-tier concerns, out of this mission's scope), and
+ * `already_in_crm` still carries NOTHING beyond source/sourceId/name.
+ * toDiscoveryRow() below is a hand-built literal, never a spread of
+ * `item`, so this component can never accidentally surface a field the
  * backend didn't actually put there — the same discipline already
  * established by createDiscoveryResult()/findCrmClientMatch() (Phases A/B)
  * for exactly this reason. `already_in_crm` in particular carries nothing
  * beyond source/sourceId/name (never a CRM client id, name, email, phone,
- * address, or match reason) — enforced by the C-2A contract itself, not
- * just by this component's own discipline.
+ * address, or match reason) — enforced by the C-2A contract itself (a
+ * structurally separate member of the discriminated union, untouched by
+ * C-2C-1.5's widening), not just by this component's own discipline.
  *
  * NO CONVERSION IN THIS MISSION: there is deliberately no "Add to CRM"
  * affordance anywhere below — createClient()/convertDiscoveryResult() are
@@ -78,7 +82,10 @@ export type DiscoverySearchDict = {
   noResultsTitle: string;
   noResultsDescription: string;
   validationEmptyCriteria: string;
-  columns: { name: string; source: string; status: string };
+  columns: { name: string; category: string; address: string; city: string; region: string; country: string; source: string; status: string };
+  /** Displayed for any of the new optional fields when null (mirrors
+   * crm.radar's own `noValue` convention) — never a blank cell. */
+  noValue: string;
   statusCreated: string;
   statusAlreadyDiscovered: string;
   statusAlreadyInCrm: string;
@@ -144,18 +151,62 @@ export function discoveryResultKey(item: RadarDiscoverySearchItem): string {
   return `${item.source}::${item.sourceId}`;
 }
 
+export type DiscoveryResultRow = {
+  key: string;
+  name: string;
+  source: string;
+  status: RadarDiscoverySearchItem["status"];
+  category: string | null;
+  address: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 /**
  * Hand-built literal, NEVER a spread of `item` — see this file's own
  * header. Even if a future backend change ever added an extra field to
  * `RadarDiscoverySearchItem`, this function would still only ever surface
- * these four, already-safe fields.
+ * these known, already-safe fields.
+ *
+ * MISSION C-2C-1.5 — `already_in_crm` is handled in its OWN branch,
+ * explicitly nulling category/address/country/region/city/latitude/
+ * longitude: that status never carries these fields on the real,
+ * discriminated-union type, but this defensive branch means even a
+ * mistyped/poisoned object could never leak a fabricated value through
+ * here for that status (same discipline the existing poisoned-object test
+ * already exercises).
  */
-export function toDiscoveryRow(item: RadarDiscoverySearchItem): { key: string; name: string; source: string; status: RadarDiscoverySearchItem["status"] } {
+export function toDiscoveryRow(item: RadarDiscoverySearchItem): DiscoveryResultRow {
+  if (item.status === "already_in_crm") {
+    return {
+      key: discoveryResultKey(item),
+      name: item.name,
+      source: item.source,
+      status: item.status,
+      category: null,
+      address: null,
+      country: null,
+      region: null,
+      city: null,
+      latitude: null,
+      longitude: null,
+    };
+  }
   return {
     key: discoveryResultKey(item),
     name: item.name,
     source: item.source,
     status: item.status,
+    category: item.category,
+    address: item.address,
+    country: item.country,
+    region: item.region,
+    city: item.city,
+    latitude: item.latitude,
+    longitude: item.longitude,
   };
 }
 
@@ -429,6 +480,11 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
               <thead className="bg-pm-gris-2/30 text-xs uppercase tracking-wide text-pm-gris">
                 <tr>
                   <th className="px-5 py-3">{t.columns.name}</th>
+                  <th className="px-5 py-3">{t.columns.category}</th>
+                  <th className="px-5 py-3">{t.columns.address}</th>
+                  <th className="px-5 py-3">{t.columns.city}</th>
+                  <th className="px-5 py-3">{t.columns.region}</th>
+                  <th className="px-5 py-3">{t.columns.country}</th>
                   <th className="px-5 py-3">{t.columns.source}</th>
                   <th className="px-5 py-3">{t.columns.status}</th>
                 </tr>
@@ -439,6 +495,11 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
                   return (
                     <tr key={row.key} className="border-t border-pm-gris-2">
                       <td className="px-5 py-3 font-medium text-pm-noir">{row.name}</td>
+                      <td className="px-5 py-3 text-pm-gris">{row.category ?? t.noValue}</td>
+                      <td className="px-5 py-3 text-pm-gris">{row.address ?? t.noValue}</td>
+                      <td className="px-5 py-3 text-pm-gris">{row.city ?? t.noValue}</td>
+                      <td className="px-5 py-3 text-pm-gris">{row.region ?? t.noValue}</td>
+                      <td className="px-5 py-3 text-pm-gris">{row.country ?? t.noValue}</td>
                       <td className="px-5 py-3 text-pm-gris">{row.source}</td>
                       <td className="px-5 py-3 text-pm-gris">{discoveryStatusLabel(row.status, t)}</td>
                     </tr>
