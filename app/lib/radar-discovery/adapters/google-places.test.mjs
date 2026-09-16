@@ -241,11 +241,11 @@ test("CORRECTION: details field mask includes places.timeZone and places.utcOffs
   assert.ok(mask.includes("places.utcOffsetMinutes"));
 });
 
-test("CORRECTION: minimal_discovery and enrichment field masks never include timeZone/utcOffsetMinutes -- details-tier only, cost control", () => {
+test("MISSION C-2D-3: minimal_discovery and enrichment field masks INCLUDE places.timeZone (moved from details -- same Google billing SKU as the rest of minimal_discovery, no incremental cost), but NEVER places.utcOffsetMinutes (stays details-tier only -- never persisted, see field-masks.ts)", () => {
   for (const fieldSet of ["minimal_discovery", "enrichment"]) {
     const mask = buildGooglePlacesFieldMask(fieldSet);
-    assert.ok(!mask.includes("places.timeZone"));
-    assert.ok(!mask.includes("places.utcOffsetMinutes"));
+    assert.ok(mask.includes("places.timeZone"), `${fieldSet} must include places.timeZone`);
+    assert.ok(!mask.includes("places.utcOffsetMinutes"), `${fieldSet} must never include places.utcOffsetMinutes`);
   }
 });
 

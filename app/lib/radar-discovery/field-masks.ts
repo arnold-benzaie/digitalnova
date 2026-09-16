@@ -13,19 +13,34 @@
  * display doesn't need. `enrichment` adds the fields a prospect actually
  * needs to be CONTACTED. `details` is everything this phase's internal
  * model can represent at all.
+ *
+ * MISSION C-2D-3 — `timezone` is the one exception to "smallest set":
+ * included in `minimal_discovery` despite not being a phone/website
+ * contact field, because it shares Google's billing SKU with every other
+ * minimal_discovery field already (no incremental cost) and is required
+ * for the deterministic, non-AI local-time display this mission adds.
  */
 import type { DiscoveryFieldSet, DiscoveryProviderResult } from "./types";
 
 export const DISCOVERY_FIELD_SET_FIELDS: Record<DiscoveryFieldSet, readonly (keyof DiscoveryProviderResult)[]> = {
-  minimal_discovery: ["source", "sourceId", "sourceUrl", "name", "category", "address", "country", "region", "city", "latitude", "longitude"],
+  // MISSION C-2D-3 — `timezone` moved here from the "details" tier
+  // (product decision, per the C-2D-3 audit's own documented finding):
+  // official Google billing documentation (verified in MISSION C-2D-2,
+  // via WebFetch against developers.google.com, never guessed) confirms
+  // `places.timeZone` belongs to the SAME "Text Search Pro" SKU as
+  // `displayName`/`formattedAddress`/`addressComponents`/`location` —
+  // every field minimal_discovery already requests. Requesting it here
+  // adds NO incremental billing tier. `utcOffsetMinutes` is deliberately
+  // NOT moved (stays details-only, see below) — it is never persisted
+  // (a UTC-offset snapshot goes stale the instant DST changes; only the
+  // IANA `timezone` string is a stable fact worth requesting by default).
+  minimal_discovery: ["source", "sourceId", "sourceUrl", "name", "category", "address", "country", "region", "city", "latitude", "longitude", "timezone"],
   enrichment: ["phone", "email", "website"],
-  // GOOGLE PLACES CORRECTION: timezone (`timeZone`) and utcOffsetMinutes
-  // are genuinely available from Places API (New), unlike this phase's
-  // original assumption — kept at the "details" tier (never
-  // minimal_discovery/enrichment) since requesting them still has a real
-  // field-mask cost, and no result-list UI needs them for a first
-  // display.
-  details: ["postalCode", "timezone", "utcOffsetMinutes", "openingHours"],
+  // GOOGLE PLACES CORRECTION: utcOffsetMinutes is genuinely available
+  // from Places API (New) — kept at the "details" tier on purpose: it is
+  // never persisted (see MISSION C-2D-3's own decision) and no caller in
+  // this codebase requests it, unlike `timezone` above.
+  details: ["postalCode", "utcOffsetMinutes", "openingHours"],
 };
 
 /** The cumulative field set up to and including `fieldSet` — "enrichment"

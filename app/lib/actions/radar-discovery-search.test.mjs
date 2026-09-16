@@ -88,6 +88,9 @@ function fakeRow(input, overrides = {}) {
     city: input.city ?? null,
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
+    // MISSION C-2D-3 — mirrors the real store's own pass-through behavior:
+    // the raw IANA string given to createDiscoveryResult(), verbatim.
+    timezone: input.timezone ?? null,
     status: "discovered",
     crmClientId: null,
     ...overrides,
@@ -366,6 +369,9 @@ test("C-2C-1.5: a 'created' item exposes category/address/country/region/city/la
     city: "Montreal",
     latitude: 45.5,
     longitude: -73.5,
+    // MISSION C-2D-3 — matches fakePlace()'s own default timezone, passed
+    // through createDiscoveryResult() -> fakeRow() -> this item, verbatim.
+    timezone: "America/Montreal",
   });
 });
 
@@ -376,7 +382,7 @@ test("C-2C-1.5: an 'already_discovered' item exposes the SAME widened fields as 
   });
   const result = await searchRadarDiscovery(VALID_REQUEST);
   assert.equal(result.items[0].status, "already_discovered");
-  assert.deepEqual(Object.keys(result.items[0]).sort(), ["address", "category", "city", "country", "discoveryResultId", "latitude", "longitude", "name", "region", "source", "sourceId", "status"].sort());
+  assert.deepEqual(Object.keys(result.items[0]).sort(), ["address", "category", "city", "country", "discoveryResultId", "latitude", "longitude", "name", "region", "source", "sourceId", "status", "timezone"].sort());
   assert.equal(result.items[0].category, "restaurant");
   assert.equal(result.items[0].address, "1 Main St");
   assert.equal(result.items[0].country, "Canada");
@@ -388,7 +394,7 @@ test("C-2C-1.5: an 'already_discovered' item exposes the SAME widened fields as 
 
 test("C-2C-1.5: null fields on the stored row (e.g. no category/coordinates known) come through as null, never undefined or a fabricated value", async () => {
   providerInstance.search = async () => ({
-    results: [fakePlace({ category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null })],
+    results: [fakePlace({ category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null, timezone: null })],
     nextCursor: null,
   });
   createDiscoveryResultImpl = async (input) => ({ result: fakeRow(input), created: true });
@@ -400,6 +406,41 @@ test("C-2C-1.5: null fields on the stored row (e.g. no category/coordinates know
   assert.equal(result.items[0].city, null);
   assert.equal(result.items[0].latitude, null);
   assert.equal(result.items[0].longitude, null);
+  assert.equal(result.items[0].timezone, null);
+});
+
+// ---- MISSION C-2D-3 — timezone contract ----
+
+test("C-2D-3: timezone comes ONLY from the provider result, persisted verbatim -- never guessed, never derived from country/region/coordinates", async () => {
+  providerInstance.search = async () => ({
+    results: [fakePlace({ timezone: "Africa/Port_Louis", country: "Mauritius", region: "Port Louis" })],
+    nextCursor: null,
+  });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].timezone, "Africa/Port_Louis");
+  assert.equal(createDiscoveryResultCalls[0].timezone, "Africa/Port_Louis");
+});
+
+test("C-2D-3: a null provider timezone (Google returned none) stays null end-to-end -- never a guessed/fabricated fallback", async () => {
+  providerInstance.search = async () => ({ results: [fakePlace({ timezone: null })], nextCursor: null });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].timezone, null);
+  assert.equal(createDiscoveryResultCalls[0].timezone, null);
+});
+
+test("C-2D-3 SECURITY: DiscoverySearchRequest cannot inject/override a timezone -- validateDiscoverySearchRequest strips unknown fields, the provider result is the only source", async () => {
+  providerInstance.search = async () => ({ results: [fakePlace({ timezone: "America/Montreal" })], nextCursor: null });
+  const result = await searchRadarDiscovery({ ...VALID_REQUEST, timezone: "Attacker/Fake_Zone" });
+  assert.equal(result.items[0].timezone, "America/Montreal");
+});
+
+test("C-2D-3 NON-REGRESSION: already_in_crm never exposes a timezone field, even when the underlying provider result carries one", async () => {
+  crmMatchResult = { outcome: "EXACT_MATCH", clientId: "hidden-crm-client-id", matchedSignals: ["email"], confidence: "HIGH", reason: "x" };
+  providerInstance.search = async () => ({ results: [fakePlace({ timezone: "Africa/Port_Louis" })], nextCursor: null });
+  const result = await searchRadarDiscovery(VALID_REQUEST);
+  assert.equal(result.items[0].status, "already_in_crm");
+  assert.ok(!("timezone" in result.items[0]));
+  assert.ok(!JSON.stringify(result).includes("Africa/Port_Louis"));
 });
 
 test("C-2C-1.5 NON-REGRESSION: widening created/already_discovered NEVER widens already_in_crm -- its shape stays EXACTLY name/source/sourceId/status", async () => {

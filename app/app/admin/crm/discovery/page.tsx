@@ -34,7 +34,7 @@ export default async function CrmDiscoveryPage() {
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
-      <DiscoverySearchPanel t={t} />
+      <DiscoverySearchPanel t={t} locale={locale} />
     </>
   );
 }

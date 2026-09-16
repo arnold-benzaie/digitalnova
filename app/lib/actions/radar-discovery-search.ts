@@ -67,6 +67,16 @@ import type { DiscoveryProviderResult } from "@/lib/radar-discovery/types";
  * (see this file's own header on why — an EXACT_MATCH never reaches
  * createDiscoveryResult() at all, so there is no `row` to widen from for
  * that branch even in principle).
+ *
+ * MISSION C-2D-3 — `timezone` added to the SAME "created"/"already_discovered"
+ * branch, same reasoning: already persisted on the row (createDiscoveryResult()
+ * has received `result.timezone` since Phase B/C-1 — see
+ * processDiscoveryResult() below, unchanged by this mission), now actually
+ * populated in practice since field-masks.ts moved `timezone` into
+ * `minimal_discovery`. The raw IANA string only — NEVER a computed local
+ * time, NEVER `utcOffsetMinutes` (deliberately not persisted, not exposed
+ * here — see field-masks.ts's own comment on why). `already_in_crm` is
+ * NOT widened here either, for the identical reason as every other field.
  */
 export type RadarDiscoverySearchItem =
   | {
@@ -82,6 +92,7 @@ export type RadarDiscoverySearchItem =
       city: string | null;
       latitude: number | null;
       longitude: number | null;
+      timezone: string | null;
     }
   /** Deliberately carries NOTHING beyond what the caller already has from
    * Google (source/sourceId/name) — never a crm_clients id, never any
@@ -262,9 +273,14 @@ async function processDiscoveryResult(result: DiscoveryProviderResult): Promise<
   // `row`): only the exact fields the widened contract documents, read
   // from the row ALREADY fetched/inserted above — no additional query, no
   // new provider call. `row` also carries postalCode/phone/email/website/
-  // timezone/openingHours/status/crmClientId/sourceUrl/discoveredAt/
-  // updatedAt — none of those are part of this mission's contract and
-  // none are copied here.
+  // openingHours/status/crmClientId/sourceUrl/discoveredAt/updatedAt —
+  // none of those are part of this mission's contract and none are
+  // copied here.
+  //
+  // MISSION C-2D-3 — `timezone: row.timezone` added to this same literal:
+  // the raw IANA string persisted above, verbatim, never a computed local
+  // time (that is a pure display-time computation done by the UI/format
+  // layer from this string, never stored).
   return {
     status: created ? "created" : "already_discovered",
     source: row.source,
@@ -278,5 +294,6 @@ async function processDiscoveryResult(result: DiscoveryProviderResult): Promise<
     city: row.city,
     latitude: row.latitude,
     longitude: row.longitude,
+    timezone: row.timezone,
   };
 }

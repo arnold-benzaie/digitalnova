@@ -271,6 +271,9 @@ export const crm = {
       addedToCrm: "Ajouté",
       convertAmbiguous: "À vérifier manuellement dans le CRM",
       convertNotFound: "Résultat introuvable. Réessayez.",
+      // MISSION C-2D-3 — Timezone & heure locale.
+      timezoneLabel: "Fuseau horaire",
+      localTimeLabel: "Heure locale",
     },
     pipeline: {
       title: "Pipeline commercial",
@@ -1166,6 +1169,9 @@ export const crm = {
       addedToCrm: "Added",
       convertAmbiguous: "Needs manual review in the CRM",
       convertNotFound: "Result not found. Try again.",
+      // MISSION C-2D-3 — Time zone & local time.
+      timezoneLabel: "Time zone",
+      localTimeLabel: "Local time",
     },
     pipeline: {
       title: "Sales pipeline",

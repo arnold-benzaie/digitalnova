@@ -71,6 +71,7 @@ const {
   isConvertButtonDisabled,
   mapConvertOutcomeToState,
   discoveryConversionMessage,
+  discoveryTimezoneLine,
 } = await import("./discovery-search-panel.tsx");
 
 const T = {
@@ -112,6 +113,8 @@ const T = {
   addedToCrm: "Ajouté",
   convertAmbiguous: "À vérifier manuellement dans le CRM",
   convertNotFound: "Résultat introuvable. Réessayez.",
+  timezoneLabel: "Fuseau horaire",
+  localTimeLabel: "Heure locale",
 };
 
 const EMPTY = { country: "", region: "", city: "", category: "" };
@@ -119,7 +122,7 @@ const EMPTY = { country: "", region: "", city: "", category: "" };
 // ------------------------- A/B. idle render -------------------------
 
 test("A/B. idle render: title/subtitle come from the caller, the four labeled inputs are present, ready message shown, no results table", () => {
-  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T }));
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
   assert.match(markup, /Pays/);
   assert.match(markup, /Région/);
   assert.match(markup, /Ville/);
@@ -131,7 +134,7 @@ test("A/B. idle render: title/subtitle come from the caller, the four labeled in
 });
 
 test("A. idle render: Search button is a real, non-disabled <button>; no premature error/empty banners", () => {
-  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T }));
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
   assert.match(markup, /<button type="submit"/);
   assert.doesNotMatch(markup, /disabled=""/);
 });
@@ -223,16 +226,17 @@ test("canLoadMore: false when busy, when no further page, or when there is no ac
 
 // ------------------------- E/F/G/P. result rows + no CRM leak -------------------------
 
-test("E. created item -> row carries name/source/status/category/address/country/region/city/lat/long + a stable key; status label is 'Nouveau'", () => {
+test("E. created item -> row carries name/source/status/category/address/country/region/city/lat/long/timezone + a stable key; status label is 'Nouveau'", () => {
   const item = {
     status: "created", source: "google_places", sourceId: "abc", name: "Le Petit Café", discoveryResultId: "d-1",
     category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+    timezone: "Europe/Paris",
   };
   const row = toDiscoveryRow(item);
   assert.deepEqual(row, {
     key: "google_places::abc", name: "Le Petit Café", source: "google_places", status: "created",
     category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
-    discoveryResultId: "d-1",
+    discoveryResultId: "d-1", timezone: "Europe/Paris",
   });
   assert.equal(discoveryStatusLabel(row.status, T), "Nouveau");
 });
@@ -240,7 +244,7 @@ test("E. created item -> row carries name/source/status/category/address/country
 test("C-2C-1.5: a 'created' item with null category/address/country/region/city/lat/long comes through as null on the row, never fabricated", () => {
   const item = {
     status: "created", source: "google_places", sourceId: "abc", name: "X", discoveryResultId: "d-1",
-    category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null,
+    category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null, timezone: null,
   };
   const row = toDiscoveryRow(item);
   assert.equal(row.category, null);
@@ -250,12 +254,14 @@ test("C-2C-1.5: a 'created' item with null category/address/country/region/city/
   assert.equal(row.city, null);
   assert.equal(row.latitude, null);
   assert.equal(row.longitude, null);
+  assert.equal(row.timezone, null);
 });
 
 test("F. already_discovered item -> status label 'Déjà découvert', same widened fields as created", () => {
   const item = {
     status: "already_discovered", source: "google_places", sourceId: "abc", name: "X", discoveryResultId: "d-1",
     category: "restaurant", address: "1 Main St", country: "France", region: "Île-de-France", city: "Paris", latitude: 48.85, longitude: 2.35,
+    timezone: "Europe/Paris",
   };
   const row = toDiscoveryRow(item);
   assert.equal(discoveryStatusLabel(row.status, T), "Déjà découvert");
@@ -266,6 +272,7 @@ test("F. already_discovered item -> status label 'Déjà découvert', same widen
   assert.equal(row.city, "Paris");
   assert.equal(row.latitude, 48.85);
   assert.equal(row.longitude, 2.35);
+  assert.equal(row.timezone, "Europe/Paris");
 });
 
 test("G/P. already_in_crm item -> row EXPLICITLY nulls category/address/country/region/city/lat/long, status label 'Déjà dans le CRM', and NOTHING else leaks even when the backend object is poisoned with extra CRM fields AND a full address/coordinates set", () => {
@@ -297,13 +304,15 @@ test("G/P. already_in_crm item -> row EXPLICITLY nulls category/address/country/
     // MISSION C-2C-2-C — a poisoned discoveryResultId must never surface
     // either: already_in_crm always resolves to null, structurally.
     discoveryResultId: "should-never-appear",
+    // MISSION C-2D-3 — a poisoned timezone must never surface either.
+    timezone: "Africa/Port_Louis",
   };
   const row = toDiscoveryRow(poisoned);
-  assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "discoveryResultId", "key", "latitude", "longitude", "name", "region", "source", "status"]);
+  assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "discoveryResultId", "key", "latitude", "longitude", "name", "region", "source", "status", "timezone"]);
   assert.deepEqual(row, {
     key: "google_places::abc", name: "X", source: "google_places", status: "already_in_crm",
     category: null, address: null, country: null, region: null, city: null, latitude: null, longitude: null,
-    discoveryResultId: null,
+    discoveryResultId: null, timezone: null,
   });
   assert.equal(discoveryStatusLabel(row.status, T), "Déjà dans le CRM");
   assert.equal(JSON.stringify(row).includes("crmClientId"), false);
@@ -314,6 +323,7 @@ test("G/P. already_in_crm item -> row EXPLICITLY nulls category/address/country/
   assert.equal(JSON.stringify(row).includes("restaurant"), false);
   assert.equal(JSON.stringify(row).includes("Île-de-France"), false);
   assert.equal(JSON.stringify(row).includes("48.85"), false);
+  assert.equal(JSON.stringify(row).includes("Africa/Port_Louis"), false, "already_in_crm must never expose a timezone, even from a poisoned source object");
 });
 
 test("P. discoveryResultKey never embeds any CRM-internal identifier — only source::sourceId", () => {
@@ -380,7 +390,7 @@ test("P. no error-message branch ever includes a raw stack trace, SQL, or provid
 // ------------------------- MISSION C-2C-2-C — "Add to CRM" -------------------------
 
 test("idle render: no 'Add to CRM' button exists before any search (no results, nothing to convert yet)", () => {
-  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T }));
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
   assert.doesNotMatch(markup, /Ajouter au CRM/);
 });
 
@@ -443,4 +453,38 @@ test("SECURITY: no conversion message for any outcome ever contains a CRM client
     assert.equal(typeof message, "string");
     assert.doesNotMatch(message, /@|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
   }
+});
+
+// ------------------------- MISSION C-2D-3 — timezone/local-time line -------------------------
+
+test("UI: a real timezone -> discoveryTimezoneLine returns both the timezone and a formatted local time", () => {
+  const line = discoveryTimezoneLine({ timezone: "Indian/Mauritius" }, "fr", new Date("2026-06-15T10:00:00Z"));
+  assert.deepEqual(line, { timezone: "Indian/Mauritius", localTime: "14:00" });
+});
+
+test("UI: a null timezone (already_in_crm, or Google provided none) -> null, no fake local time ever shown", () => {
+  const line = discoveryTimezoneLine({ timezone: null }, "fr", new Date("2026-06-15T10:00:00Z"));
+  assert.equal(line, null);
+});
+
+test("UI: an invalid IANA identifier -> null, never throws, never a UTC value presented as the local time", () => {
+  assert.doesNotThrow(() => discoveryTimezoneLine({ timezone: "Not/A_Real_Zone" }, "fr", new Date("2026-06-15T10:00:00Z")));
+  const line = discoveryTimezoneLine({ timezone: "Not/A_Real_Zone" }, "fr", new Date("2026-06-15T10:00:00Z"));
+  assert.equal(line, null);
+});
+
+test("UI: FR locale renders a 24-hour local time", () => {
+  const line = discoveryTimezoneLine({ timezone: "Europe/Paris" }, "fr", new Date("2026-06-15T10:00:00Z"));
+  assert.equal(line.localTime, "12:00");
+});
+
+test("UI: EN locale renders a 12-hour local time with AM/PM", () => {
+  const line = discoveryTimezoneLine({ timezone: "Europe/Paris" }, "en", new Date("2026-06-15T10:00:00Z"));
+  assert.match(line.localTime, /PM/);
+});
+
+test("UI: idle render never shows any timezone/local-time line (no results yet)", () => {
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
+  assert.doesNotMatch(markup, /🌍/);
+  assert.doesNotMatch(markup, /🕐/);
 });

@@ -56,9 +56,13 @@
  *    state from them; that remains out of scope for this phase (Phase
  *    B's own "no timezone computation" rule still holds — this adapter
  *    only relays a value the provider already computed, never computes
- *    one itself). Deliberately kept at the "details" field-set tier
- *    (field-masks.ts), never minimal_discovery/enrichment — requesting
- *    it still has a real field-mask/cost implication.
+ *    one itself). MISSION C-2D-3 — `timezone` (only) moved into the
+ *    "minimal_discovery" field-set tier (field-masks.ts): official Google
+ *    billing documentation confirms it shares the same SKU as every other
+ *    minimal_discovery field already, so requesting it adds no
+ *    incremental cost tier. `utcOffsetMinutes` stays "details"-tier only
+ *    — it is never persisted (a stale snapshot the instant DST changes)
+ *    and no caller requests it.
  *  - country/region/city as separate fields: Places API (New) does not
  *    return these as three flat strings — it returns `addressComponents`
  *    (a typed array) or a single `formattedAddress` string. The
@@ -107,7 +111,10 @@ export const GOOGLE_PLACES_CAPABILITIES: readonly DiscoveryProviderCapability[] 
 // entry exists for `email` — there is no Google field to request (see
 // this file's own header). `timezone`/`utcOffsetMinutes` DO have real
 // entries now (GOOGLE PLACES CORRECTION) — `places.timeZone` /
-// `places.utcOffsetMinutes` — both are "details"-tier only.
+// `places.utcOffsetMinutes`. MISSION C-2D-3: `timezone` is now requested
+// at the "minimal_discovery" tier (same Google billing SKU as the rest
+// of that tier); `utcOffsetMinutes` remains "details"-tier only (never
+// persisted — see field-masks.ts's own comment).
 // ---------------------------------------------------------------------
 
 // A field may need MORE than one Google path — `category` is the one

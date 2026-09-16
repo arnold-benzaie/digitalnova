@@ -82,12 +82,16 @@ test("discovery page: a guard denial (NEXT_REDIRECT) propagates — no page cont
   assert.deepEqual(permissionCalls, ["RADAR_QUEUE_VIEW"], "the guard still ran, before any content");
 });
 
-test("discovery page: passes the crm.discovery dictionary slice to the search panel, and nothing else", async () => {
+test("discovery page: passes the crm.discovery dictionary slice and the resolved locale to the search panel, and nothing else", async () => {
   reset();
   const el = await CrmDiscoveryPage();
   const props = findPanelProps(el);
   assert.ok(props, "expected a DiscoverySearchPanel element in the returned tree");
-  assert.deepEqual(Object.keys(props), ["t"], "the panel receives only its dictionary slice — no session, role, or DB data");
+  // MISSION C-2D-3 — `locale` was added so the panel's own formatLocalTime()
+  // call can render FR/EN-appropriate local-time strings — still no
+  // session, role, or DB data reaches the client island.
+  assert.deepEqual(Object.keys(props).sort(), ["locale", "t"]);
+  assert.equal(props.locale, "fr");
   assert.equal(typeof props.t.title, "string");
   assert.equal(typeof props.t.searchButton, "string");
 });

@@ -304,6 +304,7 @@ test("DEDUP: no matching crm_clients row -> a real discovery_results row is crea
   assert.equal(result.items[0].city, row.city);
   assert.equal(result.items[0].latitude, row.latitude);
   assert.equal(result.items[0].longitude, row.longitude);
+  assert.equal(result.items[0].timezone, row.timezone);
   assert.equal(result.items[0].category, "restaurant");
   assert.equal(result.items[0].address, "1 Main St");
   assert.equal(result.items[0].country, "Canada");
@@ -311,6 +312,9 @@ test("DEDUP: no matching crm_clients row -> a real discovery_results row is crea
   assert.equal(result.items[0].city, "Montreal");
   assert.equal(result.items[0].latitude, 45.5);
   assert.equal(result.items[0].longitude, -73.5);
+  // MISSION C-2D-3 — real round trip through discovery_results.timezone
+  // (already-existing column, no migration), never a computed local time.
+  assert.equal(result.items[0].timezone, "America/Montreal");
 });
 
 // ---- DEDUP: discovery-level (same source/sourceId) ----

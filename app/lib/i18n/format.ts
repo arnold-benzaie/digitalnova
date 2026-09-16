@@ -85,6 +85,32 @@ export function formatCurrency(amountInMajorUnits: number, currency: string, loc
   return new Intl.NumberFormat(intlLocale(locale), { style: "currency", currency }).format(amountInMajorUnits);
 }
 
+/**
+ * MISSION C-2D-3 — the local time of an establishment whose ONLY known
+ * timezone is a raw IANA string sourced from Google Places (never derived
+ * from country/region/coordinates, never AI-guessed — see
+ * lib/radar-discovery/adapters/google-places.ts). Deliberately the sole
+ * abstraction this mission adds on top of `Intl.DateTimeFormat` — every
+ * other capability (locale mapping, formatting) is reused as-is from this
+ * same file.
+ *
+ * Returns `null` — never a substituted/misleading value — when `timeZone`
+ * is `null` (Google didn't provide one: mission decision "never guess") or
+ * is a string the runtime's `Intl.DateTimeFormat` rejects as an invalid
+ * IANA identifier (throws `RangeError`). A caller receiving `null` must
+ * render no local-time line at all; it must NEVER fall back to
+ * `SAFE_FALLBACK_TIMEZONE` (UTC) and present that as if it were the
+ * establishment's own local time.
+ */
+export function formatLocalTime(date: Date, locale: Locale, timeZone: string | null): string | null {
+  if (!timeZone) return null;
+  try {
+    return new Intl.DateTimeFormat(intlLocale(locale), { timeStyle: "short", timeZone }).format(date);
+  } catch {
+    return null;
+  }
+}
+
 /** "Il y a 3 jours" / "3 days ago"-style relative label, for the small set
  * of places that show relative time instead of an absolute date. */
 export function formatRelativeTime(date: Date | string, locale: Locale, now: Date = new Date()): string {

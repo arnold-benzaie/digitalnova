@@ -10,22 +10,39 @@
  * of its own.
  *
  * DATA DISCIPLINE: `RadarDiscoverySearchItem` (the C-2A contract; widened
- * additively by MISSION C-2C-1.5) carries `status`, `source`, `sourceId`,
- * `name` on every branch, plus — for created/already_discovered only —
- * `discoveryResultId`, `category`, `address`, `country`, `region`, `city`,
- * `latitude`, `longitude`. It still has NO phone/email/website/timezone/
- * postalCode/openingHours on the response items (those remain
- * enrichment/details-tier concerns, out of this mission's scope), and
- * `already_in_crm` still carries NOTHING beyond source/sourceId/name.
- * toDiscoveryRow() below is a hand-built literal, never a spread of
- * `item`, so this component can never accidentally surface a field the
- * backend didn't actually put there — the same discipline already
- * established by createDiscoveryResult()/findCrmClientMatch() (Phases A/B)
- * for exactly this reason. `already_in_crm` in particular carries nothing
- * beyond source/sourceId/name (never a CRM client id, name, email, phone,
- * address, or match reason) — enforced by the C-2A contract itself (a
- * structurally separate member of the discriminated union, untouched by
- * C-2C-1.5's widening), not just by this component's own discipline.
+ * additively by MISSION C-2C-1.5, then MISSION C-2D-3) carries `status`,
+ * `source`, `sourceId`, `name` on every branch, plus — for created/
+ * already_discovered only — `discoveryResultId`, `category`, `address`,
+ * `country`, `region`, `city`, `latitude`, `longitude`, `timezone`. It
+ * still has NO phone/email/website/postalCode/openingHours on the response
+ * items (those remain enrichment/details-tier concerns, out of this
+ * mission's scope), and `already_in_crm` still carries NOTHING beyond
+ * source/sourceId/name. toDiscoveryRow() below is a hand-built literal,
+ * never a spread of `item`, so this component can never accidentally
+ * surface a field the backend didn't actually put there — the same
+ * discipline already established by createDiscoveryResult()/
+ * findCrmClientMatch() (Phases A/B) for exactly this reason. `already_in_crm`
+ * in particular carries nothing beyond source/sourceId/name (never a CRM
+ * client id, name, email, phone, address, timezone, or match reason) —
+ * enforced by the C-2A contract itself (a structurally separate member of
+ * the discriminated union, untouched by C-2C-1.5's or C-2D-3's widening),
+ * not just by this component's own discipline.
+ *
+ * MISSION C-2D-3 — LOCAL TIME: `row.timezone` is the raw IANA string
+ * persisted from Google Places (never derived, never AI-guessed — see
+ * lib/radar-discovery/adapters/google-places.ts). The local-time-of-day
+ * shown next to it is computed HERE, at render time, via
+ * `formatLocalTime()` (lib/i18n/format.ts, itself a thin wrapper over
+ * `Intl.DateTimeFormat` — no new npm package, no manual DST/offset math).
+ * `formatLocalTime()` returns `null` for both a `null` timezone (Google
+ * didn't provide one) and an invalid one (rejected by the runtime) — in
+ * either case NO local-time line is rendered at all, never a UTC
+ * fallback presented as if it were the establishment's own local time.
+ * Safe to compute with a plain `new Date()` at render time: results only
+ * ever populate after a client-triggered search (`useTransition`), never
+ * during the initial SSR/RSC pass (the item list starts empty on both
+ * server and client), so there is no hydration-mismatch risk here — unlike
+ * components that render a date as part of the initial page load.
  *
  * CONVERSION (MISSION C-2C-2-C): "Add to CRM" calls convertDiscoveryResult()
  * (lib/actions/radar-discovery-convert.ts) directly — the ONLY channel,
@@ -44,6 +61,8 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { searchRadarDiscovery, type RadarDiscoverySearchItem, type RadarDiscoverySearchResult } from "@/lib/actions/radar-discovery-search";
 import { convertDiscoveryResult, type ConvertDiscoveryResultOutcome } from "@/lib/actions/radar-discovery-convert";
+import { formatLocalTime } from "@/lib/i18n/format";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 /** The one field set this mission uses — see this file's own header and
  * lib/radar-discovery/field-masks.ts: minimal_discovery already supplies
@@ -109,6 +128,11 @@ export type DiscoverySearchDict = {
   addedToCrm: string;
   convertAmbiguous: string;
   convertNotFound: string;
+  /** MISSION C-2D-3 — used as accessible labels (title attributes) on the
+   * compact timezone/local-time secondary line, never as extra table
+   * columns (mission section 8: "ne pas surcharger le tableau"). */
+  timezoneLabel: string;
+  localTimeLabel: string;
 };
 
 /** True when at least one of the four supported criteria has real (post
@@ -178,6 +202,10 @@ export type DiscoveryResultRow = {
    * id "Add to CRM" (MISSION C-2C-2-C) targets for created/
    * already_discovered. Never a CRM-internal identifier. */
   discoveryResultId: string | null;
+  /** MISSION C-2D-3 — the raw IANA string, null for already_in_crm
+   * (structurally absent on that branch, same discipline as every other
+   * widened field above) and null whenever Google itself provided none. */
+  timezone: string | null;
 };
 
 /**
@@ -209,6 +237,7 @@ export function toDiscoveryRow(item: RadarDiscoverySearchItem): DiscoveryResultR
       latitude: null,
       longitude: null,
       discoveryResultId: null,
+      timezone: null,
     };
   }
   return {
@@ -224,6 +253,7 @@ export function toDiscoveryRow(item: RadarDiscoverySearchItem): DiscoveryResultR
     latitude: item.latitude,
     longitude: item.longitude,
     discoveryResultId: item.discoveryResultId,
+    timezone: item.timezone,
   };
 }
 
@@ -370,10 +400,27 @@ export function discoveryConversionMessage(state: DiscoveryConversionState, t: D
   }
 }
 
+/**
+ * MISSION C-2D-3 — the compact timezone/local-time secondary line's data,
+ * extracted as a pure function for the same reason as every other UI-state
+ * decision above (this repo has no act()-capable React harness). Returns
+ * `null` — meaning "render no local-time line at all" — whenever
+ * `row.timezone` is `null` (already_in_crm, or Google provided none) or
+ * whenever `formatLocalTime()` itself returns `null` (an invalid IANA
+ * identifier, caught internally as a `RangeError` — never a crash, never a
+ * UTC value presented as if it were the establishment's own local time).
+ */
+export function discoveryTimezoneLine(row: { timezone: string | null }, locale: Locale, now: Date): { timezone: string; localTime: string } | null {
+  if (!row.timezone) return null;
+  const localTime = formatLocalTime(now, locale, row.timezone);
+  if (!localTime) return null;
+  return { timezone: row.timezone, localTime };
+}
+
 const inputClass = "w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir";
 const labelClass = "block text-xs font-medium text-pm-gris";
 
-export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
+export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; locale: Locale }) {
   const [formValues, setFormValues] = useState<DiscoverySearchFormValues>(EMPTY_FORM_VALUES);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -600,9 +647,17 @@ export function DiscoverySearchPanel({ t }: { t: DiscoverySearchDict }) {
                   const conversionState = row.discoveryResultId ? (conversions[row.discoveryResultId] ?? { kind: "idle" as const }) : null;
                   const showConvert = row.discoveryResultId !== null && canShowConvertButton(row.status);
                   const conversionMessage = conversionState ? discoveryConversionMessage(conversionState, t) : null;
+                  const timezoneLine = discoveryTimezoneLine(row, locale, new Date());
                   return (
                     <tr key={row.key} className="border-t border-pm-gris-2">
-                      <td className="px-5 py-3 font-medium text-pm-noir">{row.name}</td>
+                      <td className="px-5 py-3 font-medium text-pm-noir">
+                        {row.name}
+                        {timezoneLine && (
+                          <div className="mt-0.5 text-xs font-normal text-pm-gris">
+                            <span title={t.timezoneLabel}>🌍 {timezoneLine.timezone}</span> · <span title={t.localTimeLabel}>🕐 {timezoneLine.localTime}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-pm-gris">{row.category ?? t.noValue}</td>
                       <td className="px-5 py-3 text-pm-gris">{row.address ?? t.noValue}</td>
                       <td className="px-5 py-3 text-pm-gris">{row.city ?? t.noValue}</td>
