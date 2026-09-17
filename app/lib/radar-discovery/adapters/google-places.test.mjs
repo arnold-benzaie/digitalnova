@@ -359,13 +359,37 @@ test("businessStatus: never requested by minimal_discovery/enrichment field mask
 test("buildGooglePlacesDetailsFieldMask: takes no arguments and requests EXACTLY the four enrichment fields, nothing else", () => {
   const mask = buildGooglePlacesDetailsFieldMask();
   const paths = mask.split(",").sort();
-  assert.deepEqual(paths, ["places.businessStatus", "places.internationalPhoneNumber", "places.regularOpeningHours", "places.websiteUri"].sort());
+  assert.deepEqual(paths, ["businessStatus", "internationalPhoneNumber", "regularOpeningHours", "websiteUri"].sort());
+});
+
+// MISSION C-2D-4-E-FIX (C-2D-4-E-DIAGNOSTIC's finding): Place Details
+// (New)'s response body IS the Place object -- never wrapped in a
+// `places` array the way Text Search/Nearby Search responses are -- so
+// its field-mask paths are BARE field names. The `places.<field>` prefix
+// is a Search-only contract; a Details field mask that still carried it
+// would be REJECTED by Google's real API (confirmed against official
+// documentation: developers.google.com/maps/documentation/places/
+// web-service/place-details, whose own header example is literally
+// `id,displayName,formattedAddress,plusCode` -- no prefix).
+test("C-2D-4-E-FIX: buildGooglePlacesDetailsFieldMask never contains the 'places.' prefix Search uses -- Place Details (New) is not a `places` array response, unlike Text Search", () => {
+  const mask = buildGooglePlacesDetailsFieldMask();
+  assert.ok(!mask.includes("places."), `Details field mask must never contain "places." -- got: ${mask}`);
+});
+
+test("C-2D-4-E-FIX: buildGooglePlacesFieldMask (Search) still produces the 'places.' prefix -- non-regression, the two endpoints must never converge", () => {
+  for (const fieldSet of ["minimal_discovery", "enrichment", "details"]) {
+    const mask = buildGooglePlacesFieldMask(fieldSet);
+    for (const path of mask.split(",")) {
+      assert.ok(path.startsWith("places."), `Search field mask path "${path}" (fieldSet=${fieldSet}) must keep the "places." prefix`);
+    }
+  }
 });
 
 test("buildGooglePlacesDetailsFieldMask: never includes any minimal_discovery-only path (name/location/timeZone/etc.) -- Enrichment never re-requests already-known fields", () => {
   const mask = buildGooglePlacesDetailsFieldMask();
-  for (const alreadyKnownPath of ["places.displayName", "places.primaryType", "places.types", "places.formattedAddress", "places.addressComponents", "places.location", "places.timeZone", "places.googleMapsUri", "places.id"]) {
-    assert.ok(!mask.includes(alreadyKnownPath), `Details field mask must never include ${alreadyKnownPath}`);
+  for (const alreadyKnownPath of ["displayName", "primaryType", "types", "formattedAddress", "addressComponents", "location", "timeZone", "googleMapsUri", "id"]) {
+    const paths = mask.split(",");
+    assert.ok(!paths.includes(alreadyKnownPath), `Details field mask must never include ${alreadyKnownPath}`);
   }
 });
 

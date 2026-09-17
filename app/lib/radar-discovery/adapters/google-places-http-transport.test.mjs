@@ -208,6 +208,25 @@ test("Details: sends X-Goog-FieldMask with exactly the descriptor's own field ma
   assert.equal(ff.calls[0].init.body, undefined, "a GET must never carry a body");
 });
 
+// MISSION C-2D-4-E-FIX — external-contract test: builds the descriptor via
+// the REAL google-places.ts function (never a hand-rolled fixture) so this
+// test would have caught C-2D-4-E-DIAGNOSTIC's finding -- the actual
+// X-Goog-FieldMask HEADER VALUE sent to fetch must be the bare-field-name
+// string Google's real Place Details (New) endpoint accepts, never the
+// `places.<field>` prefix Text Search uses.
+test("C-2D-4-E-FIX: the real buildGooglePlacesDetailsRequest() descriptor produces the exact bare-field-name X-Goog-FieldMask Google's Place Details (New) endpoint expects -- no 'places.' prefix", async () => {
+  const { buildGooglePlacesDetailsRequest } = await import("./google-places.ts");
+  const realDescriptor = buildGooglePlacesDetailsRequest("ChIJ_some_place_id");
+  const ff = fakeFetch({ body: {} });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  await transport.getDetails(realDescriptor);
+  const sentFieldMask = ff.calls[0].init.headers["X-Goog-FieldMask"];
+  const sentPaths = sentFieldMask.split(",").sort();
+  const expectedPaths = ["internationalPhoneNumber", "websiteUri", "regularOpeningHours", "businessStatus"].sort();
+  assert.deepEqual(sentPaths, expectedPaths, `field set must match regardless of order -- got: ${sentFieldMask}`);
+  assert.ok(!sentFieldMask.includes("places."), `Details X-Goog-FieldMask must never contain "places." -- got: ${sentFieldMask}`);
+});
+
 test("Details: injects the API key via the X-Goog-Api-Key header, never the URL", async () => {
   const ff = fakeFetch({ body: {} });
   const transport = createGooglePlacesHttpTransport({ apiKey: HOSTILE_KEY, fetchImpl: ff });

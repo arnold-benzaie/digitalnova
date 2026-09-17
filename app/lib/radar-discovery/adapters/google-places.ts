@@ -393,6 +393,27 @@ export function normalizeGooglePlacesSearchResponse(raw: GooglePlacesSearchRespo
 
 const GOOGLE_PLACES_DETAILS_ENRICHMENT_FIELDS: readonly (keyof DiscoveryProviderResult)[] = ["phone", "website", "openingHours", "businessStatus"];
 
+// MISSION C-2D-4-E-FIX — a Place Details (New) GET response body IS the
+// Place object itself (never wrapped in a `places` array the way a Text
+// Search/Nearby Search response is), so its field-mask paths are BARE
+// field names — never the `places.<field>` prefix INTERNAL_FIELD_TO_GOOGLE_PATH
+// above uses for Search. Verified against official documentation
+// (developers.google.com/maps/documentation/places/web-service/place-details,
+// whose own header example is literally `id,displayName,formattedAddress,
+// plusCode` — no prefix). A DEDICATED table, never a stripped/transformed
+// view of the Search table above: the two endpoints have genuinely
+// different field-mask contracts, and conflating them is exactly the bug
+// this correction fixes (C-2D-4-E-DIAGNOSTIC's finding — the original
+// buildGooglePlacesDetailsFieldMask() reused INTERNAL_FIELD_TO_GOOGLE_PATH
+// unmodified, producing `places.internationalPhoneNumber,...`, which
+// Google's real Place Details endpoint rejects).
+const DETAILS_INTERNAL_FIELD_TO_GOOGLE_PATH: Partial<Record<keyof DiscoveryProviderResult, string>> = {
+  phone: "internationalPhoneNumber",
+  website: "websiteUri",
+  openingHours: "regularOpeningHours",
+  businessStatus: "businessStatus",
+};
+
 /** A descriptive, provider-shaped Details request — what a future HTTP
  * client module actually performs a GET against. Never executed here. */
 export type GooglePlacesDetailsRequestDescriptor = {
@@ -409,18 +430,16 @@ export type GooglePlacesDetailsRequestDescriptor = {
  * future, can ever influence which Google fields this call requests: the
  * function has no input to read in the first place. Mirrors
  * buildGooglePlacesFieldMask()'s own dedup-via-Set discipline, applied to
- * a fixed, always-identical field list.
+ * a fixed, always-identical field list — but against
+ * DETAILS_INTERNAL_FIELD_TO_GOOGLE_PATH's bare-field-name contract, never
+ * Search's `places.<field>` one (C-2D-4-E-FIX).
  */
 export function buildGooglePlacesDetailsFieldMask(): string {
   const googlePaths = new Set<string>();
   for (const field of GOOGLE_PLACES_DETAILS_ENRICHMENT_FIELDS) {
-    const path = INTERNAL_FIELD_TO_GOOGLE_PATH[field];
+    const path = DETAILS_INTERNAL_FIELD_TO_GOOGLE_PATH[field];
     if (!path) continue;
-    if (Array.isArray(path)) {
-      for (const p of path) googlePaths.add(p);
-    } else {
-      googlePaths.add(path as string);
-    }
+    googlePaths.add(path);
   }
   return [...googlePaths].join(",");
 }
