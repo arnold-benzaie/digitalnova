@@ -153,6 +153,47 @@ export type DiscoveryProviderResult = {
    * `timezone` or from `country` — only ever a verbatim provider value. */
   utcOffsetMinutes?: number | null;
   openingHours?: unknown;
+  /** One of Google's own documented Place Details values
+   * ("OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY"), or
+   * `null` when absent — MISSION C-2D-4-E. Never derived from
+   * `openingHours`'s absence or any other field; only ever a verbatim
+   * provider value. Kept as a loose `string` here (not a closed union) so
+   * a genuinely new Google value degrades to "stored as-is, rejected only
+   * by the DB's own CHECK constraint" rather than crashing the normalizer
+   * — see db/schema.ts's own discoveryResults.businessStatus comment. */
+  businessStatus?: string | null;
+};
+
+/**
+ * MISSION C-2D-4-E — what a successful `DiscoveryProvider.getDetails()`
+ * call resolves to: EXACTLY the enrichment-tier fields this phase's
+ * Enrichment Engine cares about, never a full DiscoveryProviderResult.
+ * Deliberately NOT `Partial<DiscoveryProviderResult>` and deliberately NOT
+ * optional keys: the Details field mask this phase builds
+ * (adapters/google-places.ts::buildGooglePlacesDetailsFieldMask()) always
+ * requests exactly these four fields, uniformly, on every call — so every
+ * successful response is fully "confirmed" for all four (a value, or
+ * `null` meaning Google confirms none), never a partial/ambiguous subset.
+ * This is what lets the store's merge (discovery-result-store.ts) write
+ * all four columns unconditionally without needing a separate "was this
+ * field even requested" tracking column (mission section 10's own
+ * distinction is resolved by the field mask being fixed, not by new
+ * schema). Fields never in this mask (category, address, coordinates, …)
+ * are structurally absent from this type — the merge step can never touch
+ * them even by mistake, because there is no field to read.
+ */
+export type DiscoveryDetailsResult = {
+  phone: string | null;
+  website: string | null;
+  openingHours: unknown;
+  businessStatus: string | null;
+};
+
+/** `getDetails()`'s own outcome envelope — mirrors DiscoverySearchOutcome's
+ * role for `search()`, but never carries pagination (a Details lookup is
+ * always exactly one place, never a page of results). */
+export type DiscoveryDetailsOutcome = {
+  result: DiscoveryDetailsResult;
 };
 
 /** What a successful search() call resolves to. `nextCursor: null` means

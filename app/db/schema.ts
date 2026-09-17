@@ -2354,9 +2354,32 @@ export const discoveryResults = pgTable(
     // (a small, structured weekly-hours object) — see this table's own
     // header comment on why this is not a "raw payload" exception.
     openingHours: jsonb("opening_hours"),
+    // MISSION C-2D-4-E — Enrichment Engine. Raw provider-supplied string,
+    // one of Google's own documented values — see the CHECK below for the
+    // closed set. Never derived from openingHours' absence (a business
+    // that simply never listed hours is NOT "closed" — see
+    // lib/radar-discovery/adapters/google-places.ts's own normalizer
+    // comment on why this is only ever a verbatim provider value).
+    businessStatus: text("business_status"),
 
     // ---- pipeline state ----
     status: text("status").notNull().default("discovered"), // "discovered" | "enriched" | "converted" | "ignored"
+    // MISSION C-2D-4-E — Enrichment Engine claim/lease. Non-null means "an
+    // enrichment attempt currently holds the exclusive right to write this
+    // row's enrichment fields"; a lease older than the TTL
+    // (lib/radar-discovery/discovery-result-store.ts's own
+    // ENRICHMENT_LEASE_SECONDS) is treated as abandoned and reclaimable.
+    // DELIBERATELY NOT folded into `status` above: a row can be
+    // "converted" (CRM-linked) and STILL be claimed for enrichment at the
+    // same time (mission requirement — enrichment continues on
+    // discovery_results after conversion), and `status`'s own CHECK/link
+    // constraint below would break if "converted" were ever overwritten by
+    // a transient "enriching" value. This column is the ONLY state this
+    // claim needs; there is no separate lease-token — the claimed
+    // timestamp ITSELF is the optimistic-concurrency version a release/
+    // finalize step compares against (see the store's own header on why a
+    // dedicated token was judged unnecessary).
+    enrichmentClaimedAt: timestamp("enrichment_claimed_at", { withTimezone: true }),
 
     // ---- link to CRM, ONLY after an EXPLICIT, separately-authorized
     // conversion (a future phase — never written by anything in Phase B).
@@ -2380,5 +2403,10 @@ export const discoveryResults = pgTable(
     // A row genuinely linked to a CRM client must be marked converted —
     // see this table's own header comment for why this is one-directional.
     check("discovery_results_converted_link_check", sql`${table.crmClientId} IS NULL OR ${table.status} = 'converted'`),
+    // MISSION C-2D-4-E — the closed set of Google Places businessStatus
+    // values, verified against official documentation (never guessed).
+    // NULL means "never enriched, or Google provided none" — never
+    // interpreted as any of the three real statuses.
+    check("discovery_results_business_status_check", sql`${table.businessStatus} IS NULL OR ${table.businessStatus} IN ('OPERATIONAL','CLOSED_TEMPORARILY','CLOSED_PERMANENTLY')`),
   ],
 );

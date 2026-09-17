@@ -706,7 +706,7 @@ test("RA-5. no staff_members row at all -> DENY (no-membership)", async () => {
 
 test("RA-6. every StaffRole x RADAR permission, radar ON, matches hasPermission() exactly — proves ROLE_PERMISSIONS/hasPermission() are untouched", async () => {
   const roles = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"];
-  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"];
+  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "RADAR_DISCOVERY_ENRICH"];
   for (const role of roles) {
     for (const perm of radarPerms) {
       const result = await evaluateRadar(role, perm, { radarAccess: true });
@@ -717,7 +717,7 @@ test("RA-6. every StaffRole x RADAR permission, radar ON, matches hasPermission(
 
 test("RA-7. every StaffRole x RADAR permission, radar OFF -> DENY unconditionally, even for a role the permission would otherwise grant", async () => {
   const roles = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"];
-  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"];
+  const radarPerms = ["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "RADAR_DISCOVERY_ENRICH"];
   for (const role of roles) {
     for (const perm of radarPerms) {
       const result = await evaluateRadar(role, perm, { radarAccess: false });

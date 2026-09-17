@@ -37,6 +37,51 @@ function fakeTransport(script) {
   };
 }
 
+/** MISSION C-2D-4-E — same queue-consumption contract as fakeTransport()
+ * above, for getDetails() calls specifically. A separate function (not a
+ * shared `calls` array with searchText) so a test exercising ONLY
+ * getDetails() can assert `detailsCalls.length` without ever worrying
+ * about search() calls it never made. */
+function fakeDetailsTransport(script) {
+  const queue = Array.isArray(script) ? [...script] : [script];
+  const calls = [];
+  return {
+    calls,
+    async getDetails(descriptor) {
+      calls.push(descriptor);
+      const next = queue.length > 1 ? queue.shift() : queue[0];
+      if (next instanceof Error) throw next;
+      return next;
+    },
+  };
+}
+
+/** MISSION C-2D-4-E — a transport implementing BOTH methods, for tests
+ * that must prove cross-cutting behavior (the shared circuit breaker) —
+ * one call log per method, so a test can assert on either independently. */
+function combinedTransport(searchScript, detailsScript) {
+  const searchQueue = Array.isArray(searchScript) ? [...searchScript] : [searchScript];
+  const detailsQueue = Array.isArray(detailsScript) ? [...detailsScript] : [detailsScript];
+  const searchCalls = [];
+  const detailsCalls = [];
+  return {
+    searchCalls,
+    detailsCalls,
+    async searchText(descriptor) {
+      searchCalls.push(descriptor);
+      const next = searchQueue.length > 1 ? searchQueue.shift() : searchQueue[0];
+      if (next instanceof Error) throw next;
+      return next;
+    },
+    async getDetails(descriptor) {
+      detailsCalls.push(descriptor);
+      const next = detailsQueue.length > 1 ? detailsQueue.shift() : detailsQueue[0];
+      if (next instanceof Error) throw next;
+      return next;
+    },
+  };
+}
+
 function timeoutErrorLike() {
   const err = new Error("aborted");
   err.name = "AbortError";
@@ -59,14 +104,24 @@ function makeProvider(overrides = {}) {
       rateLimitCalls.push(providerId);
       return { allowed: true };
     });
+  // MISSION C-2D-4-E — the Enrichment-specific rate-limit override,
+  // completely independent of `checkRateLimit` above.
+  const enrichmentRateLimitCalls = [];
+  const checkEnrichmentRateLimit =
+    overrides.checkEnrichmentRateLimit ??
+    (async (providerId) => {
+      enrichmentRateLimitCalls.push(providerId);
+      return { allowed: true };
+    });
   const transport = overrides.transport ?? fakeTransport({ status: 200, body: OK_BODY });
   const provider = createGooglePlacesProvider({
     transport,
     checkRateLimit,
+    checkEnrichmentRateLimit,
     clock,
     circuitConfig: overrides.circuitConfig ?? DEFAULT_CIRCUIT_CONFIG,
   });
-  return { provider, transport, rateLimitCalls, advanceClock };
+  return { provider, transport, rateLimitCalls, enrichmentRateLimitCalls, advanceClock };
 }
 
 // ---- H. mapping Google -> ProviderResult (delegates to normalizeGooglePlacesSearchResponse, proven in google-places.test.mjs -- this proves the WIRING) ----
@@ -253,10 +308,124 @@ test("Z. the rate-limit gate is checked with this provider's own id", async () =
 test("capabilities() and health().capabilities agree, and match GOOGLE_PLACES_CAPABILITIES", async () => {
   const { provider } = makeProvider();
   assert.deepEqual(provider.capabilities(), provider.health().capabilities);
-  assert.deepEqual([...provider.capabilities()], ["search"]);
+  assert.deepEqual([...provider.capabilities()], ["search", "get_details"]);
 });
 
 test("health().id is always GOOGLE_PLACES_PROVIDER_ID", async () => {
   const { provider } = makeProvider();
   assert.equal(provider.health().id, GOOGLE_PLACES_PROVIDER_ID);
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: getDetails() ----
+
+const DETAILS_OK_BODY = { internationalPhoneNumber: "+33 1 42 00 00 01", websiteUri: "https://example.test", businessStatus: "OPERATIONAL" };
+
+test("Details: a successful call returns the normalized enrichment patch, never a full DiscoveryProviderResult shape", async () => {
+  const { provider } = makeProvider({ transport: fakeDetailsTransport({ status: 200, body: DETAILS_OK_BODY }) });
+  const outcome = await provider.getDetails("ChIJ_test_place", "details");
+  assert.deepEqual(outcome, { result: { phone: "+33 1 42 00 00 01", website: "https://example.test", openingHours: null, businessStatus: "OPERATIONAL" } });
+});
+
+test("Details: the field mask sent to the transport is EXACTLY buildGooglePlacesDetailsFieldMask() -- never influenced by the `fieldSet` argument's value", async () => {
+  const transport = fakeDetailsTransport({ status: 200, body: {} });
+  const { provider } = makeProvider({ transport });
+  await provider.getDetails("ChIJ_test_place", "details");
+  const { buildGooglePlacesDetailsFieldMask } = await import("./google-places.ts");
+  assert.equal(transport.calls[0].fieldMask, buildGooglePlacesDetailsFieldMask());
+  assert.equal(transport.calls[0].placeId, "ChIJ_test_place");
+});
+
+test("Details: uses the SEPARATE enrichment rate-limit gate, never the search one -- a search rate-limit denial never blocks Details and vice versa", async () => {
+  const { provider, rateLimitCalls, enrichmentRateLimitCalls } = makeProvider({ transport: fakeDetailsTransport({ status: 200, body: {} }) });
+  await provider.getDetails("ChIJ_test_place", "details");
+  assert.equal(enrichmentRateLimitCalls.length, 1);
+  assert.equal(rateLimitCalls.length, 0, "search's own rate-limit gate must never be consulted by getDetails()");
+});
+
+test("Details: a denied enrichment rate limit rejects with QUOTA_EXCEEDED, non-retryable, and the transport is NEVER called", async () => {
+  const transport = fakeDetailsTransport({ status: 200, body: {} });
+  const { provider } = makeProvider({ transport, checkEnrichmentRateLimit: async () => ({ allowed: false, retryAfterSeconds: 20 }) });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "QUOTA_EXCEEDED" && err.retryable === false);
+  assert.equal(transport.calls.length, 0);
+});
+
+test("Details: HTTP 400 rejects with a non-retryable PROVIDER_ERROR, never retried", async () => {
+  const transport = fakeDetailsTransport({ status: 400, body: {} });
+  const { provider } = makeProvider({ transport });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "PROVIDER_ERROR" && err.retryable === false);
+  assert.equal(transport.calls.length, 1);
+});
+
+test("Details: HTTP 429 rejects with PROVIDER_RATE_LIMITED, retryable, exactly one retry attempted", async () => {
+  const transport = fakeDetailsTransport([{ status: 429, body: {} }, { status: 429, body: {} }]);
+  const { provider } = makeProvider({ transport });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "PROVIDER_RATE_LIMITED" && err.retryable === true);
+  assert.equal(transport.calls.length, 2);
+});
+
+test("Details: HTTP 5xx rejects with PROVIDER_UNAVAILABLE, retryable", async () => {
+  const transport = fakeDetailsTransport([{ status: 503, body: {} }, { status: 503, body: {} }]);
+  const { provider } = makeProvider({ transport });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "PROVIDER_UNAVAILABLE");
+  assert.equal(transport.calls.length, 2);
+});
+
+test("Details: a retryable failure then SUCCESS resolves, exactly one retry", async () => {
+  const transport = fakeDetailsTransport([timeoutErrorLike(), { status: 200, body: DETAILS_OK_BODY }]);
+  const { provider } = makeProvider({ transport });
+  const outcome = await provider.getDetails("ChIJ_test_place", "details");
+  assert.equal(outcome.result.phone, "+33 1 42 00 00 01");
+  assert.equal(transport.calls.length, 2);
+});
+
+test("Details: a transport timeout (AbortError) classifies to PROVIDER_TIMEOUT", async () => {
+  const transport = fakeDetailsTransport([timeoutErrorLike(), timeoutErrorLike()]);
+  const { provider } = makeProvider({ transport });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "PROVIDER_TIMEOUT" && err.retryable === true);
+});
+
+test("Details: a 2xx response with a non-object body is treated as a provider error, never silently normalized as 'all fields confirmed empty'", async () => {
+  const transport = fakeDetailsTransport({ status: 200, body: "not an object" });
+  const { provider } = makeProvider({ transport });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"));
+});
+
+test("Details: an all-empty 2xx response ({}) succeeds with every enrichment field null -- a genuinely different outcome from the malformed-body case above", async () => {
+  const transport = fakeDetailsTransport({ status: 200, body: {} });
+  const { provider } = makeProvider({ transport });
+  const outcome = await provider.getDetails("ChIJ_test_place", "details");
+  assert.deepEqual(outcome.result, { phone: null, website: null, openingHours: null, businessStatus: null });
+});
+
+// ---- Details x Search: shared circuit breaker, separate everything else ----
+
+test("SHARED CIRCUIT: a Details failure that trips the circuit also blocks a subsequent Search attempt -- both operations hit the same underlying Google reachability", async () => {
+  const transport = combinedTransport({ status: 200, body: OK_BODY }, { status: 400, body: {} });
+  const { provider } = makeProvider({ transport, circuitConfig: { failureThreshold: 1, cooldownMs: 10_000, halfOpenMaxProbes: 1 } });
+
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"));
+  assert.equal(provider.health().state, "unavailable", "the circuit must be OPEN after this Details failure");
+
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "PROVIDER_UNAVAILABLE");
+  assert.equal(transport.searchCalls.length, 0, "the OPEN circuit (tripped by Details) must block Search before the transport is ever called");
+});
+
+test("SHARED CIRCUIT: a Search failure that trips the circuit also blocks a subsequent Details attempt", async () => {
+  const transport = combinedTransport({ status: 400, body: {} }, { status: 200, body: DETAILS_OK_BODY });
+  const { provider } = makeProvider({ transport, circuitConfig: { failureThreshold: 1, cooldownMs: 10_000, halfOpenMaxProbes: 1 } });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST));
+  assert.equal(provider.health().state, "unavailable");
+
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "PROVIDER_UNAVAILABLE");
+  assert.equal(transport.detailsCalls.length, 0, "the OPEN circuit (tripped by Search) must block Details before the transport is ever called");
+});
+
+test("SEPARATE RATE LIMITS: an exhausted Search rate-limit budget never blocks a Details call on the SAME provider instance", async () => {
+  const transport = combinedTransport({ status: 200, body: OK_BODY }, { status: 200, body: DETAILS_OK_BODY });
+  const { provider } = makeProvider({ transport, checkRateLimit: async () => ({ allowed: false, retryAfterSeconds: 5 }) });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "QUOTA_EXCEEDED");
+  const outcome = await provider.getDetails("ChIJ_test_place", "details");
+  assert.equal(outcome.result.phone, "+33 1 42 00 00 01", "Details must succeed even though Search's own budget is exhausted");
 });

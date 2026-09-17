@@ -53,3 +53,28 @@ export async function checkDiscoveryActorRateLimit(userId: string): Promise<Disc
     return { allowed: false, retryAfterSeconds: DISCOVERY_ACTOR_RATE_LIMIT_WINDOW_SECONDS };
   }
 }
+
+/**
+ * MISSION C-2D-4-E — Enrichment Engine's OWN per-actor guard-rail, a
+ * SEPARATE scope from DISCOVERY_ACTOR_RATE_LIMIT_SCOPE above (mission
+ * section 11). Enrichment is a per-establishment, individually-triggered
+ * operation with a different cost profile than a mass search — sharing a
+ * budget with search would let a burst of one starve the other.
+ */
+const DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_SCOPE = "radar_discovery_enrichment_actor";
+export const DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_MAX_REQUESTS = 5;
+export const DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_WINDOW_SECONDS = 60;
+
+/**
+ * `userId` MUST be the server-resolved session identity — same discipline
+ * as checkDiscoveryActorRateLimit() above.
+ */
+export async function checkDiscoveryEnrichmentActorRateLimit(userId: string): Promise<DiscoveryRateLimitDecision> {
+  try {
+    const result = await checkRateLimit(DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_SCOPE, userId, DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_MAX_REQUESTS, DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_WINDOW_SECONDS);
+    if (!result.allowed) return { allowed: false, retryAfterSeconds: result.retryAfterSeconds };
+    return { allowed: true };
+  } catch {
+    return { allowed: false, retryAfterSeconds: DISCOVERY_ENRICHMENT_ACTOR_RATE_LIMIT_WINDOW_SECONDS };
+  }
+}

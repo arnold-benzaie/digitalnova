@@ -50,15 +50,18 @@ import { logDiscoveryProviderEvent } from "../observability";
 // LAZILY inside search() below, via a dynamic import, only on the code
 // path that actually needs it (no override was given).
 import type { DiscoveryRateLimitDecision } from "../rate-limit-gate";
-import type { DiscoveryProviderCapability, DiscoveryProviderStatus, DiscoverySearchOutcome, DiscoverySearchRequest } from "../types";
+import type { DiscoveryDetailsOutcome, DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderStatus, DiscoverySearchOutcome, DiscoverySearchRequest } from "../types";
 import type { DiscoveryProvider } from "../provider";
 import {
+  buildGooglePlacesDetailsRequest,
   buildGooglePlacesSearchRequest,
   classifyGooglePlacesError,
   GOOGLE_PLACES_CAPABILITIES,
   GOOGLE_PLACES_PROVIDER_ID,
+  normalizeGooglePlacesDetailsResult,
   normalizeGooglePlacesSearchResponse,
   type GooglePlacesRawError,
+  type GooglePlacesRawResult,
   type GooglePlacesSearchResponse,
 } from "./google-places";
 import type { GooglePlacesTransport } from "./google-places-http-transport";
@@ -67,6 +70,12 @@ export type CreateGooglePlacesProviderDeps = {
   transport: GooglePlacesTransport;
   /** Injectable for tests — defaults to the real, DB-backed gate. */
   checkRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
+  /** MISSION C-2D-4-E — Enrichment's OWN rate-limit override, completely
+   * independent of `checkRateLimit` above (a different scope — see
+   * rate-limit-gate.ts's own comment on why Search and Enrichment must
+   * never share a budget). Defaults to the real, DB-backed enrichment
+   * gate. */
+  checkEnrichmentRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
   /** ms epoch — injectable for deterministic circuit-breaker tests. */
   clock?: () => number;
   circuitConfig?: CircuitBreakerConfig;
@@ -94,6 +103,32 @@ async function attemptSearchOnce(transport: GooglePlacesTransport, descriptor: R
   return { ok: true, body: result.body };
 }
 
+/** MISSION C-2D-4-E — same shape/contract as attemptSearchOnce() above,
+ * reusing the exact same error classification (classifyGooglePlacesError()
+ * is already generic across both Places endpoints — the gRPC-style error
+ * envelope is a Places (New) platform convention, not a Text-Search-only
+ * shape). */
+async function attemptDetailsOnce(transport: GooglePlacesTransport, descriptor: ReturnType<typeof buildGooglePlacesDetailsRequest>): Promise<AttemptResult> {
+  let result;
+  try {
+    result = await transport.getDetails(descriptor);
+  } catch (thrown) {
+    return { ok: false, error: toDiscoveryError(thrown, GOOGLE_PLACES_PROVIDER_ID) };
+  }
+  if (result.status < 200 || result.status >= 300) {
+    return { ok: false, error: classifyGooglePlacesError(toRawError(result.body, result.status)) };
+  }
+  if (typeof result.body !== "object" || result.body === null) {
+    // A 2xx with a non-object body is not a shape Google's real API
+    // produces for a successful lookup — treated as a generic provider
+    // error rather than silently normalized as "confirmed empty for
+    // every field" (which would be indistinguishable from a genuine
+    // empty-but-valid response).
+    return { ok: false, error: toDiscoveryError({}, GOOGLE_PLACES_PROVIDER_ID) };
+  }
+  return { ok: true, body: result.body };
+}
+
 function circuitToConnectionState(circuit: CircuitBreakerSnapshot): "connected" | "degraded" | "unavailable" {
   if (circuit.state === "CLOSED") return "connected";
   if (circuit.state === "HALF_OPEN") return "degraded";
@@ -117,6 +152,11 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
   // rate-limit-gate.ts (and therefore @/lib/api-v1/rate-limit -> @/db) to
   // be evaluated at all. See this file's own import comment.
   const injectedCheckRateLimit = deps.checkRateLimit;
+  // MISSION C-2D-4-E — resolved lazily inside getDetails() below, exactly
+  // mirroring injectedCheckRateLimit's own DB-avoidance discipline (this
+  // file's own import comment) — a caller that never enriches anything
+  // never pays the DATABASE_URL-requiring import cost either.
+  const injectedCheckEnrichmentRateLimit = deps.checkEnrichmentRateLimit;
   const nowFn = deps.clock ?? (() => Date.now());
   const circuitConfig = deps.circuitConfig ?? DEFAULT_CIRCUIT_CONFIG;
 
@@ -208,6 +248,84 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
         circuitState: circuitToConnectionState(circuit),
       });
       return { results, nextCursor };
+    },
+
+    // MISSION C-2D-4-E — Enrichment Engine. Deliberately mirrors search()'s
+    // exact structure (circuit breaker -> rate-limit gate -> transport ->
+    // bounded retry -> normalize -> observability) so the two code paths
+    // stay reviewably symmetric — but shares ONLY the circuit breaker
+    // (both hit the same underlying Google reachability), never the
+    // rate-limit gate (a separate scope — see rate-limit-gate.ts's own
+    // comment) and never the field-mask mechanism (buildGooglePlacesDetailsFieldMask()
+    // takes no arguments at all — `fieldSet` below is accepted for
+    // interface symmetry/observability only, never consulted to build the
+    // request).
+    async getDetails(sourceId: string, fieldSet: DiscoveryFieldSet): Promise<DiscoveryDetailsOutcome> {
+      const startedAt = nowFn();
+
+      if (!canAttempt(circuit, startedAt, circuitConfig)) {
+        logDiscoveryProviderEvent({
+          providerId: GOOGLE_PLACES_PROVIDER_ID,
+          outcome: "failure",
+          errorCode: "PROVIDER_UNAVAILABLE",
+          latencyMs: 0,
+          attemptCount: 0,
+          circuitState: circuitToConnectionState(circuit),
+        });
+        throw makeDiscoveryError("PROVIDER_UNAVAILABLE", GOOGLE_PLACES_PROVIDER_ID);
+      }
+      if (circuit.state !== "CLOSED") {
+        circuit = beginProbe(circuit, startedAt, circuitConfig);
+      }
+
+      const checkEnrichmentRateLimit = injectedCheckEnrichmentRateLimit ?? (await import("../rate-limit-gate")).checkDiscoveryEnrichmentProviderRateLimit;
+      const rateLimit = await checkEnrichmentRateLimit(GOOGLE_PLACES_PROVIDER_ID);
+      if (!rateLimit.allowed) {
+        logDiscoveryProviderEvent({
+          providerId: GOOGLE_PLACES_PROVIDER_ID,
+          outcome: "failure",
+          errorCode: "QUOTA_EXCEEDED",
+          latencyMs: nowFn() - startedAt,
+          attemptCount: 0,
+        });
+        throw makeDiscoveryError("QUOTA_EXCEEDED", GOOGLE_PLACES_PROVIDER_ID);
+      }
+
+      const descriptor = buildGooglePlacesDetailsRequest(sourceId);
+      void fieldSet; // accepted for interface symmetry only — see this method's own header.
+
+      let attempt = await attemptDetailsOnce(transport, descriptor);
+      let attemptsMade = 1;
+
+      while (!attempt.ok) {
+        circuit = recordFailure(circuit, nowFn(), circuitConfig);
+        const canRetry = attempt.error.retryable && attemptsMade <= MAX_DISCOVERY_RETRY_ATTEMPTS && canAttempt(circuit, nowFn(), circuitConfig);
+        if (!canRetry) {
+          logDiscoveryProviderEvent({
+            providerId: GOOGLE_PLACES_PROVIDER_ID,
+            outcome: "failure",
+            errorCode: attempt.error.code,
+            latencyMs: nowFn() - startedAt,
+            attemptCount: attemptsMade,
+            circuitState: circuitToConnectionState(circuit),
+          });
+          throw attempt.error;
+        }
+        attempt = await attemptDetailsOnce(transport, descriptor);
+        attemptsMade += 1;
+      }
+
+      circuit = recordSuccess();
+      const result = normalizeGooglePlacesDetailsResult(attempt.body as GooglePlacesRawResult);
+      logDiscoveryProviderEvent({
+        providerId: GOOGLE_PLACES_PROVIDER_ID,
+        outcome: "success",
+        latencyMs: nowFn() - startedAt,
+        resultCount: 1,
+        attemptCount: attemptsMade,
+        circuitState: circuitToConnectionState(circuit),
+      });
+      return { result };
     },
   };
 }

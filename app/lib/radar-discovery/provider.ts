@@ -27,7 +27,7 @@
  * operates purely on CircuitBreakerSnapshot/CircuitBreakerConfig/a passed
  * `now: number`) rather than reimplementing a second breaker.
  */
-import type { DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderId, DiscoveryProviderStatus, DiscoverySearchOutcome, DiscoverySearchRequest } from "./types";
+import type { DiscoveryDetailsOutcome, DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderId, DiscoveryProviderStatus, DiscoverySearchOutcome, DiscoverySearchRequest } from "./types";
 
 /**
  * The contract every discovery adapter implements. Mirrors
@@ -39,22 +39,34 @@ import type { DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderI
  * errors.ts::toIntelligenceError() already does for AI adapters.
  *
  * `getDetails` is OPTIONAL and capability-gated (present only when
- * `capabilities()` includes "get_details") — no adapter in this phase
- * implements it; the method exists on the interface so a FUTURE adapter
- * can add enrichment without changing this contract.
+ * `capabilities()` includes "get_details") — MISSION C-2D-4-E is the
+ * first phase to implement it (adapters/google-places-provider.ts). Its
+ * return type was corrected from this interface's original C-0 placeholder
+ * (`Promise<DiscoverySearchOutcome>`) to `Promise<DiscoveryDetailsOutcome>`:
+ * a Details lookup is a single-place enrichment fetch, structurally unable
+ * to produce a full DiscoveryProviderResult (no `name` is ever
+ * (re-)requested — see google-places.ts's own field-mask comment on why
+ * requesting it would be pure waste, the identity is already known via
+ * `sourceId`), and never paginated. `fieldSet` is retained for interface
+ * symmetry with `search()` and for observability/logging clarity; an
+ * implementation is never required to let its VALUE influence which
+ * Google fields are actually requested — see google-places.ts's own
+ * buildGooglePlacesDetailsFieldMask() (a zero-argument function, the
+ * strongest possible guarantee that no caller input can ever reach it).
  *
  * The adapter NEVER writes to discovery_results and NEVER decides a
  * result becomes a crm_client (mission section 6) — it only returns
- * DiscoveryProviderResult values; persistence (discovery-result-store.ts)
- * and CRM matching (crm-client-dedup.ts) are separate, already-existing
- * modules this contract deliberately does not touch.
+ * DiscoveryProviderResult/DiscoveryDetailsResult values; persistence
+ * (discovery-result-store.ts) and CRM matching (crm-client-dedup.ts) are
+ * separate, already-existing modules this contract deliberately does not
+ * touch.
  */
 export interface DiscoveryProvider {
   readonly id: DiscoveryProviderId;
   health(): DiscoveryProviderStatus;
   capabilities(): readonly DiscoveryProviderCapability[];
   search(request: DiscoverySearchRequest): Promise<DiscoverySearchOutcome>;
-  getDetails?(sourceId: string, fieldSet: DiscoveryFieldSet): Promise<DiscoverySearchOutcome>;
+  getDetails?(sourceId: string, fieldSet: DiscoveryFieldSet): Promise<DiscoveryDetailsOutcome>;
 }
 
 export type RegisterResult = { ok: true } | { ok: false; reason: string };

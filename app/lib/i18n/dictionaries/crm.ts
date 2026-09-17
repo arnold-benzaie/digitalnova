@@ -274,6 +274,19 @@ export const crm = {
       // MISSION C-2D-3 — Timezone & heure locale.
       timezoneLabel: "Fuseau horaire",
       localTimeLabel: "Heure locale",
+      // MISSION C-2D-4-E — Enrichment Engine.
+      enrichButton: "Enrichir",
+      enriching: "Enrichissement en cours…",
+      enrichAlreadyEnriched: "Déjà enrichi",
+      enrichInProgress: "Enrichissement déjà en cours",
+      enrichIgnored: "Résultat ignoré, non enrichissable",
+      enrichFailed: "Échec de l'enrichissement. Réessayez.",
+      phoneLabel: "📞",
+      websiteLabel: "🔗",
+      openingHoursAvailableLabel: "🕒 Horaires disponibles",
+      businessStatusOperational: "🟢 Opérationnel",
+      businessStatusClosedTemporarily: "🟠 Fermé temporairement",
+      businessStatusClosedPermanently: "🔴 Fermé définitivement",
     },
     pipeline: {
       title: "Pipeline commercial",
@@ -1172,6 +1185,19 @@ export const crm = {
       // MISSION C-2D-3 — Time zone & local time.
       timezoneLabel: "Time zone",
       localTimeLabel: "Local time",
+      // MISSION C-2D-4-E — Enrichment Engine.
+      enrichButton: "Enrich",
+      enriching: "Enriching…",
+      enrichAlreadyEnriched: "Already enriched",
+      enrichInProgress: "Enrichment already in progress",
+      enrichIgnored: "Ignored result, not enrichable",
+      enrichFailed: "Enrichment failed. Try again.",
+      phoneLabel: "📞",
+      websiteLabel: "🔗",
+      openingHoursAvailableLabel: "🕒 Hours available",
+      businessStatusOperational: "🟢 Operational",
+      businessStatusClosedTemporarily: "🟠 Temporarily closed",
+      businessStatusClosedPermanently: "🔴 Permanently closed",
     },
     pipeline: {
       title: "Sales pipeline",

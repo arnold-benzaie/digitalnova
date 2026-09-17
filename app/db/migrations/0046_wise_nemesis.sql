@@ -1,0 +1,3 @@
+ALTER TABLE "discovery_results" ADD COLUMN "business_status" text;--> statement-breakpoint
+ALTER TABLE "discovery_results" ADD COLUMN "enrichment_claimed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "discovery_results" ADD CONSTRAINT "discovery_results_business_status_check" CHECK ("discovery_results"."business_status" IS NULL OR "discovery_results"."business_status" IN ('OPERATIONAL','CLOSED_TEMPORARILY','CLOSED_PERMANENTLY'));

@@ -46,6 +46,12 @@ export type ConfiguredGooglePlacesDeps = {
    * guard is the architecturally correct choice for a one-shot caller).
    */
   checkRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
+  /** MISSION C-2D-4-E — same override discipline as `checkRateLimit`
+   * above, for the SEPARATE enrichment scope (rate-limit-gate.ts's own
+   * checkDiscoveryEnrichmentProviderRateLimit()). Omitted in real
+   * application use — the DB-backed default resolves lazily inside
+   * google-places-provider.ts's own getDetails(). */
+  checkEnrichmentRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
 };
 
 /**
@@ -72,5 +78,6 @@ export function createConfiguredGooglePlacesProvider(deps: ConfiguredGooglePlace
     transport,
     ...(deps.clock ? { clock: deps.clock } : {}),
     ...(deps.checkRateLimit ? { checkRateLimit: deps.checkRateLimit } : {}),
+    ...(deps.checkEnrichmentRateLimit ? { checkEnrichmentRateLimit: deps.checkEnrichmentRateLimit } : {}),
   });
 }

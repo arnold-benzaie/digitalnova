@@ -25,7 +25,11 @@ export const STAFF_ROLES = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 /**
- * The closed V1 permission catalogue — exactly 11. Each maps to an
+ * The closed V1 permission catalogue — exactly 11 originally (this
+ * comment's own count is intentionally not kept in perfect sync release
+ * to release; lib/rbac/permissions.test.mjs's own PERMISSIONS.length
+ * assertion is the actual source of truth for the current count). Each
+ * maps to an
  * existing (or, for RADAR_ASSIGN, a newly-landing) enforcement point a
  * later slice will migrate from `requireStaffRole()` / `requireAdminRole()`.
  * Speculative permissions (RADAR_CONFIGURE, TEAM_VIEW, TEAM_MANAGE,
@@ -43,6 +47,17 @@ export const PERMISSIONS = [
   "RADAR_WORK", // act on assigned prospects / "my work" incl. claim-unassigned-to-self (RADAR-CORE-1A: claimProspect / release-own)
   "RADAR_QUEUE_VIEW", // radar-queue.ts::getRadarQueue (today: requireStaffRole)
   "RADAR_ASSIGN", // assign a prospect to ANOTHER staff member / reassign / unassign another's (RADAR-CORE-1A: assignProspect / foreign unassignProspect)
+  // MISSION C-2D-4-E — RADAR Discovery Enrichment Engine. Deliberately a
+  // FOURTH, narrow RADAR permission, not a reuse of RADAR_QUEUE_VIEW (mass
+  // search) or RADAR_WORK (act on assigned prospects): enrichment triggers
+  // a real, billable external call and a persisted write per invocation,
+  // a materially different cost/risk profile than either existing RADAR
+  // capability, so it gets its own explicit grant per role rather than
+  // silently piggy-backing on one that was never designed with this cost
+  // in mind. Subject to the SAME staff_members.radar_access individual
+  // override as every other RADAR permission — see require-staff-member.ts's
+  // own RADAR_PERMISSIONS set.
+  "RADAR_DISCOVERY_ENRICH",
   "ANALYTICS_TEAM_VIEW", // commercial-analytics + CRM performance dashboard (today: requireStaffRole)
   "GBP_INTEGRATION_MANAGE", // AF-1 staff path in gbp/analytics/search-console connect/sync
   // RADAR INTELLIGENCE V2.1 Phase B — a SECOND, deliberately narrow
@@ -80,6 +95,7 @@ const OWNER_PERMISSIONS: readonly Permission[] = [
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
   "RADAR_ASSIGN",
+  "RADAR_DISCOVERY_ENRICH",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
   "RADAR_AI_POLICY_MANAGE",
@@ -95,26 +111,39 @@ const ADMIN_PERMISSIONS: readonly Permission[] = [
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
   "RADAR_ASSIGN",
+  "RADAR_DISCOVERY_ENRICH",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
   "CLIENT_CONNECTION_APPROVE",
 ];
 
+// MISSION C-2D-4-E section 13 — "MANAGER: à aligner avec la matrice RADAR
+// existante": MANAGER already holds all three pre-existing RADAR
+// permissions (WORK/QUEUE_VIEW/ASSIGN) — granted the same full RADAR
+// standing here, consistent with that existing pattern.
 const MANAGER_PERMISSIONS: readonly Permission[] = [
   "CRM_READ",
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
   "RADAR_ASSIGN",
+  "RADAR_DISCOVERY_ENRICH",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
 ];
 
+// MISSION C-2D-4-E section 13 — "EMPLOYEE: seulement si cohérent avec son
+// accès RADAR opérationnel": EMPLOYEE already holds RADAR_WORK (act on
+// assigned prospects) and RADAR_QUEUE_VIEW (search) — enrichment is an
+// individual, operational capability on a result EMPLOYEE can already see
+// via search, not an assignment-of-others capability (RADAR_ASSIGN, which
+// EMPLOYEE correctly lacks) — coherent to grant.
 const EMPLOYEE_PERMISSIONS: readonly Permission[] = [
   "CRM_READ",
   "CRM_WRITE",
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
+  "RADAR_DISCOVERY_ENRICH",
   "GBP_INTEGRATION_MANAGE",
   // MISSION RADAR/CLIENT APPROVAL — PHASE 2 — the one deliberate expansion
   // of EMPLOYEE's authority in this mission: approving a pending CLIENT

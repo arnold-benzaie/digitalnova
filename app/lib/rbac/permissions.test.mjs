@@ -23,6 +23,7 @@ const EXPECTED_PERMISSIONS = [
   "RADAR_WORK",
   "RADAR_QUEUE_VIEW",
   "RADAR_ASSIGN",
+  "RADAR_DISCOVERY_ENRICH",
   "ANALYTICS_TEAM_VIEW",
   "GBP_INTEGRATION_MANAGE",
   "RADAR_AI_POLICY_MANAGE",
@@ -37,10 +38,10 @@ test("STAFF_ROLES is exactly the four workforce roles, CLIENT absent", () => {
   assert.ok(!STAFF_ROLES.includes("client"));
 });
 
-test("PERMISSIONS is exactly the 13 permissions (V1's 11 + RADAR_AI_POLICY_MANAGE + CLIENT_CONNECTION_APPROVE), no duplicates", () => {
+test("PERMISSIONS is exactly the 14 permissions (V1's 11 + RADAR_AI_POLICY_MANAGE + CLIENT_CONNECTION_APPROVE + RADAR_DISCOVERY_ENRICH), no duplicates", () => {
   assert.deepEqual([...PERMISSIONS], EXPECTED_PERMISSIONS);
-  assert.equal(PERMISSIONS.length, 13);
-  assert.equal(new Set(PERMISSIONS).size, 13, "no duplicate permission ids");
+  assert.equal(PERMISSIONS.length, 14);
+  assert.equal(new Set(PERMISSIONS).size, 14, "no duplicate permission ids");
 });
 
 test("no deferred/speculative permissions leaked in (RADAR_ASSIGN now landed with RADAR-CORE-1A)", () => {
@@ -78,11 +79,11 @@ test("every granted permission is a member of the PERMISSIONS catalogue", () => 
 });
 
 // ---- explicit V1 grants --------------------------------------------
-test("OWNER holds all 13 permissions", () => {
+test("OWNER holds all 14 permissions", () => {
   for (const p of PERMISSIONS) {
     assert.equal(hasPermission("OWNER", p), true, `OWNER should have ${p}`);
   }
-  assert.equal(ROLE_PERMISSIONS.OWNER.length, 13);
+  assert.equal(ROLE_PERMISSIONS.OWNER.length, 14);
 });
 
 test("OWNER_MANAGE is OWNER-only", () => {
@@ -125,8 +126,8 @@ test("MANAGER lacks every OWNER/ADMIN-only capability", () => {
   }
 });
 
-test("MANAGER has its expected operational + team-analytics + RADAR_ASSIGN capabilities", () => {
-  for (const p of ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "ANALYTICS_TEAM_VIEW", "GBP_INTEGRATION_MANAGE"]) {
+test("MANAGER has its expected operational + team-analytics + RADAR_ASSIGN + RADAR_DISCOVERY_ENRICH capabilities", () => {
+  for (const p of ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "RADAR_DISCOVERY_ENRICH", "ANALYTICS_TEAM_VIEW", "GBP_INTEGRATION_MANAGE"]) {
     assert.equal(hasPermission("MANAGER", p), true, `MANAGER should have ${p}`);
   }
 });
@@ -148,8 +149,8 @@ test("EMPLOYEE lacks OWNER/ADMIN-only capabilities AND the MANAGER-tier ANALYTIC
   }
 });
 
-test("EMPLOYEE has exactly its six operational capabilities (five pre-existing + CLIENT_CONNECTION_APPROVE)", () => {
-  const expected = ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "GBP_INTEGRATION_MANAGE", "CLIENT_CONNECTION_APPROVE"];
+test("EMPLOYEE has exactly its seven operational capabilities (five pre-existing + CLIENT_CONNECTION_APPROVE + RADAR_DISCOVERY_ENRICH)", () => {
+  const expected = ["CRM_READ", "CRM_WRITE", "RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_DISCOVERY_ENRICH", "GBP_INTEGRATION_MANAGE", "CLIENT_CONNECTION_APPROVE"];
   for (const p of expected) {
     assert.equal(hasPermission("EMPLOYEE", p), true, `EMPLOYEE should have ${p}`);
   }
@@ -168,6 +169,19 @@ test("CLIENT_CONNECTION_APPROVE target matrix: OWNER/ADMIN/EMPLOYEE=true, MANAGE
 test("CLIENT_CONNECTION_APPROVE is independent of WORKFORCE_MANAGE -- EMPLOYEE gains it without gaining any Workforce-roster authority", () => {
   assert.equal(hasPermission("EMPLOYEE", "WORKFORCE_MANAGE"), false, "EMPLOYEE must still never manage the Workforce roster");
   assert.equal(hasPermission("EMPLOYEE", "CLIENT_CONNECTION_APPROVE"), true);
+});
+
+// ---- MISSION C-2D-4-E — RADAR_DISCOVERY_ENRICH ----------------------
+
+test("RADAR_DISCOVERY_ENRICH matrix: OWNER/ADMIN/MANAGER/EMPLOYEE all=true (mission section 13's explicit decision)", () => {
+  for (const role of ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE"]) {
+    assert.equal(hasPermission(role, "RADAR_DISCOVERY_ENRICH"), true, `${role} should have RADAR_DISCOVERY_ENRICH`);
+  }
+});
+
+test("RADAR_DISCOVERY_ENRICH is independent of RADAR_ASSIGN -- EMPLOYEE gains enrichment without gaining assignment-of-others authority", () => {
+  assert.equal(hasPermission("EMPLOYEE", "RADAR_ASSIGN"), false, "EMPLOYEE must still never assign another member");
+  assert.equal(hasPermission("EMPLOYEE", "RADAR_DISCOVERY_ENRICH"), true);
 });
 
 // ---- fail-closed --------------------------------------------------
@@ -192,5 +206,5 @@ test("hasPermission is deterministic and side-effect-free", () => {
   assert.equal(a, b);
   assert.equal(a, true);
   // calling it did not mutate the matrix
-  assert.equal(ROLE_PERMISSIONS.MANAGER.length, 7);
+  assert.equal(ROLE_PERMISSIONS.MANAGER.length, 8);
 });

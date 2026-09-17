@@ -131,7 +131,13 @@ export async function requireStaffMember(permission: Permission): Promise<StaffR
  * original functions unchanged.
  * ------------------------------------------------------------------------ */
 
-const RADAR_PERMISSIONS: ReadonlySet<Permission> = new Set(["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN"]);
+// MISSION C-2D-4-E — RADAR_DISCOVERY_ENRICH added: the SAME individual
+// staff_members.radar_access override that already gates every other
+// RADAR permission must gate Enrichment too — an EMPLOYEE with
+// radar_access=false is blocked from Search/Work/Assign today, and would
+// otherwise have been able to bypass that revocation via Enrichment alone
+// had this permission been left out of this set.
+const RADAR_PERMISSIONS: ReadonlySet<Permission> = new Set(["RADAR_WORK", "RADAR_QUEUE_VIEW", "RADAR_ASSIGN", "RADAR_DISCOVERY_ENRICH"]);
 
 /** Same shape/purpose as StaffMembershipLookup, plus radarAccess — kept as
  * a SEPARATE type (not a widening of StaffMembershipLookup) so every

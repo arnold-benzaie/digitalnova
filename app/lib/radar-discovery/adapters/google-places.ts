@@ -96,11 +96,16 @@
  */
 import { toDiscoveryError, type DiscoveryError } from "../errors";
 import { DISCOVERY_FIELD_SET_FIELDS, resolveCumulativeFields } from "../field-masks";
-import type { DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderResult, DiscoverySearchRequest } from "../types";
+import type { DiscoveryDetailsResult, DiscoveryFieldSet, DiscoveryProviderCapability, DiscoveryProviderResult, DiscoverySearchRequest } from "../types";
 
 export const GOOGLE_PLACES_PROVIDER_ID = "google_places";
 
-export const GOOGLE_PLACES_CAPABILITIES: readonly DiscoveryProviderCapability[] = ["search"];
+// MISSION C-2D-4-E — "get_details" added: this adapter now implements
+// getDetails() (google-places-provider.ts). Enrichment Engine still
+// remains a strictly separate code path from search() — see this file's
+// own header on buildGooglePlacesDetailsFieldMask() for why the two never
+// share a field-mask mechanism.
+export const GOOGLE_PLACES_CAPABILITIES: readonly DiscoveryProviderCapability[] = ["search", "get_details"];
 
 // ---------------------------------------------------------------------
 // Field mask — internal field -> Google Places (New) field-mask path.
@@ -141,6 +146,11 @@ const INTERNAL_FIELD_TO_GOOGLE_PATH: Partial<Record<keyof DiscoveryProviderResul
   timezone: "places.timeZone",
   utcOffsetMinutes: "places.utcOffsetMinutes",
   openingHours: "places.regularOpeningHours",
+  // MISSION C-2D-4-E — verified against official Google documentation
+  // (Text Search Enterprise SKU / Place Details Pro SKU — see this file's
+  // own Details section for the corrected classification): genuinely
+  // available, never derived from anything else.
+  businessStatus: "places.businessStatus",
 };
 
 /**
@@ -249,6 +259,13 @@ export type GooglePlacesRawResult = {
   /** Minutes offset from UTC (GOOGLE PLACES CORRECTION). */
   utcOffsetMinutes?: number;
   regularOpeningHours?: unknown;
+  /** MISSION C-2D-4-E — genuinely available, one of Google's own
+   * documented values ("OPERATIONAL" | "CLOSED_TEMPORARILY" |
+   * "CLOSED_PERMANENTLY"). Loosely typed as `string` here (this phase
+   * performed no live verification of every possible future value Google
+   * might add) — never validated/narrowed at the normalizer level, only
+   * at the DB's own CHECK constraint. */
+  businessStatus?: string;
 };
 
 function findAddressComponent(components: GooglePlacesRawResult["addressComponents"], type: string): string | null {
@@ -301,6 +318,13 @@ export function normalizeGooglePlacesResult(raw: GooglePlacesRawResult): Discove
     timezone: typeof raw.timeZone?.id === "string" && raw.timeZone.id.length > 0 ? raw.timeZone.id : null,
     utcOffsetMinutes: typeof raw.utcOffsetMinutes === "number" ? raw.utcOffsetMinutes : null,
     openingHours: raw.regularOpeningHours ?? null,
+    // MISSION C-2D-4-E — never requested by minimal_discovery (see
+    // field-masks.ts), so this is `null` on every real search() response
+    // today; wired here only so a future search-time field-mask change
+    // wouldn't need a second normalizer. The Enrichment Engine's own
+    // normalizeGooglePlacesDetailsResult() below is the actual path that
+    // populates this field in practice.
+    businessStatus: typeof raw.businessStatus === "string" && raw.businessStatus.length > 0 ? raw.businessStatus : null,
   };
 }
 
@@ -331,6 +355,109 @@ export function normalizeGooglePlacesSearchResponse(raw: GooglePlacesSearchRespo
     }
   }
   return { results, nextCursor: typeof raw.nextPageToken === "string" && raw.nextPageToken.length > 0 ? raw.nextPageToken : null };
+}
+
+// ---------------------------------------------------------------------
+// MISSION C-2D-4-E — Enrichment Engine: Google Places Details (New).
+// Deliberately a COMPLETELY SEPARATE field-mask mechanism from Search's
+// own buildGooglePlacesFieldMask()/DISCOVERY_FIELD_SET_FIELDS above —
+// never reused, never parameterized by a caller-supplied DiscoveryFieldSet
+// value, so the C-2D-4-C "server is the sole field-mask authority"
+// discipline that closed the Search vulnerability extends symmetrically
+// to Enrichment from day one.
+//
+// FIELD SELECTION (mission section 4 — "ne demande jamais un champ
+// inutilement"): exactly the four fields Search never requests today
+// (`minimal_discovery` already covers timeZone/primaryType/types/
+// googleMapsUri/addressComponents at zero incremental Google SKU cost —
+// see C-2D-4-B/D's own verified findings) — internationalPhoneNumber,
+// websiteUri, regularOpeningHours, businessStatus. Nothing else is ever
+// requested via Details: re-requesting an already-known field would waste
+// bandwidth/processing for no new information, and — per this mission's
+// own explicit correction of the C-2D-4-D report — would risk silently
+// reintroducing the "merge a field we didn't actually ask for" hazard
+// (mission sections 9/10) if the response ever happened to include it.
+//
+// COST (verified via official Google documentation, C-2D-4-B): all four
+// requested fields are billed as a single Place Details call at whichever
+// SKU tier the highest-tier field among them triggers — `businessStatus`
+// is Place Details **Pro** (a genuine correction versus this repo's own
+// prior, incorrect C-2D-4-D report, which classified it as Enterprise —
+// that classification was only ever true for TEXT SEARCH, never for
+// Details); `internationalPhoneNumber`/`websiteUri`/`regularOpeningHours`
+// remain **Enterprise** on Details (same as on Search — no cost advantage
+// either way for those three). The call's overall tier is therefore
+// Enterprise regardless (driven by phone/website/openingHours), exactly
+// once per Details call, never per-field.
+// ---------------------------------------------------------------------
+
+const GOOGLE_PLACES_DETAILS_ENRICHMENT_FIELDS: readonly (keyof DiscoveryProviderResult)[] = ["phone", "website", "openingHours", "businessStatus"];
+
+/** A descriptive, provider-shaped Details request — what a future HTTP
+ * client module actually performs a GET against. Never executed here. */
+export type GooglePlacesDetailsRequestDescriptor = {
+  endpoint: "places/{id}";
+  method: "GET";
+  fieldMask: string;
+  placeId: string;
+};
+
+/**
+ * Builds the Google field-mask string for a Details lookup. DELIBERATELY
+ * TAKES NO PARAMETERS — the strongest possible guarantee (stronger even
+ * than "hardcoded regardless of input") that no caller, present or
+ * future, can ever influence which Google fields this call requests: the
+ * function has no input to read in the first place. Mirrors
+ * buildGooglePlacesFieldMask()'s own dedup-via-Set discipline, applied to
+ * a fixed, always-identical field list.
+ */
+export function buildGooglePlacesDetailsFieldMask(): string {
+  const googlePaths = new Set<string>();
+  for (const field of GOOGLE_PLACES_DETAILS_ENRICHMENT_FIELDS) {
+    const path = INTERNAL_FIELD_TO_GOOGLE_PATH[field];
+    if (!path) continue;
+    if (Array.isArray(path)) {
+      for (const p of path) googlePaths.add(p);
+    } else {
+      googlePaths.add(path as string);
+    }
+  }
+  return [...googlePaths].join(",");
+}
+
+/**
+ * Translates a known `sourceId` (a Google Place ID, already established at
+ * discovery time — never re-derived from free text) into the shape a
+ * future Details HTTP client would GET. Never executed here.
+ */
+export function buildGooglePlacesDetailsRequest(sourceId: string): GooglePlacesDetailsRequestDescriptor {
+  return {
+    endpoint: "places/{id}",
+    method: "GET",
+    fieldMask: buildGooglePlacesDetailsFieldMask(),
+    placeId: sourceId,
+  };
+}
+
+/**
+ * Normalizes a Details response into EXACTLY the four enrichment fields —
+ * never a full DiscoveryProviderResult (no `name`/`category`/address/
+ * coordinates are ever read here, even if a poisoned/malformed raw object
+ * happened to carry them — mission section 9/10's "never touch a field
+ * outside what was actually requested" is enforced structurally, not just
+ * by convention, since DiscoveryDetailsResult's own type has no slot for
+ * anything else). `raw.id` is deliberately NEVER read/required here
+ * (unlike normalizeGooglePlacesResult()'s own provenance check) — the
+ * caller already knows this establishment's identity via the `sourceId`
+ * it passed to build the request; Details never re-derives it.
+ */
+export function normalizeGooglePlacesDetailsResult(raw: GooglePlacesRawResult): DiscoveryDetailsResult {
+  return {
+    phone: typeof raw.internationalPhoneNumber === "string" ? raw.internationalPhoneNumber : null,
+    website: typeof raw.websiteUri === "string" ? raw.websiteUri : null,
+    openingHours: raw.regularOpeningHours ?? null,
+    businessStatus: typeof raw.businessStatus === "string" && raw.businessStatus.length > 0 ? raw.businessStatus : null,
+  };
 }
 
 // ---------------------------------------------------------------------

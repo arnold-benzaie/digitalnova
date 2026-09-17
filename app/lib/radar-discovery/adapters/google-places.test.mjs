@@ -8,27 +8,36 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildGooglePlacesDetailsFieldMask,
+  buildGooglePlacesDetailsRequest,
   buildGooglePlacesFieldMask,
   buildGooglePlacesSearchRequest,
   classifyGooglePlacesError,
   GOOGLE_PLACES_CAPABILITIES,
   GOOGLE_PLACES_PROVIDER_ID,
+  normalizeGooglePlacesDetailsResult,
   normalizeGooglePlacesResult,
   normalizeGooglePlacesSearchResponse,
 } from "./google-places.ts";
 import {
   COMPLETE_RESULT,
+  DETAILS_RESPONSE_CLOSED_TEMPORARILY,
+  DETAILS_RESPONSE_COMPLETE,
+  DETAILS_RESPONSE_EMPTY,
   EMPTY_SEARCH_RESPONSE,
   INVALID_ARGUMENT_ERROR,
   PARTIAL_RESULT,
   RATE_LIMIT_ERROR,
+  RESULT_CLOSED_PERMANENTLY,
   RESULT_MISSING_ID,
   RESULT_MULTIPLE_CATEGORIES,
+  RESULT_NO_BUSINESS_STATUS,
   RESULT_NO_OPENING_HOURS,
   RESULT_NO_PHONE,
   RESULT_NO_TIMEZONE,
   RESULT_NO_WEBSITE,
   RESULT_PRIMARY_TYPE_DIFFERS_FROM_TYPES,
+  RESULT_WITH_BUSINESS_STATUS,
   RESULT_WITH_COORDINATES,
   RESULT_WITH_TIMEZONE,
   SEARCH_RESPONSE_LAST_PAGE,
@@ -39,8 +48,8 @@ import {
 
 // ---- O. capability declaration (adapter level) ----
 
-test("O. GOOGLE_PLACES_CAPABILITIES declares exactly 'search' -- no get_details in this phase", () => {
-  assert.deepEqual([...GOOGLE_PLACES_CAPABILITIES], ["search"]);
+test("O. GOOGLE_PLACES_CAPABILITIES declares exactly 'search' and 'get_details' (MISSION C-2D-4-E: getDetails() is now implemented)", () => {
+  assert.deepEqual([...GOOGLE_PLACES_CAPABILITIES], ["search", "get_details"]);
 });
 
 // ---- G. source/sourceId ----
@@ -319,4 +328,92 @@ test("N. a batch with one missing-id place drops only that place, keeps the rest
     results.map((r) => r.sourceId),
     ["ChIJ_complete_result_id", "ChIJ_partial_result_id"],
   );
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: businessStatus (search-side) ----
+
+test("businessStatus: present on a search result normalizes verbatim", () => {
+  const result = normalizeGooglePlacesResult(RESULT_WITH_BUSINESS_STATUS);
+  assert.equal(result.businessStatus, "OPERATIONAL");
+});
+
+test("businessStatus: a different real Google value (CLOSED_PERMANENTLY) normalizes verbatim, never mapped to a different value", () => {
+  const result = normalizeGooglePlacesResult(RESULT_CLOSED_PERMANENTLY);
+  assert.equal(result.businessStatus, "CLOSED_PERMANENTLY");
+});
+
+test("businessStatus: absent from a search result -> null, never guessed from openingHours or any other field", () => {
+  const result = normalizeGooglePlacesResult(RESULT_NO_BUSINESS_STATUS);
+  assert.equal(result.businessStatus, null);
+});
+
+test("businessStatus: never requested by minimal_discovery/enrichment field masks -- only 'details' internal tier maps it via INTERNAL_FIELD_TO_GOOGLE_PATH, and even that is never the Details mechanism used by Enrichment", () => {
+  for (const fieldSet of ["minimal_discovery", "enrichment"]) {
+    const mask = buildGooglePlacesFieldMask(fieldSet);
+    assert.ok(!mask.includes("places.businessStatus"), `${fieldSet} must never include places.businessStatus`);
+  }
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: Google Places Details ----
+
+test("buildGooglePlacesDetailsFieldMask: takes no arguments and requests EXACTLY the four enrichment fields, nothing else", () => {
+  const mask = buildGooglePlacesDetailsFieldMask();
+  const paths = mask.split(",").sort();
+  assert.deepEqual(paths, ["places.businessStatus", "places.internationalPhoneNumber", "places.regularOpeningHours", "places.websiteUri"].sort());
+});
+
+test("buildGooglePlacesDetailsFieldMask: never includes any minimal_discovery-only path (name/location/timeZone/etc.) -- Enrichment never re-requests already-known fields", () => {
+  const mask = buildGooglePlacesDetailsFieldMask();
+  for (const alreadyKnownPath of ["places.displayName", "places.primaryType", "places.types", "places.formattedAddress", "places.addressComponents", "places.location", "places.timeZone", "places.googleMapsUri", "places.id"]) {
+    assert.ok(!mask.includes(alreadyKnownPath), `Details field mask must never include ${alreadyKnownPath}`);
+  }
+});
+
+test("buildGooglePlacesDetailsFieldMask: deterministic -- calling it twice yields the exact same mask (no caller input to vary it)", () => {
+  assert.equal(buildGooglePlacesDetailsFieldMask(), buildGooglePlacesDetailsFieldMask());
+});
+
+test("buildGooglePlacesDetailsRequest: a GET descriptor carrying the known placeId and the fixed Details field mask, never a POST body", () => {
+  const descriptor = buildGooglePlacesDetailsRequest("ChIJ_some_place_id");
+  assert.equal(descriptor.method, "GET");
+  assert.equal(descriptor.placeId, "ChIJ_some_place_id");
+  assert.equal(descriptor.fieldMask, buildGooglePlacesDetailsFieldMask());
+  assert.equal("body" in descriptor, false, "a GET descriptor must never carry a request body");
+});
+
+test("buildGooglePlacesDetailsRequest: never performs any network call -- purely returns a plain descriptor object", () => {
+  const descriptor = buildGooglePlacesDetailsRequest("ChIJ_some_place_id");
+  assert.equal(typeof descriptor, "object");
+  assert.equal(descriptor instanceof Promise, false);
+});
+
+test("normalizeGooglePlacesDetailsResult: a complete response normalizes exactly the four enrichment fields", () => {
+  const result = normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_COMPLETE);
+  assert.deepEqual(result, {
+    phone: "+33 1 42 00 00 01",
+    website: "https://lepetitbistro.example",
+    openingHours: { periods: [{ open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 22, minute: 0 } }] },
+    businessStatus: "OPERATIONAL",
+  });
+});
+
+test("normalizeGooglePlacesDetailsResult: NEVER reads name/category/address/coordinates even when present on the raw object -- the return type structurally has no slot for them", () => {
+  const result = normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_COMPLETE);
+  assert.deepEqual(Object.keys(result).sort(), ["businessStatus", "openingHours", "phone", "website"].sort());
+  assert.equal(JSON.stringify(result).includes("Should never be read"), false);
+});
+
+test("normalizeGooglePlacesDetailsResult: an all-empty response (Google confirms nothing) normalizes to all four fields null, never throws", () => {
+  const result = normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_EMPTY);
+  assert.deepEqual(result, { phone: null, website: null, openingHours: null, businessStatus: null });
+});
+
+test("normalizeGooglePlacesDetailsResult: never requires raw.id -- unlike normalizeGooglePlacesResult(), a Details response with no id at all never throws", () => {
+  assert.doesNotThrow(() => normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_EMPTY));
+  assert.doesNotThrow(() => normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_CLOSED_TEMPORARILY));
+});
+
+test("normalizeGooglePlacesDetailsResult: a partial response (only businessStatus present) still returns all four keys, the rest null", () => {
+  const result = normalizeGooglePlacesDetailsResult(DETAILS_RESPONSE_CLOSED_TEMPORARILY);
+  assert.deepEqual(result, { phone: null, website: null, openingHours: null, businessStatus: "CLOSED_TEMPORARILY" });
 });

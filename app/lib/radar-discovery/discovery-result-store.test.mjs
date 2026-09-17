@@ -15,14 +15,76 @@ import assert from "node:assert/strict";
 
 mock.module("server-only", { namedExports: {} });
 
+// ---- MISSION C-2D-4-E — audit (used only by finalizeDiscoveryResultEnrichment) ----
+let auditWrites = [];
+let fakeTxRef = null;
+mock.module("@/lib/audit", {
+  namedExports: {
+    logAudit: async (input, executor) => {
+      auditWrites.push({ input, handedTx: executor === fakeTxRef });
+    },
+  },
+});
+
 /** @type {Array<Record<string, unknown>>} */
 let insertedValues = [];
 /** @type {any[]} rows returned by the NEXT insert().onConflictDoNothing().returning() call */
 let nextInsertReturns = [];
-/** @type {any[]} rows returned by the NEXT select().from().where().limit() call */
+/** @type {any[]} rows returned by the NEXT select().from().where().limit() call, unless selectQueue is set */
 let nextSelectReturns = [];
+/** @type {any[][] | null} when set, each select().from().where().limit() call shifts ONE row-set off
+ * this queue instead of returning nextSelectReturns -- lets a single test
+ * script two DIFFERENT sequential select() calls (e.g. claimDiscoveryResultForEnrichment's
+ * own initial read + its re-read-on-race path). `null` preserves the
+ * original single-shot behavior every pre-existing test already relies on. */
+let selectQueue = null;
 /** @type {Array<{ kind: string }>} */
 let dbCalls = [];
+
+// ---- MISSION C-2D-4-E — non-transactional update() (claim / release) ----
+/** @type {any[]} rows returned by the NEXT (non-transactional) update().set().where().returning() call */
+let nextUpdateReturns = [];
+/** @type {Array<Record<string, unknown>>} */
+let updateSetCaptures = [];
+/** @type {Array<unknown>} each entry is the exact `where(...)` condition list passed */
+let updateWhereCaptures = [];
+
+// ---- MISSION C-2D-4-E — transaction() (finalizeDiscoveryResultEnrichment) ----
+/** @type {any[]} rows returned by tx.select()...for("update").limit() */
+let fakeTxSelectReturns = [];
+/** @type {any[]} rows returned by tx.update().set().where().returning() */
+let fakeTxUpdateReturns = [];
+let fakeTxUpdateSetCapture = null;
+let fakeTxForUpdateUsed = false;
+let transactionEntered = false;
+
+function makeTxSelectBuilder() {
+  const b = {
+    from: () => b,
+    where: () => b,
+    for: (mode) => {
+      fakeTxForUpdateUsed = fakeTxForUpdateUsed || mode === "update";
+      return b;
+    },
+    limit: () => Promise.resolve(fakeTxSelectReturns),
+  };
+  return b;
+}
+
+const fakeTx = {
+  select: () => makeTxSelectBuilder(),
+  update: () => ({
+    set: (payload) => {
+      fakeTxUpdateSetCapture = payload;
+      return {
+        where: () => ({
+          returning: () => Promise.resolve(fakeTxUpdateReturns),
+        }),
+      };
+    },
+  }),
+};
+fakeTxRef = fakeTx;
 
 const fakeDb = {
   insert: () => ({
@@ -43,21 +105,65 @@ const fakeDb = {
       where: () => ({
         limit: () => {
           dbCalls.push({ kind: "select" });
+          if (selectQueue && selectQueue.length > 0) {
+            return Promise.resolve(selectQueue.shift());
+          }
           return Promise.resolve(nextSelectReturns);
         },
       }),
     }),
   }),
+  // MISSION C-2D-4-E — non-transactional update, used by
+  // claimDiscoveryResultForEnrichment() (with .returning()) and
+  // releaseDiscoveryResultEnrichmentClaim() (without it) — a bare
+  // `.where(...)` must itself be awaitable AND still carry a `.returning`
+  // method, mirroring drizzle's own real query-builder shape.
+  update: () => ({
+    set: (payload) => {
+      updateSetCaptures.push(payload);
+      return {
+        where: (...args) => {
+          updateWhereCaptures.push(args);
+          dbCalls.push({ kind: "update" });
+          const resultPromise = Promise.resolve(undefined);
+          resultPromise.returning = () => Promise.resolve(nextUpdateReturns);
+          return resultPromise;
+        },
+      };
+    },
+  }),
+  transaction: async (cb) => {
+    transactionEntered = true;
+    return cb(fakeTx);
+  },
 };
 mock.module("@/db", { namedExports: { db: fakeDb } });
 
-const { createDiscoveryResult, findDiscoveryResultBySource, DISCOVERY_RESULT_STATUSES } = await import("./discovery-result-store.ts");
+const {
+  createDiscoveryResult,
+  findDiscoveryResultBySource,
+  DISCOVERY_RESULT_STATUSES,
+  claimDiscoveryResultForEnrichment,
+  releaseDiscoveryResultEnrichmentClaim,
+  finalizeDiscoveryResultEnrichment,
+  ENRICHMENT_LEASE_SECONDS,
+} = await import("./discovery-result-store.ts");
 
 function reset() {
   insertedValues = [];
   nextInsertReturns = [];
   nextSelectReturns = [];
+  selectQueue = null;
   dbCalls = [];
+  nextUpdateReturns = [];
+  updateSetCaptures = [];
+  updateWhereCaptures = [];
+  fakeTxSelectReturns = [];
+  fakeTxUpdateReturns = [];
+  fakeTxUpdateSetCapture = null;
+  fakeTxForUpdateUsed = false;
+  transactionEntered = false;
+  auditWrites = [];
 }
 test.beforeEach(reset);
 
@@ -168,4 +274,186 @@ test("findDiscoveryResultBySource: returns the row when found", async () => {
   nextSelectReturns = [{ id: "row-1", source: "google_places", sourceId: "abc123" }];
   const result = await findDiscoveryResultBySource("google_places", "abc123");
   assert.equal(result.id, "row-1");
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: claim / lease --------------
+
+function claimableRow(overrides = {}) {
+  return { id: "row-1", source: "google_places", sourceId: "abc123", name: "Test Business", status: "discovered", enrichmentClaimedAt: null, crmClientId: null, ...overrides };
+}
+
+test("claimDiscoveryResultForEnrichment: not_found when the row does not exist", async () => {
+  nextSelectReturns = [];
+  const outcome = await claimDiscoveryResultForEnrichment("missing-id", { forceRefresh: false });
+  assert.deepEqual(outcome, { status: "not_found" });
+});
+
+test("claimDiscoveryResultForEnrichment: ignored -- refused immediately, never attempts the atomic UPDATE at all", async () => {
+  nextSelectReturns = [claimableRow({ status: "ignored" })];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.deepEqual(outcome, { status: "ignored" });
+  assert.equal(updateSetCaptures.length, 0, "an ignored row must never even attempt the claim UPDATE");
+});
+
+test("claimDiscoveryResultForEnrichment: ignored is refused EVEN with forceRefresh:true -- forceRefresh never resurrects a dismissed result", async () => {
+  nextSelectReturns = [claimableRow({ status: "ignored" })];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: true });
+  assert.deepEqual(outcome, { status: "ignored" });
+});
+
+test("claimDiscoveryResultForEnrichment: already_enriched (forceRefresh false) -- refused immediately, returns the existing row, never attempts the UPDATE", async () => {
+  const row = claimableRow({ status: "enriched", phone: "+123" });
+  nextSelectReturns = [row];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.equal(outcome.status, "already_enriched");
+  assert.equal(outcome.row.phone, "+123");
+  assert.equal(updateSetCaptures.length, 0);
+});
+
+test("claimDiscoveryResultForEnrichment: forceRefresh:true on an already-enriched row proceeds to attempt the claim UPDATE", async () => {
+  nextSelectReturns = [claimableRow({ status: "enriched" })];
+  nextUpdateReturns = [claimableRow({ status: "enriched", enrichmentClaimedAt: new Date() })];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: true });
+  assert.equal(outcome.status, "claimed");
+  assert.equal(updateSetCaptures.length, 1);
+});
+
+test("claimDiscoveryResultForEnrichment: a claimable discovered row succeeds -- sets enrichmentClaimedAt to a fresh Date, returns 'claimed'", async () => {
+  nextSelectReturns = [claimableRow()];
+  const claimedRow = claimableRow({ enrichmentClaimedAt: new Date() });
+  nextUpdateReturns = [claimedRow];
+  const before = Date.now();
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.equal(outcome.status, "claimed");
+  assert.equal(outcome.row, claimedRow);
+  assert.equal(updateSetCaptures.length, 1);
+  assert.ok(updateSetCaptures[0].enrichmentClaimedAt instanceof Date);
+  assert.ok(updateSetCaptures[0].enrichmentClaimedAt.getTime() >= before);
+});
+
+test("claimDiscoveryResultForEnrichment: converted row is claimable exactly like discovered (mission: enrichment continues after conversion)", async () => {
+  nextSelectReturns = [claimableRow({ status: "converted", crmClientId: "some-client-id" })];
+  nextUpdateReturns = [claimableRow({ status: "converted" })];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.equal(outcome.status, "claimed");
+});
+
+test("claimDiscoveryResultForEnrichment: RACE -- initial read looks claimable, but the atomic UPDATE matches zero rows (another claimant won) -> enrichment_in_progress, re-read for a precise reason", async () => {
+  selectQueue = [[claimableRow()], [claimableRow({ enrichmentClaimedAt: new Date() })]];
+  nextUpdateReturns = []; // the atomic UPDATE lost the race
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.deepEqual(outcome, { status: "enrichment_in_progress" });
+  assert.equal(dbCalls.filter((c) => c.kind === "select").length, 2, "initial read + one re-read on race, never more");
+});
+
+test("claimDiscoveryResultForEnrichment: RACE -- the row was converted-and-something-changed between read and UPDATE such that it is now genuinely gone -> not_found on re-read", async () => {
+  selectQueue = [[claimableRow()], []];
+  nextUpdateReturns = [];
+  const outcome = await claimDiscoveryResultForEnrichment("row-1", { forceRefresh: false });
+  assert.deepEqual(outcome, { status: "not_found" });
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: release -------------------
+
+test("releaseDiscoveryResultEnrichmentClaim: issues an UPDATE clearing enrichmentClaimedAt to null", async () => {
+  await releaseDiscoveryResultEnrichmentClaim("row-1", new Date());
+  assert.equal(updateSetCaptures.length, 1);
+  assert.deepEqual(updateSetCaptures[0], { enrichmentClaimedAt: null });
+});
+
+test("releaseDiscoveryResultEnrichmentClaim: never throws even when the update affects zero rows (already released/reclaimed is a normal, safe outcome)", async () => {
+  await assert.doesNotReject(() => releaseDiscoveryResultEnrichmentClaim("row-1", new Date()));
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: finalize (transactional) ---
+
+function enrichmentPatch(overrides = {}) {
+  return { phone: "+33 1 42 00 00 01", website: "https://example.test", openingHours: { periods: [] }, businessStatus: "OPERATIONAL", ...overrides };
+}
+
+test("finalizeDiscoveryResultEnrichment: uses a real transaction with SELECT ... FOR UPDATE before writing anything", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "discovered", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "enriched", ...enrichmentPatch() })];
+  await finalizeDiscoveryResultEnrichment("row-1", claimedAt, enrichmentPatch(), "actor-user-1");
+  assert.equal(transactionEntered, true);
+  assert.equal(fakeTxForUpdateUsed, true, "the row must be locked with FOR UPDATE before merging");
+});
+
+test("finalizeDiscoveryResultEnrichment: lease_lost when the row no longer exists", async () => {
+  fakeTxSelectReturns = [];
+  const outcome = await finalizeDiscoveryResultEnrichment("row-1", new Date(), enrichmentPatch(), "actor-user-1");
+  assert.deepEqual(outcome, { status: "lease_lost" });
+});
+
+test("finalizeDiscoveryResultEnrichment: lease_lost when the row's lease was already released (enrichmentClaimedAt is null)", async () => {
+  fakeTxSelectReturns = [claimableRow({ enrichmentClaimedAt: null })];
+  const outcome = await finalizeDiscoveryResultEnrichment("row-1", new Date(), enrichmentPatch(), "actor-user-1");
+  assert.deepEqual(outcome, { status: "lease_lost" });
+});
+
+test("finalizeDiscoveryResultEnrichment: lease_lost when the row's current lease timestamp does not match the one this call was claimed with", async () => {
+  fakeTxSelectReturns = [claimableRow({ enrichmentClaimedAt: new Date("2026-01-01T00:00:00Z") })];
+  const outcome = await finalizeDiscoveryResultEnrichment("row-1", new Date("2026-01-01T00:00:01Z"), enrichmentPatch(), "actor-user-1");
+  assert.deepEqual(outcome, { status: "lease_lost" });
+});
+
+test("finalizeDiscoveryResultEnrichment: a discovered row transitions to 'enriched', merges exactly the four patch fields, sets updatedAt, clears the lease", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "discovered", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "enriched", ...enrichmentPatch(), enrichmentClaimedAt: null })];
+  const outcome = await finalizeDiscoveryResultEnrichment("row-1", claimedAt, enrichmentPatch(), "actor-user-1");
+  assert.equal(outcome.status, "enriched");
+  assert.deepEqual(Object.keys(fakeTxUpdateSetCapture).sort(), ["businessStatus", "enrichmentClaimedAt", "openingHours", "phone", "status", "updatedAt", "website"].sort());
+  assert.equal(fakeTxUpdateSetCapture.status, "enriched");
+  assert.equal(fakeTxUpdateSetCapture.enrichmentClaimedAt, null);
+  assert.ok(fakeTxUpdateSetCapture.updatedAt instanceof Date);
+  assert.equal(fakeTxUpdateSetCapture.phone, "+33 1 42 00 00 01");
+  assert.equal(fakeTxUpdateSetCapture.website, "https://example.test");
+  assert.equal(fakeTxUpdateSetCapture.businessStatus, "OPERATIONAL");
+});
+
+test("finalizeDiscoveryResultEnrichment: a CONVERTED row stays 'converted' -- enrichment fields are merged, but status is NEVER downgraded away from converted", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "converted", crmClientId: "existing-crm-id", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "converted" })];
+  await finalizeDiscoveryResultEnrichment("row-1", claimedAt, enrichmentPatch(), "actor-user-1");
+  assert.equal(fakeTxUpdateSetCapture.status, "converted", "converted must never be overwritten by 'enriched'");
+});
+
+test("finalizeDiscoveryResultEnrichment: a null businessStatus/phone/website (Google confirmed empty) is written as null, never skipped", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "discovered", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "enriched" })];
+  await finalizeDiscoveryResultEnrichment("row-1", claimedAt, { phone: null, website: null, openingHours: null, businessStatus: null }, "actor-user-1");
+  assert.equal(fakeTxUpdateSetCapture.phone, null);
+  assert.equal(fakeTxUpdateSetCapture.website, null);
+  assert.equal(fakeTxUpdateSetCapture.businessStatus, null);
+});
+
+test("finalizeDiscoveryResultEnrichment: writes an audit entry in the SAME transaction (the same tx executor object is handed to logAudit)", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "discovered", sourceId: "abc123", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "enriched" })];
+  await finalizeDiscoveryResultEnrichment("row-1", claimedAt, enrichmentPatch(), "actor-user-42");
+  assert.equal(auditWrites.length, 1);
+  assert.equal(auditWrites[0].handedTx, true, "logAudit must receive the SAME tx, never db or a re-resolved session");
+  assert.equal(auditWrites[0].input.actorUserId, "actor-user-42");
+  assert.equal(auditWrites[0].input.action, "radar.discovery_result_enriched");
+  assert.equal(auditWrites[0].input.targetType, "discovery_result");
+  assert.equal(auditWrites[0].input.targetId, "row-1");
+});
+
+test("finalizeDiscoveryResultEnrichment: SECURITY -- the audit metadata never contains a raw provider payload, only source/sourceId", async () => {
+  const claimedAt = new Date();
+  fakeTxSelectReturns = [claimableRow({ status: "discovered", source: "google_places", sourceId: "abc123", enrichmentClaimedAt: claimedAt })];
+  fakeTxUpdateReturns = [claimableRow({ status: "enriched" })];
+  await finalizeDiscoveryResultEnrichment("row-1", claimedAt, enrichmentPatch(), "actor-user-1");
+  assert.deepEqual(Object.keys(auditWrites[0].input.metadata).sort(), ["source", "sourceId"].sort());
+});
+
+test("ENRICHMENT_LEASE_SECONDS is a positive number, comfortably longer than the transport timeout + one retry", () => {
+  assert.equal(typeof ENRICHMENT_LEASE_SECONDS, "number");
+  assert.ok(ENRICHMENT_LEASE_SECONDS > 0);
+  assert.ok(ENRICHMENT_LEASE_SECONDS >= 60, "must comfortably exceed the ~16s worst-case single-attempt duration (8s timeout x up to 2 attempts)");
 });

@@ -58,3 +58,29 @@ export async function checkDiscoveryProviderRateLimit(providerId: string): Promi
     return { allowed: false, retryAfterSeconds: DISCOVERY_RATE_LIMIT_WINDOW_SECONDS };
   }
 }
+
+/**
+ * MISSION C-2D-4-E — Enrichment Engine's OWN provider-level guard-rail, a
+ * SEPARATE scope from DISCOVERY_RATE_LIMIT_SCOPE above (mission section
+ * 11: "séparer actor enrichment rate limit / provider enrichment rate
+ * limit" from Search's own). A one-off surge of Details lookups can never
+ * starve Search's own budget, and vice versa — the two operations share
+ * nothing but the same underlying checkRateLimit() primitive and the same
+ * fail-closed philosophy (a real, billable external call sits directly
+ * behind this gate, same as the Search-side guard above).
+ */
+const DISCOVERY_ENRICHMENT_RATE_LIMIT_SCOPE = "radar_discovery_enrichment_provider";
+/** Placeholder guard-rail, same "not yet a calibrated production budget"
+ * framing as DISCOVERY_RATE_LIMIT_MAX_REQUESTS above. */
+export const DISCOVERY_ENRICHMENT_RATE_LIMIT_MAX_REQUESTS = 10;
+export const DISCOVERY_ENRICHMENT_RATE_LIMIT_WINDOW_SECONDS = 60;
+
+export async function checkDiscoveryEnrichmentProviderRateLimit(providerId: string): Promise<DiscoveryRateLimitDecision> {
+  try {
+    const result = await checkRateLimit(DISCOVERY_ENRICHMENT_RATE_LIMIT_SCOPE, `${providerId}:global`, DISCOVERY_ENRICHMENT_RATE_LIMIT_MAX_REQUESTS, DISCOVERY_ENRICHMENT_RATE_LIMIT_WINDOW_SECONDS);
+    if (!result.allowed) return { allowed: false, retryAfterSeconds: result.retryAfterSeconds };
+    return { allowed: true };
+  } catch {
+    return { allowed: false, retryAfterSeconds: DISCOVERY_ENRICHMENT_RATE_LIMIT_WINDOW_SECONDS };
+  }
+}

@@ -52,6 +52,17 @@ mock.module("@/lib/actions/radar-discovery-convert", {
   },
 });
 
+// MISSION C-2D-4-E — same "present only so the module import resolves"
+// convention as the two mocks above — never invoked below (no click
+// simulation, no act()-capable harness).
+mock.module("@/lib/actions/radar-discovery-enrich", {
+  namedExports: {
+    enrichDiscoveryResult: async () => {
+      throw new Error("enrichDiscoveryResult must not be called in this test file");
+    },
+  },
+});
+
 const {
   DiscoverySearchPanel,
   DISCOVERY_UI_FIELD_SET,
@@ -72,6 +83,12 @@ const {
   mapConvertOutcomeToState,
   discoveryConversionMessage,
   discoveryTimezoneLine,
+  canShowEnrichButton,
+  isEnrichButtonDisabled,
+  mapEnrichOutcomeToState,
+  discoveryEnrichmentMessage,
+  discoveryBusinessStatusLabel,
+  discoveryEnrichmentDataLines,
 } = await import("./discovery-search-panel.tsx");
 
 const T = {
@@ -115,6 +132,18 @@ const T = {
   convertNotFound: "Résultat introuvable. Réessayez.",
   timezoneLabel: "Fuseau horaire",
   localTimeLabel: "Heure locale",
+  enrichButton: "Enrichir",
+  enriching: "Enrichissement en cours…",
+  enrichAlreadyEnriched: "Déjà enrichi",
+  enrichInProgress: "Enrichissement déjà en cours",
+  enrichIgnored: "Résultat ignoré, non enrichissable",
+  enrichFailed: "Échec de l'enrichissement. Réessayez.",
+  phoneLabel: "📞",
+  websiteLabel: "🔗",
+  openingHoursAvailableLabel: "🕒 Horaires disponibles",
+  businessStatusOperational: "🟢 Opérationnel",
+  businessStatusClosedTemporarily: "🟠 Fermé temporairement",
+  businessStatusClosedPermanently: "🔴 Fermé définitivement",
 };
 
 const EMPTY = { country: "", region: "", city: "", category: "" };
@@ -487,4 +516,70 @@ test("UI: idle render never shows any timezone/local-time line (no results yet)"
   const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
   assert.doesNotMatch(markup, /🌍/);
   assert.doesNotMatch(markup, /🕐/);
+});
+
+// ------------------------- MISSION C-2D-4-E — Enrichment Engine UI -------------------------
+
+test("canShowEnrichButton: true for created/already_discovered, false for already_in_crm -- identical condition to canShowConvertButton", () => {
+  assert.equal(canShowEnrichButton("created"), true);
+  assert.equal(canShowEnrichButton("already_discovered"), true);
+  assert.equal(canShowEnrichButton("already_in_crm"), false);
+});
+
+test("isEnrichButtonDisabled: false only when idle; disabled for pending/done/blocked/error (no force-refresh control in this minimal V1)", () => {
+  assert.equal(isEnrichButtonDisabled({ kind: "idle" }), false);
+  assert.equal(isEnrichButtonDisabled({ kind: "pending" }), true);
+  assert.equal(isEnrichButtonDisabled({ kind: "done", data: { phone: null, website: null, openingHours: null, businessStatus: null } }), true);
+  assert.equal(isEnrichButtonDisabled({ kind: "blocked", reason: "ignored" }), true);
+  assert.equal(isEnrichButtonDisabled({ kind: "blocked", reason: "enrichment_in_progress" }), true);
+  assert.equal(isEnrichButtonDisabled({ kind: "error" }), true);
+});
+
+test("mapEnrichOutcomeToState: exhaustive over every real EnrichDiscoveryResultOutcome status", () => {
+  const data = { phone: "+1", website: "https://x.test", openingHours: { periods: [] }, businessStatus: "OPERATIONAL" };
+  assert.deepEqual(mapEnrichOutcomeToState({ status: "enriched", discoveryResultId: "id-1", ...data }), { kind: "done", data });
+  assert.deepEqual(mapEnrichOutcomeToState({ status: "already_enriched", discoveryResultId: "id-1", ...data }), { kind: "done", data });
+  assert.deepEqual(mapEnrichOutcomeToState({ status: "ignored" }), { kind: "blocked", reason: "ignored" });
+  assert.deepEqual(mapEnrichOutcomeToState({ status: "enrichment_in_progress" }), { kind: "blocked", reason: "enrichment_in_progress" });
+  for (const status of ["not_found", "actor_rate_limited", "provider_unavailable", "provider_rate_limited", "provider_timeout", "provider_error"]) {
+    assert.deepEqual(mapEnrichOutcomeToState({ status, retryAfterSeconds: 5 }), { kind: "error" });
+  }
+});
+
+test("discoveryEnrichmentMessage: blocked(ignored)/blocked(enrichment_in_progress)/error each map to their own distinct dictionary string; idle/pending/done -> null", () => {
+  assert.equal(discoveryEnrichmentMessage({ kind: "blocked", reason: "ignored" }, T), T.enrichIgnored);
+  assert.equal(discoveryEnrichmentMessage({ kind: "blocked", reason: "enrichment_in_progress" }, T), T.enrichInProgress);
+  assert.equal(discoveryEnrichmentMessage({ kind: "error" }, T), T.enrichFailed);
+  assert.equal(discoveryEnrichmentMessage({ kind: "idle" }, T), null);
+  assert.equal(discoveryEnrichmentMessage({ kind: "pending" }, T), null);
+  assert.equal(discoveryEnrichmentMessage({ kind: "done", data: { phone: null, website: null, openingHours: null, businessStatus: null } }, T), null);
+});
+
+test("discoveryBusinessStatusLabel: the three known Google values map to their own labels", () => {
+  assert.equal(discoveryBusinessStatusLabel("OPERATIONAL", T), T.businessStatusOperational);
+  assert.equal(discoveryBusinessStatusLabel("CLOSED_TEMPORARILY", T), T.businessStatusClosedTemporarily);
+  assert.equal(discoveryBusinessStatusLabel("CLOSED_PERMANENTLY", T), T.businessStatusClosedPermanently);
+});
+
+test("discoveryBusinessStatusLabel: null -> null (no badge), and an unrecognized future value also degrades to null rather than crashing or guessing", () => {
+  assert.equal(discoveryBusinessStatusLabel(null, T), null);
+  assert.equal(discoveryBusinessStatusLabel("SOME_FUTURE_GOOGLE_VALUE", T), null);
+});
+
+test("discoveryEnrichmentDataLines: renders phone/website/openingHours-availability/businessStatus ONLY when each is present -- never a fabricated 'no website' line for a null field", () => {
+  const allPresent = discoveryEnrichmentDataLines({ phone: "+33 1 42 00 00 01", website: "https://example.test", openingHours: { periods: [] }, businessStatus: "OPERATIONAL" }, T);
+  assert.deepEqual(allPresent, [`${T.phoneLabel} +33 1 42 00 00 01`, `${T.websiteLabel} https://example.test`, T.openingHoursAvailableLabel, T.businessStatusOperational]);
+
+  const allNull = discoveryEnrichmentDataLines({ phone: null, website: null, openingHours: null, businessStatus: null }, T);
+  assert.deepEqual(allNull, [], "every field null -> zero lines rendered, never a placeholder/negative statement");
+});
+
+test("discoveryEnrichmentDataLines: a partial patch (only businessStatus known) renders exactly one line", () => {
+  const lines = discoveryEnrichmentDataLines({ phone: null, website: null, openingHours: null, businessStatus: "CLOSED_PERMANENTLY" }, T);
+  assert.deepEqual(lines, [T.businessStatusClosedPermanently]);
+});
+
+test("UI: idle render never shows an 'Enrichir' button (no results yet)", () => {
+  const markup = renderToStaticMarkup(React.createElement(DiscoverySearchPanel, { t: T, locale: "fr" }));
+  assert.doesNotMatch(markup, /Enrichir/);
 });

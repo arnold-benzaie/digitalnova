@@ -99,6 +99,51 @@ export const RESULT_MISSING_ID: GooglePlacesRawResult = {
   displayName: { text: "No Id Co" },
 };
 
+// MISSION C-2D-4-E — Enrichment Engine fixtures --------------------------
+
+export const RESULT_WITH_BUSINESS_STATUS: GooglePlacesRawResult = {
+  ...COMPLETE_RESULT,
+  id: "ChIJ_with_business_status_id",
+  businessStatus: "OPERATIONAL",
+};
+
+export const RESULT_CLOSED_PERMANENTLY: GooglePlacesRawResult = {
+  ...COMPLETE_RESULT,
+  id: "ChIJ_closed_permanently_id",
+  businessStatus: "CLOSED_PERMANENTLY",
+};
+
+export const RESULT_NO_BUSINESS_STATUS: GooglePlacesRawResult = {
+  ...COMPLETE_RESULT,
+  id: "ChIJ_no_business_status_id",
+  businessStatus: undefined,
+};
+
+/** A Place Details (New) response — the raw Place resource returned
+ * DIRECTLY as the GET body (never wrapped in `{places: [...]}`, unlike a
+ * Text Search response) — same `GooglePlacesRawResult` shape either way,
+ * since this adapter's raw type was never Search-specific. Only the four
+ * fields the Details field mask actually requests are ever present on a
+ * REAL response — other fields are included here only to prove
+ * normalizeGooglePlacesDetailsResult() never reads them even if present. */
+export const DETAILS_RESPONSE_COMPLETE: GooglePlacesRawResult = {
+  id: "ChIJ_complete_result_id",
+  displayName: { text: "Should never be read by the Details normalizer" },
+  internationalPhoneNumber: "+33 1 42 00 00 01",
+  websiteUri: "https://lepetitbistro.example",
+  regularOpeningHours: { periods: [{ open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 22, minute: 0 } }] },
+  businessStatus: "OPERATIONAL",
+};
+
+/** A Details response confirming every field empty — Google's genuine
+ * "no value for any of the requested fields" shape, never a malformed
+ * response. */
+export const DETAILS_RESPONSE_EMPTY: GooglePlacesRawResult = {};
+
+export const DETAILS_RESPONSE_CLOSED_TEMPORARILY: GooglePlacesRawResult = {
+  businessStatus: "CLOSED_TEMPORARILY",
+};
+
 export const SEARCH_RESPONSE_WITH_PAGE_TOKEN: GooglePlacesSearchResponse = {
   places: [COMPLETE_RESULT, PARTIAL_RESULT],
   nextPageToken: "opaque-next-page-token-abc123",

@@ -28,9 +28,15 @@ import "server-only";
  * Anthropic's transport (whose timeout is a defensive SECOND ceiling
  * behind the gateway's own race).
  */
-import type { GooglePlacesSearchRequestDescriptor } from "./google-places";
+import type { GooglePlacesDetailsRequestDescriptor, GooglePlacesSearchRequestDescriptor } from "./google-places";
 
 export const GOOGLE_PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
+/** MISSION C-2D-4-E — base for Place Details (New) GET lookups; the real
+ * placeId is appended per-call, never baked into this constant. A
+ * SEPARATE base from the Text Search URL — the two endpoints are
+ * genuinely different Google resources (POST search vs. GET one place),
+ * never a shared code path. */
+export const GOOGLE_PLACES_DETAILS_BASE_URL = "https://places.googleapis.com/v1/places";
 /** Centralized, single source of truth for this transport's timeout —
  * mission section 7: "la valeur du timeout doit être centralisée/
  * configurable". Not shared with radar-intelligence's own gateway timeout
@@ -43,6 +49,9 @@ export type GooglePlacesHttpTransportOptions = {
   apiKey: string;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
+  /** MISSION C-2D-4-E — independent override from `baseUrl` (Text
+   * Search's own base) — the two endpoints are never coupled. */
+  detailsBaseUrl?: string;
   requestTimeoutMs?: number;
 };
 
@@ -58,6 +67,10 @@ export interface GooglePlacesTransport {
    * caller's classifyGooglePlacesError()/toDiscoveryError() runs. MUST
    * NOT leak a credential in any thrown value. */
   searchText(descriptor: GooglePlacesSearchRequestDescriptor): Promise<GooglePlacesTransportResult>;
+  /** MISSION C-2D-4-E — same contract as searchText(): MUST reject (never
+   * resolve with a placeholder) on transport/network failure, MUST NOT
+   * leak the credential. A GET request, never a POST body. */
+  getDetails(descriptor: GooglePlacesDetailsRequestDescriptor): Promise<GooglePlacesTransportResult>;
 }
 
 function genericTransportError(name: string): Error {
@@ -78,6 +91,7 @@ export function createGooglePlacesHttpTransport(options: GooglePlacesHttpTranspo
   const apiKey = options.apiKey;
   const doFetch = options.fetchImpl ?? (globalThis.fetch as typeof fetch);
   const url = options.baseUrl ?? GOOGLE_PLACES_TEXT_SEARCH_URL;
+  const detailsUrl = options.detailsBaseUrl ?? GOOGLE_PLACES_DETAILS_BASE_URL;
   const timeoutMs =
     typeof options.requestTimeoutMs === "number" && Number.isFinite(options.requestTimeoutMs) && options.requestTimeoutMs > 0
       ? Math.min(30_000, Math.trunc(options.requestTimeoutMs))
@@ -129,6 +143,54 @@ export function createGooglePlacesHttpTransport(options: GooglePlacesHttpTranspo
         } catch {
           // Non-JSON error body -- classification falls back to the
           // HTTP status alone.
+        }
+        return { body: errorBody, status };
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = await res.json();
+      } catch {
+        throw genericTransportError("InvalidJsonError");
+      }
+      return { body: parsed, status };
+    },
+
+    // MISSION C-2D-4-E — a GET, never a POST: no request body, the
+    // placeId is part of the URL path (never a query parameter, same
+    // "never let identifying data leak into logs/referrers" discipline as
+    // the API key header above). Shares this transport's own
+    // AbortController-per-call timeout discipline, unchanged.
+    async getDetails(descriptor: GooglePlacesDetailsRequestDescriptor): Promise<GooglePlacesTransportResult> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      let res: Response;
+      try {
+        res = await doFetch(`${detailsUrl}/${encodeURIComponent(descriptor.placeId)}`, {
+          method: descriptor.method,
+          headers: {
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": descriptor.fieldMask,
+          },
+          signal: controller.signal,
+        });
+      } catch (thrown) {
+        clearTimeout(timer);
+        const name = typeof thrown === "object" && thrown !== null && "name" in thrown ? String((thrown as { name?: unknown }).name) : "";
+        if (name === "AbortError" || name === "TimeoutError") throw genericTransportError("AbortError");
+        throw genericTransportError("TransportNetworkError");
+      }
+      clearTimeout(timer);
+
+      const status = res.status;
+      if (status < 200 || status >= 300) {
+        let errorBody: unknown = null;
+        try {
+          errorBody = await res.json();
+        } catch {
+          // Non-JSON error body -- classification falls back to the
+          // HTTP status alone, same as searchText() above.
         }
         return { body: errorBody, status };
       }

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 mock.module("server-only", { namedExports: {} });
 
-const { createGooglePlacesHttpTransport, GOOGLE_PLACES_TEXT_SEARCH_URL, DEFAULT_GOOGLE_PLACES_REQUEST_TIMEOUT_MS } = await import("./google-places-http-transport.ts");
+const { createGooglePlacesHttpTransport, GOOGLE_PLACES_TEXT_SEARCH_URL, GOOGLE_PLACES_DETAILS_BASE_URL, DEFAULT_GOOGLE_PLACES_REQUEST_TIMEOUT_MS } = await import("./google-places-http-transport.ts");
 
 const HOSTILE_KEY = "AIzaHostileTestKeyDoNotLeak12345";
 
@@ -179,4 +179,112 @@ test("a generic network rejection maps to TransportNetworkError, never leaks the
     assert.equal(err.name, "TransportNetworkError");
     assert.ok(!err.message.includes("ECONNREFUSED"));
   }
+});
+
+// ---- MISSION C-2D-4-E — Enrichment Engine: getDetails() (GET, no body) ----
+
+const detailsDescriptor = { endpoint: "places/{id}", method: "GET", fieldMask: "places.internationalPhoneNumber,places.websiteUri", placeId: "ChIJ_some_place_id" };
+
+test("Details: sends a GET to the exact placeId path under the Details base URL, never a query parameter", async () => {
+  const ff = fakeFetch({ body: { internationalPhoneNumber: "+1" } });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  await transport.getDetails(detailsDescriptor);
+  assert.equal(ff.calls[0].url, `${GOOGLE_PLACES_DETAILS_BASE_URL}/ChIJ_some_place_id`);
+  assert.equal(ff.calls[0].init.method, "GET");
+});
+
+test("Details: URL-encodes the placeId (defense in depth against a poisoned/malformed sourceId)", async () => {
+  const ff = fakeFetch({ body: {} });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  await transport.getDetails({ ...detailsDescriptor, placeId: "abc/def ghi" });
+  assert.equal(ff.calls[0].url, `${GOOGLE_PLACES_DETAILS_BASE_URL}/${encodeURIComponent("abc/def ghi")}`);
+});
+
+test("Details: sends X-Goog-FieldMask with exactly the descriptor's own field mask, never a request body", async () => {
+  const ff = fakeFetch({ body: {} });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  await transport.getDetails(detailsDescriptor);
+  assert.equal(ff.calls[0].init.headers["X-Goog-FieldMask"], "places.internationalPhoneNumber,places.websiteUri");
+  assert.equal(ff.calls[0].init.body, undefined, "a GET must never carry a body");
+});
+
+test("Details: injects the API key via the X-Goog-Api-Key header, never the URL", async () => {
+  const ff = fakeFetch({ body: {} });
+  const transport = createGooglePlacesHttpTransport({ apiKey: HOSTILE_KEY, fetchImpl: ff });
+  await transport.getDetails(detailsDescriptor);
+  assert.equal(ff.calls[0].init.headers["X-Goog-Api-Key"], HOSTILE_KEY);
+  assert.ok(!ff.calls[0].url.includes(HOSTILE_KEY));
+});
+
+test("Details: the api key never appears in a thrown error's message, even on transport failure", async () => {
+  const ff = fakeFetch({ reject: new Error("network exploded") });
+  const transport = createGooglePlacesHttpTransport({ apiKey: HOSTILE_KEY, fetchImpl: ff });
+  await assert.rejects(() => transport.getDetails(detailsDescriptor), (err) => {
+    assert.ok(!String(err.message).includes(HOSTILE_KEY));
+    return true;
+  });
+});
+
+test("Details: a genuine 2xx response returns {body, status} verbatim for the caller to normalize", async () => {
+  const ff = fakeFetch({ body: { internationalPhoneNumber: "+33 1 42 00 00 01" } });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  const result = await transport.getDetails(detailsDescriptor);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { internationalPhoneNumber: "+33 1 42 00 00 01" });
+});
+
+test("Details: a non-2xx response returns {body, status} without throwing -- classification is the caller's job", async () => {
+  const ff = fakeFetch({ status: 404, body: { error: { code: 404, status: "NOT_FOUND" } } });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  const result = await transport.getDetails(detailsDescriptor);
+  assert.equal(result.status, 404);
+  assert.deepEqual(result.body, { error: { code: 404, status: "NOT_FOUND" } });
+});
+
+test("Details: a non-JSON error body still returns {body: null, status} rather than throwing", async () => {
+  const ff = fakeFetch({ status: 503, invalidJson: true });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  const result = await transport.getDetails(detailsDescriptor);
+  assert.equal(result.status, 503);
+  assert.equal(result.body, null);
+});
+
+test("Details: a genuine 2xx response with invalid JSON throws InvalidJsonError", async () => {
+  const ff = fakeFetch({ status: 200, invalidJson: true });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  await assert.rejects(() => transport.getDetails(detailsDescriptor), (err) => err.name === "InvalidJsonError");
+});
+
+test("Details: a fetch that never resolves is aborted after the configured timeout, preserving AbortError's name", async () => {
+  const hangsUntilAborted = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => {
+        const err = new Error("The operation was aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+    });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: hangsUntilAborted, requestTimeoutMs: 50 });
+  const start = Date.now();
+  await assert.rejects(() => transport.getDetails(detailsDescriptor), (err) => err.name === "AbortError");
+  assert.ok(Date.now() - start < 2000, "must not hang indefinitely");
+});
+
+test("Details: a generic network rejection maps to TransportNetworkError, never leaks the raw error text", async () => {
+  const ff = fakeFetch({ reject: new Error("ECONNREFUSED 127.0.0.1:443 some raw socket detail") });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff });
+  try {
+    await transport.getDetails(detailsDescriptor);
+    assert.fail("must throw");
+  } catch (err) {
+    assert.equal(err.name, "TransportNetworkError");
+    assert.ok(!err.message.includes("ECONNREFUSED"));
+  }
+});
+
+test("Details: an injectable detailsBaseUrl overrides the default, independent of the Text Search baseUrl", async () => {
+  const ff = fakeFetch({ body: {} });
+  const transport = createGooglePlacesHttpTransport({ apiKey: "real-key", fetchImpl: ff, detailsBaseUrl: "https://example.test/details" });
+  await transport.getDetails(detailsDescriptor);
+  assert.equal(ff.calls[0].url, "https://example.test/details/ChIJ_some_place_id");
 });

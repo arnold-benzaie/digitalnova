@@ -61,6 +61,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { searchRadarDiscovery, type RadarDiscoverySearchItem, type RadarDiscoverySearchResult } from "@/lib/actions/radar-discovery-search";
 import { convertDiscoveryResult, type ConvertDiscoveryResultOutcome } from "@/lib/actions/radar-discovery-convert";
+import { enrichDiscoveryResult, type DiscoveryEnrichmentData, type EnrichDiscoveryResultOutcome } from "@/lib/actions/radar-discovery-enrich";
 import { formatLocalTime } from "@/lib/i18n/format";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -133,6 +134,19 @@ export type DiscoverySearchDict = {
    * columns (mission section 8: "ne pas surcharger le tableau"). */
   timezoneLabel: string;
   localTimeLabel: string;
+  /** MISSION C-2D-4-E — Enrichment Engine. */
+  enrichButton: string;
+  enriching: string;
+  enrichAlreadyEnriched: string;
+  enrichInProgress: string;
+  enrichIgnored: string;
+  enrichFailed: string;
+  phoneLabel: string;
+  websiteLabel: string;
+  openingHoursAvailableLabel: string;
+  businessStatusOperational: string;
+  businessStatusClosedTemporarily: string;
+  businessStatusClosedPermanently: string;
 };
 
 /** True when at least one of the four supported criteria has real (post
@@ -401,6 +415,118 @@ export function discoveryConversionMessage(state: DiscoveryConversionState, t: D
 }
 
 /**
+ * MISSION C-2D-4-E — "Enrichir" per-row state. Presentation-only: every
+ * real decision (RBAC, claim/lease, provider call, transactional merge)
+ * is made by enrichDiscoveryResult() (lib/actions/radar-discovery-enrich.ts)
+ * — this component only tracks, per discoveryResultId, what that action
+ * last returned. `data` on "done" is the actual enriched payload (phone/
+ * website/openingHours/businessStatus), surfaced directly from the
+ * action's own outcome — never re-fetched, never a raw provider payload.
+ */
+export type DiscoveryEnrichmentState =
+  | { kind: "idle" }
+  | { kind: "pending" }
+  | { kind: "done"; data: DiscoveryEnrichmentData }
+  /** Covers `ignored` and `enrichment_in_progress` — both are refusals
+   * with a specific, known reason, distinct from a genuine failure. */
+  | { kind: "blocked"; reason: "ignored" | "enrichment_in_progress" }
+  /** Covers `not_found`, rate-limited, and every provider_* failure —
+   * generic and retryable, mirroring discoveryConversionMessage()'s own
+   * "error" opacity convention. */
+  | { kind: "error" };
+
+/** The button exists ONLY where "Add to CRM" also exists — the exact same
+ * condition (created/already_discovered, never already_in_crm, which has
+ * no discoveryResultId to target). */
+export function canShowEnrichButton(status: RadarDiscoverySearchItem["status"]): boolean {
+  return canShowConvertButton(status);
+}
+
+/** Disabled while pending or once a terminal decision has been rendered —
+ * this minimal V1 has no "force refresh" control (mission section 22:
+ * "uniquement si nécessaire pour rendre le système utilisable"); a
+ * `blocked`/`error` state is NOT re-enabled automatically, since retrying
+ * an `ignored` result is a deliberate non-goal (discovery-result-store.ts's
+ * own claim function refuses it unconditionally) and retrying
+ * `enrichment_in_progress` immediately would just race the same lease. */
+export function isEnrichButtonDisabled(state: DiscoveryEnrichmentState): boolean {
+  return state.kind !== "idle";
+}
+
+/** Maps a real EnrichDiscoveryResultOutcome to the per-row state this
+ * component tracks — exhaustive over the closed union (a missing case is
+ * a compile error). */
+export function mapEnrichOutcomeToState(outcome: EnrichDiscoveryResultOutcome): DiscoveryEnrichmentState {
+  switch (outcome.status) {
+    case "enriched":
+    case "already_enriched":
+      return { kind: "done", data: { phone: outcome.phone, website: outcome.website, openingHours: outcome.openingHours, businessStatus: outcome.businessStatus } };
+    case "ignored":
+      return { kind: "blocked", reason: "ignored" };
+    case "enrichment_in_progress":
+      return { kind: "blocked", reason: "enrichment_in_progress" };
+    case "not_found":
+    case "actor_rate_limited":
+    case "provider_unavailable":
+    case "provider_rate_limited":
+    case "provider_timeout":
+    case "provider_error":
+      return { kind: "error" };
+  }
+}
+
+/** The message shown next to (or instead of) the button — `null` while
+ * idle/pending/done (a "done" state renders its own data instead, see
+ * discoveryEnrichmentDataLines() below). */
+export function discoveryEnrichmentMessage(state: DiscoveryEnrichmentState, t: DiscoverySearchDict): string | null {
+  if (state.kind === "blocked") {
+    return state.reason === "ignored" ? t.enrichIgnored : t.enrichInProgress;
+  }
+  if (state.kind === "error") return t.enrichFailed;
+  return null;
+}
+
+/** MISSION C-2D-4-E — `businessStatus` is a closed set of exactly three
+ * Google-documented values (db/schema.ts's own CHECK constraint);
+ * anything else (a future Google value this phase never anticipated, or
+ * `null`) degrades to `null` here — meaning NO badge is rendered — rather
+ * than crashing or guessing a label. Never derived from openingHours'
+ * presence/absence. */
+export function discoveryBusinessStatusLabel(businessStatus: string | null, t: DiscoverySearchDict): string | null {
+  switch (businessStatus) {
+    case "OPERATIONAL":
+      return t.businessStatusOperational;
+    case "CLOSED_TEMPORARILY":
+      return t.businessStatusClosedTemporarily;
+    case "CLOSED_PERMANENTLY":
+      return t.businessStatusClosedPermanently;
+    default:
+      return null;
+  }
+}
+
+/**
+ * MISSION C-2D-4-E — the compact enrichment data lines shown once a row
+ * is "done" (enriched or already_enriched). Each line is rendered ONLY
+ * when the underlying field is non-null — mission section 22's own
+ * explicit rule: `website === null` is never presented as "no website",
+ * it simply renders no line at all (the same discipline formatLocalTime()/
+ * discoveryTimezoneLine() already established for timezone in C-2D-3).
+ * `openingHours` is rendered as a bare availability indicator, never a
+ * reconstructed schedule (this phase never verified Google's exact
+ * regularOpeningHours shape live — see google-places.ts's own header).
+ */
+export function discoveryEnrichmentDataLines(data: DiscoveryEnrichmentData, t: DiscoverySearchDict): string[] {
+  const lines: string[] = [];
+  if (data.phone) lines.push(`${t.phoneLabel} ${data.phone}`);
+  if (data.website) lines.push(`${t.websiteLabel} ${data.website}`);
+  if (data.openingHours !== null && data.openingHours !== undefined) lines.push(t.openingHoursAvailableLabel);
+  const businessStatusLabel = discoveryBusinessStatusLabel(data.businessStatus, t);
+  if (businessStatusLabel) lines.push(businessStatusLabel);
+  return lines;
+}
+
+/**
  * MISSION C-2D-3 — the compact timezone/local-time secondary line's data,
  * extracted as a pure function for the same reason as every other UI-state
  * decision above (this repo has no act()-capable React harness). Returns
@@ -448,6 +574,14 @@ export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; lo
   const [conversions, setConversions] = useState<Record<string, DiscoveryConversionState>>({});
   const [, startConvertTransition] = useTransition();
 
+  // MISSION C-2D-4-E — per-row "Enrichir" state, keyed by discoveryResultId,
+  // same shared-transition/per-row-map pattern as conversions above — a
+  // shared useTransition wraps every enrichment call (never a direct
+  // fetch); the per-row disabled/pending state is driven by this map, so
+  // enriching one row never disables another row's button.
+  const [enrichments, setEnrichments] = useState<Record<string, DiscoveryEnrichmentState>>({});
+  const [, startEnrichTransition] = useTransition();
+
   function onFieldChange(field: keyof DiscoverySearchFormValues, value: string) {
     setFormValues((prev) => ({ ...prev, [field]: value }));
   }
@@ -461,6 +595,19 @@ export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; lo
       // role, or assignedUserId is ever sent; the id is the sole input.
       const outcome = await convertDiscoveryResult(discoveryResultId);
       setConversions((prev) => ({ ...prev, [discoveryResultId]: mapConvertOutcomeToState(outcome.status) }));
+    });
+  }
+
+  function onEnrich(discoveryResultId: string) {
+    const current = enrichments[discoveryResultId] ?? { kind: "idle" as const };
+    if (isEnrichButtonDisabled(current)) return;
+    setEnrichments((prev) => ({ ...prev, [discoveryResultId]: { kind: "pending" } }));
+    startEnrichTransition(async () => {
+      // enrichDiscoveryResult() is the ONLY channel here — no fieldSet,
+      // provider choice, or force-refresh control in this minimal V1; the
+      // id is the sole input.
+      const outcome = await enrichDiscoveryResult(discoveryResultId);
+      setEnrichments((prev) => ({ ...prev, [discoveryResultId]: mapEnrichOutcomeToState(outcome) }));
     });
   }
 
@@ -648,6 +795,10 @@ export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; lo
                   const showConvert = row.discoveryResultId !== null && canShowConvertButton(row.status);
                   const conversionMessage = conversionState ? discoveryConversionMessage(conversionState, t) : null;
                   const timezoneLine = discoveryTimezoneLine(row, locale, new Date());
+                  const enrichmentState = row.discoveryResultId ? (enrichments[row.discoveryResultId] ?? { kind: "idle" as const }) : null;
+                  const showEnrich = row.discoveryResultId !== null && canShowEnrichButton(row.status);
+                  const enrichmentMessage = enrichmentState ? discoveryEnrichmentMessage(enrichmentState, t) : null;
+                  const enrichmentDataLines = enrichmentState && enrichmentState.kind === "done" ? discoveryEnrichmentDataLines(enrichmentState.data, t) : [];
                   return (
                     <tr key={row.key} className="border-t border-pm-gris-2">
                       <td className="px-5 py-3 font-medium text-pm-noir">
@@ -656,6 +807,9 @@ export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; lo
                           <div className="mt-0.5 text-xs font-normal text-pm-gris">
                             <span title={t.timezoneLabel}>🌍 {timezoneLine.timezone}</span> · <span title={t.localTimeLabel}>🕐 {timezoneLine.localTime}</span>
                           </div>
+                        )}
+                        {enrichmentDataLines.length > 0 && (
+                          <div className="mt-0.5 text-xs font-normal text-pm-gris">{enrichmentDataLines.join(" · ")}</div>
                         )}
                       </td>
                       <td className="px-5 py-3 text-pm-gris">{row.category ?? t.noValue}</td>
@@ -666,25 +820,48 @@ export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; lo
                       <td className="px-5 py-3 text-pm-gris">{row.source}</td>
                       <td className="px-5 py-3 text-pm-gris">{discoveryStatusLabel(row.status, t)}</td>
                       <td className="px-5 py-3">
-                        {showConvert && conversionState && (
-                          <div className="flex flex-col items-start gap-1">
-                            {conversionState.kind === "done" ? (
-                              <span className="text-xs text-pm-gris">{conversionMessage}</span>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => onConvert(row.discoveryResultId as string)}
-                                  disabled={isConvertButtonDisabled(conversionState)}
-                                  className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-xs text-pm-noir transition hover:bg-pm-gris-2/30 disabled:opacity-50"
-                                >
-                                  {conversionState.kind === "pending" ? t.addingToCrm : t.addToCrm}
-                                </button>
-                                {conversionState.kind === "error" && <span className="text-xs text-pm-rouge">{conversionMessage}</span>}
-                              </>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-col items-start gap-2">
+                          {showConvert && conversionState && (
+                            <div className="flex flex-col items-start gap-1">
+                              {conversionState.kind === "done" ? (
+                                <span className="text-xs text-pm-gris">{conversionMessage}</span>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onConvert(row.discoveryResultId as string)}
+                                    disabled={isConvertButtonDisabled(conversionState)}
+                                    className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-xs text-pm-noir transition hover:bg-pm-gris-2/30 disabled:opacity-50"
+                                  >
+                                    {conversionState.kind === "pending" ? t.addingToCrm : t.addToCrm}
+                                  </button>
+                                  {conversionState.kind === "error" && <span className="text-xs text-pm-rouge">{conversionMessage}</span>}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {showEnrich && enrichmentState && (
+                            <div className="flex flex-col items-start gap-1">
+                              {enrichmentState.kind === "done" ? (
+                                <span className="text-xs text-pm-gris">{t.enrichAlreadyEnriched}</span>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onEnrich(row.discoveryResultId as string)}
+                                    disabled={isEnrichButtonDisabled(enrichmentState)}
+                                    className="rounded-lg border border-pm-gris-2 px-3 py-1.5 text-xs text-pm-noir transition hover:bg-pm-gris-2/30 disabled:opacity-50"
+                                  >
+                                    {enrichmentState.kind === "pending" ? t.enriching : t.enrichButton}
+                                  </button>
+                                  {enrichmentMessage && (enrichmentState.kind === "blocked" || enrichmentState.kind === "error") && (
+                                    <span className={enrichmentState.kind === "error" ? "text-xs text-pm-rouge" : "text-xs text-pm-gris"}>{enrichmentMessage}</span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
