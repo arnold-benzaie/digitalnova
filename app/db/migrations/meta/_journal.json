@@ -330,6 +330,13 @@
       "when": 1789606205074,
       "tag": "0046_wise_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789775520965,
+      "tag": "0047_chilly_ink",
+      "breakpoints": true
     }
   ]
 }

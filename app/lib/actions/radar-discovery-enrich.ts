@@ -47,6 +47,7 @@ import { checkDiscoveryEnrichmentActorRateLimit } from "@/lib/radar-discovery/ac
 import { createConfiguredGooglePlacesProvider } from "@/lib/radar-discovery/adapters/configured-google-places";
 import { claimDiscoveryResultForEnrichment, finalizeDiscoveryResultEnrichment, releaseDiscoveryResultEnrichmentClaim } from "@/lib/radar-discovery/discovery-result-store";
 import { logDiscoveryProviderEvent } from "@/lib/radar-discovery/observability";
+import { createProviderBudgetGate } from "@/lib/radar-discovery/budget/provider-budget-gate";
 import type { DiscoveryError } from "@/lib/radar-discovery/errors";
 
 /** The four enrichment-tier fields, verbatim from the persisted row —
@@ -71,7 +72,12 @@ export type EnrichDiscoveryResultOutcome =
   | { status: "provider_unavailable" }
   | { status: "provider_rate_limited" }
   | { status: "provider_timeout" }
-  | { status: "provider_error" };
+  | { status: "provider_error" }
+  /** MISSION C-2D-6-B — see radar-discovery-search.ts's own identical
+   * addition; Enrichment's OWN budget gate, never shared with Search's. */
+  | { status: "budget_exhausted" }
+  | { status: "budget_blocked" }
+  | { status: "budget_price_unknown" };
 
 function mapDiscoveryErrorToEnrichOutcome(error: DiscoveryError): EnrichDiscoveryResultOutcome {
   switch (error.code) {
@@ -83,6 +89,12 @@ function mapDiscoveryErrorToEnrichOutcome(error: DiscoveryError): EnrichDiscover
     case "PROVIDER_UNAVAILABLE":
     case "NO_CAPABLE_PROVIDER":
       return { status: "provider_unavailable" };
+    case "BUDGET_EXHAUSTED":
+      return { status: "budget_exhausted" };
+    case "BUDGET_BLOCKED":
+      return { status: "budget_blocked" };
+    case "BUDGET_PRICE_UNKNOWN":
+      return { status: "budget_price_unknown" };
     default:
       return { status: "provider_error" };
   }
@@ -147,7 +159,17 @@ export async function enrichDiscoveryResult(rawDiscoveryResultId: unknown, optio
   // ever returns "claimed" after setting this column to `now()`.
   const claimedAt = claimedRow.enrichmentClaimedAt as Date;
 
-  const provider = createConfiguredGooglePlacesProvider();
+  // MISSION C-2D-6-B — Enrichment's OWN gate, bound to this actor and a
+  // fresh correlation id — never shared with Search's own gate/scope.
+  const enrichmentBudgetGate = createProviderBudgetGate({
+    operationType: "enrichment",
+    actorUserId: userId,
+    provider: "google_places",
+    priceOperation: "get_details",
+    fieldSet: "details",
+  });
+
+  const provider = createConfiguredGooglePlacesProvider({ checkEnrichmentBudget: enrichmentBudgetGate });
   if (!provider || !provider.getDetails) {
     // Not configured, or (structurally impossible today, but never
     // assumed) a provider without the "get_details" capability — release

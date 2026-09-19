@@ -38,6 +38,24 @@ export const DISCOVERY_ERROR_CODES = [
   // stay distinguishable (same reasoning already applied to G4B-2's
   // AI_QUOTA_* codes vs. a provider's own rate limit).
   "QUOTA_EXCEEDED",
+  // MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. Three
+  // codes, deliberately distinct from QUOTA_EXCEEDED (which is a
+  // request-rate guard-rail) and from each other (each names a genuinely
+  // different financial-governance fact a caller/observer must be able to
+  // tell apart):
+  //  - BUDGET_EXHAUSTED: a real, allocated budget exists for the current
+  //    period but has no remaining balance for this reservation.
+  //  - BUDGET_BLOCKED: an OWNER has explicitly paused this period's
+  //    budget row — distinct from a natural exhaustion, exactly the same
+  //    distinction radar_ai_quota_policy's own `enabled: false` draws
+  //    against a reached numeric limit.
+  //  - BUDGET_PRICE_UNKNOWN: the Price Catalog has no verified, enabled,
+  //    currently-effective price for this (provider, operation, fieldSet)
+  //    — mission C-2D-6-A's own explicit rule ("aucun prix inventé") means
+  //    this is a HARD refusal, never a silent zero-cost approval.
+  "BUDGET_EXHAUSTED",
+  "BUDGET_BLOCKED",
+  "BUDGET_PRICE_UNKNOWN",
 ] as const;
 
 export type DiscoveryErrorCode = (typeof DISCOVERY_ERROR_CODES)[number];
@@ -56,6 +74,9 @@ export const SAFE_DISCOVERY_ERROR_MESSAGES: Record<DiscoveryErrorCode, string> =
   NO_CAPABLE_PROVIDER: "No connected provider can serve this request.",
   INVALID_SEARCH_REQUEST: "The search request is invalid.",
   QUOTA_EXCEEDED: "The discovery request budget has been reached for this window.",
+  BUDGET_EXHAUSTED: "The discovery cost budget for this period has been exhausted.",
+  BUDGET_BLOCKED: "The discovery cost budget for this period has been blocked.",
+  BUDGET_PRICE_UNKNOWN: "No verified price is available for this operation.",
 };
 
 /**

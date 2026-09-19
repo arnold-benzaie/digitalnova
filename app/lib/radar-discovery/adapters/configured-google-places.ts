@@ -26,6 +26,7 @@ import type { DiscoveryProvider } from "../provider";
 import type { DiscoveryRateLimitDecision } from "../rate-limit-gate";
 import { createGooglePlacesHttpTransport } from "./google-places-http-transport";
 import { createGooglePlacesProvider } from "./google-places-provider";
+import type { ProviderBudgetGate } from "../budget/provider-budget-gate";
 
 export type ConfiguredGooglePlacesDeps = {
   /** Injected for tests — defaults to reading process.env via the loader. */
@@ -52,6 +53,17 @@ export type ConfiguredGooglePlacesDeps = {
    * application use — the DB-backed default resolves lazily inside
    * google-places-provider.ts's own getDetails(). */
   checkEnrichmentRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
+  /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. Pure
+   * pass-through, no default resolution here (unlike the two rate-limit
+   * deps above) — this factory has no actor identity to attribute a
+   * reservation to; only the calling Server Action does. Omitted: no
+   * budget gating for this provider instance (see
+   * google-places-provider.ts's own CreateGooglePlacesProviderDeps
+   * docstring). Supplied (the real Server Actions,
+   * budget/provider-budget-gate.ts::createProviderBudgetGate()): every
+   * real HTTP attempt is reserved/settled. */
+  checkSearchBudget?: ProviderBudgetGate;
+  checkEnrichmentBudget?: ProviderBudgetGate;
 };
 
 /**
@@ -79,5 +91,7 @@ export function createConfiguredGooglePlacesProvider(deps: ConfiguredGooglePlace
     ...(deps.clock ? { clock: deps.clock } : {}),
     ...(deps.checkRateLimit ? { checkRateLimit: deps.checkRateLimit } : {}),
     ...(deps.checkEnrichmentRateLimit ? { checkEnrichmentRateLimit: deps.checkEnrichmentRateLimit } : {}),
+    ...(deps.checkSearchBudget ? { checkSearchBudget: deps.checkSearchBudget } : {}),
+    ...(deps.checkEnrichmentBudget ? { checkEnrichmentBudget: deps.checkEnrichmentBudget } : {}),
   });
 }

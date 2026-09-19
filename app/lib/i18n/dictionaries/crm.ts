@@ -265,6 +265,10 @@ export const crm = {
       errProviderRateLimited: "Trop de recherches en ce moment. Réessayez plus tard.",
       errProviderTimeout: "La recherche a pris trop de temps. Réessayez.",
       errProviderError: "Une erreur est survenue pendant la recherche. Réessayez.",
+      // MISSION C-2D-6-B — RADAR Discovery cost & quota governance.
+      errBudgetExhausted: "Le budget de recherche pour cette période est épuisé.",
+      errBudgetBlocked: "Le budget de recherche pour cette période est bloqué.",
+      errBudgetPriceUnknown: "Cette opération n'est pas encore configurée pour la facturation.",
       // MISSION C-2C-2-C — Discovery result -> CRM conversion.
       addToCrm: "Ajouter au CRM",
       addingToCrm: "Ajout en cours…",
@@ -1176,6 +1180,10 @@ export const crm = {
       errProviderRateLimited: "Too many searches right now. Try again later.",
       errProviderTimeout: "The search took too long. Try again.",
       errProviderError: "Something went wrong during the search. Try again.",
+      // MISSION C-2D-6-B — RADAR Discovery cost & quota governance.
+      errBudgetExhausted: "The search budget for this period has been exhausted.",
+      errBudgetBlocked: "The search budget for this period has been blocked.",
+      errBudgetPriceUnknown: "This operation is not yet configured for billing.",
       // MISSION C-2C-2-C — Discovery result -> CRM conversion.
       addToCrm: "Add to CRM",
       addingToCrm: "Adding…",

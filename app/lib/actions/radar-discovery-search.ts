@@ -70,6 +70,7 @@ import { createConfiguredGooglePlacesProvider } from "@/lib/radar-discovery/adap
 import { findCrmClientMatch } from "@/lib/crm-client-dedup";
 import { createDiscoveryResult } from "@/lib/radar-discovery/discovery-result-store";
 import { logDiscoveryProviderEvent } from "@/lib/radar-discovery/observability";
+import { createProviderBudgetGate } from "@/lib/radar-discovery/budget/provider-budget-gate";
 import type { DiscoveryError } from "@/lib/radar-discovery/errors";
 import type { DiscoverySearchRequest, DiscoveryProviderResult } from "@/lib/radar-discovery/types";
 
@@ -134,7 +135,14 @@ export type RadarDiscoverySearchResult =
   | { status: "provider_unavailable" }
   | { status: "provider_rate_limited" }
   | { status: "provider_timeout" }
-  | { status: "provider_error" };
+  | { status: "provider_error" }
+  /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. Three
+   * outcomes, deliberately distinct from `provider_rate_limited`
+   * (rate-limit-gate.ts's own scope) — see errors.ts's own
+   * BUDGET_EXHAUSTED/BUDGET_BLOCKED/BUDGET_PRICE_UNKNOWN docstring. */
+  | { status: "budget_exhausted" }
+  | { status: "budget_blocked" }
+  | { status: "budget_price_unknown" };
 
 function mapDiscoveryErrorToActionResult(error: DiscoveryError): RadarDiscoverySearchResult {
   switch (error.code) {
@@ -150,6 +158,12 @@ function mapDiscoveryErrorToActionResult(error: DiscoveryError): RadarDiscoveryS
       // Should not occur here (already validated before provider.search()
       // is ever called) — fail safe rather than assume.
       return { status: "invalid_request", reason: "the provider rejected the search request" };
+    case "BUDGET_EXHAUSTED":
+      return { status: "budget_exhausted" };
+    case "BUDGET_BLOCKED":
+      return { status: "budget_blocked" };
+    case "BUDGET_PRICE_UNKNOWN":
+      return { status: "budget_price_unknown" };
     default:
       return { status: "provider_error" };
   }
@@ -189,7 +203,21 @@ export async function searchRadarDiscovery(rawRequest: unknown): Promise<RadarDi
     return { status: "actor_rate_limited", retryAfterSeconds: actorRateLimit.retryAfterSeconds };
   }
 
-  const provider = createConfiguredGooglePlacesProvider();
+  // MISSION C-2D-6-B — one gate per invocation, bound to THIS actor and a
+  // fresh correlation id — every real HTTP attempt (including the
+  // provider's own internal retry) is reserved/settled independently
+  // before this Server Action ever sees them (see google-places-provider.ts's
+  // own attemptWithBudget()). Search's OWN operationType/priceOperation/
+  // fieldSet — never shared with Enrichment's gate.
+  const searchBudgetGate = createProviderBudgetGate({
+    operationType: "search",
+    actorUserId: userId,
+    provider: "google_places",
+    priceOperation: "search",
+    fieldSet: "minimal_discovery",
+  });
+
+  const provider = createConfiguredGooglePlacesProvider({ checkSearchBudget: searchBudgetGate });
   if (!provider) {
     // Not configured (flag off, or no credential) -- never a silent
     // fallback to a mock, never an attempted call.

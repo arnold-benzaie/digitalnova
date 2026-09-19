@@ -124,6 +124,10 @@ export type DiscoverySearchDict = {
   errProviderRateLimited: string;
   errProviderTimeout: string;
   errProviderError: string;
+  /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. */
+  errBudgetExhausted: string;
+  errBudgetBlocked: string;
+  errBudgetPriceUnknown: string;
   addToCrm: string;
   addingToCrm: string;
   addedToCrm: string;
@@ -308,6 +312,12 @@ export function mapDiscoverySearchErrorMessage(result: Exclude<RadarDiscoverySea
       return t.errProviderTimeout;
     case "provider_error":
       return t.errProviderError;
+    case "budget_exhausted":
+      return t.errBudgetExhausted;
+    case "budget_blocked":
+      return t.errBudgetBlocked;
+    case "budget_price_unknown":
+      return t.errBudgetPriceUnknown;
   }
 }
 
@@ -471,6 +481,13 @@ export function mapEnrichOutcomeToState(outcome: EnrichDiscoveryResultOutcome): 
     case "provider_rate_limited":
     case "provider_timeout":
     case "provider_error":
+    // MISSION C-2D-6-B — no dedicated UI copy for these yet (out of this
+    // mission's scope) — the existing generic "error" bucket is a safe,
+    // truthful degradation (never a fabricated success), consistent with
+    // this mission's "aucun changement UI sauf strictement nécessaire".
+    case "budget_exhausted":
+    case "budget_blocked":
+    case "budget_price_unknown":
       return { kind: "error" };
   }
 }

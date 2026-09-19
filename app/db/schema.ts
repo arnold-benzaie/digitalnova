@@ -2410,3 +2410,211 @@ export const discoveryResults = pgTable(
     check("discovery_results_business_status_check", sql`${table.businessStatus} IS NULL OR ${table.businessStatus} IN ('OPERATIONAL','CLOSED_TEMPORARILY','CLOSED_PERMANENTLY')`),
   ],
 );
+
+// ---------------------------------------------------------------------
+// MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE.
+//
+// Four tables, each a strictly separate responsibility (mirrors the
+// radar_ai_quota_policy / radar_ai_quota_counter split already proven in
+// this schema, extended to a decrementable balance instead of an
+// incrementing counter):
+//
+//   discoveryBudgets            — durable balance per (operationType,
+//                                 periodType, periodKey). NO separate
+//                                 "policy" singleton exists: `allocated`
+//                                 is set directly on each period's own row
+//                                 by an explicit OWNER action (no
+//                                 auto-carry-forward from a prior period) —
+//                                 a period with no row yet has NO budget
+//                                 provisioned, which is the correct
+//                                 FAIL-CLOSED default (never an implicit
+//                                 "unlimited" or a silently inherited
+//                                 limit).
+//   discoveryBudgetReservations — the ONLY table whose rows change state
+//                                 (active -> settled | released | expired).
+//                                 Exists SEPARATELY from the ledger
+//                                 specifically because a reservation's
+//                                 lifecycle requires mutation, while the
+//                                 ledger below must never be mutated.
+//   discoveryBudgetLedger       — APPEND-ONLY history. One row per
+//                                 (reservation, movementType, budget)
+//                                 triple — a single reservation touches
+//                                 TWO budget rows at once (month + day),
+//                                 so a "reserve" produces two ledger rows,
+//                                 never one row describing two scopes.
+//   discoveryPriceCatalog       — durable, OWNER-configurable tariff
+//                                 entries. `price`/`currency` STAY NULL
+//                                 until a real, verified Google price is
+//                                 entered — this schema never fabricates
+//                                 one (mission C-2D-6-A's own explicit
+//                                 rule). A NULL/absent/disabled/
+//                                 out-of-effective-range entry is what
+//                                 lib/radar-discovery/budget's
+//                                 resolvePrice() reports as "unknown",
+//                                 which the reservation path then treats
+//                                 as a hard, fail-closed refusal
+//                                 (BUDGET_PRICE_UNKNOWN) — never a silent
+//                                 zero-cost approval.
+//
+// SCOPE: Search and Enrichment are DELIBERATELY separate `operationType`
+// values throughout all four tables — never a shared budget, mirroring
+// the same separation already established for rate-limit scopes
+// (rate-limit-gate.ts / actor-rate-limit.ts) and for the same reason: a
+// spike in one operation must never silently starve the other's budget.
+//
+// PERIODS: `periodKey` is always a UTC calendar value ("YYYY-MM" for
+// month, "YYYY-MM-DD" for day) — never a local/establishment timezone,
+// mirroring lib/radar-intelligence/quota-counter-store.ts's own
+// `utcDateString()` convention exactly, for the identical reason: a
+// period's meaning must never silently drift with server timezone or an
+// establishment's own (irrelevant here) local time.
+// ---------------------------------------------------------------------
+
+export const discoveryBudgets = pgTable(
+  "discovery_budgets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    operationType: text("operation_type").notNull(),
+    periodType: text("period_type").notNull(),
+    // UTC calendar key: "YYYY-MM" (periodType="month") or "YYYY-MM-DD"
+    // (periodType="day") — see this section's own header.
+    periodKey: text("period_key").notNull(),
+    allocated: integer("allocated").notNull(),
+    remaining: integer("remaining").notNull(),
+    warningThresholdPercent: integer("warning_threshold_percent").notNull().default(80),
+    // An explicit OWNER kill-switch for THIS period's row, distinct from
+    // a naturally-exhausted `remaining = 0` — see budget/types.ts's own
+    // DiscoveryBudgetStatus for how the two are reported differently
+    // (BUDGET_EXHAUSTED vs BUDGET_BLOCKED).
+    blocked: boolean("blocked").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("discovery_budgets_scope_idx").on(table.operationType, table.periodType, table.periodKey),
+    check("discovery_budgets_operation_type_check", sql`${table.operationType} IN ('search','enrichment')`),
+    check("discovery_budgets_period_type_check", sql`${table.periodType} IN ('month','day')`),
+    check("discovery_budgets_allocated_check", sql`${table.allocated} >= 0`),
+    // `remaining` may never exceed `allocated` — the DB's own last line of
+    // defense against any application bug that would let a settlement or
+    // an allocation adjustment inflate the balance beyond what was ever
+    // actually allocated.
+    check("discovery_budgets_remaining_check", sql`${table.remaining} >= 0 AND ${table.remaining} <= ${table.allocated}`),
+    check("discovery_budgets_warning_threshold_check", sql`${table.warningThresholdPercent} BETWEEN 0 AND 100`),
+  ],
+);
+
+export const discoveryBudgetReservations = pgTable(
+  "discovery_budget_reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // The caller-supplied idempotency key (mission C-2D-6-A section 10 /
+    // C-2D-6-B decision 10) — a retried reservation call with the SAME key
+    // must never reserve twice; see budget/discovery-budget-store.ts's own
+    // reserveBudget() for the exact ON CONFLICT DO NOTHING + re-read
+    // pattern this uniqueness enables (identical technique to
+    // createDiscoveryResult()'s own (source, sourceId) dedup).
+    idempotencyKey: text("idempotency_key").notNull(),
+    operationType: text("operation_type").notNull(),
+    monthPeriodKey: text("month_period_key").notNull(),
+    dayPeriodKey: text("day_period_key").notNull(),
+    // The single unit-count reserved against BOTH the month and day budget
+    // rows simultaneously (mission decision 6: one real Google HTTP call =
+    // one unit) — never a monetary amount; a monetary estimate/actual is
+    // reported separately (observability only), never persisted as the
+    // thing actually reserved, since the reservation mechanism must keep
+    // working even while every Price Catalog entry is NULL/unknown.
+    amount: integer("amount").notNull(),
+    // Set only at settlement — NULL while "active" or when released
+    // without ever reaching settlement.
+    actualAmount: integer("actual_amount"),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // TTL — see budget/discovery-budget-store.ts's own
+    // DISCOVERY_BUDGET_RESERVATION_TTL_SECONDS for the exact value and
+    // rationale (mirrors ENRICHMENT_LEASE_SECONDS's own "comfortably
+    // longer than the transport's worst case" reasoning).
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    // Set when status transitions away from "active" (settled / released /
+    // expired) — NULL exactly while still "active".
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("discovery_budget_reservations_idempotency_key_idx").on(table.idempotencyKey),
+    index("discovery_budget_reservations_status_idx").on(table.status),
+    check("discovery_budget_reservations_status_check", sql`${table.status} IN ('active','settled','released','expired')`),
+    check("discovery_budget_reservations_operation_type_check", sql`${table.operationType} IN ('search','enrichment')`),
+    check("discovery_budget_reservations_amount_check", sql`${table.amount} > 0`),
+    check("discovery_budget_reservations_actual_amount_check", sql`${table.actualAmount} IS NULL OR ${table.actualAmount} >= 0`),
+  ],
+);
+
+// APPEND-ONLY. No function in lib/radar-discovery/budget/ ever issues an
+// UPDATE or DELETE against this table — see this section's own header.
+export const discoveryBudgetLedger = pgTable(
+  "discovery_budget_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // `onDelete: "set null"` mirrors discoveryResults.crmClientId's own
+    // convention — a ledger row is historical fact; it must survive even
+    // if the reservation/budget row it references is ever removed (never
+    // expected in practice, but never assumed impossible).
+    reservationId: uuid("reservation_id").references(() => discoveryBudgetReservations.id, { onDelete: "set null" }),
+    budgetId: uuid("budget_id").references(() => discoveryBudgets.id, { onDelete: "set null" }),
+    movementType: text("movement_type").notNull(),
+    amount: integer("amount").notNull(),
+    // Same idempotency key as the parent reservation — paired with
+    // `movementType` AND `budgetId` in the unique index below (a single
+    // "reserve" legitimately produces TWO rows sharing this same key, one
+    // per budget scope — see this section's own header).
+    idempotencyKey: text("idempotency_key").notNull(),
+    operationType: text("operation_type").notNull(),
+    provider: text("provider"),
+    // Free-text correlation id (e.g. a discoveryResultId for enrichment) —
+    // never a raw provider payload, never a secret.
+    relatedEntity: text("related_entity"),
+    // Reporting-only dimensions (mission C-2D-6-A section W / C-2D-6-B
+    // scope note: never a point of reservation, never a separate budget).
+    country: text("country"),
+    region: text("region"),
+    city: text("city"),
+    zone: text("zone"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("discovery_budget_ledger_idempotency_movement_budget_idx").on(table.idempotencyKey, table.movementType, table.budgetId),
+    index("discovery_budget_ledger_reservation_id_idx").on(table.reservationId),
+    index("discovery_budget_ledger_budget_id_idx").on(table.budgetId),
+    check("discovery_budget_ledger_movement_type_check", sql`${table.movementType} IN ('reserve','settle','release','adjust','expire')`),
+    check("discovery_budget_ledger_operation_type_check", sql`${table.operationType} IN ('search','enrichment')`),
+  ],
+);
+
+export const discoveryPriceCatalog = pgTable(
+  "discovery_price_catalog",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: text("provider").notNull(),
+    sku: text("sku").notNull(),
+    operation: text("operation").notNull(),
+    fieldSet: text("field_set").notNull(),
+    unit: text("unit").notNull(),
+    // NULL = no verified price yet — MUST NEVER be fabricated (mission
+    // C-2D-6-A section 4 / C-2D-6-B decision 4). resolvePrice() treats a
+    // NULL price identically to a missing row: BUDGET_PRICE_UNKNOWN.
+    price: numeric("price", { precision: 12, scale: 6, mode: "number" }),
+    currency: text("currency"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    source: text("source"),
+    version: integer("version").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("discovery_price_catalog_lookup_idx").on(table.provider, table.operation, table.fieldSet, table.enabled),
+    check("discovery_price_catalog_operation_check", sql`${table.operation} IN ('search','get_details')`),
+    check("discovery_price_catalog_price_check", sql`${table.price} IS NULL OR ${table.price} >= 0`),
+  ],
+);

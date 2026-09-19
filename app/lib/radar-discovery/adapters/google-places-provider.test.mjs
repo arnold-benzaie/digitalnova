@@ -120,8 +120,37 @@ function makeProvider(overrides = {}) {
     checkEnrichmentRateLimit,
     clock,
     circuitConfig: overrides.circuitConfig ?? DEFAULT_CIRCUIT_CONFIG,
+    ...(overrides.checkSearchBudget ? { checkSearchBudget: overrides.checkSearchBudget } : {}),
+    ...(overrides.checkEnrichmentBudget ? { checkEnrichmentBudget: overrides.checkEnrichmentBudget } : {}),
   });
   return { provider, transport, rateLimitCalls, enrichmentRateLimitCalls, advanceClock };
+}
+
+/** MISSION C-2D-6-B — a scriptable fake ProviderBudgetGate: `script` is an
+ * array of `"allow"` or an error-code string ("BUDGET_EXHAUSTED" etc.),
+ * consumed in order, one per `.reserve()` call (the last entry repeats
+ * once exhausted). Records every reserve/settle call for assertion. */
+function fakeBudgetGate(script = ["allow"]) {
+  const queue = [...script];
+  const reserveCalls = [];
+  const settleCalls = [];
+  let nextReservationId = 0;
+  return {
+    reserveCalls,
+    settleCalls,
+    async reserve(attemptNumber) {
+      reserveCalls.push(attemptNumber);
+      const next = queue.length > 1 ? queue.shift() : queue[0];
+      if (next === "allow") {
+        nextReservationId += 1;
+        return { allowed: true, reservationId: `fake-reservation-${nextReservationId}` };
+      }
+      return { allowed: false, errorCode: next };
+    },
+    async settle(reservationId, success) {
+      settleCalls.push({ reservationId, success });
+    },
+  };
 }
 
 // ---- H. mapping Google -> ProviderResult (delegates to normalizeGooglePlacesSearchResponse, proven in google-places.test.mjs -- this proves the WIRING) ----
@@ -428,4 +457,98 @@ test("SEPARATE RATE LIMITS: an exhausted Search rate-limit budget never blocks a
   await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "QUOTA_EXCEEDED");
   const outcome = await provider.getDetails("ChIJ_test_place", "details");
   assert.equal(outcome.result.phone, "+33 1 42 00 00 01", "Details must succeed even though Search's own budget is exhausted");
+});
+
+// ---- MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE: per-attempt budget gating ----
+
+test("BUDGET: absent gate (undefined) behaves exactly as before this mission -- no reservation, transport called normally", async () => {
+  const { provider, transport } = makeProvider();
+  const outcome = await provider.search(BASE_REQUEST);
+  assert.equal(outcome.results.length, 1);
+  assert.equal(transport.calls.length, 1);
+});
+
+test("BUDGET: a search denied on attempt 1 (BUDGET_EXHAUSTED) never reaches the transport, never retries, never touches the circuit breaker", async () => {
+  const gate = fakeBudgetGate(["BUDGET_EXHAUSTED"]);
+  const transport = fakeTransport({ status: 200, body: OK_BODY });
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_EXHAUSTED");
+  assert.equal(transport.calls.length, 0, "the transport must never be called when the budget refuses");
+  assert.deepEqual(gate.reserveCalls, [1]);
+  assert.equal(gate.settleCalls.length, 0, "a refused reservation is never settled -- there is nothing to settle");
+  assert.equal(provider.health().state, "connected", "a budget refusal must never degrade the circuit breaker");
+});
+
+test("BUDGET: BUDGET_BLOCKED and BUDGET_PRICE_UNKNOWN propagate as their own distinct DiscoveryError codes", async () => {
+  for (const code of ["BUDGET_BLOCKED", "BUDGET_PRICE_UNKNOWN"]) {
+    const gate = fakeBudgetGate([code]);
+    const { provider } = makeProvider({ checkSearchBudget: gate });
+    await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === code);
+  }
+});
+
+test("BUDGET: a successful attempt is settled with success=true, using the reservation id the gate returned", async () => {
+  const gate = fakeBudgetGate(["allow"]);
+  const { provider } = makeProvider({ checkSearchBudget: gate });
+  await provider.search(BASE_REQUEST);
+  assert.deepEqual(gate.settleCalls, [{ reservationId: "fake-reservation-1", success: true }]);
+});
+
+test("BUDGET RETRY: attempt 1 reserved+fails retryably, attempt 2 gets its OWN, separately-numbered reservation -- never reused", async () => {
+  const gate = fakeBudgetGate(["allow", "allow"]);
+  const transport = fakeTransport([{ status: 503, body: {} }, { status: 200, body: OK_BODY }]);
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate });
+
+  const outcome = await provider.search(BASE_REQUEST);
+  assert.equal(outcome.results.length, 1);
+  assert.deepEqual(gate.reserveCalls, [1, 2], "each attempt (initial + retry) must reserve independently, numbered by attempt");
+  assert.equal(transport.calls.length, 2);
+  assert.deepEqual(gate.settleCalls, [
+    { reservationId: "fake-reservation-1", success: false },
+    { reservationId: "fake-reservation-2", success: true },
+  ]);
+});
+
+test("BUDGET RETRY: if the budget denies the RETRY (attempt 2), the retry never happens -- no second transport call, no third reservation", async () => {
+  const gate = fakeBudgetGate(["allow", "BUDGET_EXHAUSTED"]);
+  const transport = fakeTransport([{ status: 503, body: {} }, { status: 200, body: OK_BODY }]);
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate, circuitConfig: { failureThreshold: 5, cooldownMs: 10_000, halfOpenMaxProbes: 1 } });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_EXHAUSTED");
+  assert.equal(transport.calls.length, 1, "only the FIRST attempt (a real, budget-approved transport failure) ever reaches the transport");
+  assert.deepEqual(gate.reserveCalls, [1, 2]);
+  assert.deepEqual(gate.settleCalls, [{ reservationId: "fake-reservation-1", success: false }], "the denied retry attempt was never reserved, so there is nothing to settle for it");
+});
+
+test("BUDGET RETRY: only the REAL transport failure counts against the circuit breaker -- a budget-denied retry never does", async () => {
+  const gate = fakeBudgetGate(["allow", "BUDGET_EXHAUSTED"]);
+  const transport = fakeTransport([{ status: 503, body: {} }, { status: 200, body: OK_BODY }]);
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate, circuitConfig: { failureThreshold: 5, cooldownMs: 10_000, halfOpenMaxProbes: 1 } });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST));
+  // failureThreshold=5 -- a single REAL transport failure alone must not
+  // trip the circuit to "unavailable" (it would need 5).
+  assert.equal(provider.health().state, "connected", "exactly one real transport failure recorded -- the budget-denied retry must not add a second");
+});
+
+test("BUDGET (Enrichment): Details uses its OWN gate, completely independent of Search's own", async () => {
+  const searchGate = fakeBudgetGate(["BUDGET_EXHAUSTED"]);
+  const enrichmentGate = fakeBudgetGate(["allow"]);
+  const transport = combinedTransport({ status: 200, body: OK_BODY }, { status: 200, body: DETAILS_OK_BODY });
+  const { provider } = makeProvider({ transport, checkSearchBudget: searchGate, checkEnrichmentBudget: enrichmentGate });
+
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_EXHAUSTED");
+  const outcome = await provider.getDetails("ChIJ_test_place", "details");
+  assert.equal(outcome.result.phone, "+33 1 42 00 00 01", "Enrichment must succeed even though Search's own budget is exhausted");
+  assert.deepEqual(enrichmentGate.settleCalls, [{ reservationId: "fake-reservation-1", success: true }]);
+});
+
+test("BUDGET (Enrichment): a Details attempt denied by budget never reaches the transport", async () => {
+  const gate = fakeBudgetGate(["BUDGET_EXHAUSTED"]);
+  const transport = fakeDetailsTransport({ status: 200, body: DETAILS_OK_BODY });
+  const { provider } = makeProvider({ transport, checkEnrichmentBudget: gate });
+
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "BUDGET_EXHAUSTED");
+  assert.equal(transport.calls.length, 0);
 });
