@@ -56,6 +56,11 @@ export const DISCOVERY_ERROR_CODES = [
   "BUDGET_EXHAUSTED",
   "BUDGET_BLOCKED",
   "BUDGET_PRICE_UNKNOWN",
+  // MISSION C-2D-6-C-FIX (H1) — a provider operation was invoked WITHOUT a
+  // budget gate. A programming/wiring error, never a runtime budget state:
+  // the provider refuses BEFORE any HTTP so an omitted gate can never
+  // become an ungoverned Google call (NO GATE -> NO GOOGLE CALL).
+  "BUDGET_GATE_MISSING",
 ] as const;
 
 export type DiscoveryErrorCode = (typeof DISCOVERY_ERROR_CODES)[number];
@@ -77,6 +82,7 @@ export const SAFE_DISCOVERY_ERROR_MESSAGES: Record<DiscoveryErrorCode, string> =
   BUDGET_EXHAUSTED: "The discovery cost budget for this period has been exhausted.",
   BUDGET_BLOCKED: "The discovery cost budget for this period has been blocked.",
   BUDGET_PRICE_UNKNOWN: "No verified price is available for this operation.",
+  BUDGET_GATE_MISSING: "The discovery provider requires a budget gate.",
 };
 
 /**

@@ -21,7 +21,7 @@ mock.module("server-only", { namedExports: {} });
 const { db } = await import("@/db");
 const { discoveryBudgets, discoveryBudgetReservations, discoveryBudgetLedger, discoveryPriceCatalog, auditLog, users } = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
-const { upsertBudgetAllocation, setBudgetBlocked, getBudgetStatus, reserveBudget, settleBudget, releaseBudget, reclaimExpiredReservation, resolveDiscoveryBudgetScope, DISCOVERY_BUDGET_RESERVATION_TTL_SECONDS } = await import("./discovery-budget-store.ts");
+const { upsertBudgetAllocation, setBudgetBlocked, getBudgetStatus, reserveBudget, settleBudget, releaseBudget, reclaimExpiredReservation, reclaimExpiredReservations, resolveDiscoveryBudgetScope, DISCOVERY_BUDGET_RESERVATION_TTL_SECONDS } = await import("./discovery-budget-store.ts");
 const { upsertPriceCatalogEntry } = await import("./price-catalog-store.ts");
 
 const createdBudgetIds = new Set();
@@ -553,4 +553,194 @@ test("reserveBudget/settleBudget/releaseBudget/upsertBudgetAllocation/setBudgetB
   assert.ok(actions.includes("radar.discovery_budget_created"));
   assert.ok(actions.includes("radar.discovery_budget_reserved"));
   assert.ok(actions.includes("radar.discovery_budget_settled"));
+});
+
+// ---- H. C-2D-6-C-FIX (H2): bounded, discoverable, atomic orphan sweep ----
+//
+// The local test DB may hold OTHER tests' still-'active', past-TTL rows
+// (e.g. the "refuses a reservation still within its TTL" test leaves one).
+// A sweep is global BY DESIGN, so these tests never assert exact global
+// counts -- they assert on THEIR OWN reservation id and THEIR OWN budgets.
+
+async function orphan(actor, operationType = "search", priceOp = TEST_OPERATION) {
+  await priceKnown(actor, 1, priceOp);
+  const now = nextTestNow();
+  const scope = await provisionForNow(operationType, 10, actor, now);
+  const reserved = await reserveBudget({ operationType, amount: 1, idempotencyKey: randomUUID(), actorUserId: actor, provider: TEST_PROVIDER, priceOperation: priceOp, fieldSet: TEST_FIELD_SET }, now);
+  assert.equal(reserved.status, "reserved");
+  createdReservationIds.add(reserved.reservation.id);
+  const afterTtl = new Date(now.getTime() + (DISCOVERY_BUDGET_RESERVATION_TTL_SECONDS + 5) * 1000);
+  return { now, scope, id: reserved.reservation.id, afterTtl, operationType };
+}
+
+async function budgets(operationType, scope) {
+  const month = await getBudgetStatus(operationType, "month", scope.monthPeriodKey);
+  const day = await getBudgetStatus(operationType, "day", scope.dayPeriodKey);
+  return { month: month.remaining, day: day.remaining };
+}
+
+test("H2 sweep: discovers and reclaims an expired orphan -- status expired, month AND day restored, 2 'expire' ledger rows, audit row with NO fabricated actor", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  assert.deepEqual(await budgets("search", o.scope), { month: 9, day: 9 });
+
+  const summary = await reclaimExpiredReservations(100, o.afterTtl);
+  assert.ok(summary.reclaimedReservationIds.includes(o.id), "the sweep must DISCOVER the orphan without being told its id");
+  assert.ok(summary.reclaimedCount >= 1 && summary.totalRestored >= 1);
+  assert.equal(summary.reclaimedCount, summary.reclaimedReservationIds.length);
+
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 });
+  const [row] = await db.select().from(discoveryBudgetReservations).where(eq(discoveryBudgetReservations.id, o.id));
+  assert.equal(row.status, "expired");
+  const ledger = await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id));
+  assert.equal(ledger.filter((r) => r.movementType === "expire").length, 2);
+
+  const audits = await db.select().from(auditLog).where(eq(auditLog.targetId, o.id));
+  const reclaim = audits.filter((a) => a.action === "radar.discovery_budget_reservation_reclaimed");
+  assert.equal(reclaim.length, 1);
+  assert.equal(reclaim[0].actorUserId, null, "a system sweep must not fabricate a user id");
+  assert.equal(reclaim[0].metadata.trigger, "system");
+  assert.equal(reclaim[0].metadata.amount, 1);
+  assert.equal(reclaim[0].metadata.operationType, "search");
+  assert.ok(reclaim[0].metadata.monthBudgetId && reclaim[0].metadata.dayBudgetId);
+});
+
+test("H2 sweep: an operator-invoked sweep records the real actor (trigger=operator)", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  await reclaimExpiredReservations(100, o.afterTtl, { actorUserId: actor });
+  const audits = await db.select().from(auditLog).where(eq(auditLog.targetId, o.id));
+  const a = audits.find((x) => x.action === "radar.discovery_budget_reservation_reclaimed");
+  assert.equal(a.actorUserId, actor);
+  assert.equal(a.metadata.trigger, "operator");
+});
+
+test("H2 IDEMPOTENCE: a second sweep never refunds the same reservation twice", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const first = await reclaimExpiredReservations(100, o.afterTtl);
+  assert.ok(first.reclaimedReservationIds.includes(o.id));
+  const second = await reclaimExpiredReservations(100, o.afterTtl);
+  assert.ok(!second.reclaimedReservationIds.includes(o.id));
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 }, "restored exactly once, never 11");
+  const ledger = await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id));
+  assert.equal(ledger.filter((r) => r.movementType === "expire").length, 2, "no duplicate ledger rows");
+  const audits = await db.select().from(auditLog).where(eq(auditLog.targetId, o.id));
+  assert.equal(audits.filter((a) => a.action === "radar.discovery_budget_reservation_reclaimed").length, 1);
+});
+
+test("H2 untouched: a NOT-yet-expired reservation is never swept", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const stillValid = new Date(o.now.getTime() + 1000);
+  const summary = await reclaimExpiredReservations(100, stillValid);
+  assert.ok(!summary.reclaimedReservationIds.includes(o.id));
+  assert.deepEqual(await budgets("search", o.scope), { month: 9, day: 9 });
+});
+
+test("H2 untouched: an already-SETTLED reservation is never swept", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  assert.equal((await settleBudget(o.id, 1, actor)).status, "settled");
+  const summary = await reclaimExpiredReservations(100, o.afterTtl);
+  assert.ok(!summary.reclaimedReservationIds.includes(o.id));
+  assert.deepEqual(await budgets("search", o.scope), { month: 9, day: 9 }, "the settled consumption survives");
+});
+
+test("H2 untouched: an already-RELEASED reservation is never swept", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  assert.equal((await releaseBudget(o.id, actor)).status, "released");
+  const summary = await reclaimExpiredReservations(100, o.afterTtl);
+  assert.ok(!summary.reclaimedReservationIds.includes(o.id));
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 }, "no double refund on top of the release");
+});
+
+test("H2 CONCURRENCY A: two simultaneous sweeps -- the orphan is reclaimed by exactly ONE of them, restored exactly once", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const [a, b] = await Promise.all([reclaimExpiredReservations(100, o.afterTtl), reclaimExpiredReservations(100, o.afterTtl)]);
+  const winners = [a, b].filter((r) => r.reclaimedReservationIds.includes(o.id)).length;
+  assert.equal(winners, 1);
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 });
+  const ledger = await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id));
+  assert.equal(ledger.filter((r) => r.movementType === "expire").length, 2);
+});
+
+test("H2 CONCURRENCY B: sweep vs settle on the same expired-but-active reservation -- exactly one wins, balance is consistent either way", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const [sweep, settle] = await Promise.all([reclaimExpiredReservations(100, o.afterTtl), settleBudget(o.id, 1, actor, o.afterTtl)]);
+  const sweepWon = sweep.reclaimedReservationIds.includes(o.id);
+  const settleWon = settle.status === "settled";
+  assert.notEqual(sweepWon, settleWon, "exactly one of them wins");
+  const b = await budgets("search", o.scope);
+  assert.deepEqual(b, sweepWon ? { month: 10, day: 10 } : { month: 9, day: 9 });
+  const [row] = await db.select().from(discoveryBudgetReservations).where(eq(discoveryBudgetReservations.id, o.id));
+  assert.equal(row.status, sweepWon ? "expired" : "settled");
+  if (sweepWon) assert.equal(settle.status, "not_active");
+});
+
+test("H2 CONCURRENCY C: sweep vs release -- exactly one wins, never a double refund", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const [sweep, release] = await Promise.all([reclaimExpiredReservations(100, o.afterTtl), releaseBudget(o.id, actor, o.afterTtl)]);
+  const sweepWon = sweep.reclaimedReservationIds.includes(o.id);
+  const releaseWon = release.status === "released";
+  assert.notEqual(sweepWon, releaseWon);
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 }, "restored exactly once whoever wins");
+  const ledger = await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id));
+  assert.equal(ledger.filter((r) => r.movementType === "expire" || r.movementType === "release").length, 2, "one pair of restoring ledger rows, never two");
+});
+
+test("H2 late settlement after a sweep-reclaim is refused -- no double credit", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  await reclaimExpiredReservations(100, o.afterTtl);
+  assert.equal((await settleBudget(o.id, 1, actor, o.afterTtl)).status, "not_active");
+  assert.equal((await releaseBudget(o.id, actor, o.afterTtl)).status, "not_active");
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 });
+});
+
+test("H2 ATOMICITY / crash safety: if the audit write fails mid-reclaim (FK violation), the WHOLE reclaim rolls back -- status, balances and ledger unchanged", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor);
+  const ledgerBefore = (await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id))).length;
+
+  await assert.rejects(() => reclaimExpiredReservation(o.id, o.afterTtl, { actorUserId: randomUUID() }));
+
+  const [row] = await db.select().from(discoveryBudgetReservations).where(eq(discoveryBudgetReservations.id, o.id));
+  assert.equal(row.status, "active", "no status change without the full reclaim");
+  assert.equal(row.resolvedAt, null);
+  assert.deepEqual(await budgets("search", o.scope), { month: 9, day: 9 }, "no restoration without the full reclaim");
+  const ledgerAfter = (await db.select().from(discoveryBudgetLedger).where(eq(discoveryBudgetLedger.reservationId, o.id))).length;
+  assert.equal(ledgerAfter, ledgerBefore, "no ledger row without the full reclaim");
+
+  // ...and the reservation is still perfectly reclaimable afterwards.
+  const retry = await reclaimExpiredReservation(o.id, o.afterTtl);
+  assert.equal(retry.status, "reclaimed");
+  assert.deepEqual(await budgets("search", o.scope), { month: 10, day: 10 });
+});
+
+test("H2 scope: Enrichment orphans restore ONLY the enrichment budgets, never Search's", async () => {
+  const actor = await makeActorUserId();
+  const o = await orphan(actor, "enrichment", "get_details");
+  const searchScope = await provisionForNow("search", 10, actor, o.now);
+  await reclaimExpiredReservations(100, o.afterTtl);
+  assert.deepEqual(await budgets("enrichment", o.scope), { month: 10, day: 10 });
+  assert.deepEqual(await budgets("search", searchScope), { month: 10, day: 10 }, "Search budget untouched");
+});
+
+test("H2 BOUNDED: the sweep never reclaims more than `limit`, clamps an oversized limit, and rejects a non-positive one", async () => {
+  const actor = await makeActorUserId();
+  const a = await orphan(actor);
+  const b = await orphan(actor);
+  const far = new Date(Math.max(a.afterTtl.getTime(), b.afterTtl.getTime()));
+  const one = await reclaimExpiredReservations(1, far);
+  assert.ok(one.scanned <= 1 && one.reclaimedCount <= 1, "limit=1 -> at most 1 reclaimed");
+  const huge = await reclaimExpiredReservations(1_000_000, far);
+  assert.ok(huge.scanned <= 100, "an oversized limit is clamped to the hard ceiling");
+  await assert.rejects(() => reclaimExpiredReservations(0, far));
+  await assert.rejects(() => reclaimExpiredReservations(-3, far));
+  await assert.rejects(() => reclaimExpiredReservations(1.5, far));
 });

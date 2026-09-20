@@ -60,7 +60,7 @@ import "server-only";
  * UPDATE too and removes the optimistically-inserted reservation row —
  * never an orphaned reservation with only one of the two budgets touched.
  */
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { discoveryBudgetLedger, discoveryBudgetReservations, discoveryBudgets } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
@@ -553,13 +553,11 @@ export type ReclaimExpiredReservationOutcome = { status: "reclaimed"; reservatio
  * (`expiresAt >= now`), no matter how the caller invokes it — "still
  * active" alone is never sufficient grounds to reclaim.
  *
- * NOT wired to any automatic scheduler in this mission (mission section
- * 26 forbids creating a worker/queue/job here) — this is a callable
- * primitive, intended for a future, separately-authorized sweep, or for
- * on-demand invocation (e.g. before reading budget status, or from an
- * operational script).
+ * Writes an audit entry atomically with the restoration (C-2D-6-C-FIX H2).
+ * The discoverable, bounded entry point is reclaimExpiredReservations()
+ * below. NOT wired to any scheduler/cron — that is a separate decision.
  */
-export async function reclaimExpiredReservation(reservationId: string, now: Date = new Date()): Promise<ReclaimExpiredReservationOutcome> {
+export async function reclaimExpiredReservation(reservationId: string, now: Date = new Date(), options: { actorUserId?: string } = {}): Promise<ReclaimExpiredReservationOutcome> {
   return db.transaction(async (tx) => {
     const [updated] = await tx
       .update(discoveryBudgetReservations)
@@ -580,6 +578,95 @@ export async function reclaimExpiredReservation(reservationId: string, now: Date
       { reservationId: updated.id, budgetId: dayBudget?.id ?? null, movementType: "expire", amount: updated.amount, idempotencyKey: updated.idempotencyKey, operationType: updated.operationType, createdAt: now },
     ]);
 
+    // MISSION C-2D-6-C-FIX (H2) — atomic with the status change, the
+    // restoration and the ledger rows above: a failure here rolls the WHOLE
+    // reclaim back (no restoration without an audit trail). A sweep has no
+    // human actor, so `actorUserId` is OMITTED (audit_log.actor_user_id is
+    // nullable, lib/audit.ts's LogAuditInput.actorUserId is optional) —
+    // never a fabricated user id; `trigger` records who/what ran it.
+    await logAudit(
+      {
+        ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}),
+        action: "radar.discovery_budget_reservation_reclaimed",
+        targetType: "discovery_budget_reservation",
+        targetId: updated.id,
+        metadata: {
+          trigger: options.actorUserId ? "operator" : "system",
+          operationType: updated.operationType,
+          amount: updated.amount,
+          monthBudgetId: monthBudget?.id ?? null,
+          dayBudgetId: dayBudget?.id ?? null,
+          monthPeriodKey: updated.monthPeriodKey,
+          dayPeriodKey: updated.dayPeriodKey,
+          expiresAt: updated.expiresAt.toISOString(),
+        },
+      },
+      tx,
+    );
+
     return { status: "reclaimed", reservation: toReservationSnapshot(updated) };
   });
+}
+
+/** Default and hard ceiling for one sweep — a sweep is ALWAYS bounded
+ * (mission C-2D-6-C-FIX section 7): never an unbounded scan/reclaim. */
+export const RECLAIM_EXPIRED_RESERVATIONS_DEFAULT_LIMIT = 20;
+export const RECLAIM_EXPIRED_RESERVATIONS_MAX_LIMIT = 100;
+
+export type ReclaimExpiredReservationsSummary = {
+  /** How many candidates were found (<= limit). */
+  scanned: number;
+  reclaimedCount: number;
+  /** Sum of `amount` restored (in reservation units) across reclaimed rows. */
+  totalRestored: number;
+  /** Ids only — no idempotency keys, no actor data. */
+  reclaimedReservationIds: string[];
+  /** Candidates that lost a race (settled/released/reclaimed by someone
+   * else between the discovery query and their own reclaim) — expected and
+   * harmless. */
+  skippedCount: number;
+};
+
+/**
+ * H2 — the OPERATIONAL entry point for orphan recovery. Discovers, with a
+ * plain bounded SELECT, reservations that are still `active` AND past
+ * `expiresAt` (oldest first, `limit` capped at
+ * RECLAIM_EXPIRED_RESERVATIONS_MAX_LIMIT), then reclaims EACH through
+ * reclaimExpiredReservation() — one short, independent, all-or-nothing
+ * transaction per reservation. The discovery SELECT decides nothing: the
+ * per-reservation UPDATE's own `status='active' AND expires_at < now`
+ * predicate is what makes each reclaim exactly-once under any race (two
+ * concurrent sweeps, sweep vs settle, sweep vs release — Postgres
+ * serializes on the row, the loser matches zero rows and is counted as
+ * `skipped`). A second sweep finds nothing left to reclaim (idempotent).
+ *
+ * Scope: only discovery_budget_reservations — touches no other table
+ * except the budget/ledger/audit rows a reclaim already writes. NOT wired
+ * to any scheduler/cron here (a separate, explicit decision).
+ */
+export async function reclaimExpiredReservations(limit: number = RECLAIM_EXPIRED_RESERVATIONS_DEFAULT_LIMIT, now: Date = new Date(), options: { actorUserId?: string } = {}): Promise<ReclaimExpiredReservationsSummary> {
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error(`reclaimExpiredReservations: limit must be a positive integer, got ${limit}`);
+  }
+  const boundedLimit = Math.min(limit, RECLAIM_EXPIRED_RESERVATIONS_MAX_LIMIT);
+
+  const candidates = await db
+    .select({ id: discoveryBudgetReservations.id })
+    .from(discoveryBudgetReservations)
+    .where(and(eq(discoveryBudgetReservations.status, "active"), lt(discoveryBudgetReservations.expiresAt, now)))
+    .orderBy(asc(discoveryBudgetReservations.expiresAt))
+    .limit(boundedLimit);
+
+  const summary: ReclaimExpiredReservationsSummary = { scanned: candidates.length, reclaimedCount: 0, totalRestored: 0, reclaimedReservationIds: [], skippedCount: 0 };
+  for (const candidate of candidates) {
+    const outcome = await reclaimExpiredReservation(candidate.id, now, options);
+    if (outcome.status === "reclaimed") {
+      summary.reclaimedCount += 1;
+      summary.totalRestored += outcome.reservation.amount;
+      summary.reclaimedReservationIds.push(outcome.reservation.id);
+    } else {
+      summary.skippedCount += 1;
+    }
+  }
+  return summary;
 }

@@ -120,8 +120,12 @@ function makeProvider(overrides = {}) {
     checkEnrichmentRateLimit,
     clock,
     circuitConfig: overrides.circuitConfig ?? DEFAULT_CIRCUIT_CONFIG,
-    ...(overrides.checkSearchBudget ? { checkSearchBudget: overrides.checkSearchBudget } : {}),
-    ...(overrides.checkEnrichmentBudget ? { checkEnrichmentBudget: overrides.checkEnrichmentBudget } : {}),
+    // C-2D-6-C-FIX (H1) — the gate is mandatory at runtime, so every
+    // pre-existing test that is NOT about budgeting gets an always-allow
+    // fake by default. Pass `null` explicitly to build a provider with NO
+    // gate (the H1 tests below).
+    ...(overrides.checkSearchBudget !== null ? { checkSearchBudget: overrides.checkSearchBudget ?? fakeBudgetGate(["allow"]) } : {}),
+    ...(overrides.checkEnrichmentBudget !== null ? { checkEnrichmentBudget: overrides.checkEnrichmentBudget ?? fakeBudgetGate(["allow"]) } : {}),
   });
   return { provider, transport, rateLimitCalls, enrichmentRateLimitCalls, advanceClock };
 }
@@ -461,11 +465,63 @@ test("SEPARATE RATE LIMITS: an exhausted Search rate-limit budget never blocks a
 
 // ---- MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE: per-attempt budget gating ----
 
-test("BUDGET: absent gate (undefined) behaves exactly as before this mission -- no reservation, transport called normally", async () => {
-  const { provider, transport } = makeProvider();
+// ---- C-2D-6-C-FIX (H1): NO GATE -> NO GOOGLE CALL ----
+
+test("H1: search() WITHOUT a gate rejects with BUDGET_GATE_MISSING and makes ZERO HTTP calls, spends no rate-limit unit, never touches the circuit", async () => {
+  const transport = fakeTransport({ status: 200, body: OK_BODY });
+  const { provider, rateLimitCalls } = makeProvider({ transport, checkSearchBudget: null });
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_GATE_MISSING" && err.retryable === false);
+  assert.equal(transport.calls.length, 0, "no gate -> no HTTP");
+  assert.equal(rateLimitCalls.length, 0, "the refusal happens before the rate limit is even consulted");
+  assert.equal(provider.health().state, "connected");
+});
+
+test("H1: getDetails() WITHOUT a gate rejects with BUDGET_GATE_MISSING and makes ZERO HTTP calls", async () => {
+  const transport = fakeDetailsTransport({ status: 200, body: DETAILS_OK_BODY });
+  const { provider, enrichmentRateLimitCalls } = makeProvider({ transport, checkEnrichmentBudget: null });
+  await assert.rejects(() => provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "BUDGET_GATE_MISSING");
+  assert.equal(transport.calls.length, 0);
+  assert.equal(enrichmentRateLimitCalls.length, 0);
+});
+
+test("H1: a Search gate does NOT unlock Details (and vice versa) -- each operation needs ITS OWN gate", async () => {
+  const combined = combinedTransport({ status: 200, body: OK_BODY }, { status: 200, body: DETAILS_OK_BODY });
+  const onlySearch = makeProvider({ transport: combined, checkSearchBudget: fakeBudgetGate(["allow"]), checkEnrichmentBudget: null });
+  await assert.rejects(() => onlySearch.provider.getDetails("ChIJ_test_place", "details"), (err) => err.code === "BUDGET_GATE_MISSING");
+  assert.equal(combined.detailsCalls.length, 0);
+
+  const combined2 = combinedTransport({ status: 200, body: OK_BODY }, { status: 200, body: DETAILS_OK_BODY });
+  const onlyDetails = makeProvider({ transport: combined2, checkSearchBudget: null, checkEnrichmentBudget: fakeBudgetGate(["allow"]) });
+  await assert.rejects(() => onlyDetails.provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_GATE_MISSING");
+  assert.equal(combined2.searchCalls.length, 0);
+});
+
+test("H1: no default construction path bypasses the gate -- a provider built with ONLY transport (no gates at all) can never reach the transport", async () => {
+  const transport = combinedTransport({ status: 200, body: OK_BODY }, { status: 200, body: DETAILS_OK_BODY });
+  const bare = createGooglePlacesProvider({ transport, checkRateLimit: async () => ({ allowed: true }), checkEnrichmentRateLimit: async () => ({ allowed: true }) });
+  await assert.rejects(() => bare.search(BASE_REQUEST), (err) => err.code === "BUDGET_GATE_MISSING");
+  await assert.rejects(() => bare.getDetails("ChIJ_test_place", "details"), (err) => err.code === "BUDGET_GATE_MISSING");
+  assert.equal(transport.searchCalls.length + transport.detailsCalls.length, 0);
+});
+
+test("H1: WITH a gate the gate is genuinely used (reserve before HTTP, settle after) and behavior is normal", async () => {
+  const gate = fakeBudgetGate(["allow"]);
+  const transport = fakeTransport({ status: 200, body: OK_BODY });
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate });
   const outcome = await provider.search(BASE_REQUEST);
   assert.equal(outcome.results.length, 1);
+  assert.deepEqual(gate.reserveCalls, [1]);
+  assert.deepEqual(gate.settleCalls, [{ reservationId: "fake-reservation-1", success: true }]);
   assert.equal(transport.calls.length, 1);
+});
+
+test("H1: a retry with a budget-DENIED second attempt makes no second HTTP call (no free retry on the first reservation)", async () => {
+  const gate = fakeBudgetGate(["allow", "BUDGET_EXHAUSTED"]);
+  const transport = fakeTransport([{ status: 503, body: {} }, { status: 200, body: OK_BODY }]);
+  const { provider } = makeProvider({ transport, checkSearchBudget: gate, circuitConfig: { failureThreshold: 5, cooldownMs: 10_000, halfOpenMaxProbes: 1 } });
+  await assert.rejects(() => provider.search(BASE_REQUEST), (err) => err.code === "BUDGET_EXHAUSTED");
+  assert.equal(transport.calls.length, 1);
+  assert.deepEqual(gate.reserveCalls, [1, 2]);
 });
 
 test("BUDGET: a search denied on attempt 1 (BUDGET_EXHAUSTED) never reaches the transport, never retries, never touches the circuit breaker", async () => {

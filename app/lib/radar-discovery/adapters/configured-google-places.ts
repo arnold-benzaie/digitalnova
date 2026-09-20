@@ -56,9 +56,10 @@ export type ConfiguredGooglePlacesDeps = {
   /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. Pure
    * pass-through, no default resolution here (unlike the two rate-limit
    * deps above) — this factory has no actor identity to attribute a
-   * reservation to; only the calling Server Action does. Omitted: no
-   * budget gating for this provider instance (see
-   * google-places-provider.ts's own CreateGooglePlacesProviderDeps
+   * reservation to; only the calling Server Action does. Omitted: the
+   * corresponding operation (search / getDetails) REFUSES with
+   * BUDGET_GATE_MISSING before any HTTP (C-2D-6-C-FIX H1 — see
+   * google-places-provider.ts's CreateGooglePlacesProviderDeps
    * docstring). Supplied (the real Server Actions,
    * budget/provider-budget-gate.ts::createProviderBudgetGate()): every
    * real HTTP attempt is reserved/settled. */

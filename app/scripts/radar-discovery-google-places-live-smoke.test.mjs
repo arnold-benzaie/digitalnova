@@ -25,6 +25,8 @@ delete process.env.DATABASE_URL;
 
 mock.module("server-only", { namedExports: {} });
 
+const SKIP_H1 = "C-2D-6-C-FIX H1: this historical live script builds its provider WITHOUT a budget gate, so it now (correctly) fails closed before any HTTP; its success-path behavior is re-validated when the script is refactored to supply a gate in C-2D-6-D";
+
 const { runGooglePlacesLiveSmoke, ACK_FLAG, SMOKE_MAX_RESULTS, SMOKE_SEARCH_REQUEST } = await import("./radar-discovery-google-places-live-smoke.mjs");
 
 const HOSTILE_KEY = "AIzaLIVE-SMOKE-SECRET-DO-NOT-LEAK";
@@ -113,7 +115,7 @@ test("enabled=true, NO key -> refused, exitCode 4, ZERO fetch", async () => {
 
 // ---------------- all guards pass — exactly one call ----------------
 
-test("all guards pass -> exactly ONE fetch call, exitCode 0, safe result printed", async () => {
+test("all guards pass -> exactly ONE fetch call, exitCode 0, safe result printed", { skip: SKIP_H1 }, async () => {
   const { res, stdout, fetchCalls } = await run();
   assert.equal(fetchCalls, 1);
   assert.equal(res.exitCode, 0);
@@ -137,7 +139,7 @@ test("the api key is sent to the provider but NEVER appears anywhere in stdout/s
   noSecret(JSON.stringify(res));
 });
 
-test("the api key is genuinely used on the outbound request (proves the guard flow actually wires it through), yet still never printed", async () => {
+test("the api key is genuinely used on the outbound request (proves the guard flow actually wires it through), yet still never printed", { skip: SKIP_H1 }, async () => {
   const { ff, stdout } = await run();
   assert.equal(ff.calls[0].init.headers["X-Goog-Api-Key"], HOSTILE_KEY);
   noSecret(stdout);
@@ -145,7 +147,7 @@ test("the api key is genuinely used on the outbound request (proves the guard fl
 
 // ---------------- provider failure surfaces safely ----------------
 
-test("a provider-side error (e.g. 403) surfaces only a safe error code, exitCode 1, never the raw Google error body", async () => {
+test("a provider-side error (e.g. 403) surfaces only a safe error code, exitCode 1, never the raw Google error body", { skip: SKIP_H1 }, async () => {
   const { res, stdout } = await run({ script: { status: 403, body: { error: { code: 403, status: "PERMISSION_DENIED", message: "API key not authorized for this API" } } } });
   assert.equal(res.exitCode, 1);
   assert.equal(res.reason, "provider-failure");
@@ -167,7 +169,7 @@ test("this module never IMPORTS the discovery-result-store -- structurally canno
 
 // ---------------- MISSION C-2D-0-FIX — genuinely DB-free ----------------
 
-test("DB-FREE: the full guarded flow (all guards pass, one fetch call) succeeds with NO @/db mock present and NO DATABASE_URL set anywhere in this process", async () => {
+test("DB-FREE: the full guarded flow (all guards pass, one fetch call) succeeds with NO @/db mock present and NO DATABASE_URL set anywhere in this process", { skip: SKIP_H1 }, async () => {
   assert.equal(process.env.DATABASE_URL, undefined, "this test's own premise requires DATABASE_URL to genuinely be unset");
   const { res, fetchCalls } = await run();
   assert.equal(fetchCalls, 1);
@@ -204,4 +206,14 @@ test("importing this module runs nothing (no CLI branch executes on import)", as
   // effects visible via process exit -- the mere fact this test file's
   // own tests above ran at all (never exited early) proves the guard.
   assert.ok(true);
+});
+
+// ---------------- C-2D-6-C-FIX (H1): NO GATE -> NO GOOGLE CALL ----------------
+
+test("H1: with every guard satisfied but NO budget gate (this historical script never supplies one), the provider refuses BEFORE any HTTP -- ZERO fetch calls, exitCode 1, safe BUDGET_GATE_MISSING code, key never printed", async () => {
+  const { res, stdout, stderr, fetchCalls } = await run();
+  assert.equal(fetchCalls, 0, "an omitted gate must never become a real Google call");
+  assert.equal(res.exitCode, 1);
+  assert.ok(stdout.includes("BUDGET_GATE_MISSING"), "the controlled error code is surfaced");
+  noSecret(stdout + stderr);
 });

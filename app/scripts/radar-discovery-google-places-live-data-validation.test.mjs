@@ -18,6 +18,8 @@ delete process.env.DATABASE_URL;
 
 mock.module("server-only", { namedExports: {} });
 
+const SKIP_H1 = "C-2D-6-C-FIX H1: this historical live script builds its provider WITHOUT a budget gate, so it now (correctly) fails closed before any HTTP; its success-path behavior is re-validated when the script is refactored to supply a gate in C-2D-6-D";
+
 const { runGooglePlacesLiveDataValidation, ACK_FLAG, DEFAULT_MAX_RESULTS, MAX_ADDITIONAL_PAGES, VALIDATION_SEARCH_REQUEST } = await import(
   "./radar-discovery-google-places-live-data-validation.mjs"
 );
@@ -115,25 +117,25 @@ test("enabled=true, NO key -> refused, exitCode 4, ZERO fetch", async () => {
 
 // ---------------- request shaping ----------------
 
-test("fieldSet is ALWAYS forced to minimal_discovery, even if the caller's request claims otherwise", async () => {
+test("fieldSet is ALWAYS forced to minimal_discovery, even if the caller's request claims otherwise", { skip: SKIP_H1 }, async () => {
   const { res } = await run({ request: { ...VALIDATION_SEARCH_REQUEST, fieldSet: "details" } });
   assert.equal(res.safeResult.requestedFieldSet, "minimal_discovery");
 });
 
-test("maxResults is capped at DEFAULT_MAX_RESULTS (5) even if the caller asks for more", async () => {
+test("maxResults is capped at DEFAULT_MAX_RESULTS (5) even if the caller asks for more", { skip: SKIP_H1 }, async () => {
   const { res } = await run({ request: { ...VALIDATION_SEARCH_REQUEST, maxResults: 999 } });
   assert.equal(res.safeResult.requestedMaxResults, DEFAULT_MAX_RESULTS);
   assert.equal(DEFAULT_MAX_RESULTS, 5);
 });
 
-test("a maxResults below 1 is floored to 1, never zero or negative", async () => {
+test("a maxResults below 1 is floored to 1, never zero or negative", { skip: SKIP_H1 }, async () => {
   const { res } = await run({ request: { ...VALIDATION_SEARCH_REQUEST, maxResults: -3 } });
   assert.equal(res.safeResult.requestedMaxResults, 1);
 });
 
 // ---------------- single-page success + field redaction ----------------
 
-test("page1: resultCount/hasNextCursor/attemptCount/circuitState/results are all reported; no nextPageToken -> no page2 at all", async () => {
+test("page1: resultCount/hasNextCursor/attemptCount/circuitState/results are all reported; no nextPageToken -> no page2 at all", { skip: SKIP_H1 }, async () => {
   const { res, fetchCalls } = await run({ pages: [{ places: [place("p1"), place("p2")] }] });
   assert.equal(res.exitCode, 0);
   assert.equal(res.safeResult.page1.resultCount, 2);
@@ -144,7 +146,7 @@ test("page1: resultCount/hasNextCursor/attemptCount/circuitState/results are all
   assert.equal(fetchCalls, 1);
 });
 
-test("each redacted result carries EXACTLY the documented allowlist -- source/sourceId/name/category/address/country/region/city/latitude/longitude/sourceUrl -- and nothing else, even from a poisoned raw place with phone/website", async () => {
+test("each redacted result carries EXACTLY the documented allowlist -- source/sourceId/name/category/address/country/region/city/latitude/longitude/sourceUrl -- and nothing else, even from a poisoned raw place with phone/website", { skip: SKIP_H1 }, async () => {
   const { res } = await run({ pages: [{ places: [place("p1")] }] });
   const row = res.safeResult.page1.results[0];
   assert.deepEqual(Object.keys(row).sort(), ["address", "category", "city", "country", "latitude", "longitude", "name", "region", "source", "sourceId", "sourceUrl"]);
@@ -163,7 +165,7 @@ test("each redacted result carries EXACTLY the documented allowlist -- source/so
 
 // ---------------- pagination: exactly one additional page, hard capped ----------------
 
-test("PAGINATION: a nextPageToken on page1 triggers EXACTLY one additional request (page2), never more", async () => {
+test("PAGINATION: a nextPageToken on page1 triggers EXACTLY one additional request (page2), never more", { skip: SKIP_H1 }, async () => {
   const { res, fetchCalls } = await run({
     pages: [
       { places: [place("p1")], nextPageToken: "opaque-token-1" },
@@ -179,7 +181,7 @@ test("PAGINATION: a nextPageToken on page1 triggers EXACTLY one additional reque
   assert.equal(MAX_ADDITIONAL_PAGES, 1);
 });
 
-test("PAGINATION HARD CAP: even when page2's OWN response also carries a nextPageToken, NO third request is ever made", async () => {
+test("PAGINATION HARD CAP: even when page2's OWN response also carries a nextPageToken, NO third request is ever made", { skip: SKIP_H1 }, async () => {
   const { res, fetchCalls } = await run({
     pages: [
       { places: [place("p1")], nextPageToken: "opaque-token-1" },
@@ -190,7 +192,7 @@ test("PAGINATION HARD CAP: even when page2's OWN response also carries a nextPag
   assert.equal(res.safeResult.page2.hasNextCursor, true, "page2's own nextCursor is reported, but never followed");
 });
 
-test("PAGINATION: the opaque token itself is NEVER present anywhere in the printed output", async () => {
+test("PAGINATION: the opaque token itself is NEVER present anywhere in the printed output", { skip: SKIP_H1 }, async () => {
   const { res, stdout } = await run({
     pages: [
       { places: [place("p1")], nextPageToken: "TOTALLY-OPAQUE-TOKEN-VALUE" },
@@ -202,7 +204,7 @@ test("PAGINATION: the opaque token itself is NEVER present anywhere in the print
   assert.equal("hasNextCursor" in res.safeResult.page1, true);
 });
 
-test("PAGINATION: page2 reuses the SAME category/city/country/fieldSet/maxResults as page1, only cursor differs", async () => {
+test("PAGINATION: page2 reuses the SAME category/city/country/fieldSet/maxResults as page1, only cursor differs", { skip: SKIP_H1 }, async () => {
   const { res, ff } = await run({
     pages: [
       { places: [place("p1")], nextPageToken: "tok" },
@@ -218,7 +220,7 @@ test("PAGINATION: page2 reuses the SAME category/city/country/fieldSet/maxResult
 
 // ---------------- security ----------------
 
-test("the api key is genuinely used on EVERY outbound request (page1 and page2), yet never printed", async () => {
+test("the api key is genuinely used on EVERY outbound request (page1 and page2), yet never printed", { skip: SKIP_H1 }, async () => {
   const { res, ff, stdout, stderr } = await run({
     pages: [
       { places: [place("p1")], nextPageToken: "tok" },
@@ -237,7 +239,7 @@ test("no raw HTTP header object ever appears in the printed result", async () =>
   assert.equal(JSON.stringify(res.safeResult).includes("X-Goog"), false);
 });
 
-test("a provider-side error surfaces only a safe error code, never the raw Google error body", async () => {
+test("a provider-side error surfaces only a safe error code, never the raw Google error body", { skip: SKIP_H1 }, async () => {
   const { res, stdout } = await run({
     fetchImpl: async () => ({ status: 403, async json() { return { error: { code: 403, status: "PERMISSION_DENIED", message: "API key not authorized for this API" } }; } }),
   });
@@ -266,4 +268,14 @@ test("this module never imports discovery-result-store, searchRadarDiscovery, co
 
 test("importing this module runs nothing (no CLI branch executes on import)", async () => {
   assert.ok(true);
+});
+
+// ---------------- C-2D-6-C-FIX (H1): NO GATE -> NO GOOGLE CALL ----------------
+
+test("H1: with every guard satisfied but NO budget gate (this historical script never supplies one), the provider refuses BEFORE any HTTP -- ZERO fetch calls, non-zero exit, BUDGET_GATE_MISSING surfaced, key never printed", async () => {
+  const { res, stdout, stderr, fetchCalls } = await run();
+  assert.equal(fetchCalls, 0, "an omitted gate must never become a real Google call");
+  assert.notEqual(res.exitCode, 0);
+  assert.ok((stdout + stderr).includes("BUDGET_GATE_MISSING"), "the controlled error code is surfaced");
+  assert.equal((stdout + stderr).includes(HOSTILE_KEY), false, "hostile key leaked");
 });

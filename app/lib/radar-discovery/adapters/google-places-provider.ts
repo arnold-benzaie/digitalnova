@@ -77,19 +77,19 @@ export type CreateGooglePlacesProviderDeps = {
    * never share a budget). Defaults to the real, DB-backed enrichment
    * gate. */
   checkEnrichmentRateLimit?: (providerId: string) => Promise<DiscoveryRateLimitDecision>;
-  /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. OPTIONAL
-   * on purpose, and with NO real-default resolution here (unlike the two
-   * rate-limit gates above): a budget reservation must be attributed to a
-   * real actor for its audit trail, and this factory has no actor
-   * identity of its own — only the calling Server Action does. When
-   * absent, NO budget gating occurs at all (100% backward compatible with
-   * every existing test/live-smoke script that never supplies one) — the
-   * real production wiring is the Server Action's own responsibility
-   * (lib/actions/radar-discovery-search.ts /
-   * lib/actions/radar-discovery-enrich.ts), constructed via
-   * budget/provider-budget-gate.ts::createProviderBudgetGate(). Search and
-   * Enrichment use their OWN separate gate — never shared — mirroring the
-   * two rate-limit deps above exactly. */
+  /** MISSION C-2D-6-B — RADAR DISCOVERY COST & QUOTA GOVERNANCE. Typed
+   * optional ONLY because Search and Enrichment each supply just THEIR OWN
+   * gate; at RUNTIME the gate for the invoked operation is MANDATORY
+   * (C-2D-6-C-FIX H1): search() without `checkSearchBudget`, or
+   * getDetails() without `checkEnrichmentBudget`, throws
+   * BUDGET_GATE_MISSING before the circuit breaker, the rate limit or the
+   * transport are touched — NO GATE -> NO GOOGLE CALL. There is no
+   * real-default resolution here (unlike the two rate-limit deps above): a
+   * budget reservation must be attributed to a real actor, and this
+   * factory has none — only the calling Server Action does
+   * (lib/actions/radar-discovery-search.ts / radar-discovery-enrich.ts,
+   * via budget/provider-budget-gate.ts::createProviderBudgetGate()). Search
+   * and Enrichment gates are never shared. */
   checkSearchBudget?: ProviderBudgetGate;
   checkEnrichmentBudget?: ProviderBudgetGate;
   /** ms epoch — injectable for deterministic circuit-breaker tests. */
@@ -150,10 +150,9 @@ async function attemptDetailsOnce(transport: GooglePlacesTransport, descriptor: 
  * from BOTH call sites in `search()`/`getDetails()` below, once per
  * attempt) with its OWN budget reservation, settled/released immediately
  * after that SAME attempt resolves — never one reservation spanning more
- * than one HTTP attempt (mission decision 7). When `budgetGate` is
- * absent, behaves EXACTLY as before this mission (calls `attempt`
- * directly, no reservation of any kind) — 100% backward compatible with
- * every caller that never supplies one.
+ * than one HTTP attempt (mission decision 7). The gate is mandatory
+ * (C-2D-6-C-FIX H1): this function has no path to `attempt()` without a
+ * successful reservation.
  *
  * A budget refusal becomes a `{ ok: false, error }` exactly like a real
  * transport failure would — its `DiscoveryErrorCode`
@@ -174,12 +173,11 @@ async function attemptDetailsOnce(transport: GooglePlacesTransport, descriptor: 
  * state either). */
 type BudgetAwareAttemptResult = AttemptResult & { transportAttempted: boolean };
 
-async function attemptWithBudget<D>(attempt: (descriptor: D) => Promise<AttemptResult>, descriptor: D, budgetGate: ProviderBudgetGate | undefined, attemptNumber: number): Promise<BudgetAwareAttemptResult> {
-  if (!budgetGate) {
-    const result = await attempt(descriptor);
-    return { ...result, transportAttempted: true };
-  }
-
+async function attemptWithBudget<D>(attempt: (descriptor: D) => Promise<AttemptResult>, descriptor: D, budgetGate: ProviderBudgetGate, attemptNumber: number): Promise<BudgetAwareAttemptResult> {
+  // MISSION C-2D-6-C-FIX (H1) — the gate is MANDATORY here: there is no
+  // branch that reaches `attempt()` (the HTTP transport) without a
+  // successful reservation. search()/getDetails() below additionally
+  // refuse up front when the gate is absent (assertBudgetGate).
   const reservation = await budgetGate.reserve(attemptNumber);
   if (!reservation.allowed) {
     return { ok: false, error: makeDiscoveryError(reservation.errorCode, GOOGLE_PLACES_PROVIDER_ID), transportAttempted: false };
@@ -188,6 +186,16 @@ async function attemptWithBudget<D>(attempt: (descriptor: D) => Promise<AttemptR
   const result = await attempt(descriptor);
   await budgetGate.settle(reservation.reservationId, result.ok);
   return { ...result, transportAttempted: true };
+}
+
+/** MISSION C-2D-6-C-FIX (H1) — NO GATE -> NO GOOGLE CALL. Throws a typed
+ * DiscoveryError (never a raw Error) BEFORE the circuit breaker, the rate
+ * limit or the transport are touched, so a caller that forgot to supply a
+ * gate (a future action, a historical live script) fails closed with zero
+ * side effects and zero HTTP. */
+function assertBudgetGate(gate: ProviderBudgetGate | undefined): ProviderBudgetGate {
+  if (!gate) throw makeDiscoveryError("BUDGET_GATE_MISSING", GOOGLE_PLACES_PROVIDER_ID);
+  return gate;
 }
 
 function circuitToConnectionState(circuit: CircuitBreakerSnapshot): "connected" | "degraded" | "unavailable" {
@@ -221,9 +229,9 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
   // MISSION C-2D-6-B — NO lazy dynamic-import default exists for either of
   // these (unlike the two rate-limit deps above) — see this file's own
   // CreateGooglePlacesProviderDeps docstring on why a budget gate always
-  // needs an actor identity this factory never has. `undefined` here means
-  // "no budget gating for this provider instance" — attemptWithBudget()'s
-  // own `if (!budgetGate) return attempt(descriptor)` branch.
+  // needs an actor identity this factory never has. C-2D-6-C-FIX (H1):
+  // `undefined` here does NOT mean "ungated" — search()/getDetails() refuse
+  // with BUDGET_GATE_MISSING before any HTTP (assertBudgetGate()).
   const searchBudgetGate = deps.checkSearchBudget;
   const enrichmentBudgetGate = deps.checkEnrichmentBudget;
   const nowFn = deps.clock ?? (() => Date.now());
@@ -248,6 +256,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
     },
 
     async search(request: DiscoverySearchRequest): Promise<DiscoverySearchOutcome> {
+      const budgetGate = assertBudgetGate(searchBudgetGate);
       const startedAt = nowFn();
 
       if (!canAttempt(circuit, startedAt, circuitConfig)) {
@@ -285,7 +294,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
 
       const descriptor = buildGooglePlacesSearchRequest(request);
 
-      let attempt = await attemptWithBudget(attemptSearchOnce.bind(null, transport), descriptor, searchBudgetGate, 1);
+      let attempt = await attemptWithBudget(attemptSearchOnce.bind(null, transport), descriptor, budgetGate, 1);
       let attemptsMade = 1;
 
       while (!attempt.ok) {
@@ -310,7 +319,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
         // MISSION C-2D-6-B — the retry is its OWN, separately-reserved
         // attempt (mission decision 7): attemptNumber increments, never
         // reusing attempt 1's reservation.
-        attempt = await attemptWithBudget(attemptSearchOnce.bind(null, transport), descriptor, searchBudgetGate, attemptsMade + 1);
+        attempt = await attemptWithBudget(attemptSearchOnce.bind(null, transport), descriptor, budgetGate, attemptsMade + 1);
         attemptsMade += 1;
       }
 
@@ -338,6 +347,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
     // interface symmetry/observability only, never consulted to build the
     // request).
     async getDetails(sourceId: string, fieldSet: DiscoveryFieldSet): Promise<DiscoveryDetailsOutcome> {
+      const budgetGate = assertBudgetGate(enrichmentBudgetGate);
       const startedAt = nowFn();
 
       if (!canAttempt(circuit, startedAt, circuitConfig)) {
@@ -371,7 +381,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
       const descriptor = buildGooglePlacesDetailsRequest(sourceId);
       void fieldSet; // accepted for interface symmetry only — see this method's own header.
 
-      let attempt = await attemptWithBudget(attemptDetailsOnce.bind(null, transport), descriptor, enrichmentBudgetGate, 1);
+      let attempt = await attemptWithBudget(attemptDetailsOnce.bind(null, transport), descriptor, budgetGate, 1);
       let attemptsMade = 1;
 
       while (!attempt.ok) {
@@ -391,7 +401,7 @@ export function createGooglePlacesProvider(deps: CreateGooglePlacesProviderDeps)
           });
           throw attempt.error;
         }
-        attempt = await attemptWithBudget(attemptDetailsOnce.bind(null, transport), descriptor, enrichmentBudgetGate, attemptsMade + 1);
+        attempt = await attemptWithBudget(attemptDetailsOnce.bind(null, transport), descriptor, budgetGate, attemptsMade + 1);
         attemptsMade += 1;
       }
 
