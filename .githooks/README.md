@@ -107,6 +107,42 @@ ne provisionne aucune infrastructure.
 Aucune clé, aucun secret et aucun identifiant Preview/Production ne figure ici ni
 dans le hook — voir `../app/e2e/README.md` pour la configuration détaillée.
 
+### Sélection explicite des projets Playwright (`PUBLIC_MAP_PLAYWRIGHT_PROJECTS`)
+
+Par défaut, le palier 2 lance `npx --no-install playwright test` **sans aucun
+argument** : les trois projets de `playwright.config.ts` (`chromium`, `firefox`,
+`webkit`) s'exécutent tous. Ce comportement par défaut ne change **jamais**, que
+la variable soit définie ou non ailleurs dans l'environnement — seule une
+définition **explicite** au moment du commit a un effet.
+
+Pour restreindre temporairement (ex. : Firefox indisponible localement sous
+macOS, problème déjà documenté et hors périmètre de ce hook) :
+
+```
+PUBLIC_MAP_PLAYWRIGHT_PROJECTS=chromium,webkit git commit -m "..."
+```
+
+Règles :
+
+- liste séparée par des virgules, valeurs acceptées **uniquement** parmi
+  `chromium`, `firefox`, `webkit` (recopie manuelle de
+  `playwright.config.ts`'s `projects[].name` — un projet ajouté au config ne
+  devient jamais sélectionnable ici sans mise à jour de cette liste) ;
+- variable absente ou vide → comportement par défaut inchangé (tous les
+  projets) ;
+- toute entrée invalide, vide, ou une virgule en tête/fin/double → **rejette
+  tout** (aucune exécution partielle) et bloque le commit avec un message
+  explicite listant les valeurs acceptées ;
+- ne désactive **jamais** le palier 2 lui-même : seuls les projets exécutés
+  par l'unique appel Playwright changent ;
+- les noms de projets sont transmis à Playwright comme arguments `--project=X`
+  séparés (tableau bash, jamais une chaîne concaténée) — aucune injection
+  shell possible via cette variable.
+
+Exclure Firefox localement ne l'exempte pas d'une exécution complète ailleurs
+(CI, autre machine) : ce n'est qu'un filtre local, pas une suppression du
+projet dans `playwright.config.ts`.
+
 ## Auto-test du classifieur
 
 ```
