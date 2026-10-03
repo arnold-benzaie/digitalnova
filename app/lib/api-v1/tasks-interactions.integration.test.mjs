@@ -16,6 +16,7 @@ const { db } = await import("@/db");
 const { auditLog, crmClients, integrationApiIdempotencyKeys, integrationApiKeys, integrations, interactions, organizations, tasks } = await import("@/db/schema");
 const { and, desc, eq, inArray } = await import("drizzle-orm");
 const { generateIntegrationApiKey } = await import("@/lib/integrations/crypto");
+const { runIdempotently } = await import("@/lib/api-v1/idempotency");
 const { POST: createTaskRoute } = await import("@/app/api/v1/tasks/route");
 const { POST: createInteractionRoute } = await import("@/app/api/v1/interactions/route");
 
@@ -269,6 +270,84 @@ test("Idempotency-Key: an oversized key is rejected before any resource is creat
   );
   assert.equal(response.status, 400);
   assert.equal((await db.select().from(tasks).where(eq(tasks.clientId, client.id))).length, 0);
+});
+
+// ---------- idempotency: genuine concurrency (P1 atomicity fix) ----------
+
+test("Idempotency-Key: two genuinely concurrent requests (Promise.all) with the same key create exactly ONE task, and both callers get the identical resource", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const idempotencyKey = `concurrent-${randomUUID()}`;
+  const requestBody = { clientId: client.id, title: "Concurrent task" };
+
+  const [first, second] = await Promise.all([
+    createTaskRoute(requestTo("/api/v1/tasks", { key: plaintextKey, body: requestBody }, { "idempotency-key": idempotencyKey })),
+    createTaskRoute(requestTo("/api/v1/tasks", { key: plaintextKey, body: requestBody }, { "idempotency-key": idempotencyKey })),
+  ]);
+
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
+  assert.deepEqual(firstBody.data, secondBody.data, "both concurrent callers must receive the identical resource — the loser must never create its own");
+
+  const rows = await db.select().from(tasks).where(eq(tasks.clientId, client.id));
+  assert.equal(rows.length, 1, "exactly one task must exist in the DB after a genuine race, not two");
+});
+
+test("Idempotency-Key: two genuinely concurrent requests on /interactions with the same key create exactly ONE interaction", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const idempotencyKey = `concurrent-${randomUUID()}`;
+  const requestBody = { clientId: client.id, type: "note", summary: "Concurrent interaction" };
+
+  const [first, second] = await Promise.all([
+    createInteractionRoute(requestTo("/api/v1/interactions", { key: plaintextKey, body: requestBody }, { "idempotency-key": idempotencyKey })),
+    createInteractionRoute(requestTo("/api/v1/interactions", { key: plaintextKey, body: requestBody }, { "idempotency-key": idempotencyKey })),
+  ]);
+
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
+  assert.deepEqual(firstBody.data, secondBody.data);
+
+  const rows = await db.select().from(interactions).where(eq(interactions.clientId, client.id));
+  assert.equal(rows.length, 1, "exactly one interaction must exist in the DB after a genuine race, not two");
+});
+
+test("runIdempotently: when createResource throws after the claim succeeds, the whole transaction (claim row included) rolls back, and a retry with the same key then succeeds cleanly", async () => {
+  const { integrationId } = await createApiKey(orgA.id);
+  const route = "POST /api/v1/tasks";
+  const idempotencyKey = `rollback-${randomUUID()}`;
+  const requestHash = "test-request-hash";
+
+  await assert.rejects(
+    runIdempotently(integrationId, route, idempotencyKey, requestHash, async () => {
+      throw new Error("simulated failure after claim");
+    }),
+    /simulated failure after claim/,
+  );
+
+  const findClaimRows = () =>
+    db
+      .select()
+      .from(integrationApiIdempotencyKeys)
+      .where(
+        and(
+          eq(integrationApiIdempotencyKeys.integrationId, integrationId),
+          eq(integrationApiIdempotencyKeys.route, route),
+          eq(integrationApiIdempotencyKeys.idempotencyKey, idempotencyKey),
+        ),
+      );
+
+  assert.equal((await findClaimRows()).length, 0, "a rolled-back transaction must leave no claim row behind — not even the in-progress sentinel");
+
+  const retryResult = await runIdempotently(integrationId, route, idempotencyKey, requestHash, async () => ({ status: 201, body: { ok: true } }));
+  assert.deepEqual(retryResult, { status: 201, body: { ok: true } }, "after a rollback, a retry with the same key must succeed as if the first attempt never happened");
+
+  const rowsAfterRetry = await findClaimRows();
+  assert.equal(rowsAfterRetry.length, 1);
+  assert.equal(rowsAfterRetry[0].responseStatus, 201);
+  assert.deepEqual(rowsAfterRetry[0].responseBody, { ok: true });
 });
 
 // ---------- logging ----------

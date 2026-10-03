@@ -83,8 +83,17 @@ export function validateTaskCreateBody(body: unknown): TaskCreateInput {
   return { clientId: input.clientId.trim(), title: input.title.trim(), description, dueDate, status };
 }
 
-export async function createTaskForClient(clientId: string, input: TaskCreateInput) {
-  const [task] = await db
+/**
+ * P1 fix (2026-10): accepts an optional executor so the caller
+ * (app/api/v1/tasks/route.ts, via lib/api-v1/idempotency.ts's
+ * runIdempotently) can run this INSIDE the same transaction as its
+ * idempotency-key claim — required for the claim-before-create race fix
+ * to actually be atomic. Defaults to the bare `db`, so every other
+ * caller (there are none today, but the default keeps this
+ * non-breaking) behaves exactly as before.
+ */
+export async function createTaskForClient(clientId: string, input: TaskCreateInput, executor: Pick<typeof db, "insert"> = db) {
+  const [task] = await executor
     .insert(tasks)
     .values({ clientId, title: input.title, description: input.description, dueDate: input.dueDate, status: input.status })
     .returning();
