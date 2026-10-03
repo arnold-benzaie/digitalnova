@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { db } from "@/db";
 import { notifications, organizations } from "@/db/schema";
 import { renderNotificationFr } from "@/lib/i18n/notification-templates";
@@ -77,10 +78,12 @@ export async function notify(input: NotifyInput) {
  */
 type NotificationExecutor = Pick<typeof db, "select" | "insert">;
 
-export async function getInternalOrganizationId(executor: Pick<typeof db, "select"> = db): Promise<string | null> {
-  const [org] = await executor.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
-  return org?.id ?? null;
-}
+export const getInternalOrganizationId = cache(
+  async (executor: Pick<typeof db, "select"> = db): Promise<string | null> => {
+    const [org] = await executor.select({ id: organizations.id }).from(organizations).where(eq(organizations.isInternal, true)).limit(1);
+    return org?.id ?? null;
+  },
+);
 
 /**
  * Fires at most once per new pending user, ever — see lib/session.ts,
