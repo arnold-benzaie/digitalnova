@@ -234,14 +234,16 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
   // <RadarAssignmentControls>, and every mutation re-checks
   // requireStaffMember(...) in the server actions.
   const { userId: currentUserId } = await requireSession();
-  const assignmentCaps = await getRadarCapabilities();
   // RADAR INTELLIGENCE V2.1 Phase D — server-resolved, read-only echo of
   // which providers the CURRENT OWNER policy authorizes a user to
   // explicitly request. Gated by the SAME RADAR_QUEUE_VIEW every staff
   // role that reaches this page already holds — never a new requirement.
   // Purely a display hint for <RadarIntelligenceAdvisory>; the actual
   // advisory request re-derives the OWNER policy fresh on every call.
-  const aiProviderSelectionOptions = await getRadarAiProviderSelectionOptions();
+  const [assignmentCaps, aiProviderSelectionOptions] = await Promise.all([
+    getRadarCapabilities(),
+    getRadarAiProviderSelectionOptions(),
+  ]);
   const assignables = assignmentCaps.canAssignOthers ? await listAssignableRadarMembers() : [];
 
   // Resolve the current assignee's display identity + ACTIVE-in-internal-
