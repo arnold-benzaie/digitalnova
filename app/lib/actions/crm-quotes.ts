@@ -26,6 +26,7 @@ const MESSAGES = {
     onlyDraftCanBeEdited: "Seuls les devis en brouillon peuvent être modifiés.",
     onlyDraftCanBeDeleted: "Seuls les devis en brouillon peuvent être supprimés.",
     onlyAcceptedCanConvert: "Seul un devis accepté peut être converti en facture.",
+    convertedNotManual: "Le statut « Converti » est défini automatiquement par la conversion en facture — il ne peut pas être choisi manuellement.",
     noRecipientEmail: "Aucune adresse email n'est associée à ce client — impossible d'envoyer le devis.",
     sendRateLimited: "Une tentative d'envoi est déjà en cours pour ce devis. Veuillez patienter quelques secondes.",
     sendFailed: "L'envoi du devis a échoué. Veuillez réessayer.",
@@ -39,6 +40,7 @@ const MESSAGES = {
     onlyDraftCanBeEdited: "Only draft quotes can be edited.",
     onlyDraftCanBeDeleted: "Only draft quotes can be deleted.",
     onlyAcceptedCanConvert: "Only an accepted quote can be converted to an invoice.",
+    convertedNotManual: "The \"Converted\" status is set automatically by converting to an invoice — it cannot be chosen manually.",
     noRecipientEmail: "No email address is on file for this client — the quote cannot be sent.",
     sendRateLimited: "A send attempt is already in progress for this quote. Please wait a few seconds.",
     sendFailed: "Sending the quote failed. Please try again.",
@@ -187,6 +189,10 @@ export async function updateQuoteStatus(id: string, status: string) {
 
   const locale = await getLocale();
   if (!QUOTE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
+  // "converted" is a system-set outcome of convertQuoteToInvoice (see that
+  // function below) — same convention as updateInvoiceStatus's rejection
+  // of "delivery_failed" as a manual target (lib/actions/crm-invoices.ts).
+  if (status === "converted") throw new Error(MESSAGES[locale].convertedNotManual);
 
   // Moving to "sent" is not a plain column flip — it goes through the real
   // delivery path (Chantier 1 Phase 3): status/sentAt are only ever
@@ -317,64 +323,95 @@ export async function convertQuoteToInvoice(quoteId: string) {
   await requireStaffRole();
 
   const locale = await getLocale();
-  const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
-  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
-  if (quote.status !== "accepted") throw new Error(MESSAGES[locale].onlyAcceptedCanConvert);
 
-  const items = await db.select().from(crmQuoteItems).where(eq(crmQuoteItems.quoteId, quoteId));
-  const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
+  // P0 fix — a concurrent call on the same quote, or a client retry after
+  // a lost response, must never create a second invoice. SELECT ... FOR
+  // UPDATE locks the quote row first; every decision below (not-found /
+  // already-converted / accepted-check) and every write is made from
+  // that LOCKED row, inside the same transaction. A concurrent call on
+  // the SAME quote serializes behind the lock and observes
+  // status="converted" on its own turn — never a second INSERT. Same
+  // pattern already proven in lib/actions/radar-discovery-convert.ts's
+  // convertDiscoveryResult.
+  const { invoice, clientId } = await db.transaction(async (tx) => {
+    const [quote] = await tx.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).for("update").limit(1);
+    if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
-  const [invoice] = await db
-    .insert(crmInvoices)
-    .values({
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      dealId: quote.dealId,
-      invoiceNumber,
-      title: quote.title,
-      currency: quote.currency,
-      taxLabel: quote.taxLabel,
-      taxRateBasisPoints: quote.taxRateBasisPoints,
-      subtotalCents: quote.subtotalCents,
-      taxCents: quote.taxCents,
-      totalCents: quote.totalCents,
-      notes: quote.notes,
-    })
-    .returning();
+    if (quote.status === "converted") {
+      // Idempotent: a retry (lost response, double-click, or a genuinely
+      // concurrent call that lost the row-lock race) returns the invoice
+      // conversion already created — never attempts a second one.
+      const [existing] = await tx.select().from(crmInvoices).where(eq(crmInvoices.quoteId, quoteId)).limit(1);
+      return { invoice: existing, clientId: quote.clientId };
+    }
+    if (quote.status !== "accepted") throw new Error(MESSAGES[locale].onlyAcceptedCanConvert);
 
-  if (items.length) {
-    await db.insert(crmInvoiceItems).values(
-      items
-        .sort((a, b) => a.position - b.position)
-        .map((item) => ({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPriceCents: item.unitPriceCents,
-          position: item.position,
-          // Verbatim copy, never re-derived from the current catalogue —
-          // the quote's serviceId was already validated when that quote
-          // was created/updated (sanitizeServiceIds), and the FK's own
-          // ON DELETE SET NULL already keeps it accurate if the underlying
-          // service was deleted since. Re-validating here would let a
-          // service being merely deactivated retroactively erase
-          // traceability on a document whose price/description snapshot
-          // must never change (P0.2A-2 rule 12).
-          serviceId: item.serviceId,
-        })),
+    const items = await tx.select().from(crmQuoteItems).where(eq(crmQuoteItems.quoteId, quoteId));
+    const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
+
+    const [newInvoice] = await tx
+      .insert(crmInvoices)
+      .values({
+        clientId: quote.clientId,
+        quoteId: quote.id,
+        dealId: quote.dealId,
+        invoiceNumber,
+        title: quote.title,
+        currency: quote.currency,
+        taxLabel: quote.taxLabel,
+        taxRateBasisPoints: quote.taxRateBasisPoints,
+        subtotalCents: quote.subtotalCents,
+        taxCents: quote.taxCents,
+        totalCents: quote.totalCents,
+        notes: quote.notes,
+      })
+      .returning();
+
+    if (items.length) {
+      await tx.insert(crmInvoiceItems).values(
+        items
+          .sort((a, b) => a.position - b.position)
+          .map((item) => ({
+            invoiceId: newInvoice.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPriceCents: item.unitPriceCents,
+            position: item.position,
+            // Verbatim copy, never re-derived from the current catalogue —
+            // the quote's serviceId was already validated when that quote
+            // was created/updated (sanitizeServiceIds), and the FK's own
+            // ON DELETE SET NULL already keeps it accurate if the underlying
+            // service was deleted since. Re-validating here would let a
+            // service being merely deactivated retroactively erase
+            // traceability on a document whose price/description snapshot
+            // must never change (P0.2A-2 rule 12).
+            serviceId: item.serviceId,
+          })),
+      );
+    }
+
+    await logCrmAudit(
+      {
+        action: "crm.invoice_created_from_quote",
+        targetType: "crm_invoice",
+        targetId: newInvoice.id,
+        clientId: newInvoice.clientId ?? undefined,
+        metadata: { invoiceNumber, quoteNumber: quote.quoteNumber, totalCents: newInvoice.totalCents },
+      },
+      tx,
     );
-  }
 
-  await logCrmAudit({
-    action: "crm.invoice_created_from_quote",
-    targetType: "crm_invoice",
-    targetId: invoice.id,
-    clientId: invoice.clientId ?? undefined,
-    metadata: { invoiceNumber, quoteNumber: quote.quoteNumber, totalCents: invoice.totalCents },
+    // Same transaction as the writes above — a concurrent/retried call
+    // can only ever observe "accepted" (and proceed, racing on the row
+    // lock) or "converted" (and take the idempotent branch above), never
+    // a half-converted quote.
+    await tx.update(crmQuotes).set({ status: "converted" }).where(eq(crmQuotes.id, quoteId));
+
+    return { invoice: newInvoice, clientId: quote.clientId };
   });
 
   revalidatePath("/admin/crm/quotes");
   revalidatePath("/admin/crm/invoices");
-  revalidatePath(`/admin/crm/clients/${quote.clientId}`);
+  revalidatePath(`/admin/crm/clients/${clientId}`);
   return invoice;
 }

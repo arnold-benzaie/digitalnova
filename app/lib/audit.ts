@@ -35,12 +35,18 @@ export async function logAudit(input: LogAuditInput, executor: Pick<typeof db, "
  * metadata.clientId — both read back by lib/audit-labels.ts and the audit
  * log / client activity views.
  */
-export async function logCrmAudit(input: Omit<LogAuditInput, "actorUserId"> & { clientId?: string }) {
+export async function logCrmAudit(
+  input: Omit<LogAuditInput, "actorUserId"> & { clientId?: string },
+  executor: Pick<typeof db, "insert"> = db,
+) {
   const session = await getCurrentSession();
   const { clientId, metadata, ...rest } = input;
-  await logAudit({
-    ...rest,
-    actorUserId: session?.userId,
-    metadata: clientId ? { ...metadata, clientId } : metadata,
-  });
+  await logAudit(
+    {
+      ...rest,
+      actorUserId: session?.userId,
+      metadata: clientId ? { ...metadata, clientId } : metadata,
+    },
+    executor,
+  );
 }

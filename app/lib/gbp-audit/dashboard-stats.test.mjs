@@ -5,7 +5,7 @@
 // see the file's own comment on why that's not inside a component body).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAuditsOverTimeSeries, daysAgo as daysAgoFn, isDashboardPeriodDays, DASHBOARD_PERIOD_OPTIONS } from "./dashboard-stats.ts";
+import { buildAuditsOverTimeSeries, daysAgo as daysAgoFn, isDashboardPeriodDays, DASHBOARD_PERIOD_OPTIONS } from "./dashboard-stats-core.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 function daysAgo(n) {

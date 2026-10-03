@@ -9,12 +9,19 @@ export const CURRENCY_OPTIONS_EN = [
   { value: "CAD", label: "CAD — Canadian dollar" },
 ];
 
+// "converted" is a system-set terminal outcome of convertQuoteToInvoice
+// (lib/actions/crm-quotes.ts) — included here so it DISPLAYS correctly
+// wherever the current status is shown (the list badge, the dropdown's
+// own current value, the public quote page), but updateQuoteStatus()
+// explicitly rejects it as a manually-chosen target — same convention as
+// INVOICE_STATUS_OPTIONS's "delivery_failed" below.
 export const QUOTE_STATUS_OPTIONS = [
   { value: "draft", label: "Brouillon" },
   { value: "sent", label: "Envoyé" },
   { value: "accepted", label: "Accepté" },
   { value: "declined", label: "Refusé" },
   { value: "expired", label: "Expiré" },
+  { value: "converted", label: "Converti" },
 ];
 export const QUOTE_STATUS_OPTIONS_EN = [
   { value: "draft", label: "Draft" },
@@ -22,6 +29,7 @@ export const QUOTE_STATUS_OPTIONS_EN = [
   { value: "accepted", label: "Accepted" },
   { value: "declined", label: "Declined" },
   { value: "expired", label: "Expired" },
+  { value: "converted", label: "Converted" },
 ];
 
 // "delivery_failed" is a system-set outcome of a failed send attempt (see

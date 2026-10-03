@@ -7,6 +7,7 @@ import { NotificationRow } from "@/components/gbp-audit/notification-row";
 import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { AdminPageHero } from "@/components/admin/page-hero";
+import { formatDateTime, resolveDisplayTimeZone } from "@/lib/i18n/format";
 
 export default async function AuditNotificationsPage() {
   const session = await requireAuditStaffRole();
@@ -19,6 +20,14 @@ export default async function AuditNotificationsPage() {
     .where(eq(auditNotifications.recipientUserId, session.userId))
     .orderBy(desc(auditNotifications.createdAt))
     .limit(100);
+
+  // Formatted HERE, in the Server Component — never re-executed client-side
+  // (unlike the previous Intl.DateTimeFormat call inside NotificationRow,
+  // a "use client" component that DOES get hydrated), so the displayed
+  // string can never diverge between server and browser ICU/CLDR data.
+  // Same timeZone as before ("Indian/Mauritius", via resolveDisplayTimeZone
+  // with isAdminSpace: true) — audit module is always admin space.
+  const timeZone = resolveDisplayTimeZone({ organizationTimeZone: null, isAdminSpace: true });
 
   return (
     <>
@@ -42,8 +51,7 @@ export default async function AuditNotificationsPage() {
           {items.map((item) => (
             <NotificationRow
               key={item.id}
-              item={{ id: item.id, title: item.title, body: item.body, href: item.href, read: item.readAt !== null, createdAt: item.createdAt.toISOString() }}
-              locale={locale}
+              item={{ id: item.id, title: item.title, body: item.body, href: item.href, read: item.readAt !== null, displayDate: formatDateTime(item.createdAt, locale, { timeZone }) }}
             />
           ))}
         </div>

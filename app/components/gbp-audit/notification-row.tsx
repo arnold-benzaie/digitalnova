@@ -3,18 +3,22 @@
 import Link from "next/link";
 import { useTransition } from "react";
 import { markAuditNotificationRead } from "@/lib/actions/gbp-audit-notifications";
-import type { Locale } from "@/lib/i18n/dictionaries";
-import { formatDateTime, resolveDisplayTimeZone } from "@/lib/i18n/format";
 
-export type NotificationListItem = { id: string; title: string; body: string | null; href: string | null; read: boolean; createdAt: string };
+// `displayDate` arrives pre-formatted from the Server Component
+// (app/admin/audit/notifications/page.tsx) — never formatted here. This
+// component is "use client" (it IS hydrated, unlike a plain Server
+// Component), and Intl.DateTimeFormat can render a different string on
+// the server's ICU/CLDR data than on the browser's for the exact same
+// locale/timeZone/options (confirmed: Node/Chromium render the fr-FR
+// medium/short date-time connector as "," while WebKit renders " à ").
+// That text divergence is what previously caused React's hydration-
+// mismatch error #418 on this page. Formatting server-side only (same
+// timeZone as before, "Indian/Mauritius" via resolveDisplayTimeZone) makes
+// the rendered text identical and fixed between server and client.
+export type NotificationListItem = { id: string; title: string; body: string | null; href: string | null; read: boolean; displayDate: string };
 
-export function NotificationRow({ item, locale = "fr" }: { item: NotificationListItem; locale?: Locale }) {
+export function NotificationRow({ item }: { item: NotificationListItem }) {
   const [, startTransition] = useTransition();
-  // Audit module is always admin space — same resolver as the main-platform
-  // notifications list, same reason: Intl.DateTimeFormat without an
-  // explicit timeZone renders differently on the server (UTC) than in the
-  // browser, which is what causes React's hydration-mismatch error (#418).
-  const timeZone = resolveDisplayTimeZone({ organizationTimeZone: null, isAdminSpace: true });
 
   function markRead() {
     if (!item.read) startTransition(() => markAuditNotificationRead(item.id));
@@ -28,7 +32,7 @@ export function NotificationRow({ item, locale = "fr" }: { item: NotificationLis
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm font-medium text-pm-noir">{item.title}</p>
-        <p className="shrink-0 text-xs text-pm-gris">{formatDateTime(item.createdAt, locale, { timeZone })}</p>
+        <p className="shrink-0 text-xs text-pm-gris">{item.displayDate}</p>
       </div>
       {item.body && <p className="mt-1 text-sm text-pm-gris">{item.body}</p>}
     </div>

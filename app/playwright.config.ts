@@ -59,5 +59,9 @@ export default defineConfig({
   // viewport (it creates and cleans up real data; tripling it would triple
   // that for no benefit). Responsive coverage lives inside
   // e2e/responsive.spec.ts, which opens its own contexts per viewport.
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  ],
 });
