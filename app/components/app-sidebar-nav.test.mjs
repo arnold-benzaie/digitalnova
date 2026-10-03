@@ -6,7 +6,7 @@
 // Run with: npx tsx --test components/app-sidebar-nav.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getStaffNavSections, getClientNavSections } from "./app-sidebar-nav.tsx";
+import { getStaffNavSections, getClientNavSections, withActiveSectionOpen } from "./app-sidebar-nav.tsx";
 import { navigation } from "../lib/i18n/dictionaries/navigation.ts";
 
 const t = navigation.fr;
@@ -478,4 +478,53 @@ test("C-2C-1: getClientNavSections() has no item labeled like the Discovery nav 
   const sections = getClientNavSections(t);
   const matches = sections.flatMap((s) => s.items).filter((i) => i.label === t.items.discovery);
   assert.equal(matches.length, 0);
+});
+
+// -------------------- P1 SIDEBAR LATENCY — withActiveSectionOpen() --------------------
+// Closes a first-mount gap: app-shell-client.tsx's reactive "open the
+// active section" update only fires when `pathname` CHANGES on an
+// already-mounted component (a sidebar click) — a fresh page load that
+// lands directly inside a `defaultOpen: false` section never triggers
+// that update, because activeSectionKey already equals trackedSectionKey
+// on render #1. withActiveSectionOpen() computes the correct FIRST-mount
+// state directly, so the active section starts open the same way the
+// reactive update keeps it open on every later navigation.
+
+const sectionsFixture = [
+  { key: "audit", defaultOpen: true },
+  { key: "relation", defaultOpen: false },
+  { key: "crm", defaultOpen: false },
+  { key: "business", defaultOpen: false },
+];
+
+test("withActiveSectionOpen(): a defaultOpen:false section becomes open when it is the active one", () => {
+  const open = withActiveSectionOpen(sectionsFixture, "crm");
+  assert.equal(open.crm, true);
+});
+
+test("withActiveSectionOpen(): defaultOpen:true sections stay open regardless of which section is active", () => {
+  const open = withActiveSectionOpen(sectionsFixture, "crm");
+  assert.equal(open.audit, true, "audit is defaultOpen:true and must stay open even when crm is active");
+});
+
+test("withActiveSectionOpen(): sections that are neither defaultOpen nor active stay closed", () => {
+  const open = withActiveSectionOpen(sectionsFixture, "crm");
+  assert.equal(open.relation, false);
+  assert.equal(open.business, false);
+});
+
+test("withActiveSectionOpen(): activeSectionKey null (e.g. no match for the current path) leaves every section at its own defaultOpen", () => {
+  const open = withActiveSectionOpen(sectionsFixture, null);
+  assert.deepEqual(open, { audit: true, relation: false, crm: false, business: false });
+});
+
+test("withActiveSectionOpen(): the active section being the SAME one that is already defaultOpen changes nothing", () => {
+  const open = withActiveSectionOpen(sectionsFixture, "audit");
+  assert.deepEqual(open, { audit: true, relation: false, crm: false, business: false });
+});
+
+test("withActiveSectionOpen(): every section key appears in the result exactly once, even when none match activeSectionKey", () => {
+  const open = withActiveSectionOpen(sectionsFixture, "some-key-that-does-not-exist");
+  assert.deepEqual(Object.keys(open).sort(), ["audit", "business", "crm", "relation"]);
+  assert.deepEqual(open, { audit: true, relation: false, crm: false, business: false });
 });
