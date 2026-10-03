@@ -1,6 +1,15 @@
 import { google } from "googleapis";
-import { getValidAccessToken } from "@/lib/google/oauth";
+import { getValidAccessToken, GOOGLE_API_REQUEST_TIMEOUT_MS } from "@/lib/google/oauth";
 import type { GbpDailyMetric, GbpLocation, GbpProvider, GbpReview } from "./types";
+
+// P1 network audit (2026-10): all three calls below are real GET requests
+// under the hood (verified against node_modules/googleapis/build/src/apis/
+// .../v1.js's own `method: 'GET'`) — googleapis-common's shared
+// createAPIRequest wrapper already defaults `retry` to `true` for these
+// (gaxios's own GET-inclusive default retry-method allowlist applies),
+// so `retry: true` below is explicit/self-documenting, not a behavior
+// change. Only `timeout` is a genuine addition (none existed before).
+const REQUEST_OPTIONS = { timeout: GOOGLE_API_REQUEST_TIMEOUT_MS, retry: true };
 
 const VIEW_METRICS = [
   "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
@@ -48,7 +57,7 @@ export class RealGbpProvider implements GbpProvider {
   async listLocations(): Promise<GbpLocation[]> {
     const auth = await this.auth();
     const accountManagement = google.mybusinessaccountmanagement({ version: "v1", auth });
-    const { data: accountsData } = await accountManagement.accounts.list({});
+    const { data: accountsData } = await accountManagement.accounts.list({}, REQUEST_OPTIONS);
     const accounts = accountsData.accounts ?? [];
     if (accounts.length === 0) return [];
 
@@ -57,11 +66,14 @@ export class RealGbpProvider implements GbpProvider {
 
     for (const account of accounts) {
       if (!account.name) continue;
-      const { data: locationsData } = await businessInfo.accounts.locations.list({
-        parent: account.name,
-        readMask: "name,title,phoneNumbers,websiteUri,categories,storefrontAddress",
-        pageSize: 100,
-      });
+      const { data: locationsData } = await businessInfo.accounts.locations.list(
+        {
+          parent: account.name,
+          readMask: "name,title,phoneNumbers,websiteUri,categories,storefrontAddress",
+          pageSize: 100,
+        },
+        REQUEST_OPTIONS,
+      );
       for (const location of locationsData.locations ?? []) {
         if (!location.name || !location.title) continue;
         result.push({
@@ -85,16 +97,19 @@ export class RealGbpProvider implements GbpProvider {
     const start = new Date(end);
     start.setUTCDate(start.getUTCDate() - (days - 1));
 
-    const { data } = await performance.locations.fetchMultiDailyMetricsTimeSeries({
-      location: googleLocationId,
-      dailyMetrics: DAILY_METRICS,
-      "dailyRange.startDate.year": start.getUTCFullYear(),
-      "dailyRange.startDate.month": start.getUTCMonth() + 1,
-      "dailyRange.startDate.day": start.getUTCDate(),
-      "dailyRange.endDate.year": end.getUTCFullYear(),
-      "dailyRange.endDate.month": end.getUTCMonth() + 1,
-      "dailyRange.endDate.day": end.getUTCDate(),
-    });
+    const { data } = await performance.locations.fetchMultiDailyMetricsTimeSeries(
+      {
+        location: googleLocationId,
+        dailyMetrics: DAILY_METRICS,
+        "dailyRange.startDate.year": start.getUTCFullYear(),
+        "dailyRange.startDate.month": start.getUTCMonth() + 1,
+        "dailyRange.startDate.day": start.getUTCDate(),
+        "dailyRange.endDate.year": end.getUTCFullYear(),
+        "dailyRange.endDate.month": end.getUTCMonth() + 1,
+        "dailyRange.endDate.day": end.getUTCDate(),
+      },
+      REQUEST_OPTIONS,
+    );
 
     const byDate = new Map<string, GbpDailyMetric>();
     for (const series of data.multiDailyMetricTimeSeries ?? []) {
