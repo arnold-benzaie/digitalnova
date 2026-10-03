@@ -113,20 +113,21 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
   // a different error for "real but not yours" vs. "doesn't exist".
   if (!isCrmClientVisibleToScope(employeeScope, client.assignedUserId)) notFound();
 
-  const gbpStatus = client.organizationId
-    ? await (async () => {
-        const [connection] = await db
-          .select()
-          .from(gbpConnections)
-          .where(eq(gbpConnections.organizationId, client.organizationId!))
-          .limit(1);
-        if (!connection || connection.status !== "connected") return { connected: false, locationCount: 0 };
-        const orgLocations = await db.select({ id: locations.id }).from(locations).where(eq(locations.organizationId, client.organizationId!));
-        return { connected: true, locationCount: orgLocations.length };
-      })()
-    : { connected: false, locationCount: 0 };
-
-  const googleAccount = client.organizationId ? await getGoogleConnection(client.organizationId) : null;
+  const [gbpStatus, googleAccount] = await Promise.all([
+    client.organizationId
+      ? (async () => {
+          const [connection] = await db
+            .select()
+            .from(gbpConnections)
+            .where(eq(gbpConnections.organizationId, client.organizationId!))
+            .limit(1);
+          if (!connection || connection.status !== "connected") return { connected: false, locationCount: 0 };
+          const orgLocations = await db.select({ id: locations.id }).from(locations).where(eq(locations.organizationId, client.organizationId!));
+          return { connected: true, locationCount: orgLocations.length };
+        })()
+      : Promise.resolve({ connected: false, locationCount: 0 }),
+    client.organizationId ? getGoogleConnection(client.organizationId) : Promise.resolve(null),
+  ]);
   const searchConsoleStatus = client.organizationId
     ? await (async () => {
         const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.searchConsole));
