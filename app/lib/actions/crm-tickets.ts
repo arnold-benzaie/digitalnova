@@ -165,6 +165,7 @@ export async function updateTicket(id: string, formData: FormData) {
     throw new Error(MESSAGES[locale].invalidPriority);
   }
 
+  const scope = await resolveCrmEmployeeScope();
   const [ticket] = await db
     .update(tickets)
     .set({
@@ -172,7 +173,7 @@ export async function updateTicket(id: string, formData: FormData) {
       description: (formData.get("description") as string) || null,
       priority,
     })
-    .where(eq(tickets.id, id))
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
     .returning();
   if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
