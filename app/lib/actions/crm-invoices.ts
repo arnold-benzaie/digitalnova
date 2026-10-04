@@ -488,7 +488,18 @@ async function updateInvoiceStatusCore(id: string, status: string, locale: Local
   if (status === "canceled") patch.canceledAt = new Date();
   if (status === "refunded") patch.refundedAt = new Date();
 
-  const [invoice] = await db.update(crmInvoices).set(patch).where(eq(crmInvoices.id, id)).returning();
+  // R9-E — same atomic pattern as updateInvoice (R9-D) / deleteInvoice
+  // (R9-B): the scope predicate is folded into this UPDATE's own WHERE
+  // clause, and the result is guarded BEFORE it's used below (this guard
+  // did not exist at all before this fix — `invoice.clientId` was read
+  // unconditionally even if the UPDATE matched zero rows).
+  const scope = await resolveCrmEmployeeScope();
+  const [invoice] = await db
+    .update(crmInvoices)
+    .set(patch)
+    .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
+    .returning();
+  if (!invoice) throw new Error(MESSAGES[locale].invoiceNotFound);
 
   await logCrmAudit({
     action: "crm.invoice_status_changed",
@@ -520,6 +531,28 @@ async function updateInvoiceStatusCore(id: string, status: string, locale: Local
  * status as "delivery_failed" instead, never "sent".
  */
 async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boolean }): Promise<{ sent: boolean; reason?: string }> {
+  const locale = await getLocale();
+
+  // R9-E — checked BEFORE the claim UPDATE below, so a denied EMPLOYEE
+  // never reaches ANY side effect this function guards (the claim
+  // itself, createOrGetInvoiceAccessLink, the PDF render, sendInvoiceEmail,
+  // or the final "sent" UPDATE) — mirrors deliverQuoteEmail's own
+  // pre-check (P0-2K-4). A NULL clientId (the "Autre client…"
+  // unsaved-manual-entry case) is refused directly, since
+  // requireCrmClientAccess() takes a real client id — same product
+  // decision already applied in createInvoice (R9-C) and updateInvoice
+  // (R9-D). This pre-check is a clear early refusal, not the sole
+  // enforcement point: the claim UPDATE's own WHERE clause just below
+  // independently repeats the same scope predicate directly on the
+  // mutation itself (it's a conditional UPDATE already, the natural
+  // place for it), so there is no TOCTOU window between the two.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null) {
+    const [target] = await db.select({ clientId: crmInvoices.clientId }).from(crmInvoices).where(eq(crmInvoices.id, invoiceId)).limit(1);
+    if (!target || target.clientId === null) throw new Error(MESSAGES[locale].invoiceNotFound);
+    await requireCrmClientAccess(target.clientId, new Error(MESSAGES[locale].invoiceNotFound));
+  }
+
   const claimCondition = options.isResend
     ? sql`${crmInvoices.id} = ${invoiceId} AND ${crmInvoices.emailDeliveryStatus} IS DISTINCT FROM 'sending'`
     : sql`${crmInvoices.id} = ${invoiceId} AND ${crmInvoices.status} <> 'sent' AND ${crmInvoices.emailDeliveryStatus} IS DISTINCT FROM 'sending'`;
@@ -527,7 +560,7 @@ async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boole
   const [claimed] = await db
     .update(crmInvoices)
     .set({ emailDeliveryStatus: "sending", deliveryAttempts: sql`${crmInvoices.deliveryAttempts} + 1` })
-    .where(claimCondition)
+    .where(and(claimCondition, buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
     .returning();
 
   if (!claimed) {
