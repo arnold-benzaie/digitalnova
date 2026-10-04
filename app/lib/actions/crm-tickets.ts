@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, tickets } from "@/db/schema";
@@ -10,6 +10,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { getLocale } from "@/lib/i18n/locale";
+import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
@@ -130,10 +131,11 @@ export async function updateTicketStatus(id: string, status: string) {
     throw new Error(MESSAGES[locale].invalidStatus);
   }
 
+  const scope = await resolveCrmEmployeeScope();
   const [ticket] = await db
     .update(tickets)
     .set({ status, resolvedAt: status === "resolved" || status === "closed" ? new Date() : null })
-    .where(eq(tickets.id, id))
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
     .returning();
 
   await logCrmAudit({

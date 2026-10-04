@@ -1,12 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
+import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: { clientRequired: "Client requis.", nameRequired: "Nom du projet requis.", invalidStatus: "Statut invalide.", projectNotFound: "Projet introuvable." },
@@ -59,7 +60,12 @@ export async function updateProjectStatus(id: string, status: string) {
     throw new Error(MESSAGES[locale].invalidStatus);
   }
 
-  const [project] = await db.update(projects).set({ status }).where(eq(projects.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [project] = await db
+    .update(projects)
+    .set({ status })
+    .where(and(eq(projects.id, id), buildCrmEmployeeScopePredicate(scope, projects.clientId)))
+    .returning();
 
   await logCrmAudit({
     action: "crm.project_status_changed",
