@@ -34,7 +34,8 @@
  * a CLIENT-context session to /dashboard before ever reaching here), so
  * that boundary is untouched and out of scope for this file.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, exists, sql } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { crmClients, staffMembers, staffRoles } from "@/db/schema";
 import { requireSession } from "@/lib/session";
@@ -135,4 +136,35 @@ export async function requireCrmClientAccess(id: string, notFoundError: Error): 
   if (!row || !isCrmClientVisibleToScope(scope, row.assignedUserId)) {
     throw notFoundError;
   }
+}
+
+/**
+ * P0-2A — the atomic counterpart of requireCrmClientAccess() above, for
+ * CRM entities that belong to a client (deals, tickets, etc.) rather than
+ * being the client row itself. Unlike requireCrmClientAccess() (a
+ * separate SELECT, then the caller does its own UPDATE/DELETE — a real
+ * TOCTOU window between the two), this returns a Drizzle SQL condition
+ * meant to be AND-ed directly into the SAME query that reads or mutates
+ * the child row, so the scope check and the mutation are one atomic
+ * statement: an EMPLOYEE outside their scope matches zero rows, exactly
+ * indistinguishable from "id doesn't exist" (same anti-enumeration
+ * property requireCrmClientAccess() already documents above).
+ *
+ * `clientIdColumn` is the child table's own `clientId` column (e.g.
+ * `deals.clientId`) — the condition is a correlated EXISTS against
+ * crm_clients, matching on that column, so it works unmodified for any
+ * table shaped like `{ clientId: uuid NOT NULL references crm_clients }`.
+ *
+ * `scope === null` (OWNER/ADMIN/MANAGER, or no Axis-C row at all) returns
+ * an unconditionally-true SQL fragment — byte-identical behavior to
+ * today for every role this policy was never meant to narrow.
+ */
+export function buildCrmEmployeeScopePredicate(scope: CrmEmployeeScope, clientIdColumn: PgColumn) {
+  if (scope === null) return sql`true`;
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(crmClients)
+      .where(and(eq(crmClients.id, clientIdColumn), eq(crmClients.assignedUserId, scope.userId))),
+  );
 }
