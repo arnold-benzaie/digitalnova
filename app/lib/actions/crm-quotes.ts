@@ -239,7 +239,18 @@ export async function updateQuoteStatus(id: string, status: string) {
   const patch: Record<string, unknown> = { status };
   if (status === "accepted" || status === "declined") patch.respondedAt = new Date();
 
-  const [quote] = await db.update(crmQuotes).set(patch).where(eq(crmQuotes.id, id)).returning();
+  // P0-2K-4 — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. The pre-existing
+  // `if (!quote) throw` guard below already covers this case correctly.
+  const scope = await resolveCrmEmployeeScope();
+  const [quote] = await db
+    .update(crmQuotes)
+    .set(patch)
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
+    .returning();
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await logCrmAudit({
@@ -278,6 +289,13 @@ export async function updateQuoteStatus(id: string, status: string) {
 async function deliverQuoteEmail(id: string, locale: Locale) {
   const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
+
+  // P0-2K-4 — checked immediately after the initial SELECT, before any
+  // other side effect (rate limit, client email lookup, access link
+  // creation, the actual email send) — an EMPLOYEE outside their scope
+  // must never reach any of those. Same anti-enumeration message as
+  // "quote doesn't exist".
+  await requireCrmClientAccess(quote.clientId, new Error(MESSAGES[locale].quoteNotFound));
 
   const rate = await checkRateLimit("crm_quote_send", id, 1, 10);
   if (!rate.allowed) throw new Error(MESSAGES[locale].sendRateLimited);
