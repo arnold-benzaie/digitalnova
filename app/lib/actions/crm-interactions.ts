@@ -8,6 +8,7 @@ import { logCrmAudit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
 import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
+import { requireCrmClientAccess } from "@/lib/crm-client-access";
 
 const TYPES = ["note", "call", "email", "meeting"] as const;
 type InteractionType = (typeof TYPES)[number];
@@ -94,6 +95,13 @@ export async function createInteraction(formData: FormData) {
   if (typeof clientId !== "string" || !clientId) {
     throw new Error(MESSAGES[locale].clientRequired);
   }
+  // P0-2H — RADAR_WORK (checked above) is a functional authorization
+  // ("may work the radar"), not a tenant/client isolation check — every
+  // OWNER/ADMIN/MANAGER/EMPLOYEE holds it. An EMPLOYEE may only log an
+  // interaction against a client assigned to them; OWNER/ADMIN/MANAGER
+  // (unrestricted scope) are unaffected. Same primitive already used by
+  // createProject/createWebsite.
+  await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
 
   const summary = formData.get("summary");
   if (typeof summary !== "string" || !summary.trim()) {
