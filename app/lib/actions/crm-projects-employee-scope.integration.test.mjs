@@ -88,7 +88,7 @@ mock.module("@/lib/session", {
 const { db } = await import("@/db");
 const { crmClients, projects, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
-const { updateProjectStatus } = await import("./crm-projects.ts");
+const { createProject, updateProject, updateProjectStatus, deleteProject } = await import("./crm-projects.ts");
 
 const createdClientIds = new Set();
 const createdProjectIds = new Set();
@@ -153,6 +153,14 @@ async function makeProject(clientId, name) {
 async function projectRow(id) {
   const [row] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
   return row;
+}
+
+function makeProjectFormData({ clientId, name, description }) {
+  const fd = new FormData();
+  if (clientId !== undefined) fd.set("clientId", clientId);
+  fd.set("name", name);
+  if (description !== undefined) fd.set("description", description);
+  return fd;
 }
 
 // ---- fixtures, created once, reused by every test -----------------------
@@ -265,4 +273,182 @@ test("8 — unauthenticated -> updateProjectStatus redirects to /sign-in, projec
   });
   const after = await projectRow(project.id);
   assert.equal(after.status, "planning", "status must remain untouched");
+});
+
+// =====================================================================
+// P0-2F — updateProject (full edit: name/description/dates). Unlike
+// updateProjectStatus, this function already has a pre-existing
+// `if (!project) throw ...projectNotFound` guard (unrelated to this
+// mission) — once the scope predicate makes the UPDATE match 0 rows for
+// a denied EMPLOYEE, that guard fires exactly as it already does for a
+// genuinely nonexistent id. DENY assertions here are therefore
+// rejections, verified alongside a direct DB re-read proving the row is
+// untouched.
+// =====================================================================
+test("9 — OWNER-like (no staff row) -> updateProject on client A's project succeeds", async () => {
+  const project = await makeProject(clientA.id, "Original name");
+  actAs(ownerLikeUserId);
+  const updated = await updateProject(project.id, makeProjectFormData({ name: "OWNER-like edit" }));
+  assert.equal(updated.name, "OWNER-like edit");
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "OWNER-like edit");
+});
+
+test("10 — ADMIN -> updateProject on client B's project succeeds (not ADMIN's own assignment)", async () => {
+  const project = await makeProject(clientB.id, "Original name");
+  actAs(adminUserId);
+  const updated = await updateProject(project.id, makeProjectFormData({ name: "ADMIN edit" }));
+  assert.equal(updated.name, "ADMIN edit");
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "ADMIN edit");
+});
+
+test("11 — MANAGER -> updateProject on client A's project succeeds (current global behavior preserved)", async () => {
+  const project = await makeProject(clientA.id, "Original name");
+  actAs(managerUserId);
+  const updated = await updateProject(project.id, makeProjectFormData({ name: "MANAGER edit" }));
+  assert.equal(updated.name, "MANAGER edit");
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "MANAGER edit");
+});
+
+test("12 — EMPLOYEE assigned to client A -> updateProject on A's project succeeds, fields applied", async () => {
+  const project = await makeProject(clientA.id, "Original name");
+  actAs(employeeAUserId);
+  const updated = await updateProject(project.id, makeProjectFormData({ name: "Employee A edit", description: "Updated description" }));
+  assert.equal(updated.name, "Employee A edit");
+  assert.equal(updated.description, "Updated description");
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "Employee A edit");
+  assert.equal(after.description, "Updated description");
+});
+
+test("13 — EMPLOYEE assigned to B -> updateProject on A's project is denied (throws projectNotFound), A unchanged", async () => {
+  const project = await makeProject(clientA.id, "Original name");
+  actAs(employeeBUserId);
+  await assert.rejects(() => updateProject(project.id, makeProjectFormData({ name: "Forged edit" })), /introuvable/i);
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "Original name", "name must remain untouched — the UPDATE matched zero rows");
+});
+
+test("14 — EMPLOYEE with no client assignment -> updateProject on A's project is denied (throws projectNotFound), A unchanged", async () => {
+  const project = await makeProject(clientA.id, "Original name");
+  actAs(employeeUnassignedUserId);
+  await assert.rejects(() => updateProject(project.id, makeProjectFormData({ name: "Forged edit" })), /introuvable/i);
+  const after = await projectRow(project.id);
+  assert.equal(after.name, "Original name", "name must remain untouched — the UPDATE matched zero rows");
+});
+
+// =====================================================================
+// P0-2F — deleteProject. Same pre-existing `if (!project) throw
+// ...projectNotFound` guard — DENY assertions are rejections, verified
+// against a direct DB re-read proving the project still exists.
+// =====================================================================
+test("15 — OWNER-like (no staff row) -> deleteProject on client A's project succeeds", async () => {
+  const project = await makeProject(clientA.id, "OWNER-like delete");
+  actAs(ownerLikeUserId);
+  await deleteProject(project.id);
+  const after = await projectRow(project.id);
+  assert.equal(after, undefined, "project must be actually deleted");
+});
+
+test("16 — ADMIN -> deleteProject on client B's project succeeds (not ADMIN's own assignment)", async () => {
+  const project = await makeProject(clientB.id, "ADMIN delete");
+  actAs(adminUserId);
+  await deleteProject(project.id);
+  const after = await projectRow(project.id);
+  assert.equal(after, undefined, "project must be actually deleted");
+});
+
+test("17 — MANAGER -> deleteProject on client A's project succeeds (current global behavior preserved)", async () => {
+  const project = await makeProject(clientA.id, "MANAGER delete");
+  actAs(managerUserId);
+  await deleteProject(project.id);
+  const after = await projectRow(project.id);
+  assert.equal(after, undefined, "project must be actually deleted");
+});
+
+test("18 — EMPLOYEE assigned to client A -> deleteProject on A's project succeeds", async () => {
+  const project = await makeProject(clientA.id, "Employee A delete");
+  actAs(employeeAUserId);
+  await deleteProject(project.id);
+  const after = await projectRow(project.id);
+  assert.equal(after, undefined, "project must be actually deleted");
+});
+
+test("19 — EMPLOYEE assigned to B -> deleteProject on A's project is denied (throws projectNotFound), A still exists", async () => {
+  const project = await makeProject(clientA.id, "Employee B deny on A");
+  actAs(employeeBUserId);
+  await assert.rejects(() => deleteProject(project.id), /introuvable/i);
+  const after = await projectRow(project.id);
+  assert.ok(after, "project must still exist — the DELETE matched zero rows");
+  assert.equal(after.name, "Employee B deny on A");
+  assert.equal(after.clientId, clientA.id);
+});
+
+test("20 — EMPLOYEE with no client assignment -> deleteProject on A's project is denied (throws projectNotFound), A still exists", async () => {
+  const project = await makeProject(clientA.id, "Unassigned employee deny on A");
+  actAs(employeeUnassignedUserId);
+  await assert.rejects(() => deleteProject(project.id), /introuvable/i);
+  const after = await projectRow(project.id);
+  assert.ok(after, "project must still exist — the DELETE matched zero rows");
+  assert.equal(after.name, "Unassigned employee deny on A");
+  assert.equal(after.clientId, clientA.id);
+});
+
+// =====================================================================
+// P0-2F — createProject. clientId is caller-supplied form input, so the
+// scope check is a prior requireCrmClientAccess() call (SELECT-then-check
+// — the accepted CREATE pattern, same primitive lib/actions/
+// crm-clients.ts's own mutations already use) rather than an atomic
+// predicate folded into a WHERE clause (there is none on an INSERT).
+// =====================================================================
+test("21 — OWNER-like (no staff row) -> createProject for client B succeeds (not OWNER's own assignment)", async () => {
+  actAs(ownerLikeUserId);
+  await createProject(makeProjectFormData({ clientId: clientB.id, name: "OWNER-like create" }));
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientB.id));
+  const created = rows.find((r) => r.name === "OWNER-like create");
+  assert.ok(created, "project must have been created for client B");
+  createdProjectIds.add(created.id);
+});
+
+test("22 — ADMIN -> createProject for client A succeeds (not ADMIN's own assignment)", async () => {
+  actAs(adminUserId);
+  await createProject(makeProjectFormData({ clientId: clientA.id, name: "ADMIN create" }));
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientA.id));
+  const created = rows.find((r) => r.name === "ADMIN create");
+  assert.ok(created, "project must have been created for client A");
+  createdProjectIds.add(created.id);
+});
+
+test("23 — MANAGER -> createProject for client B succeeds (current global behavior preserved)", async () => {
+  actAs(managerUserId);
+  await createProject(makeProjectFormData({ clientId: clientB.id, name: "MANAGER create" }));
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientB.id));
+  const created = rows.find((r) => r.name === "MANAGER create");
+  assert.ok(created, "project must have been created for client B");
+  createdProjectIds.add(created.id);
+});
+
+test("24 — EMPLOYEE assigned to client A -> createProject for A succeeds", async () => {
+  actAs(employeeAUserId);
+  await createProject(makeProjectFormData({ clientId: clientA.id, name: "Employee A create" }));
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientA.id));
+  const created = rows.find((r) => r.name === "Employee A create");
+  assert.ok(created, "project must have been created for client A, the employee's own assignment");
+  createdProjectIds.add(created.id);
+});
+
+test("25 — EMPLOYEE assigned to B -> createProject for client A is denied (throws clientNotFound), nothing created", async () => {
+  actAs(employeeBUserId);
+  await assert.rejects(() => createProject(makeProjectFormData({ clientId: clientA.id, name: "Forged create" })), /introuvable/i);
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientA.id));
+  assert.ok(!rows.some((r) => r.name === "Forged create"), "no project must have been created for an out-of-scope client");
+});
+
+test("26 — EMPLOYEE with no client assignment -> createProject for client A is denied (throws clientNotFound), nothing created", async () => {
+  actAs(employeeUnassignedUserId);
+  await assert.rejects(() => createProject(makeProjectFormData({ clientId: clientA.id, name: "Forged create 2" })), /introuvable/i);
+  const rows = await db.select().from(projects).where(eq(projects.clientId, clientA.id));
+  assert.ok(!rows.some((r) => r.name === "Forged create 2"), "no project must have been created for an out-of-scope client");
 });
