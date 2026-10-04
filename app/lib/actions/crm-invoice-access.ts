@@ -6,8 +6,10 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { crmInvoiceAccessLinks, crmInvoices } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 import { clientIpFromHeaders } from "@/lib/gbp-audit/client-ip";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
+import { getLocale } from "@/lib/i18n/locale";
 
 /**
  * Secure, unauthenticated access to a single invoice's PDF for its
@@ -24,13 +26,46 @@ const RATE_LIMIT_SCOPE = "crm_invoice_token";
 const RATE_LIMIT_PER_WINDOW = 30;
 const RATE_LIMIT_WINDOW_SECONDS = 300;
 
+const MESSAGES = {
+  fr: { invoiceNotFound: "Facture introuvable." },
+  en: { invoiceNotFound: "Invoice not found." },
+} as const;
+
 /** Staff-only — creates (or returns the existing, still-usable) token link
- * for an invoice. Called from deliverInvoiceEmail() right before sending,
- * never exposed as its own public entry point with a client-supplied id
- * beyond the invoiceId a staff session already has the right to act on
- * (requireStaffRole gates every caller of this module). */
+ * for an invoice. Called from deliverInvoiceEmail() (lib/actions/crm-invoices.ts,
+ * itself already scoped since R9-E) right before sending, and from the
+ * staff-facing PDF route (app/api/crm/invoices/[id]/pdf/route.ts, not yet
+ * scoped — tracked separately as R9-H). This function's own check below
+ * is what actually stops an EMPLOYEE outside their scope from reading
+ * back or minting a valid public credential via EITHER caller, since
+ * neither caller's own protection (or lack of it) can be relied upon. */
 export async function createOrGetInvoiceAccessLink(invoiceId: string) {
   await requireStaffRole();
+  const locale = await getLocale();
+
+  const [invoice] = await db
+    .select({ id: crmInvoices.id, clientId: crmInvoices.clientId })
+    .from(crmInvoices)
+    .where(eq(crmInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) throw new Error(MESSAGES[locale].invoiceNotFound);
+
+  // R9-G — checked BEFORE any read of crmInvoiceAccessLinks (reusing an
+  // existing token) or any write to it (minting a new one): both are the
+  // exact side effect this must gate — a denied EMPLOYEE must never read
+  // back NOR create a valid public credential for an invoice outside
+  // their scope. A NULL clientId (the "Autre client…" unsaved-manual-entry
+  // case) is refused directly, since requireCrmClientAccess() takes a
+  // real client id — same product decision already applied in
+  // createInvoice/updateInvoice/updateInvoiceStatus (R9-C/R9-D/R9-E).
+  // Same anti-enumeration message as "invoice doesn't exist" — never
+  // reveals that the invoice exists, that a link exists, its token, or
+  // its revoked/expired state.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null) {
+    if (invoice.clientId === null) throw new Error(MESSAGES[locale].invoiceNotFound);
+    await requireCrmClientAccess(invoice.clientId, new Error(MESSAGES[locale].invoiceNotFound));
+  }
 
   const [existing] = await db
     .select()
