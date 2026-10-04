@@ -9,6 +9,7 @@ import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { getCurrentSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
 import { createOrGetInvoiceAccessLink } from "@/lib/actions/crm-invoice-access";
+import { isCrmClientVisibleToScope, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const UNAUTHORIZED = { fr: "Non autorisé", en: "Unauthorized" };
 const NOT_FOUND = { fr: "Facture introuvable", en: "Invoice not found" };
@@ -27,10 +28,33 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!invoice) return new Response(NOT_FOUND[viewerLocale], { status: 404 });
 
   const clientId = invoice.clientId;
-  const [items, client] = await Promise.all([
-    db.select().from(crmInvoiceItems).where(eq(crmInvoiceItems.invoiceId, id)).orderBy(crmInvoiceItems.position),
-    clientId ? db.select().from(crmClients).where(eq(crmClients.id, clientId)).limit(1).then((r) => r[0]) : Promise.resolve(undefined),
-  ]);
+  const client = clientId ? await db.select().from(crmClients).where(eq(crmClients.id, clientId)).limit(1).then((r) => r[0]) : undefined;
+
+  // R9-H — the check above only confirms "authenticated staff", never
+  // that the invoice's client belongs to an EMPLOYEE's own assigned
+  // scope. Reuses the client row already fetched immediately above (no
+  // extra query) — scope === null (OWNER/ADMIN/MANAGER — unrestricted)
+  // short-circuits with no further work. A NULL clientId (the "Autre
+  // client…" unsaved-manual-entry case, where `client` stays undefined)
+  // is denied for an EMPLOYEE automatically: `client?.assignedUserId ??
+  // null` passes `null` to isCrmClientVisibleToScope(), which never
+  // matches a real scope.userId — same product decision already applied
+  // throughout R9-C/R9-D/R9-E/R9-G. Checked before the invoice items
+  // read, before createOrGetInvoiceAccessLink, and before renderToBuffer
+  // (the costly PDF generation itself) — this is an explicit, route-level
+  // defense independent of createOrGetInvoiceAccessLink's own scope check
+  // (R9-G): the PDF route's authorization must not depend solely on a
+  // side effect of a function called further down. Deliberately the SAME
+  // 404/message as the "invoice doesn't exist" branch above, never a 403
+  // or a distinct message — a different response for "exists but out of
+  // scope" vs. "doesn't exist" would itself leak whether the invoice
+  // exists at all.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null && !isCrmClientVisibleToScope(scope, client?.assignedUserId ?? null)) {
+    return new Response(NOT_FOUND[viewerLocale], { status: 404 });
+  }
+
+  const items = await db.select().from(crmInvoiceItems).where(eq(crmInvoiceItems.invoiceId, id)).orderBy(crmInvoiceItems.position);
 
   const statusLabel = Object.fromEntries(getInvoiceStatusOptions(invoice.locale === "en" ? "en" : "fr").map((o) => [o.value, o.label]))[invoice.status] ?? invoice.status;
   const accessLink = await createOrGetInvoiceAccessLink(invoice.id);
