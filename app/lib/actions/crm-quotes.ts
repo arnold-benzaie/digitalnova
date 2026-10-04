@@ -15,7 +15,7 @@ import { sendQuoteEmail } from "@/lib/email/quote";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
-import { buildCrmEmployeeScopePredicate, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
+import { buildCrmEmployeeScopePredicate, isCrmClientVisibleToScope, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
@@ -394,9 +394,30 @@ export async function convertQuoteToInvoice(quoteId: string) {
   // status="converted" on its own turn — never a second INSERT. Same
   // pattern already proven in lib/actions/radar-discovery-convert.ts's
   // convertDiscoveryResult.
+  // P0-2K-6 — the EMPLOYEE scope check runs INSIDE the transaction,
+  // using the row the FOR UPDATE lock above just returned — never data
+  // read before the lock was acquired (a quote's clientId never changes,
+  // but checking against a pre-lock read would defeat the whole point
+  // of locking before deciding). requireCrmClientAccess() can't be
+  // reused verbatim here: it hardcodes the module-level `db`, not this
+  // transaction's `tx`, so the same two primitives it's built from
+  // (resolveCrmEmployeeScope() + isCrmClientVisibleToScope()) are used
+  // directly, reading the client's assignedUserId via `tx` so the check
+  // stays inside the same transaction as the lock. scope itself (who is
+  // calling) is resolved once, outside the transaction — the caller's
+  // own identity/assignment can't be affected by this quote's row lock.
+  const scope = await resolveCrmEmployeeScope();
+
   const { invoice, clientId } = await db.transaction(async (tx) => {
     const [quote] = await tx.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).for("update").limit(1);
     if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
+
+    if (scope !== null) {
+      const [client] = await tx.select({ assignedUserId: crmClients.assignedUserId }).from(crmClients).where(eq(crmClients.id, quote.clientId)).limit(1);
+      if (!isCrmClientVisibleToScope(scope, client?.assignedUserId ?? null)) {
+        throw new Error(MESSAGES[locale].quoteNotFound);
+      }
+    }
 
     if (quote.status === "converted") {
       // Idempotent: a retry (lost response, double-click, or a genuinely
