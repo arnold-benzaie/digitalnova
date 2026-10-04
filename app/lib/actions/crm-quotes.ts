@@ -157,6 +157,16 @@ export async function updateQuote(id: string, formData: FormData) {
   const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
+  // P0-2K-3 — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. The guard right below
+  // (`if (!quote) throw`) is critical here specifically: it must run
+  // BEFORE the quote_items delete/reinsert further down, so a denied
+  // EMPLOYEE's forged request never touches another client's line
+  // items even though the UPDATE itself already matched zero rows.
+  const scope = await resolveCrmEmployeeScope();
   const [quote] = await db
     .update(crmQuotes)
     .set({
@@ -168,8 +178,9 @@ export async function updateQuote(id: string, formData: FormData) {
       validUntil: typeof validUntilRaw === "string" && validUntilRaw ? new Date(validUntilRaw) : null,
       notes,
     })
-    .where(eq(crmQuotes.id, id))
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
     .returning();
+  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await db.delete(crmQuoteItems).where(eq(crmQuoteItems.quoteId, id));
   await db.insert(crmQuoteItems).values(
