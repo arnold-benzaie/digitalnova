@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { crmQuoteAccessLinks, crmQuotes } from "@/db/schema";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireCrmClientAccess } from "@/lib/crm-client-access";
 import { clientIpFromHeaders } from "@/lib/gbp-audit/client-ip";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { getLocale } from "@/lib/i18n/locale";
@@ -53,8 +54,20 @@ export async function createOrGetQuoteAccessLink(quoteId: string) {
   await requireStaffRole();
   const locale = await getLocale();
 
-  const [quote] = await db.select({ id: crmQuotes.id, validUntil: crmQuotes.validUntil }).from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
+  const [quote] = await db
+    .select({ id: crmQuotes.id, clientId: crmQuotes.clientId, validUntil: crmQuotes.validUntil })
+    .from(crmQuotes)
+    .where(eq(crmQuotes.id, quoteId))
+    .limit(1);
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
+  // P0-2K-5 — an EMPLOYEE may only mint/reuse an access link for a quote
+  // whose client is assigned to them; OWNER/ADMIN/MANAGER (unrestricted
+  // scope) are unaffected. Checked before any read/write of
+  // crmQuoteAccessLinks (reusing, replacing, or creating a token is
+  // itself the side effect this must gate — a denied EMPLOYEE must
+  // never mint a valid public credential for a quote outside their
+  // scope). Same anti-enumeration message as "quote doesn't exist".
+  await requireCrmClientAccess(quote.clientId, new Error(MESSAGES[locale].quoteNotFound));
 
   const [existing] = await db.select().from(crmQuoteAccessLinks).where(eq(crmQuoteAccessLinks.quoteId, quoteId)).limit(1);
   const stillValid = existing && !existing.revokedAt && !(existing.expiresAt && existing.expiresAt.getTime() < Date.now());
