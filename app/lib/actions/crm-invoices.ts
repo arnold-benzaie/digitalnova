@@ -385,6 +385,21 @@ export async function updateInvoice(id: string, formData: FormData) {
   const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
+  // R9-D — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. A NULL clientId (the
+  // "Autre client…" unsaved-manual-entry case) is denied for an
+  // EMPLOYEE automatically — buildCrmEmployeeScopePredicate()'s
+  // correlated EXISTS can never match crmClients.id against NULL — with
+  // no special-casing needed here or in that helper. The guard right
+  // below (`if (!invoice) throw`) is critical here specifically: it
+  // must run BEFORE the crmInvoiceItems delete/reinsert further down,
+  // so a denied EMPLOYEE's forged request never touches another
+  // client's line items even though the UPDATE itself already matched
+  // zero rows.
+  const scope = await resolveCrmEmployeeScope();
   const [invoice] = await db
     .update(crmInvoices)
     .set({
@@ -397,8 +412,9 @@ export async function updateInvoice(id: string, formData: FormData) {
       dueAt: typeof dueAtRaw === "string" && dueAtRaw ? new Date(dueAtRaw) : null,
       notes,
     })
-    .where(eq(crmInvoices.id, id))
+    .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
     .returning();
+  if (!invoice) throw new Error(MESSAGES[locale].invoiceNotFound);
 
   await db.delete(crmInvoiceItems).where(eq(crmInvoiceItems.invoiceId, id));
   await db.insert(crmInvoiceItems).values(
