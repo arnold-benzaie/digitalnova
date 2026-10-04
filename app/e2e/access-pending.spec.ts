@@ -84,7 +84,7 @@ test("compte ACTIF (WORKFORCE) sans rôle Audit : redirection propre vers /admin
   expect(page.url(), "un compte ACTIF ne doit jamais rester sur /access-pending").toMatch(/\/admin$/);
   expect(response?.status(), "la réponse finale ne doit pas être un statut d'erreur serveur").toBeLessThan(500);
 
-  const body = await page.textContent("body");
+  const body = await page.locator("body").innerText();
   expect(body, "ne doit jamais exposer le texte brut d'exception Next").not.toContain("Server Components render");
   expect(body, "ne doit jamais exposer un digest technique").not.toMatch(/digest/i);
   expect(body, "ne doit jamais afficher le message 'compte en attente' à un compte actif").not.toContain("Bienvenue sur PUBLIC-MAP !");
