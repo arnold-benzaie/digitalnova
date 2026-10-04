@@ -6,6 +6,7 @@ import { QUOTE_STATUS_OPTIONS } from "@/lib/crm-billing";
 import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { getCurrentSession } from "@/lib/session";
 import { getLocale } from "@/lib/i18n/locale";
+import { isCrmClientVisibleToScope, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const STATUS_LABEL = Object.fromEntries(QUOTE_STATUS_OPTIONS.map((o) => [o.value, o.label]));
 
@@ -25,6 +26,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!quote) return new Response("Devis introuvable", { status: 404 });
 
   const [client] = await db.select().from(crmClients).where(eq(crmClients.id, quote.clientId)).limit(1);
+
+  // P0-2K-7 — the check above only confirms "authenticated staff", never
+  // that the quote's client belongs to an EMPLOYEE's own assigned scope.
+  // Reuses the client row already fetched immediately above (no extra
+  // query) — scope === null (OWNER/ADMIN/MANAGER — unrestricted)
+  // short-circuits with no further work. Checked before the quote items
+  // read and before renderToBuffer (the costly PDF generation itself).
+  // Deliberately the SAME 404/message as the "quote doesn't exist"
+  // branch above, never a 403: a different status for "exists but out
+  // of scope" vs. "doesn't exist" would itself leak whether the quote
+  // exists at all.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null && !isCrmClientVisibleToScope(scope, client?.assignedUserId ?? null)) {
+    return new Response("Devis introuvable", { status: 404 });
+  }
+
   const items = await db
     .select()
     .from(crmQuoteItems)
