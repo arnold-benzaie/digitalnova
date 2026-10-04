@@ -1,7 +1,7 @@
 "use server";
 
 import { renderToBuffer } from "@react-pdf/renderer";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices, type CrmInvoiceClientSnapshot } from "@/db/schema";
@@ -22,6 +22,7 @@ import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
+import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NEW_CLIENT_SENTINEL = "__new__";
@@ -622,13 +623,27 @@ export async function deleteInvoice(id: string) {
       throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
     }
 
+    // R9-B — the scope check is folded directly into this DELETE's own
+    // WHERE clause (atomic, single statement) rather than a separate
+    // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+    // rows, indistinguishable from a genuinely nonexistent id, with no
+    // TOCTOU window between checking and mutating. A NULL clientId
+    // (the "Autre client…" unsaved-manual-entry case) is denied for an
+    // EMPLOYEE automatically — buildCrmEmployeeScopePredicate()'s
+    // correlated EXISTS can never match crmClients.id against NULL —
+    // with no special-casing needed here or in that helper.
+    //
     // .returning() confirms a row was actually removed — without it, a
     // WHERE clause that (for any reason) matches nothing still returns
     // normally, and the caller would report "deleted" for a row that never
     // moved. Caught directly here (not the generic transient-error path)
     // because a 0-row delete after a successful select is unexpected, not
     // a known connection failure.
-    const [deleted] = await db.delete(crmInvoices).where(eq(crmInvoices.id, id)).returning({ id: crmInvoices.id });
+    const scope = await resolveCrmEmployeeScope();
+    const [deleted] = await db
+      .delete(crmInvoices)
+      .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
+      .returning({ id: crmInvoices.id });
     if (!deleted) throw new Error(MESSAGES[locale].invoiceNotFound);
 
     await logCrmAudit({
