@@ -15,10 +15,12 @@ import { sendQuoteEmail } from "@/lib/email/quote";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
+import { requireCrmClientAccess } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
     clientRequired: "Client requis.",
+    clientNotFound: "Client introuvable.",
     titleRequired: "Titre requis.",
     invalidCurrency: "Devise invalide.",
     invalidStatus: "Statut invalide.",
@@ -33,6 +35,7 @@ const MESSAGES = {
   },
   en: {
     clientRequired: "Client required.",
+    clientNotFound: "Client not found.",
     titleRequired: "Title required.",
     invalidCurrency: "Invalid currency.",
     invalidStatus: "Invalid status.",
@@ -58,11 +61,24 @@ function parseTaxRateBasisPoints(formData: FormData, locale: Locale) {
 }
 
 export async function createQuote(formData: FormData) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below —
+  // a page-level requireStaffRole() gate does not extend to this Server
+  // Action, which is its own directly-POSTable entry point.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
   if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
   if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
+  // P0-2K-1 — requireStaffRole() above (P0-1) only confirms "authenticated
+  // staff"; it does not verify the targeted client belongs to the
+  // EMPLOYEE's own assigned scope. Checked before nextDocumentNumber
+  // (consumes a sequence), any DB write, or the audit log. Same
+  // CREATE-pattern primitive already used by createProject/createWebsite/
+  // createInteraction/uploadCrmDocument. OWNER/ADMIN/MANAGER (unrestricted
+  // scope) are unaffected.
+  await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
 
   const currency = formData.get("currency");
   if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
@@ -120,6 +136,9 @@ export async function createQuote(formData: FormData) {
 /** Only draft quotes can be edited — once sent, the client has seen a
  * specific number/total; changing it silently would be misleading. */
 export async function updateQuote(id: string, formData: FormData) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
@@ -296,6 +315,9 @@ async function deliverQuoteEmail(id: string, locale: Locale) {
 }
 
 export async function deleteQuote(id: string) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
