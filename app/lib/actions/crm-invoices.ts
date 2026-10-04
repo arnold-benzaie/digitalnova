@@ -22,7 +22,7 @@ import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
-import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
+import { buildCrmEmployeeScopePredicate, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NEW_CLIENT_SENTINEL = "__new__";
@@ -30,6 +30,7 @@ const NEW_CLIENT_SENTINEL = "__new__";
 const MESSAGES = {
   fr: {
     clientRequired: "Client requis.",
+    clientNotFound: "Client introuvable.",
     titleRequired: "Titre requis.",
     invalidCurrency: "Devise invalide.",
     invalidStatus: "Statut invalide.",
@@ -50,6 +51,7 @@ const MESSAGES = {
   },
   en: {
     clientRequired: "Client required.",
+    clientNotFound: "Client not found.",
     titleRequired: "Title required.",
     invalidCurrency: "Invalid currency.",
     invalidStatus: "Invalid status.",
@@ -263,6 +265,22 @@ export async function createInvoice(formData: FormData) {
 async function createInvoiceCore(formData: FormData, locale: Locale, currency: string, title: string) {
   const sendAutomatically = formData.get("sendAutomatically") === "on" || formData.get("sendAutomatically") === "true";
   const { clientId, snapshot } = await resolveInvoiceClient(formData, locale, sendAutomatically);
+
+  // R9-C — checked immediately after clientId is resolved, before
+  // nextDocumentNumber, the crmInvoices/crmInvoiceItems INSERTs, or any
+  // email/PDF/access-link side effect (deliverInvoiceEmail at the bottom
+  // of this function, when sendAutomatically is set). OWNER/ADMIN/
+  // MANAGER (scope === null) are unaffected either way, including the
+  // clientId === null ("Autre client…" unsaved-manual-entry) case —
+  // product decision: an EMPLOYEE may never create a client-less
+  // invoice, and may only create one for a real client assigned to
+  // them. Same anti-enumeration message (clientNotFound) for both
+  // denial paths.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null) {
+    if (clientId === null) throw new Error(MESSAGES[locale].clientNotFound);
+    await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
+  }
   // Priority (documented in the approved plan): the client's own saved
   // preference, else the active UI locale, else "fr" — fully resolved
   // CLIENT-SIDE already (components/crm/billing-document-form.tsx's
