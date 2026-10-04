@@ -98,30 +98,36 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
   const ticketPriorityLabel = getTicketPriorityLabel(locale);
   const ticketStatusOptions = getTicketStatusOptions(locale);
 
-  const [client] = await db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1);
+  // C.3.1: the client row and the employee scope are independent reads
+  // (resolveCrmEmployeeScope() only needs the already-cached session, never
+  // `client`) — running them together saves one sequential round trip.
+  const [[client], employeeScope] = await Promise.all([
+    db.select().from(crmClients).where(eq(crmClients.id, id)).limit(1),
+    resolveCrmEmployeeScope(),
+  ]);
   if (!client) notFound();
   // MISSION PHASE 3 — CRM CLIENT VISIBILITY BY ASSIGNMENT — an EMPLOYEE
   // scope (null for OWNER/ADMIN/MANAGER, unchanged) may only open a client
   // assigned to them; anyone else, or an unassigned client, gets the SAME
   // notFound() as a genuinely nonexistent id — no existence disclosure via
   // a different error for "real but not yours" vs. "doesn't exist".
-  const employeeScope = await resolveCrmEmployeeScope();
   if (!isCrmClientVisibleToScope(employeeScope, client.assignedUserId)) notFound();
 
-  const gbpStatus = client.organizationId
-    ? await (async () => {
-        const [connection] = await db
-          .select()
-          .from(gbpConnections)
-          .where(eq(gbpConnections.organizationId, client.organizationId!))
-          .limit(1);
-        if (!connection || connection.status !== "connected") return { connected: false, locationCount: 0 };
-        const orgLocations = await db.select({ id: locations.id }).from(locations).where(eq(locations.organizationId, client.organizationId!));
-        return { connected: true, locationCount: orgLocations.length };
-      })()
-    : { connected: false, locationCount: 0 };
-
-  const googleAccount = client.organizationId ? await getGoogleConnection(client.organizationId) : null;
+  const [gbpStatus, googleAccount] = await Promise.all([
+    client.organizationId
+      ? (async () => {
+          const [connection] = await db
+            .select()
+            .from(gbpConnections)
+            .where(eq(gbpConnections.organizationId, client.organizationId!))
+            .limit(1);
+          if (!connection || connection.status !== "connected") return { connected: false, locationCount: 0 };
+          const orgLocations = await db.select({ id: locations.id }).from(locations).where(eq(locations.organizationId, client.organizationId!));
+          return { connected: true, locationCount: orgLocations.length };
+        })()
+      : Promise.resolve({ connected: false, locationCount: 0 }),
+    client.organizationId ? getGoogleConnection(client.organizationId) : Promise.resolve(null),
+  ]);
   const searchConsoleStatus = client.organizationId
     ? await (async () => {
         const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.searchConsole));
@@ -229,14 +235,16 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
   // <RadarAssignmentControls>, and every mutation re-checks
   // requireStaffMember(...) in the server actions.
   const { userId: currentUserId } = await requireSession();
-  const assignmentCaps = await getRadarCapabilities();
   // RADAR INTELLIGENCE V2.1 Phase D — server-resolved, read-only echo of
   // which providers the CURRENT OWNER policy authorizes a user to
   // explicitly request. Gated by the SAME RADAR_QUEUE_VIEW every staff
   // role that reaches this page already holds — never a new requirement.
   // Purely a display hint for <RadarIntelligenceAdvisory>; the actual
   // advisory request re-derives the OWNER policy fresh on every call.
-  const aiProviderSelectionOptions = await getRadarAiProviderSelectionOptions();
+  const [assignmentCaps, aiProviderSelectionOptions] = await Promise.all([
+    getRadarCapabilities(),
+    getRadarAiProviderSelectionOptions(),
+  ]);
   const assignables = assignmentCaps.canAssignOthers ? await listAssignableRadarMembers() : [];
 
   // Resolve the current assignee's display identity + ACTIVE-in-internal-

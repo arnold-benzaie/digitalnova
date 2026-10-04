@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { getValidAccessToken } from "@/lib/google/oauth";
+import { getValidAccessToken, GOOGLE_API_REQUEST_TIMEOUT_MS, GAXIOS_DEFAULT_RETRY_METHODS } from "@/lib/google/oauth";
 import type { AnalyticsDailyMetric, AnalyticsProperty, AnalyticsProvider } from "./types";
 
 function authFor(accessToken: string) {
@@ -7,6 +7,20 @@ function authFor(accessToken: string) {
   auth.setCredentials({ access_token: accessToken });
   return auth;
 }
+
+// P1 network audit (2026-10) — see lib/searchconsole/real-provider.ts's
+// identical pair of constants for the full reasoning: accountSummaries.list
+// is a real GET (verified against node_modules/googleapis/build/src/apis/
+// analyticsadmin/v1beta.js), already retried by default; runReport is a
+// real POST (verified against .../analyticsdata/v1beta.js) that performs
+// no side effect, so it is explicitly added to the retryable-method list
+// for this one verified call only.
+const LIST_REQUEST_OPTIONS = { timeout: GOOGLE_API_REQUEST_TIMEOUT_MS, retry: true };
+const RUN_REPORT_REQUEST_OPTIONS = {
+  timeout: GOOGLE_API_REQUEST_TIMEOUT_MS,
+  retry: true,
+  retryConfig: { httpMethodsToRetry: [...GAXIOS_DEFAULT_RETRY_METHODS, "POST"] },
+};
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -37,7 +51,7 @@ export class RealAnalyticsProvider implements AnalyticsProvider {
   async listProperties(): Promise<AnalyticsProperty[]> {
     const auth = await this.auth();
     const analyticsAdmin = google.analyticsadmin({ version: "v1beta", auth });
-    const { data } = await analyticsAdmin.accountSummaries.list({});
+    const { data } = await analyticsAdmin.accountSummaries.list({}, LIST_REQUEST_OPTIONS);
 
     const result: AnalyticsProperty[] = [];
     for (const account of data.accountSummaries ?? []) {
@@ -58,14 +72,17 @@ export class RealAnalyticsProvider implements AnalyticsProvider {
     const start = new Date(end);
     start.setUTCDate(start.getUTCDate() - (days - 1));
 
-    const { data } = await analyticsData.properties.runReport({
-      property: propertyResourceName,
-      requestBody: {
-        dateRanges: [{ startDate: formatDate(start), endDate: formatDate(end) }],
-        dimensions: [{ name: "date" }],
-        metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: "screenPageViews" }, { name: "bounceRate" }],
+    const { data } = await analyticsData.properties.runReport(
+      {
+        property: propertyResourceName,
+        requestBody: {
+          dateRanges: [{ startDate: formatDate(start), endDate: formatDate(end) }],
+          dimensions: [{ name: "date" }],
+          metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: "screenPageViews" }, { name: "bounceRate" }],
+        },
       },
-    });
+      RUN_REPORT_REQUEST_OPTIONS,
+    );
 
     const result: AnalyticsDailyMetric[] = [];
     for (const row of data.rows ?? []) {

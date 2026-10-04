@@ -266,6 +266,60 @@ run_tier1_enhanced() {
   cd "$REPO_ROOT"
 }
 
+# --- Optional Playwright project selection for Tier 2 (PUBLIC_MAP_PLAYWRIGHT_PROJECTS) ---
+# Pure, no side effects -- safe to call in isolation (no git, no network,
+# no Playwright invocation). The allowlist is a deliberately separate,
+# hand-maintained copy of playwright.config.ts's projects[].name list: a
+# project added to the config can never silently become runnable here
+# without this list being updated too.
+
+_valid_playwright_project() {
+  case "$1" in
+    chromium|firefox|webkit) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# _playwright_project_args <raw_csv>  -> prints one "--project=<name>" per
+# line for each valid entry; returns 1 (and prints NOTHING, not even a
+# partial list) if the input is empty/whitespace-only, has a leading,
+# trailing or doubled comma (an empty field), or if ANY entry fails
+# validation -- fail-closed, never a partial/best-effort selection: every
+# entry is validated in a first pass before anything is printed in a
+# second pass. Each project name is emitted as its own array element by
+# the caller (never concatenated into a single string Playwright/the
+# shell would have to re-split), so this cannot be used for shell
+# injection regardless of the input's content.
+_playwright_project_args() {
+  local raw="$1" part trimmed
+  local -a parts=()
+  local -a validated=()
+
+  trimmed="$(printf '%s' "$raw" | tr -d '[:space:]')"
+  if [ -z "$trimmed" ]; then
+    return 1
+  fi
+  case "$trimmed" in
+    ,*|*,|*,,*) return 1 ;;
+  esac
+
+  IFS=',' read -r -a parts <<< "$trimmed"
+  if [ "${#parts[@]}" -eq 0 ]; then
+    return 1
+  fi
+  for part in "${parts[@]}"; do
+    if [ -z "$part" ] || ! _valid_playwright_project "$part"; then
+      return 1
+    fi
+    validated[${#validated[@]}]="$part"
+  done
+
+  for part in "${validated[@]}"; do
+    printf -- '--project=%s\n' "$part"
+  done
+  return 0
+}
+
 run_tier2() {
   echo "[pre-commit] Tier 2 -- chemins sensibles indexes : suite Playwright Audit complete requise."
   local f
@@ -308,7 +362,38 @@ run_tier2() {
     exit 1
   fi
 
-  if npx --no-install playwright test; then
+  # Optional, explicit narrowing of which Playwright projects Tier 2 runs --
+  # see .githooks/README.md. Unset/empty PUBLIC_MAP_PLAYWRIGHT_PROJECTS
+  # leaves this at zero extra args, so the exact same
+  # `npx --no-install playwright test` (all configured projects) runs as
+  # before this feature existed. This NEVER skips Tier 2 itself -- only
+  # which projects the one Playwright invocation below covers.
+  local -a pw_project_args=()
+  if [ -n "${PUBLIC_MAP_PLAYWRIGHT_PROJECTS:-}" ]; then
+    local parsed_args
+    if ! parsed_args="$(_playwright_project_args "$PUBLIC_MAP_PLAYWRIGHT_PROJECTS")"; then
+      echo ""
+      echo "[pre-commit] ECHEC (Tier 2) : PUBLIC_MAP_PLAYWRIGHT_PROJECTS=\"$PUBLIC_MAP_PLAYWRIGHT_PROJECTS\" invalide."
+      echo "  Valeurs acceptees : une liste separee par des virgules parmi chromium, firefox, webkit."
+      echo "  Exemple : PUBLIC_MAP_PLAYWRIGHT_PROJECTS=chromium,webkit"
+      echo "  Commit bloque."
+      exit 1
+    fi
+    local arg
+    while IFS= read -r arg; do
+      [ -n "$arg" ] && pw_project_args[${#pw_project_args[@]}]="$arg"
+    done <<< "$parsed_args"
+    echo "[pre-commit]   PUBLIC_MAP_PLAYWRIGHT_PROJECTS defini -- projets Playwright retenus : ${pw_project_args[*]}"
+  fi
+
+  local pw_ok=1
+  if [ "${#pw_project_args[@]}" -gt 0 ]; then
+    npx --no-install playwright test "${pw_project_args[@]}" || pw_ok=0
+  else
+    npx --no-install playwright test || pw_ok=0
+  fi
+
+  if [ "$pw_ok" -eq 1 ]; then
     echo ""
     echo "[pre-commit] OK -- suite Playwright Audit verte."
   else

@@ -15,8 +15,7 @@ import { AdminPageHero, tableWrapperClass } from "@/components/admin/page-hero";
 
 export default async function CompetitionPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuditStaffRole();
-  const { id } = await params;
-  const locale = await getLocale();
+  const [{ id }, locale] = await Promise.all([params, getLocale()]);
   const t = dictionaries[locale].auditModule.competition;
 
   const [row] = await auditDb

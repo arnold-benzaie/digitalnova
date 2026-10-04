@@ -47,3 +47,15 @@ test("handleApiError: an unexpected error never leaks internal detail, always ma
   assert.equal(body.error.message.includes("postgres://"), false);
   assert.equal(body.error.requestId, "req-5");
 });
+
+test("handleApiError: the server-side log line never contains the raw error object/message (P1-B) — only a safe category/type/requestId", (t) => {
+  const consoleError = t.mock.method(console, "error", () => {});
+  handleApiError(new Error("password=SECRET123 token=abc123 postgres://user:pass@host/db"), "req-6");
+  assert.equal(consoleError.mock.calls.length, 1);
+  const loggedArgs = consoleError.mock.calls[0].arguments;
+  assert.equal(loggedArgs.length, 1, "the raw error object must never be passed as a separate console.error argument");
+  const logged = loggedArgs[0];
+  assert.doesNotMatch(logged, /SECRET123|abc123|postgres:\/\//);
+  assert.match(logged, /req-6/);
+  assert.match(logged, /category=/);
+});

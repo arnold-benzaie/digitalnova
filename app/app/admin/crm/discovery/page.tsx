@@ -30,11 +30,20 @@ export default async function CrmDiscoveryPage() {
   await requireRadarAccess("RADAR_QUEUE_VIEW");
   const locale = await getLocale();
   const t = dictionaries[locale].crm.discovery;
+  // RSC boundary fix — summaryCreated/summaryAlreadyDiscovered/
+  // summaryAlreadyInCrm/errActorRateLimited are functions (parameterized
+  // formatters), and a plain function value cannot be passed from a
+  // Server Component to a Client Component ("Functions cannot be passed
+  // directly to Client Components..."). DiscoverySearchPanel rebuilds
+  // these four locally from `locale` instead — see
+  // DiscoverySearchDictSerializable's own comment in that file.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- deliberately discarded, see the comment above
+  const { summaryCreated, summaryAlreadyDiscovered, summaryAlreadyInCrm, errActorRateLimited, ...serializableDiscoveryDict } = t;
 
   return (
     <>
       <AdminPageHero title={t.title} subtitle={t.subtitle} />
-      <DiscoverySearchPanel t={t} locale={locale} />
+      <DiscoverySearchPanel t={serializableDiscoveryDict} locale={locale} />
     </>
   );
 }

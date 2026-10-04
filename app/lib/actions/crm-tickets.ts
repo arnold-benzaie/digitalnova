@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, tickets } from "@/db/schema";
@@ -10,6 +10,7 @@ import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getInternalOrganizationId, notify } from "@/lib/notifications";
 import { getLocale } from "@/lib/i18n/locale";
+import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
@@ -130,10 +131,11 @@ export async function updateTicketStatus(id: string, status: string) {
     throw new Error(MESSAGES[locale].invalidStatus);
   }
 
+  const scope = await resolveCrmEmployeeScope();
   const [ticket] = await db
     .update(tickets)
     .set({ status, resolvedAt: status === "resolved" || status === "closed" ? new Date() : null })
-    .where(eq(tickets.id, id))
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
     .returning();
 
   await logCrmAudit({
@@ -163,6 +165,7 @@ export async function updateTicket(id: string, formData: FormData) {
     throw new Error(MESSAGES[locale].invalidPriority);
   }
 
+  const scope = await resolveCrmEmployeeScope();
   const [ticket] = await db
     .update(tickets)
     .set({
@@ -170,7 +173,7 @@ export async function updateTicket(id: string, formData: FormData) {
       description: (formData.get("description") as string) || null,
       priority,
     })
-    .where(eq(tickets.id, id))
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
     .returning();
   if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
@@ -191,7 +194,11 @@ export async function updateTicket(id: string, formData: FormData) {
 export async function deleteTicket(id: string) {
   await requireStaffRole();
   const locale = await getLocale();
-  const [ticket] = await db.delete(tickets).where(eq(tickets.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [ticket] = await db
+    .delete(tickets)
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
+    .returning();
   if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
   await logCrmAudit({

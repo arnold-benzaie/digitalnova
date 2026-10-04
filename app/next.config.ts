@@ -93,7 +93,9 @@ const BASE_CSP = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'self'",
-  "upgrade-insecure-requests",
+  ...(process.env.PUBLIC_MAP_E2E === "1"
+    ? []
+    : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 // /developers/reference/embed (see that route's own docstring) is the
@@ -121,7 +123,9 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  ...(process.env.PUBLIC_MAP_E2E === "1"
+    ? []
+    : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]),
 ];
 
 const nextConfig: NextConfig = {

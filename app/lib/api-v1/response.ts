@@ -1,5 +1,6 @@
 import "server-only";
 import { ApiError, type ApiErrorCode } from "@/lib/api-v1/errors";
+import { categorizeGenericError } from "@/lib/errors/categorize-generic-error";
 
 /**
  * Normalized response envelope for /api/v1/* — the first such convention
@@ -48,6 +49,14 @@ export function handleApiError(error: unknown, requestId: string): Response {
   if (error instanceof ApiError) {
     return apiError(error.code, error.message, error.status, requestId, error.headers);
   }
-  console.error(`[api/v1] unhandled error (requestId=${requestId}):`, error);
+  // Never log the raw `error` object here — it can carry an arbitrary
+  // message/cause (a Postgres error's .cause, a thrown string, a payload
+  // echoed back by a library) that may itself contain request data. Same
+  // allowlist-over-raw-object discipline as lib/radar-discovery/
+  // observability.ts and lib/chat/technical-alert.ts's categorizeChatError:
+  // only a closed category, the error's own constructor name, and the
+  // requestId ever reach the log line.
+  const errorName = error instanceof Error ? error.constructor.name : typeof error;
+  console.error(`[api/v1] unhandled error (requestId=${requestId}, category=${categorizeGenericError(error)}, type=${errorName})`);
   return apiError("INTERNAL_ERROR", "An unexpected error occurred.", 500, requestId);
 }

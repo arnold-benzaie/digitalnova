@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices, crmQuoteItems, crmQuotes } from "@/db/schema";
@@ -15,10 +15,12 @@ import { sendQuoteEmail } from "@/lib/email/quote";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
+import { buildCrmEmployeeScopePredicate, isCrmClientVisibleToScope, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
     clientRequired: "Client requis.",
+    clientNotFound: "Client introuvable.",
     titleRequired: "Titre requis.",
     invalidCurrency: "Devise invalide.",
     invalidStatus: "Statut invalide.",
@@ -26,12 +28,14 @@ const MESSAGES = {
     onlyDraftCanBeEdited: "Seuls les devis en brouillon peuvent être modifiés.",
     onlyDraftCanBeDeleted: "Seuls les devis en brouillon peuvent être supprimés.",
     onlyAcceptedCanConvert: "Seul un devis accepté peut être converti en facture.",
+    convertedNotManual: "Le statut « Converti » est défini automatiquement par la conversion en facture — il ne peut pas être choisi manuellement.",
     noRecipientEmail: "Aucune adresse email n'est associée à ce client — impossible d'envoyer le devis.",
     sendRateLimited: "Une tentative d'envoi est déjà en cours pour ce devis. Veuillez patienter quelques secondes.",
     sendFailed: "L'envoi du devis a échoué. Veuillez réessayer.",
   },
   en: {
     clientRequired: "Client required.",
+    clientNotFound: "Client not found.",
     titleRequired: "Title required.",
     invalidCurrency: "Invalid currency.",
     invalidStatus: "Invalid status.",
@@ -39,6 +43,7 @@ const MESSAGES = {
     onlyDraftCanBeEdited: "Only draft quotes can be edited.",
     onlyDraftCanBeDeleted: "Only draft quotes can be deleted.",
     onlyAcceptedCanConvert: "Only an accepted quote can be converted to an invoice.",
+    convertedNotManual: "The \"Converted\" status is set automatically by converting to an invoice — it cannot be chosen manually.",
     noRecipientEmail: "No email address is on file for this client — the quote cannot be sent.",
     sendRateLimited: "A send attempt is already in progress for this quote. Please wait a few seconds.",
     sendFailed: "Sending the quote failed. Please try again.",
@@ -56,11 +61,24 @@ function parseTaxRateBasisPoints(formData: FormData, locale: Locale) {
 }
 
 export async function createQuote(formData: FormData) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below —
+  // a page-level requireStaffRole() gate does not extend to this Server
+  // Action, which is its own directly-POSTable entry point.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const clientId = formData.get("clientId");
   const title = formData.get("title");
   if (typeof clientId !== "string" || !clientId) throw new Error(MESSAGES[locale].clientRequired);
   if (typeof title !== "string" || !title.trim()) throw new Error(MESSAGES[locale].titleRequired);
+  // P0-2K-1 — requireStaffRole() above (P0-1) only confirms "authenticated
+  // staff"; it does not verify the targeted client belongs to the
+  // EMPLOYEE's own assigned scope. Checked before nextDocumentNumber
+  // (consumes a sequence), any DB write, or the audit log. Same
+  // CREATE-pattern primitive already used by createProject/createWebsite/
+  // createInteraction/uploadCrmDocument. OWNER/ADMIN/MANAGER (unrestricted
+  // scope) are unaffected.
+  await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
 
   const currency = formData.get("currency");
   if (typeof currency !== "string" || !CURRENCY_VALUES.includes(currency)) throw new Error(MESSAGES[locale].invalidCurrency);
@@ -118,6 +136,9 @@ export async function createQuote(formData: FormData) {
 /** Only draft quotes can be edited — once sent, the client has seen a
  * specific number/total; changing it silently would be misleading. */
 export async function updateQuote(id: string, formData: FormData) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
@@ -136,6 +157,16 @@ export async function updateQuote(id: string, formData: FormData) {
   const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
+  // P0-2K-3 — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. The guard right below
+  // (`if (!quote) throw`) is critical here specifically: it must run
+  // BEFORE the quote_items delete/reinsert further down, so a denied
+  // EMPLOYEE's forged request never touches another client's line
+  // items even though the UPDATE itself already matched zero rows.
+  const scope = await resolveCrmEmployeeScope();
   const [quote] = await db
     .update(crmQuotes)
     .set({
@@ -147,8 +178,9 @@ export async function updateQuote(id: string, formData: FormData) {
       validUntil: typeof validUntilRaw === "string" && validUntilRaw ? new Date(validUntilRaw) : null,
       notes,
     })
-    .where(eq(crmQuotes.id, id))
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
     .returning();
+  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await db.delete(crmQuoteItems).where(eq(crmQuoteItems.quoteId, id));
   await db.insert(crmQuoteItems).values(
@@ -187,6 +219,10 @@ export async function updateQuoteStatus(id: string, status: string) {
 
   const locale = await getLocale();
   if (!QUOTE_STATUS_VALUES.includes(status)) throw new Error(MESSAGES[locale].invalidStatus);
+  // "converted" is a system-set outcome of convertQuoteToInvoice (see that
+  // function below) — same convention as updateInvoiceStatus's rejection
+  // of "delivery_failed" as a manual target (lib/actions/crm-invoices.ts).
+  if (status === "converted") throw new Error(MESSAGES[locale].convertedNotManual);
 
   // Moving to "sent" is not a plain column flip — it goes through the real
   // delivery path (Chantier 1 Phase 3): status/sentAt are only ever
@@ -203,7 +239,18 @@ export async function updateQuoteStatus(id: string, status: string) {
   const patch: Record<string, unknown> = { status };
   if (status === "accepted" || status === "declined") patch.respondedAt = new Date();
 
-  const [quote] = await db.update(crmQuotes).set(patch).where(eq(crmQuotes.id, id)).returning();
+  // P0-2K-4 — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. The pre-existing
+  // `if (!quote) throw` guard below already covers this case correctly.
+  const scope = await resolveCrmEmployeeScope();
+  const [quote] = await db
+    .update(crmQuotes)
+    .set(patch)
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
+    .returning();
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await logCrmAudit({
@@ -242,6 +289,13 @@ export async function updateQuoteStatus(id: string, status: string) {
 async function deliverQuoteEmail(id: string, locale: Locale) {
   const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
+
+  // P0-2K-4 — checked immediately after the initial SELECT, before any
+  // other side effect (rate limit, client email lookup, access link
+  // creation, the actual email send) — an EMPLOYEE outside their scope
+  // must never reach any of those. Same anti-enumeration message as
+  // "quote doesn't exist".
+  await requireCrmClientAccess(quote.clientId, new Error(MESSAGES[locale].quoteNotFound));
 
   const rate = await checkRateLimit("crm_quote_send", id, 1, 10);
   if (!rate.allowed) throw new Error(MESSAGES[locale].sendRateLimited);
@@ -290,19 +344,32 @@ async function deliverQuoteEmail(id: string, locale: Locale) {
 }
 
 export async function deleteQuote(id: string) {
+  // P0-1 security fix: see updateQuoteStatus's identical comment below.
+  await requireStaffRole();
+
   const locale = await getLocale();
   const [existing] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, id)).limit(1);
   if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
   if (existing.status !== "draft") throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
 
-  await db.delete(crmQuotes).where(eq(crmQuotes.id, id));
+  // P0-2K-2 — the scope check is folded directly into this DELETE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating.
+  const scope = await resolveCrmEmployeeScope();
+  const [deleted] = await db
+    .delete(crmQuotes)
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
+    .returning();
+  if (!deleted) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await logCrmAudit({
     action: "crm.quote_deleted",
     targetType: "crm_quote",
     targetId: id,
-    clientId: existing.clientId,
-    metadata: { quoteNumber: existing.quoteNumber },
+    clientId: deleted.clientId,
+    metadata: { quoteNumber: deleted.quoteNumber },
   });
 
   revalidatePath("/admin/crm/quotes");
@@ -317,64 +384,116 @@ export async function convertQuoteToInvoice(quoteId: string) {
   await requireStaffRole();
 
   const locale = await getLocale();
-  const [quote] = await db.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).limit(1);
-  if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
-  if (quote.status !== "accepted") throw new Error(MESSAGES[locale].onlyAcceptedCanConvert);
 
-  const items = await db.select().from(crmQuoteItems).where(eq(crmQuoteItems.quoteId, quoteId));
-  const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
+  // P0 fix — a concurrent call on the same quote, or a client retry after
+  // a lost response, must never create a second invoice. SELECT ... FOR
+  // UPDATE locks the quote row first; every decision below (not-found /
+  // already-converted / accepted-check) and every write is made from
+  // that LOCKED row, inside the same transaction. A concurrent call on
+  // the SAME quote serializes behind the lock and observes
+  // status="converted" on its own turn — never a second INSERT. Same
+  // pattern already proven in lib/actions/radar-discovery-convert.ts's
+  // convertDiscoveryResult.
+  // P0-2K-6 — the EMPLOYEE scope check runs INSIDE the transaction,
+  // using the row the FOR UPDATE lock above just returned — never data
+  // read before the lock was acquired (a quote's clientId never changes,
+  // but checking against a pre-lock read would defeat the whole point
+  // of locking before deciding). requireCrmClientAccess() can't be
+  // reused verbatim here: it hardcodes the module-level `db`, not this
+  // transaction's `tx`, so the same two primitives it's built from
+  // (resolveCrmEmployeeScope() + isCrmClientVisibleToScope()) are used
+  // directly, reading the client's assignedUserId via `tx` so the check
+  // stays inside the same transaction as the lock. scope itself (who is
+  // calling) is resolved once, outside the transaction — the caller's
+  // own identity/assignment can't be affected by this quote's row lock.
+  const scope = await resolveCrmEmployeeScope();
 
-  const [invoice] = await db
-    .insert(crmInvoices)
-    .values({
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      dealId: quote.dealId,
-      invoiceNumber,
-      title: quote.title,
-      currency: quote.currency,
-      taxLabel: quote.taxLabel,
-      taxRateBasisPoints: quote.taxRateBasisPoints,
-      subtotalCents: quote.subtotalCents,
-      taxCents: quote.taxCents,
-      totalCents: quote.totalCents,
-      notes: quote.notes,
-    })
-    .returning();
+  const { invoice, clientId } = await db.transaction(async (tx) => {
+    const [quote] = await tx.select().from(crmQuotes).where(eq(crmQuotes.id, quoteId)).for("update").limit(1);
+    if (!quote) throw new Error(MESSAGES[locale].quoteNotFound);
 
-  if (items.length) {
-    await db.insert(crmInvoiceItems).values(
-      items
-        .sort((a, b) => a.position - b.position)
-        .map((item) => ({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPriceCents: item.unitPriceCents,
-          position: item.position,
-          // Verbatim copy, never re-derived from the current catalogue —
-          // the quote's serviceId was already validated when that quote
-          // was created/updated (sanitizeServiceIds), and the FK's own
-          // ON DELETE SET NULL already keeps it accurate if the underlying
-          // service was deleted since. Re-validating here would let a
-          // service being merely deactivated retroactively erase
-          // traceability on a document whose price/description snapshot
-          // must never change (P0.2A-2 rule 12).
-          serviceId: item.serviceId,
-        })),
+    if (scope !== null) {
+      const [client] = await tx.select({ assignedUserId: crmClients.assignedUserId }).from(crmClients).where(eq(crmClients.id, quote.clientId)).limit(1);
+      if (!isCrmClientVisibleToScope(scope, client?.assignedUserId ?? null)) {
+        throw new Error(MESSAGES[locale].quoteNotFound);
+      }
+    }
+
+    if (quote.status === "converted") {
+      // Idempotent: a retry (lost response, double-click, or a genuinely
+      // concurrent call that lost the row-lock race) returns the invoice
+      // conversion already created — never attempts a second one.
+      const [existing] = await tx.select().from(crmInvoices).where(eq(crmInvoices.quoteId, quoteId)).limit(1);
+      return { invoice: existing, clientId: quote.clientId };
+    }
+    if (quote.status !== "accepted") throw new Error(MESSAGES[locale].onlyAcceptedCanConvert);
+
+    const items = await tx.select().from(crmQuoteItems).where(eq(crmQuoteItems.quoteId, quoteId));
+    const invoiceNumber = await nextDocumentNumber(crmInvoices, crmInvoices.invoiceNumber, "FAC");
+
+    const [newInvoice] = await tx
+      .insert(crmInvoices)
+      .values({
+        clientId: quote.clientId,
+        quoteId: quote.id,
+        dealId: quote.dealId,
+        invoiceNumber,
+        title: quote.title,
+        currency: quote.currency,
+        taxLabel: quote.taxLabel,
+        taxRateBasisPoints: quote.taxRateBasisPoints,
+        subtotalCents: quote.subtotalCents,
+        taxCents: quote.taxCents,
+        totalCents: quote.totalCents,
+        notes: quote.notes,
+      })
+      .returning();
+
+    if (items.length) {
+      await tx.insert(crmInvoiceItems).values(
+        items
+          .sort((a, b) => a.position - b.position)
+          .map((item) => ({
+            invoiceId: newInvoice.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPriceCents: item.unitPriceCents,
+            position: item.position,
+            // Verbatim copy, never re-derived from the current catalogue —
+            // the quote's serviceId was already validated when that quote
+            // was created/updated (sanitizeServiceIds), and the FK's own
+            // ON DELETE SET NULL already keeps it accurate if the underlying
+            // service was deleted since. Re-validating here would let a
+            // service being merely deactivated retroactively erase
+            // traceability on a document whose price/description snapshot
+            // must never change (P0.2A-2 rule 12).
+            serviceId: item.serviceId,
+          })),
+      );
+    }
+
+    await logCrmAudit(
+      {
+        action: "crm.invoice_created_from_quote",
+        targetType: "crm_invoice",
+        targetId: newInvoice.id,
+        clientId: newInvoice.clientId ?? undefined,
+        metadata: { invoiceNumber, quoteNumber: quote.quoteNumber, totalCents: newInvoice.totalCents },
+      },
+      tx,
     );
-  }
 
-  await logCrmAudit({
-    action: "crm.invoice_created_from_quote",
-    targetType: "crm_invoice",
-    targetId: invoice.id,
-    clientId: invoice.clientId ?? undefined,
-    metadata: { invoiceNumber, quoteNumber: quote.quoteNumber, totalCents: invoice.totalCents },
+    // Same transaction as the writes above — a concurrent/retried call
+    // can only ever observe "accepted" (and proceed, racing on the row
+    // lock) or "converted" (and take the idempotent branch above), never
+    // a half-converted quote.
+    await tx.update(crmQuotes).set({ status: "converted" }).where(eq(crmQuotes.id, quoteId));
+
+    return { invoice: newInvoice, clientId: quote.clientId };
   });
 
   revalidatePath("/admin/crm/quotes");
   revalidatePath("/admin/crm/invoices");
-  revalidatePath(`/admin/crm/clients/${quote.clientId}`);
+  revalidatePath(`/admin/crm/clients/${clientId}`);
   return invoice;
 }

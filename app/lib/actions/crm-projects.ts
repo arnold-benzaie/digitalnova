@@ -1,16 +1,29 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { requireStaffRole } from "@/lib/dev-role";
 import { getLocale } from "@/lib/i18n/locale";
+import { buildCrmEmployeeScopePredicate, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
-  fr: { clientRequired: "Client requis.", nameRequired: "Nom du projet requis.", invalidStatus: "Statut invalide.", projectNotFound: "Projet introuvable." },
-  en: { clientRequired: "Client required.", nameRequired: "Project name required.", invalidStatus: "Invalid status.", projectNotFound: "Project not found." },
+  fr: {
+    clientRequired: "Client requis.",
+    clientNotFound: "Client introuvable.",
+    nameRequired: "Nom du projet requis.",
+    invalidStatus: "Statut invalide.",
+    projectNotFound: "Projet introuvable.",
+  },
+  en: {
+    clientRequired: "Client required.",
+    clientNotFound: "Client not found.",
+    nameRequired: "Project name required.",
+    invalidStatus: "Invalid status.",
+    projectNotFound: "Project not found.",
+  },
 } as const;
 
 const STATUSES = ["planning", "in_progress", "completed", "on_hold"] as const;
@@ -26,6 +39,12 @@ export async function createProject(formData: FormData) {
   if (typeof name !== "string" || !name.trim()) {
     throw new Error(MESSAGES[locale].nameRequired);
   }
+  // P0-2F — an EMPLOYEE may only create a project for a client assigned to
+  // them; OWNER/ADMIN/MANAGER (unrestricted scope) are unaffected. Same
+  // SELECT-then-check primitive already used by lib/actions/crm-clients.ts's
+  // own mutations — a prior check is the accepted pattern for CREATE, where
+  // there is no WHERE clause to fold an atomic predicate into.
+  await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
 
   const dueDateRaw = formData.get("dueDate");
 
@@ -59,7 +78,12 @@ export async function updateProjectStatus(id: string, status: string) {
     throw new Error(MESSAGES[locale].invalidStatus);
   }
 
-  const [project] = await db.update(projects).set({ status }).where(eq(projects.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [project] = await db
+    .update(projects)
+    .set({ status })
+    .where(and(eq(projects.id, id), buildCrmEmployeeScopePredicate(scope, projects.clientId)))
+    .returning();
 
   await logCrmAudit({
     action: "crm.project_status_changed",
@@ -86,6 +110,7 @@ export async function updateProject(id: string, formData: FormData) {
   const startDateRaw = formData.get("startDate");
   const dueDateRaw = formData.get("dueDate");
 
+  const scope = await resolveCrmEmployeeScope();
   const [project] = await db
     .update(projects)
     .set({
@@ -94,7 +119,7 @@ export async function updateProject(id: string, formData: FormData) {
       startDate: typeof startDateRaw === "string" && startDateRaw ? new Date(startDateRaw) : null,
       dueDate: typeof dueDateRaw === "string" && dueDateRaw ? new Date(dueDateRaw) : null,
     })
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), buildCrmEmployeeScopePredicate(scope, projects.clientId)))
     .returning();
   if (!project) throw new Error(MESSAGES[locale].projectNotFound);
 
@@ -115,7 +140,11 @@ export async function updateProject(id: string, formData: FormData) {
 export async function deleteProject(id: string) {
   await requireStaffRole();
   const locale = await getLocale();
-  const [project] = await db.delete(projects).where(eq(projects.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [project] = await db
+    .delete(projects)
+    .where(and(eq(projects.id, id), buildCrmEmployeeScopePredicate(scope, projects.clientId)))
+    .returning();
   if (!project) throw new Error(MESSAGES[locale].projectNotFound);
 
   await logCrmAudit({

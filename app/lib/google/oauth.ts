@@ -32,13 +32,75 @@ function getRedirectUri(): string {
   return process.env.GOOGLE_OAUTH_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
 }
 
-/** Throws if GOOGLE_CLIENT_ID/SECRET aren't set — callers must check
- * isGoogleOAuthConfigured() first (the mock-vs-real factories all do). */
+/**
+ * P1 network audit (2026-10) — centralized Google API request timeout.
+ * Mirrors the only existing precedent for a Google-adjacent HTTP timeout
+ * in this codebase (lib/radar-discovery/adapters/google-places-http-
+ * transport.ts's DEFAULT_GOOGLE_PLACES_REQUEST_TIMEOUT_MS = 8_000),
+ * applied here via gaxios's own native `timeout` option — verified
+ * directly against the installed googleapis@173.0.0 / gaxios@7.2.0
+ * sources (node_modules/googleapis-common/.../api.d.ts: `MethodOptions
+ * extends GaxiosOptions`; node_modules/gaxios/.../common.d.ts: "A
+ * timeout for the request, in milliseconds. No timeout by default.").
+ * Not shared with RADAR's own constant — same reasoning as that file's
+ * own comment: a different domain, different cost profile, reusing it
+ * would be an arbitrary coupling.
+ */
+export const GOOGLE_API_REQUEST_TIMEOUT_MS = 8_000;
+
+/**
+ * gaxios's own default retryable-HTTP-method allowlist — verified
+ * directly against node_modules/gaxios/build/cjs/src/retry.js (NOT
+ * exported by the package, hand-copied here; must be kept in sync if
+ * that default ever changes upstream). POST is deliberately excluded by
+ * gaxios itself — a POST is never safe to retry blindly. Exported only
+ * so call sites that verified their own specific POST is a pure read
+ * (no side effect) can extend this exact list with "POST" explicitly,
+ * rather than guessing at gaxios's default or disabling the check
+ * entirely.
+ */
+export const GAXIOS_DEFAULT_RETRY_METHODS = ["GET", "HEAD", "PUT", "OPTIONS", "DELETE"] as const;
+
+/**
+ * Throws if GOOGLE_CLIENT_ID/SECRET aren't set — callers must check
+ * isGoogleOAuthConfigured() first (the mock-vs-real factories all do).
+ *
+ * P1 network audit (2026-10): switched from the 3-positional-argument
+ * constructor form (marked `@deprecated` in google-auth-library's own
+ * types) to the options-object form, specifically to set
+ * `transporterOptions: { timeout }` — the only way to apply a timeout to
+ * this client's calls, since `OAuth2Client.getToken()`/
+ * `refreshAccessToken()` have NO per-call options parameter of their
+ * own (verified: `GetTokenOptions` carries only OAuth-specific fields;
+ * `refreshAccessToken()` takes no parameters at all). `transporterOptions`
+ * becomes this client's OWN Gaxios instance defaults (verified:
+ * AuthClient's constructor does `this.transporter = new Gaxios(opts.
+ * transporterOptions)`, and Gaxios.request() merges `this.defaults` as
+ * the base under any per-call options).
+ *
+ * Deliberately sets ONLY `timeout`, never `retry`/`retryConfig`: unlike
+ * the googleapis-generated clients (whose shared createAPIRequest
+ * wrapper defaults `retry` to `true`), this client's getToken()/
+ * refreshAccessToken() go through google-auth-library's own raw Gaxios
+ * transporter, which does NOT get that default — retry already stays
+ * OFF here unless explicitly turned on (verified against gaxios's own
+ * retry.js: the retry interceptor's own gate requires `config.retry` to
+ * be truthy). That is exactly the required behavior: exchangeCodeFor-
+ * Connection()'s code exchange is single-use/non-idempotent, and a
+ * refresh, while harmless to repeat, has no demonstrated need for an
+ * automatic retry here — so leaving retry at its already-safe default
+ * is the correct, minimal choice, not an oversight.
+ */
 export function createGoogleOAuthClient() {
   if (!isGoogleOAuthConfigured()) {
     throw new Error("GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ne sont pas configurés.");
   }
-  return new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, getRedirectUri());
+  return new google.auth.OAuth2({
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: getRedirectUri(),
+    transporterOptions: { timeout: GOOGLE_API_REQUEST_TIMEOUT_MS },
+  });
 }
 
 /** Builds the Google consent-screen URL. `state` round-trips through

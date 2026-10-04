@@ -1,6 +1,7 @@
 import "server-only";
 import { google, type analyticsdata_v1beta } from "googleapis";
 import type { BaseExternalAccountClient } from "google-auth-library";
+import { GOOGLE_API_REQUEST_TIMEOUT_MS, GAXIOS_DEFAULT_RETRY_METHODS } from "@/lib/google/oauth";
 import { getGa4Auth } from "./auth";
 import type { DimensionBreakdownRow, SiteAnalyticsBreakdowns, SiteAnalyticsKpis, SiteTrafficAnalytics, TopPageRow } from "./types";
 
@@ -31,12 +32,26 @@ function dataApiClient(auth: BaseExternalAccountClient) {
   return google.analyticsdata({ version: "v1beta", auth });
 }
 
+// P1 network audit (2026-10) — see lib/analytics/real-provider.ts's
+// identical constant for the full reasoning: runReport is a real POST
+// (verified against node_modules/googleapis/build/src/apis/analyticsdata/
+// v1beta.js) that performs no side effect, so it's explicitly added to
+// the retryable-method list for this one verified call only. This single
+// helper is shared by both fetchKpis (4 parallel calls) and
+// fetchBreakdowns (8 parallel calls) below, so one change point covers
+// all of them.
+const RUN_REPORT_REQUEST_OPTIONS = {
+  timeout: GOOGLE_API_REQUEST_TIMEOUT_MS,
+  retry: true,
+  retryConfig: { httpMethodsToRetry: [...GAXIOS_DEFAULT_RETRY_METHODS, "POST"] },
+};
+
 async function runReport(
   client: analyticsdata_v1beta.Analyticsdata,
   propertyId: string,
   body: analyticsdata_v1beta.Schema$RunReportRequest,
 ) {
-  const res = await client.properties.runReport({ property: `properties/${propertyId}`, requestBody: body });
+  const res = await client.properties.runReport({ property: `properties/${propertyId}`, requestBody: body }, RUN_REPORT_REQUEST_OPTIONS);
   return res.data;
 }
 

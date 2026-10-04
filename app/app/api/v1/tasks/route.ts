@@ -6,7 +6,7 @@ import { getClientForOrg } from "@/lib/api-v1/clients";
 import { createTaskForClient, validateTaskCreateBody } from "@/lib/api-v1/tasks";
 import { toTaskDTO } from "@/lib/api-v1/dto";
 import { logApiSuccess } from "@/lib/api-v1/logging";
-import { checkIdempotency, extractIdempotencyKey, hashRequestBody, recordIdempotentResponse } from "@/lib/api-v1/idempotency";
+import { checkIdempotency, extractIdempotencyKey, hashRequestBody, runIdempotently } from "@/lib/api-v1/idempotency";
 
 const ROUTE = "POST /api/v1/tasks";
 
@@ -42,18 +42,27 @@ export async function POST(request: Request) {
     const client = await getClientForOrg(context.organizationId, input.clientId);
     if (!client) throw new ApiError("VALIDATION_ERROR", '"clientId" does not reference a client in your organization.');
 
-    const task = await createTaskForClient(client.id, input);
-    const dto = toTaskDTO(task);
-
-    await logApiSuccess({ context, action: "api_v1.tasks.created", targetType: "task", targetId: task.id, metadata: { clientId: client.id } });
-
-    const responseBody = { data: dto };
+    // P1 fix: when an Idempotency-Key is present, the claim (against the
+    // key) and the task creation happen inside the SAME transaction, via
+    // runIdempotently — see lib/api-v1/idempotency.ts for why this is
+    // what actually closes the concurrent-duplicate-creation race (the
+    // checkIdempotency() call above is only a fast-path, not the safety
+    // mechanism). Without a key, behavior is byte-for-byte unchanged.
     if (idempotencyKey) {
-      const recorded = await recordIdempotentResponse(context.integrationId, ROUTE, idempotencyKey, requestHash!, 201, responseBody);
-      return Response.json(recorded.body, { status: recorded.status, headers: { "X-Request-Id": requestId, ...usageHeaders } });
+      const result = await runIdempotently(context.integrationId, ROUTE, idempotencyKey, requestHash!, async (executor) => {
+        const task = await createTaskForClient(client.id, input, executor);
+        const dto = toTaskDTO(task);
+        await logApiSuccess({ context, action: "api_v1.tasks.created", targetType: "task", targetId: task.id, metadata: { clientId: client.id } });
+        return { status: 201, body: { data: dto } };
+      });
+      return Response.json(result.body, { status: result.status, headers: { "X-Request-Id": requestId, ...usageHeaders } });
     }
 
-    return Response.json(responseBody, { status: 201, headers: { "X-Request-Id": requestId, ...usageHeaders } });
+    const task = await createTaskForClient(client.id, input);
+    const dto = toTaskDTO(task);
+    await logApiSuccess({ context, action: "api_v1.tasks.created", targetType: "task", targetId: task.id, metadata: { clientId: client.id } });
+
+    return Response.json({ data: dto }, { status: 201, headers: { "X-Request-Id": requestId, ...usageHeaders } });
   } catch (error) {
     return handleApiError(error, requestId);
   }

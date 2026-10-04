@@ -77,8 +77,22 @@ export function validateInteractionCreateBody(body: unknown): InteractionCreateI
   };
 }
 
-export async function createInteractionForClient(clientId: string, input: InteractionCreateInput, keyPrefix: string) {
-  const [interaction] = await db
+/**
+ * P1 fix (2026-10): accepts an optional executor so the caller
+ * (app/api/v1/interactions/route.ts, via lib/api-v1/idempotency.ts's
+ * runIdempotently) can run this INSIDE the same transaction as its
+ * idempotency-key claim — required for the claim-before-create race fix
+ * to actually be atomic. Defaults to the bare `db`, so every other
+ * caller (there are none today, but the default keeps this
+ * non-breaking) behaves exactly as before.
+ */
+export async function createInteractionForClient(
+  clientId: string,
+  input: InteractionCreateInput,
+  keyPrefix: string,
+  executor: Pick<typeof db, "insert"> = db,
+) {
+  const [interaction] = await executor
     .insert(interactions)
     .values({
       clientId,

@@ -18,7 +18,7 @@
 // up itself; no SERVICE_ID from the real catalogue is ever used here.
 //
 // Run with: npx tsx --test --experimental-test-module-mocks db/catalogue-schema.integration.test.mjs
-import { test, after, beforeEach, afterEach } from "node:test";
+import { test, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 

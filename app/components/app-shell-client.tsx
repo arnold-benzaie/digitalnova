@@ -11,7 +11,7 @@ import { NotificationToaster } from "@/components/notification-toaster";
 import { NotificationPreferencesControl } from "@/components/notification-preferences";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NAV_ICONS } from "@/components/gbp-audit/ui/nav-icons";
-import { getStaffNavSections, getClientNavSections, type NavSection } from "@/components/app-sidebar-nav";
+import { getStaffNavSections, getClientNavSections, withActiveSectionOpen, type NavSection } from "@/components/app-sidebar-nav";
 import type { DevRole } from "@/lib/dev-role";
 import type { NavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
 import type { Locale } from "@/lib/i18n/dictionaries";
@@ -192,11 +192,14 @@ export function AppShellClient({
   );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    for (const s of sections) initial[s.key] = s.defaultOpen;
-    return initial;
-  });
+  // P1 sidebar-latency fix: seed the initial state with the active section
+  // already open (in addition to whatever is defaultOpen), not just
+  // defaultOpen alone — see withActiveSectionOpen()'s own doc comment for
+  // why a fresh mount needs this and the reactive update below doesn't
+  // cover it.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
+    withActiveSectionOpen(sections, activeSectionKey),
+  );
   // Auto-expand the section containing the active page — adjusted during
   // render (React's documented pattern for "state depends on a prop that
   // just changed") rather than in an effect, which would cost an extra

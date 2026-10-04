@@ -1,7 +1,7 @@
 "use server";
 
 import { renderToBuffer } from "@react-pdf/renderer";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices, type CrmInvoiceClientSnapshot } from "@/db/schema";
@@ -22,6 +22,7 @@ import { BillingDocumentPdf } from "@/lib/pdf/billing-document";
 import { rethrowFriendlyIfTransient } from "@/lib/db-transient-error";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
+import { buildCrmEmployeeScopePredicate, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NEW_CLIENT_SENTINEL = "__new__";
@@ -29,6 +30,7 @@ const NEW_CLIENT_SENTINEL = "__new__";
 const MESSAGES = {
   fr: {
     clientRequired: "Client requis.",
+    clientNotFound: "Client introuvable.",
     titleRequired: "Titre requis.",
     invalidCurrency: "Devise invalide.",
     invalidStatus: "Statut invalide.",
@@ -49,6 +51,7 @@ const MESSAGES = {
   },
   en: {
     clientRequired: "Client required.",
+    clientNotFound: "Client not found.",
     titleRequired: "Title required.",
     invalidCurrency: "Invalid currency.",
     invalidStatus: "Invalid status.",
@@ -262,6 +265,22 @@ export async function createInvoice(formData: FormData) {
 async function createInvoiceCore(formData: FormData, locale: Locale, currency: string, title: string) {
   const sendAutomatically = formData.get("sendAutomatically") === "on" || formData.get("sendAutomatically") === "true";
   const { clientId, snapshot } = await resolveInvoiceClient(formData, locale, sendAutomatically);
+
+  // R9-C — checked immediately after clientId is resolved, before
+  // nextDocumentNumber, the crmInvoices/crmInvoiceItems INSERTs, or any
+  // email/PDF/access-link side effect (deliverInvoiceEmail at the bottom
+  // of this function, when sendAutomatically is set). OWNER/ADMIN/
+  // MANAGER (scope === null) are unaffected either way, including the
+  // clientId === null ("Autre client…" unsaved-manual-entry) case —
+  // product decision: an EMPLOYEE may never create a client-less
+  // invoice, and may only create one for a real client assigned to
+  // them. Same anti-enumeration message (clientNotFound) for both
+  // denial paths.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null) {
+    if (clientId === null) throw new Error(MESSAGES[locale].clientNotFound);
+    await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
+  }
   // Priority (documented in the approved plan): the client's own saved
   // preference, else the active UI locale, else "fr" — fully resolved
   // CLIENT-SIDE already (components/crm/billing-document-form.tsx's
@@ -366,6 +385,21 @@ export async function updateInvoice(id: string, formData: FormData) {
   const items = await sanitizeServiceIds(parseLineItems(formData.get("items"), locale));
   const totals = computeTotals(items, taxRateBasisPoints);
 
+  // R9-D — the scope check is folded directly into this UPDATE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating. A NULL clientId (the
+  // "Autre client…" unsaved-manual-entry case) is denied for an
+  // EMPLOYEE automatically — buildCrmEmployeeScopePredicate()'s
+  // correlated EXISTS can never match crmClients.id against NULL — with
+  // no special-casing needed here or in that helper. The guard right
+  // below (`if (!invoice) throw`) is critical here specifically: it
+  // must run BEFORE the crmInvoiceItems delete/reinsert further down,
+  // so a denied EMPLOYEE's forged request never touches another
+  // client's line items even though the UPDATE itself already matched
+  // zero rows.
+  const scope = await resolveCrmEmployeeScope();
   const [invoice] = await db
     .update(crmInvoices)
     .set({
@@ -378,8 +412,9 @@ export async function updateInvoice(id: string, formData: FormData) {
       dueAt: typeof dueAtRaw === "string" && dueAtRaw ? new Date(dueAtRaw) : null,
       notes,
     })
-    .where(eq(crmInvoices.id, id))
+    .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
     .returning();
+  if (!invoice) throw new Error(MESSAGES[locale].invoiceNotFound);
 
   await db.delete(crmInvoiceItems).where(eq(crmInvoiceItems.invoiceId, id));
   await db.insert(crmInvoiceItems).values(
@@ -453,7 +488,18 @@ async function updateInvoiceStatusCore(id: string, status: string, locale: Local
   if (status === "canceled") patch.canceledAt = new Date();
   if (status === "refunded") patch.refundedAt = new Date();
 
-  const [invoice] = await db.update(crmInvoices).set(patch).where(eq(crmInvoices.id, id)).returning();
+  // R9-E — same atomic pattern as updateInvoice (R9-D) / deleteInvoice
+  // (R9-B): the scope predicate is folded into this UPDATE's own WHERE
+  // clause, and the result is guarded BEFORE it's used below (this guard
+  // did not exist at all before this fix — `invoice.clientId` was read
+  // unconditionally even if the UPDATE matched zero rows).
+  const scope = await resolveCrmEmployeeScope();
+  const [invoice] = await db
+    .update(crmInvoices)
+    .set(patch)
+    .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
+    .returning();
+  if (!invoice) throw new Error(MESSAGES[locale].invoiceNotFound);
 
   await logCrmAudit({
     action: "crm.invoice_status_changed",
@@ -485,6 +531,28 @@ async function updateInvoiceStatusCore(id: string, status: string, locale: Local
  * status as "delivery_failed" instead, never "sent".
  */
 async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boolean }): Promise<{ sent: boolean; reason?: string }> {
+  const locale = await getLocale();
+
+  // R9-E — checked BEFORE the claim UPDATE below, so a denied EMPLOYEE
+  // never reaches ANY side effect this function guards (the claim
+  // itself, createOrGetInvoiceAccessLink, the PDF render, sendInvoiceEmail,
+  // or the final "sent" UPDATE) — mirrors deliverQuoteEmail's own
+  // pre-check (P0-2K-4). A NULL clientId (the "Autre client…"
+  // unsaved-manual-entry case) is refused directly, since
+  // requireCrmClientAccess() takes a real client id — same product
+  // decision already applied in createInvoice (R9-C) and updateInvoice
+  // (R9-D). This pre-check is a clear early refusal, not the sole
+  // enforcement point: the claim UPDATE's own WHERE clause just below
+  // independently repeats the same scope predicate directly on the
+  // mutation itself (it's a conditional UPDATE already, the natural
+  // place for it), so there is no TOCTOU window between the two.
+  const scope = await resolveCrmEmployeeScope();
+  if (scope !== null) {
+    const [target] = await db.select({ clientId: crmInvoices.clientId }).from(crmInvoices).where(eq(crmInvoices.id, invoiceId)).limit(1);
+    if (!target || target.clientId === null) throw new Error(MESSAGES[locale].invoiceNotFound);
+    await requireCrmClientAccess(target.clientId, new Error(MESSAGES[locale].invoiceNotFound));
+  }
+
   const claimCondition = options.isResend
     ? sql`${crmInvoices.id} = ${invoiceId} AND ${crmInvoices.emailDeliveryStatus} IS DISTINCT FROM 'sending'`
     : sql`${crmInvoices.id} = ${invoiceId} AND ${crmInvoices.status} <> 'sent' AND ${crmInvoices.emailDeliveryStatus} IS DISTINCT FROM 'sending'`;
@@ -492,7 +560,7 @@ async function deliverInvoiceEmail(invoiceId: string, options: { isResend: boole
   const [claimed] = await db
     .update(crmInvoices)
     .set({ emailDeliveryStatus: "sending", deliveryAttempts: sql`${crmInvoices.deliveryAttempts} + 1` })
-    .where(claimCondition)
+    .where(and(claimCondition, buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
     .returning();
 
   if (!claimed) {
@@ -622,13 +690,27 @@ export async function deleteInvoice(id: string) {
       throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
     }
 
+    // R9-B — the scope check is folded directly into this DELETE's own
+    // WHERE clause (atomic, single statement) rather than a separate
+    // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+    // rows, indistinguishable from a genuinely nonexistent id, with no
+    // TOCTOU window between checking and mutating. A NULL clientId
+    // (the "Autre client…" unsaved-manual-entry case) is denied for an
+    // EMPLOYEE automatically — buildCrmEmployeeScopePredicate()'s
+    // correlated EXISTS can never match crmClients.id against NULL —
+    // with no special-casing needed here or in that helper.
+    //
     // .returning() confirms a row was actually removed — without it, a
     // WHERE clause that (for any reason) matches nothing still returns
     // normally, and the caller would report "deleted" for a row that never
     // moved. Caught directly here (not the generic transient-error path)
     // because a 0-row delete after a successful select is unexpected, not
     // a known connection failure.
-    const [deleted] = await db.delete(crmInvoices).where(eq(crmInvoices.id, id)).returning({ id: crmInvoices.id });
+    const scope = await resolveCrmEmployeeScope();
+    const [deleted] = await db
+      .delete(crmInvoices)
+      .where(and(eq(crmInvoices.id, id), buildCrmEmployeeScopePredicate(scope, crmInvoices.clientId)))
+      .returning({ id: crmInvoices.id });
     if (!deleted) throw new Error(MESSAGES[locale].invoiceNotFound);
 
     await logCrmAudit({

@@ -153,6 +153,28 @@ export type DiscoverySearchDict = {
   businessStatusClosedPermanently: string;
 };
 
+/**
+ * The subset of DiscoverySearchDict that may actually cross the Server
+ * Component -> Client Component boundary: everything except the four
+ * parameterized formatters (summaryCreated/summaryAlreadyDiscovered/
+ * summaryAlreadyInCrm/errActorRateLimited). A plain function value isn't
+ * serializable across that boundary ("Functions cannot be passed
+ * directly to Client Components...") — app/admin/crm/discovery/page.tsx
+ * now passes exactly this shape (the full dictionary minus those four
+ * keys) as `t`. The four formatters are reconstructed below, inside this
+ * client component, from `locale` (already a prop here) plus the
+ * count/retryAfterSeconds value only known after a client-side search —
+ * never pre-computed server-side, since count/retryAfterSeconds aren't
+ * known at render time. DiscoverySearchDict itself, and
+ * mapDiscoverySearchErrorMessage()'s own signature below, stay exactly
+ * as they were — both keep working against a locally-rebuilt, full
+ * DiscoverySearchDict (see `t` inside DiscoverySearchPanel below).
+ */
+export type DiscoverySearchDictSerializable = Omit<
+  DiscoverySearchDict,
+  "summaryCreated" | "summaryAlreadyDiscovered" | "summaryAlreadyInCrm" | "errActorRateLimited"
+>;
+
 /** True when at least one of the four supported criteria has real (post
  * -trim) content — mirrors validateDiscoverySearchRequest()'s own "at
  * least one signal" rule as a client-side UX nicety only; the server
@@ -563,7 +585,25 @@ export function discoveryTimezoneLine(row: { timezone: string | null }, locale: 
 const inputClass = "w-full rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir";
 const labelClass = "block text-xs font-medium text-pm-gris";
 
-export function DiscoverySearchPanel({ t, locale }: { t: DiscoverySearchDict; locale: Locale }) {
+export function DiscoverySearchPanel({ t: serverT, locale }: { t: DiscoverySearchDictSerializable; locale: Locale }) {
+  // Rebuilds the full DiscoverySearchDict shape the rest of this
+  // component (and mapDiscoverySearchErrorMessage() below) already
+  // expects — see DiscoverySearchDictSerializable's own comment above for
+  // why these four formatters can never be part of the `t` prop itself.
+  // fr/en text kept byte-identical to lib/i18n/dictionaries/crm.ts's own
+  // discovery.summaryCreated/summaryAlreadyDiscovered/summaryAlreadyInCrm/
+  // errActorRateLimited.
+  const t: DiscoverySearchDict = {
+    ...serverT,
+    summaryCreated: (count: number) => (locale === "en" ? `${count} new` : `${count} nouveau(x)`),
+    summaryAlreadyDiscovered: (count: number) => (locale === "en" ? `${count} already discovered` : `${count} déjà découvert(s)`),
+    summaryAlreadyInCrm: (count: number) => (locale === "en" ? `${count} already in CRM` : `${count} déjà dans le CRM`),
+    errActorRateLimited: (retryAfterSeconds: number) =>
+      locale === "en"
+        ? `You've reached your search limit. Try again in ${retryAfterSeconds} seconds.`
+        : `Vous avez atteint votre limite de recherches. Réessayez dans ${retryAfterSeconds} secondes.`,
+  };
+
   const [formValues, setFormValues] = useState<DiscoverySearchFormValues>(EMPTY_FORM_VALUES);
   const [formError, setFormError] = useState<string | null>(null);
 

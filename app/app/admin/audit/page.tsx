@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { auditDb } from "@/db/audit-index";
 import {
@@ -23,7 +24,7 @@ import {
   resolveActivityHref,
   type DashboardPeriodDays,
 } from "@/lib/gbp-audit/dashboard-stats";
-import { AuditsOverTimeChart, FindingsBySeverityChart, StatusDistributionChart, SEVERITY_HEX } from "@/components/gbp-audit/dashboard-charts";
+import { SEVERITY_HEX } from "@/components/gbp-audit/dashboard-charts";
 import { getAuditStatusLabel, getSeverityLabel } from "@/lib/gbp-audit/checklist";
 import { type SemanticTone } from "@/lib/gbp-audit/status-colors";
 import { getActivityActionLabel } from "@/lib/gbp-audit/activity-labels";
@@ -33,6 +34,17 @@ import { getLocale } from "@/lib/i18n/locale";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatRelativeTime } from "@/lib/i18n/format";
 import { AdminPageHero, heroPrimaryButtonClass, heroSecondaryButtonClass, panelClass, panelTitleClass } from "@/components/admin/page-hero";
+
+// Code-split: recharts is only needed on THIS page among the whole
+// /admin/audit/* route family (see dashboard-charts.tsx) — a static import
+// put its chunk in the shared layout's dependency graph, referenced by
+// every sibling route even though none of them renders a chart. No
+// `ssr: false` (not allowed from a Server Component, and not wanted here):
+// each chart is still server-rendered into the initial HTML, so this
+// page's visual output is unchanged — only the JS chunk boundary moves.
+const AuditsOverTimeChart = dynamic(() => import("@/components/gbp-audit/dashboard-charts").then((mod) => mod.AuditsOverTimeChart));
+const FindingsBySeverityChart = dynamic(() => import("@/components/gbp-audit/dashboard-charts").then((mod) => mod.FindingsBySeverityChart));
+const StatusDistributionChart = dynamic(() => import("@/components/gbp-audit/dashboard-charts").then((mod) => mod.StatusDistributionChart));
 
 const KPI_ICON = {
   prospects: "userCircle",
@@ -94,18 +106,49 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     },
   ];
 
-  // Audits created per day, over the selected period.
-  const recentAudits = await auditDb.select({ createdAt: gbpAudits.createdAt }).from(gbpAudits).where(gte(gbpAudits.createdAt, daysAgo(days)));
+  // The 6 queries below are mutually independent (none reads a variable
+  // produced by another) — verified before parallelizing. Batched into a
+  // single Promise.all so their DB round-trip latency overlaps instead of
+  // adding up; every post-processing step below is untouched, just now
+  // reading from the resolved array entries instead of an inline await.
+  const [recentAudits, auditsCreatedComparison, findings, allAudits, recentActivityRaw, priorityTasksRaw] = await Promise.all([
+    // Audits created per day, over the selected period.
+    auditDb.select({ createdAt: gbpAudits.createdAt }).from(gbpAudits).where(gte(gbpAudits.createdAt, daysAgo(days))),
+    // Real period-over-period comparison — distinct from the at-date KPIs above.
+    getAuditsCreatedPeriodComparison(days),
+    // Findings by severity (issues only, not compliant/n-a/n-v).
+    auditDb
+      .select({ severity: gbpAuditFindings.severity })
+      .from(gbpAuditFindings)
+      .where(and(sql`${gbpAuditFindings.severity} is not null`, sql`${gbpAuditFindings.result} != 'compliant'`)),
+    // Status distribution across all audits.
+    auditDb.select({ status: gbpAudits.status }).from(gbpAudits),
+    // Recent activity feed — now with the real author (join) and a real resolved link.
+    auditDb
+      .select({
+        id: auditActivityLog.id,
+        action: auditActivityLog.action,
+        targetType: auditActivityLog.targetType,
+        targetId: auditActivityLog.targetId,
+        metadata: auditActivityLog.metadata,
+        createdAt: auditActivityLog.createdAt,
+        actorFullName: auditStaffUsers.fullName,
+        actorEmail: auditStaffUsers.email,
+      })
+      .from(auditActivityLog)
+      .leftJoin(auditStaffUsers, eq(auditActivityLog.actorUserId, auditStaffUsers.id))
+      .orderBy(desc(auditActivityLog.createdAt))
+      .limit(10),
+    // Priority correction tasks (not done, critical/important first).
+    auditDb
+      .select()
+      .from(gbpCorrectionTasks)
+      .where(sql`${gbpCorrectionTasks.status} != 'done'`)
+      .orderBy(sql`case ${gbpCorrectionTasks.priority} when 'critical' then 0 when 'important' then 1 when 'moderate' then 2 else 3 end`)
+      .limit(8),
+  ]);
   const auditsOverTime = buildAuditsOverTimeSeries(recentAudits, days);
 
-  // Real period-over-period comparison — distinct from the at-date KPIs above.
-  const auditsCreatedComparison = await getAuditsCreatedPeriodComparison(days);
-
-  // Findings by severity (issues only, not compliant/n-a/n-v).
-  const findings = await auditDb
-    .select({ severity: gbpAuditFindings.severity })
-    .from(gbpAuditFindings)
-    .where(and(sql`${gbpAuditFindings.severity} is not null`, sql`${gbpAuditFindings.result} != 'compliant'`));
   const severityCounts = new Map<string, number>();
   for (const f of findings) {
     if (!f.severity) continue;
@@ -116,27 +159,11 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
     .filter((s) => s.count > 0);
 
   // Status distribution across all audits.
-  const allAudits = await auditDb.select({ status: gbpAudits.status }).from(gbpAudits);
   const statusCounts = new Map<string, number>();
   for (const a of allAudits) statusCounts.set(a.status, (statusCounts.get(a.status) ?? 0) + 1);
   const statusDistribution = Object.entries(statusLabel).map(([statusKey, label]) => ({ statusKey, status: label, count: statusCounts.get(statusKey) ?? 0 }));
 
   // Recent activity feed — now with the real author (join) and a real resolved link.
-  const recentActivityRaw = await auditDb
-    .select({
-      id: auditActivityLog.id,
-      action: auditActivityLog.action,
-      targetType: auditActivityLog.targetType,
-      targetId: auditActivityLog.targetId,
-      metadata: auditActivityLog.metadata,
-      createdAt: auditActivityLog.createdAt,
-      actorFullName: auditStaffUsers.fullName,
-      actorEmail: auditStaffUsers.email,
-    })
-    .from(auditActivityLog)
-    .leftJoin(auditStaffUsers, eq(auditActivityLog.actorUserId, auditStaffUsers.id))
-    .orderBy(desc(auditActivityLog.createdAt))
-    .limit(10);
   const recentActivity = recentActivityRaw.map((a) => ({
     id: a.id,
     action: a.action,
@@ -147,12 +174,6 @@ export default async function GbpAuditDashboardPage({ searchParams }: { searchPa
   }));
 
   // Priority correction tasks (not done, critical/important first).
-  const priorityTasksRaw = await auditDb
-    .select()
-    .from(gbpCorrectionTasks)
-    .where(sql`${gbpCorrectionTasks.status} != 'done'`)
-    .orderBy(sql`case ${gbpCorrectionTasks.priority} when 'critical' then 0 when 'important' then 1 when 'moderate' then 2 else 3 end`)
-    .limit(8);
   const priorityTasks = priorityTasksRaw.map((task) => ({
     id: task.id,
     auditId: task.auditId,

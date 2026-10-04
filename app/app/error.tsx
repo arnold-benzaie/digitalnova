@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { dictionaries, LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 import { LOCALE_COOKIE } from "@/lib/i18n/shared";
 import { getClientLocale } from "@/lib/i18n/client-locale";
+import { categorizeGenericError } from "@/lib/errors/categorize-generic-error";
+import { reportUiError } from "@/lib/actions/report-ui-error";
 
 /**
  * Generic fallback error boundary — genuinely unexpected errors only now
@@ -33,6 +35,19 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocaleState(getClientLocale());
   }, []);
+
+  useEffect(() => {
+    // Fire-and-forget observability signal (P1-A): categorize client-side
+    // (categorizeGenericError is a plain isomorphic module, no server-only
+    // dependency) and send only the resulting closed-set category label —
+    // never the raw error — to the ui alerting path. Never awaited, never
+    // allowed to affect this boundary's own rendering; see
+    // lib/actions/report-ui-error.ts for the never-throw contract.
+    const category = categorizeGenericError(error);
+    const pathname = typeof window !== "undefined" ? window.location.pathname : "unknown";
+    void reportUiError(category, pathname);
+  }, [error]);
+
   const t = dictionaries[locale].accessDenied;
 
   function chooseLocale(next: Locale) {

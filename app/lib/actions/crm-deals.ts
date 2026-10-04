@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
@@ -8,6 +8,7 @@ import { logCrmAudit } from "@/lib/audit";
 import { requireStaffRole } from "@/lib/dev-role";
 import { dispatchWebhookEvent } from "@/lib/webhooks";
 import { getLocale } from "@/lib/i18n/locale";
+import { buildCrmEmployeeScopePredicate, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: { clientRequired: "Client requis.", titleRequired: "Titre requis.", invalidStage: "Étape invalide.", dealNotFound: "Opportunité introuvable." },
@@ -63,7 +64,12 @@ export async function updateDealStage(id: string, stage: string) {
     throw new Error(MESSAGES[locale].invalidStage);
   }
 
-  const [deal] = await db.update(deals).set({ stage }).where(eq(deals.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [deal] = await db
+    .update(deals)
+    .set({ stage })
+    .where(and(eq(deals.id, id), buildCrmEmployeeScopePredicate(scope, deals.clientId)))
+    .returning();
 
   await logCrmAudit({
     action: "crm.deal_stage_changed",

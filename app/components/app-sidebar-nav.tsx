@@ -4,6 +4,36 @@ import type { NavBadgeCounts } from "@/lib/gbp-audit/nav-badges";
 export type NavItem = { label: string; href: string; icon: NavIconName; badge?: keyof NavBadgeCounts };
 export type NavSection = { key: string; label: string | null; items: NavItem[]; defaultOpen: boolean };
 
+/**
+ * Initial open/closed state for every section, given which one (if any)
+ * contains the CURRENT page. `defaultOpen` still wins for every other
+ * section (unrelated sections are untouched) — this only ALSO opens the
+ * section the user is already standing in.
+ *
+ * Why this exists: app-shell-client.tsx separately auto-opens the active
+ * section whenever `pathname` CHANGES while already mounted (sidebar
+ * click, since AppShellClient lives in the shared /admin layout and
+ * survives client-side navigation) — but that reactive update can only
+ * fire on a render AFTER the first one, by definition. A fresh full page
+ * load that lands directly on a page inside a `defaultOpen: false`
+ * section (direct URL, bookmark, browser refresh, a redirect landing
+ * there) mounts with `activeSectionKey === trackedSectionKey` already on
+ * render #1, so that effect-like update never runs — the section stayed
+ * collapsed despite being the one on screen. This closes that first-mount
+ * gap; it does not change (and cannot change) the cost of a user manually
+ * expanding a section and then immediately clicking a link inside it —
+ * see the P1 sidebar-latency mission's report for why that specific case
+ * has no safe minimal fix.
+ */
+export function withActiveSectionOpen(
+  sections: Pick<NavSection, "key" | "defaultOpen">[],
+  activeSectionKey: string | null,
+): Record<string, boolean> {
+  const open: Record<string, boolean> = {};
+  for (const s of sections) open[s.key] = s.defaultOpen || s.key === activeSectionKey;
+  return open;
+}
+
 /** Structural shape only (plain `string`, not the literal-French-typed
  * `typeof dictionaries.fr.navigation`) — so this same function accepts
  * either locale's dictionary without a type error, since the two locales'
