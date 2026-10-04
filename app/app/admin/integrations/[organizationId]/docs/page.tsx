@@ -48,8 +48,7 @@ export default async function IntegrationDocsPage({
   params: Promise<{ organizationId: string }>;
 }) {
   await requireStaffRole();
-  const { organizationId } = await params;
-  const locale = await getLocale();
+  const [{ organizationId }, locale] = await Promise.all([params, getLocale()]);
   const t = dictionaries[locale].integrations;
   const deliveryStatusLabels = t.overview.deliveryStatus;
 
