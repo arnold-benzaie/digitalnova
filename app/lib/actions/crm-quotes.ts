@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { crmClients, crmInvoiceItems, crmInvoices, crmQuoteItems, crmQuotes } from "@/db/schema";
@@ -15,7 +15,7 @@ import { sendQuoteEmail } from "@/lib/email/quote";
 import { checkRateLimit } from "@/lib/api-v1/rate-limit";
 import { APP_BASE_URL } from "@/lib/brand";
 import { requireStaffRole } from "@/lib/dev-role";
-import { requireCrmClientAccess } from "@/lib/crm-client-access";
+import { buildCrmEmployeeScopePredicate, requireCrmClientAccess, resolveCrmEmployeeScope } from "@/lib/crm-client-access";
 
 const MESSAGES = {
   fr: {
@@ -323,14 +323,24 @@ export async function deleteQuote(id: string) {
   if (!existing) throw new Error(MESSAGES[locale].quoteNotFound);
   if (existing.status !== "draft") throw new Error(MESSAGES[locale].onlyDraftCanBeDeleted);
 
-  await db.delete(crmQuotes).where(eq(crmQuotes.id, id));
+  // P0-2K-2 — the scope check is folded directly into this DELETE's own
+  // WHERE clause (atomic, single statement) rather than a separate
+  // SELECT-then-check: an EMPLOYEE outside their scope matches zero
+  // rows, indistinguishable from a genuinely nonexistent id, with no
+  // TOCTOU window between checking and mutating.
+  const scope = await resolveCrmEmployeeScope();
+  const [deleted] = await db
+    .delete(crmQuotes)
+    .where(and(eq(crmQuotes.id, id), buildCrmEmployeeScopePredicate(scope, crmQuotes.clientId)))
+    .returning();
+  if (!deleted) throw new Error(MESSAGES[locale].quoteNotFound);
 
   await logCrmAudit({
     action: "crm.quote_deleted",
     targetType: "crm_quote",
     targetId: id,
-    clientId: existing.clientId,
-    metadata: { quoteNumber: existing.quoteNumber },
+    clientId: deleted.clientId,
+    metadata: { quoteNumber: deleted.quoteNumber },
   });
 
   revalidatePath("/admin/crm/quotes");
