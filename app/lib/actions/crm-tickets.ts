@@ -194,7 +194,11 @@ export async function updateTicket(id: string, formData: FormData) {
 export async function deleteTicket(id: string) {
   await requireStaffRole();
   const locale = await getLocale();
-  const [ticket] = await db.delete(tickets).where(eq(tickets.id, id)).returning();
+  const scope = await resolveCrmEmployeeScope();
+  const [ticket] = await db
+    .delete(tickets)
+    .where(and(eq(tickets.id, id), buildCrmEmployeeScopePredicate(scope, tickets.clientId)))
+    .returning();
   if (!ticket) throw new Error(MESSAGES[locale].ticketNotFound);
 
   await logCrmAudit({
