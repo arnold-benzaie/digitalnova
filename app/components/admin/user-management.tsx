@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/crm/badges";
 import { InviteUserForm } from "@/components/admin/invite-user-form";
@@ -16,6 +16,20 @@ import {
   RevokeInvitationButton,
   SuspendUserButton,
 } from "@/components/admin/user-actions";
+// WORKFORCE CONTROLS ON /admin/users — reusing the EXACT same, already
+// RBAC-gated components/wrappers /admin/workforce itself uses. Not
+// WorkforceLifecycleActions (it has no prop to hide "offboard", which must
+// stay exclusive to /admin/workforce) — see WorkforceSuspendReactivateActions
+// below, a narrow local component reusing only suspendWorkforceMemberAction/
+// reactivateWorkforceMemberAction + the SAME pure helpers that component
+// already exports, never a new Server Action.
+import { WorkforceRoleSelect } from "@/components/workforce/workforce-role-select";
+import { WorkforceRadarAccessToggle } from "@/components/workforce/workforce-radar-access-toggle";
+import { workforceLifecycleErrorMessage, applyWorkforceLifecycleResult } from "@/components/workforce/workforce-lifecycle-actions";
+import { useConfirmDialog } from "@/components/gbp-audit/ui/use-confirm-dialog";
+import { suspendWorkforceMemberAction, reactivateWorkforceMemberAction, type WorkforceLifecycleErrorCode } from "@/lib/actions/workforce-ui";
+import type { ListedWorkforceRole, StaffMemberStatus } from "@/lib/actions/workforce";
+import type { StaffRole } from "@/lib/rbac/permissions";
 import type { Locale } from "@/lib/i18n/dictionaries";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 import { formatDate, resolveDisplayTimeZone } from "@/lib/i18n/format";
@@ -50,6 +64,10 @@ type UserRow = {
   // WorkforceManagedBadge below and app/admin/users/page.tsx's own note).
   workforceRole: string | null;
   workforceStatus: string | null;
+  // WORKFORCE CONTROLS ON /admin/users — only read here, to initialize
+  // WorkforceRadarAccessToggle's displayed state; never written by anything
+  // on this screen.
+  workforceRadarAccess: boolean | null;
   lastModifiedBy: string | null;
   lastModifiedAt: string | null;
 };
@@ -74,9 +92,107 @@ const WORKFORCE_STATUS_BADGE_CLASS: Record<string, string> = {
   OFFBOARDING: "bg-pm-rouge/10 text-pm-rouge-2",
 };
 
+const workforceLinkButtonClass =
+  "rounded-sm text-xs text-pm-gris underline transition hover:text-pm-noir focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pm-noir/30 disabled:opacity-50";
+
+/**
+ * WORKFORCE CONTROLS ON /admin/users — suspend/reactivate ONLY, deliberately
+ * narrower than components/workforce/workforce-lifecycle-actions.tsx's own
+ * WorkforceLifecycleActions (which also renders "offboard" unconditionally,
+ * with no prop to hide it). Offboard must stay exclusive to
+ * /admin/workforce. Reuses the SAME Server Action wrappers
+ * (suspendWorkforceMemberAction/reactivateWorkforceMemberAction) and the
+ * SAME pure helpers (workforceLifecycleErrorMessage/
+ * applyWorkforceLifecycleResult) that component already exports — no new
+ * Server Action, no change to that file.
+ */
+function WorkforceSuspendReactivateActions({
+  userId,
+  email,
+  status,
+  locale,
+  currentUserId,
+}: {
+  userId: string;
+  email: string;
+  status: StaffMemberStatus;
+  locale: Locale;
+  currentUserId: string;
+}) {
+  const tw = dictionaries[locale].workforce;
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [error, setError] = useState<WorkforceLifecycleErrorCode | null>(null);
+  const { confirm, dialog } = useConfirmDialog(locale);
+
+  // Mirrors WorkforceLifecycleActions' own self-protection — the backend
+  // rejects self-targeting too, this only avoids offering a guaranteed
+  // failure.
+  if (userId === currentUserId) {
+    return null;
+  }
+
+  const errorMessage = workforceLifecycleErrorMessage(error, tw);
+
+  function run(
+    verb: "suspend" | "reactivate",
+    action: (targetUserId: string) => Promise<{ error: WorkforceLifecycleErrorCode } | undefined>,
+    confirmOpts?: { title: string; description: string; confirmLabel: string },
+  ) {
+    return async () => {
+      if (confirmOpts) {
+        const ok = await confirm(confirmOpts);
+        if (!ok) return;
+      }
+      setError(null);
+      setPendingAction(verb);
+      startTransition(async () => {
+        const result = await action(userId);
+        applyWorkforceLifecycleResult(result, { setError, refresh: () => router.refresh() });
+        setPendingAction(null);
+      });
+    };
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {dialog}
+      <div className="flex items-center justify-end gap-3" aria-busy={isPending}>
+        {status === "ACTIVE" && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={run("suspend", suspendWorkforceMemberAction, {
+              title: tw.suspendConfirmTitle,
+              description: tw.suspendConfirmDescription(email),
+              confirmLabel: tw.suspendConfirmLabel,
+            })}
+            className={workforceLinkButtonClass}
+          >
+            {pendingAction === "suspend" ? tw.suspending : tw.actionSuspend}
+          </button>
+        )}
+        {(status === "SUSPENDED" || status === "OFFBOARDING") && (
+          <button type="button" disabled={isPending} onClick={run("reactivate", reactivateWorkforceMemberAction)} className={workforceLinkButtonClass}>
+            {pendingAction === "reactivate" ? tw.reactivating : tw.actionReactivate}
+          </button>
+        )}
+      </div>
+      {errorMessage && (
+        <p role="alert" className="text-xs text-pm-rouge">
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function UserManagement({
   locale,
   currentUserId,
+  viewerRole,
+  canManageWorkforce,
   organizationName,
   organizations,
   status,
@@ -91,6 +207,14 @@ export function UserManagement({
 }: {
   locale: Locale;
   currentUserId: string;
+  // WORKFORCE CONTROLS ON /admin/users — the viewer's own real staffRole
+  // (null for a CLIENT-context/legacy Axis-A-only viewer), and whether they
+  // actually hold WORKFORCE_MANAGE. Both server-computed in
+  // app/admin/users/page.tsx (evaluateStaffPermission(), never trusted from
+  // the client) — this component only reads them to decide which controls
+  // to render, never to authorize a mutation itself.
+  viewerRole: StaffRole | null;
+  canManageWorkforce: boolean;
   organizationName: string;
   organizations: { id: string; name: string }[];
   status: StatusTab;
@@ -239,6 +363,13 @@ export function UserManagement({
                 // otherwise) — both get their real Axis-C role/status
                 // shown instead of a blank or an invalid control.
                 const isWorkforceGoverned = Boolean(row.workforceRole);
+                // WORKFORCE CONTROLS ON /admin/users — deliberately
+                // EMPLOYEE/MANAGER only, per this mission's explicit scope:
+                // never ADMIN (a separate, OWNER_MANAGE-gated capability,
+                // untouched here) and never OWNER (never offered any
+                // control on this screen, full stop).
+                const isEmployeeOrManager = row.workforceRole === "EMPLOYEE" || row.workforceRole === "MANAGER";
+                const showWorkforceControls = isEmployeeOrManager && canManageWorkforce && Boolean(row.workforceStatus);
                 return (
                   <tr key={row.id} className="border-t border-pm-gris-2 align-top">
                     <td className="px-5 py-3">
@@ -266,12 +397,22 @@ export function UserManagement({
                     <td className="px-5 py-3 text-pm-gris">{row.organizationName ?? "—"}</td>
                     <td className="px-5 py-3">
                       {isWorkforceGoverned ? (
-                        <div>
-                          <div className="font-medium text-pm-noir">
-                            {t.workforceManaged.roleLabels[row.workforceRole as keyof typeof t.workforceManaged.roleLabels] ?? row.workforceRole}
+                        showWorkforceControls ? (
+                          <WorkforceRoleSelect
+                            userId={row.id}
+                            role={row.workforceRole as ListedWorkforceRole}
+                            status={row.workforceStatus as StaffMemberStatus}
+                            currentUserId={currentUserId}
+                            locale={locale}
+                          />
+                        ) : (
+                          <div>
+                            <div className="font-medium text-pm-noir">
+                              {t.workforceManaged.roleLabels[row.workforceRole as keyof typeof t.workforceManaged.roleLabels] ?? row.workforceRole}
+                            </div>
+                            <div className="text-xs text-pm-gris">{t.workforceManaged.label}</div>
                           </div>
-                          <div className="text-xs text-pm-gris">{t.workforceManaged.label}</div>
-                        </div>
+                        )
                       ) : row.status === "active" && row.role ? (
                         <MemberRoleSelect userId={row.id} role={row.role} disabled={isSelf && row.role === "admin"} locale={locale} />
                       ) : row.role ? (
@@ -294,7 +435,29 @@ export function UserManagement({
                     <td className="px-5 py-3">
                       <div className="flex flex-col items-end gap-1.5">
                         {isWorkforceGoverned ? (
-                          <span className="text-xs text-pm-gris">{t.workforceManaged.label}</span>
+                          showWorkforceControls ? (
+                            <>
+                              <WorkforceRadarAccessToggle
+                                userId={row.id}
+                                email={row.email}
+                                role={row.workforceRole as ListedWorkforceRole}
+                                status={row.workforceStatus as StaffMemberStatus}
+                                radarAccess={Boolean(row.workforceRadarAccess)}
+                                currentUserId={currentUserId}
+                                viewerRole={viewerRole as StaffRole}
+                                locale={locale}
+                              />
+                              <WorkforceSuspendReactivateActions
+                                userId={row.id}
+                                email={row.email}
+                                status={row.workforceStatus as StaffMemberStatus}
+                                locale={locale}
+                                currentUserId={currentUserId}
+                              />
+                            </>
+                          ) : (
+                            <span className="text-xs text-pm-gris">{t.workforceManaged.label}</span>
+                          )
                         ) : (
                         <>
                         {row.status === "pending" && (
