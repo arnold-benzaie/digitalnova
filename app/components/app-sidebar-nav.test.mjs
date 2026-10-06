@@ -480,6 +480,69 @@ test("C-2C-1: getClientNavSections() has no item labeled like the Discovery nav 
   assert.equal(matches.length, 0);
 });
 
+// ---------------- AUDIT GBP SIDEBAR VISIBILITY — { hasAuditAccess } ----------------
+// The entire "audit" section is generated ONLY on an explicit
+// { hasAuditAccess: true } — Audit GBP is a completely separate
+// authorization axis (audit_staff_memberships) from every other flag in
+// this file. requireAuditSession()/requireAuditStaffRole() remain the
+// real, unchanged authority on every /admin/audit/** route; this list
+// never decides real access.
+
+const auditSectionOf = (sections) => sections.find((s) => s.key === "audit");
+
+test("AUDIT-NAV-1: { hasAuditAccess: true } -> the audit section exists, defaultOpen, with its 9 items intact", () => {
+  const sections = getStaffNavSections(t, { hasAuditAccess: true });
+  const audit = auditSectionOf(sections);
+  assert.ok(audit, "expected an 'audit' section to exist");
+  assert.equal(audit.defaultOpen, true);
+  assert.equal(audit.label, t.sections.auditGbp);
+  assert.equal(audit.items.length, 9);
+  assert.equal(audit.items[0].href, "/admin/audit");
+});
+
+test("AUDIT-NAV-2: { hasAuditAccess: false } -> no audit section at all", () => {
+  assert.equal(auditSectionOf(getStaffNavSections(t, { hasAuditAccess: false })), undefined);
+});
+
+test("AUDIT-NAV-3: { hasAuditAccess: undefined } -> no audit section", () => {
+  assert.equal(auditSectionOf(getStaffNavSections(t, { hasAuditAccess: undefined })), undefined);
+});
+
+test("AUDIT-NAV-4: options omitted entirely -> no audit section (all existing single-arg callers now see it absent, by design)", () => {
+  assert.equal(auditSectionOf(getStaffNavSections(t)), undefined);
+});
+
+test("AUDIT-NAV-5: empty options object -> no audit section", () => {
+  assert.equal(auditSectionOf(getStaffNavSections(t, {})), undefined);
+});
+
+test("AUDIT-NAV-6: a truthy-but-not-true hasAuditAccess (string / number) does NOT reveal the section — strict === true only", () => {
+  assert.equal(auditSectionOf(getStaffNavSections(t, { hasAuditAccess: "true" })), undefined);
+  assert.equal(auditSectionOf(getStaffNavSections(t, { hasAuditAccess: 1 })), undefined);
+});
+
+test("AUDIT-NAV-7: independent of every other flag — OWNER-like with hasAuditAccess:false still has no audit section", () => {
+  const sections = getStaffNavSections(t, { isOwner: true, canManageWorkforce: true, canManageAiPolicy: true, hasAuditAccess: false });
+  assert.equal(auditSectionOf(sections), undefined);
+  // the other OWNER-gated items are unaffected by hasAuditAccess
+  assert.equal(ownerItems(sections).length, 1);
+  assert.equal(workforceItems(sections).length, 1);
+});
+
+test("AUDIT-NAV-8: EMPLOYEE-like (no elevated flags) WITH hasAuditAccess:true still gets the audit section", () => {
+  const sections = getStaffNavSections(t, { isOwner: false, canManageWorkforce: false, isEmployeeTier: true, hasAuditAccess: true });
+  assert.ok(auditSectionOf(sections), "Audit access is independent of Workforce role/permissions");
+});
+
+test("AUDIT-NAV-9: the audit section is never duplicated under { hasAuditAccess: true }", () => {
+  const sections = getStaffNavSections(t, { hasAuditAccess: true });
+  assert.equal(sections.filter((s) => s.key === "audit").length, 1);
+});
+
+test("AUDIT-NAV-10: getClientNavSections() never contains an audit section, regardless (client portal is unaffected)", () => {
+  assert.equal(auditSectionOf(getClientNavSections(t)), undefined);
+});
+
 // -------------------- P1 SIDEBAR LATENCY — withActiveSectionOpen() --------------------
 // Closes a first-mount gap: app-shell-client.tsx's reactive "open the
 // active section" update only fires when `pathname` CHANGES on an

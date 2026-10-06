@@ -141,6 +141,7 @@ export function AppShellClient({
   canWorkRadar = false,
   canManageAiPolicy = false,
   isEmployeeTier = false,
+  hasAuditAccess = false,
   badges,
   recentNotifications,
   unreadCount,
@@ -173,6 +174,14 @@ export function AppShellClient({
   // doc comment. Never a gate: /admin/users keeps its own
   // requireAdminRole() check unchanged.
   isEmployeeTier?: boolean;
+  // AUDIT GBP SIDEBAR VISIBILITY — server-derived from
+  // getAuditStaffSession() (app/admin/layout.tsx), same non-authorizing
+  // contract as every other boolean above: decides whether
+  // getStaffNavSections() emits the "Audit GBP" section. Never a gate —
+  // every /admin/audit/** route keeps calling requireAuditSession()/
+  // requireAuditStaffRole() itself, unchanged. app/dashboard/layout.tsx
+  // passes none of this, so getClientNavSections() is unaffected.
+  hasAuditAccess?: boolean;
   badges: NavBadgeCounts;
   recentNotifications: { id: string; type: string; title: string; body: string | null; metadata: unknown; read: boolean; createdAt: Date }[];
   unreadCount: number;
@@ -187,8 +196,8 @@ export function AppShellClient({
     () =>
       role === "client"
         ? getClientNavSections(t)
-        : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier }),
-    [role, t, isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier],
+        : getStaffNavSections(t, { isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier, hasAuditAccess }),
+    [role, t, isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier, hasAuditAccess],
   );
   const activeSectionKey = useMemo(() => sectionKeyForPath(sections, pathname), [sections, pathname]);
 

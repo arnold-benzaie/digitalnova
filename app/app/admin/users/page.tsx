@@ -4,6 +4,7 @@ import { auditLog, invitations, memberships, organizations, roles, staffMembers,
 import { UserManagement } from "@/components/admin/user-management";
 import { requireAdminRole } from "@/lib/dev-role";
 import { requireSession } from "@/lib/session";
+import { evaluateStaffPermission } from "@/lib/rbac/require-staff-member";
 import { getLocale } from "@/lib/i18n/locale";
 import type { Locale } from "@/lib/i18n/dictionaries";
 
@@ -49,6 +50,17 @@ export default async function AdminUsersPage({
   // all. The OWNER viewer themselves is exempt from this exclusion
   // (`OWNER voit tout`, including their own dual-context row if any).
   const isOwnerViewer = session.context === "WORKFORCE" && session.staffRole === "OWNER";
+  // WORKFORCE CONTROLS ON /admin/users — a WORKFORCE-context viewer's real
+  // staffRole (null for a CLIENT-context/legacy Axis-A-only viewer, who can
+  // never hold WORKFORCE_MANAGE anyway) and a non-throwing capability check
+  // (evaluateStaffPermission(), not requireStaffMember() — this screen's own
+  // gate is requireAdminRole() above, which also admits a legacy Axis-A
+  // admin with no staff_members row at all; such a viewer must see the
+  // existing read-only "Géré par l'effectif" label, never an interactive
+  // control guaranteed to fail server-side).
+  const viewerRole = session.context === "WORKFORCE" ? session.staffRole : null;
+  const canManageWorkforce =
+    session.context === "WORKFORCE" ? (await evaluateStaffPermission({ userId: session.userId, permission: "WORKFORCE_MANAGE" })).ok : false;
   const conditions = [eq(users.status, status)];
   if (!isOwnerViewer) {
     conditions.push(or(isNull(staffRoles.name), ne(staffRoles.name, "OWNER"))!);
@@ -102,6 +114,10 @@ export default async function AdminUsersPage({
       // UI from ever offering a control that would fail.
       workforceRole: staffRoles.name,
       workforceStatus: staffMembers.status,
+      // WORKFORCE CONTROLS ON /admin/users — needed to initialize
+      // WorkforceRadarAccessToggle's displayed/toggled state; never written
+      // by anything on this screen, only read.
+      workforceRadarAccess: staffMembers.radarAccess,
     })
     .from(users)
     .leftJoin(memberships, eq(memberships.userId, users.id))
@@ -176,6 +192,8 @@ export default async function AdminUsersPage({
     <UserManagement
       locale={locale}
       currentUserId={session.userId}
+      viewerRole={viewerRole}
+      canManageWorkforce={canManageWorkforce}
       organizationName={session.organizationName}
       organizations={allOrganizations}
       status={status}
@@ -192,6 +210,7 @@ export default async function AdminUsersPage({
         lastLoginAt: r.lastLoginAt ? r.lastLoginAt.toISOString() : null,
         lastModifiedBy: lastActionByUserId.get(r.id)?.actor ?? null,
         lastModifiedAt: lastActionByUserId.get(r.id)?.at ?? null,
+        workforceRadarAccess: r.workforceRadarAccess,
       }))}
       invitations={invitationRows.map((i) => ({ ...i, createdAt: i.createdAt.toISOString() }))}
     />
