@@ -8,6 +8,17 @@ import {
   canCurrentUserManageAiPolicy,
   isCurrentUserEmployeeTier,
 } from "@/lib/rbac/require-staff-member";
+// AUDIT GBP SIDEBAR VISIBILITY — reuses the EXISTING, already-cache()'d
+// getAuditStaffSession() (lib/gbp-audit/session.ts) — the same function
+// requireAuditSession()/requireAuditStaffRole() call to decide real access.
+// This is a NON-authorizing visibility signal ONLY (same contract as the
+// five isCurrentUser*/canCurrentUser* probes above): it decides whether
+// getStaffNavSections() emits the "Audit GBP" section, never whether a
+// /admin/audit/** route is reachable — those routes keep calling
+// requireAuditSession()/requireAuditStaffRole() themselves, completely
+// unchanged. Scoped to THIS layout only (never app/dashboard/layout.tsx),
+// so the client portal pays no extra audit_staff_* query.
+import { getAuditStaffSession } from "@/lib/gbp-audit/session";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   // PHASE 2A.0 — segment-level backstop. requireInternalStaff() keeps the
@@ -38,13 +49,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // isCurrentUserEmployeeTier()'s own doc comment) — this only stops the
   // sidebar from offering a link that already redirects EMPLOYEE away.
   // OWNER/ADMIN/MANAGER's own nav is completely unaffected.
-  const [isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier] = await Promise.all([
+  const [isOwner, canManageWorkforce, canWorkRadar, canManageAiPolicy, isEmployeeTier, auditStaffSession] = await Promise.all([
     isCurrentUserOwner(),
     canCurrentUserManageWorkforce(),
     canCurrentUserWorkRadar(),
     canCurrentUserManageAiPolicy(),
     isCurrentUserEmployeeTier(),
+    getAuditStaffSession(),
   ]);
+  const hasAuditAccess = auditStaffSession !== null;
   return (
     <AppShell
       role={role}
@@ -53,6 +66,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       canWorkRadar={canWorkRadar}
       canManageAiPolicy={canManageAiPolicy}
       isEmployeeTier={isEmployeeTier}
+      hasAuditAccess={hasAuditAccess}
     >
       {children}
     </AppShell>

@@ -66,6 +66,14 @@ export function getStaffNavSections(
     canWorkRadar?: boolean;
     canManageAiPolicy?: boolean;
     isEmployeeTier?: boolean;
+    // AUDIT GBP SIDEBAR VISIBILITY — server-derived from
+    // getAuditStaffSession() (app/admin/layout.tsx): whether the caller
+    // holds a real audit_staff_memberships row. requireAuditSession()/
+    // requireAuditStaffRole() remain the sole authority on whether a
+    // /admin/audit/** route is actually reachable — this only decides
+    // whether the "Audit GBP" section is emitted at all, mirroring every
+    // other cosmetic-only flag in this function.
+    hasAuditAccess?: boolean;
   },
 ): NavSection[] {
   // PHASE OWNER-UI-2 (`ownerControl`), PHASE OWNER-UI-3B (`workforce`), and
@@ -104,23 +112,32 @@ export function getStaffNavSections(
   // independently calls requireEmployeeForClientApprovals() server-side.
   const clientApprovalsItem: NavItem = { label: t.items.clientApprovals, href: "/admin/client-approvals", icon: "checkSquare" };
   const usersItem: NavItem = { label: t.items.users, href: "/admin/users", icon: "users" };
+  // AUDIT GBP SIDEBAR VISIBILITY — Audit GBP is a completely separate
+  // authorization axis (audit_staff_memberships, its own database — see
+  // lib/gbp-audit/session.ts) from the Workforce RBAC this function's
+  // other conditional items already check. Emitted ONLY when
+  // opts.hasAuditAccess === true, exactly the same "absent from the
+  // generated data, not CSS-hidden" discipline as every other conditional
+  // item here — requireAuditSession()/requireAuditStaffRole() remain the
+  // real, unchanged authority on every /admin/audit/** route.
+  const auditSection: NavSection = {
+    key: "audit",
+    label: t.sections.auditGbp,
+    defaultOpen: true,
+    items: [
+      { label: t.items.dashboard, href: "/admin/audit", icon: "dashboard" },
+      { label: t.items.newAudit, href: "/admin/audit/nouveau", icon: "plusCircle" },
+      { label: t.items.audits, href: "/admin/audit/liste", icon: "list" },
+      { label: t.items.reports, href: "/admin/audit/rapports", icon: "fileText" },
+      { label: t.items.quoteRequests, href: "/admin/audit/devis", icon: "inbox", badge: "auditPendingQuoteRequests" },
+      { label: t.items.offers, href: "/admin/audit/offres", icon: "tag" },
+      { label: t.items.team, href: "/admin/audit/equipe", icon: "users", badge: "auditPendingInvitations" },
+      { label: t.items.notifications, href: "/admin/audit/notifications", icon: "bell", badge: "auditUnreadNotifications" },
+      { label: t.items.settings, href: "/admin/audit/parametres", icon: "settings" },
+    ],
+  };
   return [
-    {
-      key: "audit",
-      label: t.sections.auditGbp,
-      defaultOpen: true,
-      items: [
-        { label: t.items.dashboard, href: "/admin/audit", icon: "dashboard" },
-        { label: t.items.newAudit, href: "/admin/audit/nouveau", icon: "plusCircle" },
-        { label: t.items.audits, href: "/admin/audit/liste", icon: "list" },
-        { label: t.items.reports, href: "/admin/audit/rapports", icon: "fileText" },
-        { label: t.items.quoteRequests, href: "/admin/audit/devis", icon: "inbox", badge: "auditPendingQuoteRequests" },
-        { label: t.items.offers, href: "/admin/audit/offres", icon: "tag" },
-        { label: t.items.team, href: "/admin/audit/equipe", icon: "users", badge: "auditPendingInvitations" },
-        { label: t.items.notifications, href: "/admin/audit/notifications", icon: "bell", badge: "auditUnreadNotifications" },
-        { label: t.items.settings, href: "/admin/audit/parametres", icon: "settings" },
-      ],
-    },
+    ...(opts?.hasAuditAccess === true ? [auditSection] : []),
     {
       key: "relation",
       label: t.sections.clientRelation,

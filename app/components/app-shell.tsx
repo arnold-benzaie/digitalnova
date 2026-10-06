@@ -43,6 +43,7 @@ export async function AppShell({
   canWorkRadar = false,
   canManageAiPolicy = false,
   isEmployeeTier = false,
+  hasAuditAccess = false,
 }: {
   children: ReactNode;
   role: DevRole;
@@ -51,6 +52,14 @@ export async function AppShell({
   canWorkRadar?: boolean;
   canManageAiPolicy?: boolean;
   isEmployeeTier?: boolean;
+  // AUDIT GBP SIDEBAR VISIBILITY — only app/admin/layout.tsx computes and
+  // passes this (same convention as isOwner/canManageWorkforce/... above);
+  // app/dashboard/layout.tsx omits it, defaulting to false, since
+  // getClientNavSections() never reads it. Purely a visibility signal for
+  // getStaffNavSections() — requireAuditSession()/requireAuditStaffRole()
+  // remain the sole authority on whether a /admin/audit/** route is
+  // actually reachable.
+  hasAuditAccess?: boolean;
 }) {
   const [org, session] = await Promise.all([getOrCreateDevOrganization(), requireSession()]);
   const visibility = notificationVisibilityWhere(org.id, session.userId, session.context === "CLIENT");
@@ -79,6 +88,7 @@ export async function AppShell({
       canWorkRadar={canWorkRadar}
       canManageAiPolicy={canManageAiPolicy}
       isEmployeeTier={isEmployeeTier}
+      hasAuditAccess={hasAuditAccess}
       badges={badges}
       recentNotifications={recentNotifications}
       unreadCount={unreadCount}
