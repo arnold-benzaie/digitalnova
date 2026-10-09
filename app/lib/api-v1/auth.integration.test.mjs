@@ -217,12 +217,34 @@ test("auth failures are journalized without ever recording the full presented ke
   const entry = await latestAuthFailure(row.id);
   assert.ok(entry, "expected an audit_log row for this failed auth attempt");
   assert.equal(entry.action, "api_v1.auth_failed");
+  assert.equal(entry.targetType, "integration_api_key");
   assert.equal(entry.metadata.code, "API_KEY_REVOKED");
 
-  const serialized = JSON.stringify(entry.metadata);
-  assert.equal(serialized.includes(plaintextKey), false, "the full key must never be logged");
-  const secret = plaintextKey.split("_").pop();
-  assert.equal(serialized.includes(secret), false, "the secret portion must never be logged");
+  // Metadata contract of logAuthFailure() (lib/api-v1/auth.ts): exactly
+  // { code, route, keyPrefix }, keyPrefix being the stored public prefix.
+  assert.deepEqual(Object.keys(entry.metadata).sort(), ["code", "keyPrefix", "route"]);
+  assert.equal(entry.metadata.route, "/api/v1/ping");
+  assert.equal(entry.metadata.keyPrefix, row.keyPrefix);
+
+  // Fixed-position extraction, like parseApiKey(): the secret is everything
+  // after `${keyPrefix}_`. Never .split("_") — lookupId and secret are both
+  // base64url, whose alphabet includes "_" (see lib/api-v1/auth.ts).
+  assert.ok(plaintextKey.startsWith(`${row.keyPrefix}_`), "presented key must start with its stored prefix");
+  const secret = plaintextKey.slice(row.keyPrefix.length + 1);
+  assert.equal(secret.length, 43, "secret must be the full 32-byte base64url segment");
+
+  // The whole audit row (every column, metadata included) — never the full
+  // key, never the secret, never any 8-character window of the secret.
+  for (const [label, serialized] of [
+    ["metadata", JSON.stringify(entry.metadata)],
+    ["audit_log row", JSON.stringify(entry)],
+  ]) {
+    assert.equal(serialized.includes(plaintextKey), false, `the full key must never be logged (${label})`);
+    assert.equal(serialized.includes(secret), false, `the secret must never be logged (${label})`);
+    for (let i = 0; i + 8 <= secret.length; i++) {
+      assert.equal(serialized.includes(secret.slice(i, i + 8)), false, `no part of the secret may be logged (${label})`);
+    }
+  }
 });
 
 test("end-to-end through the real route: GET /api/v1/ping with a valid key returns 200 and the true organization", async () => {
