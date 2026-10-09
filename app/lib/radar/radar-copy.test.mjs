@@ -16,7 +16,11 @@
 //   npx tsx --test lib/radar/radar-copy.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { RADAR_REASON_CODES, RADAR_NEXT_ACTION_CODES } from "./score.ts";
+import { RADAR_OPPORTUNITY_TYPES } from "./opportunities.ts";
+import { assessPriority, PRIORITY_ADJUSTMENT_REASON_CODES } from "./priority.ts";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
 const PARAMETRIC_REASON_CODES = ["INDUSTRY_RECORDED", "LOCATION_RECORDED"];
@@ -120,4 +124,64 @@ test("3F: no FR/EN reason or next-action copy contains a raw semantic code", () 
 test("3F: INTERACTION_NONE reason copy is distinct from crm.radar.noInteraction (independently assertable in E2E)", () => {
   assert.notEqual(FR.reasons.INTERACTION_NONE, FR.noInteraction);
   assert.notEqual(EN.reasons.INTERACTION_NONE, EN.noInteraction);
+});
+
+// ---- 4F.9-D — priority promotion explanation ----
+
+const PAGE_SOURCE = readFileSync(fileURLToPath(new URL("../../app/admin/crm/radar/page.tsx", import.meta.url)), "utf8");
+
+// Minimal opportunity shape: assessPriority() only ever reads `type`.
+const opportunityOf = (type) => ({ type, service: null, reason: "NO_WEBSITE_DETECTED", evidence: {}, sourceSignals: [] });
+
+test("4F.9-D: crm.radar.priorityRaisedFrom exists in FR and EN and interpolates the supplied base label", () => {
+  for (const [block, base] of [[FR, FR.priorityLow], [EN, EN.priorityLow]]) {
+    assert.equal(typeof block.priorityRaisedFrom, "function");
+    const out = block.priorityRaisedFrom(base);
+    assert.equal(typeof out, "string");
+    assert.ok(out.trim().length > 0);
+    assert.ok(out.includes(base), `must interpolate the base label "${base}": "${out}"`);
+  }
+});
+
+test("4F.9-D: priorityRaisedFrom has no predictive wording and leaks no raw code", () => {
+  const codes = [...RADAR_OPPORTUNITY_TYPES, ...PRIORITY_ADJUSTMENT_REASON_CODES, "LOW", "MEDIUM", "HIGH", "UP"];
+  for (const s of [FR.priorityRaisedFrom(FR.priorityLow), EN.priorityRaisedFrom(EN.priorityLow)]) {
+    assert.doesNotMatch(s, PREDICTIVE, `predictive wording: "${s}"`);
+    for (const code of codes) {
+      assert.ok(!new RegExp(`\\b${code}\\b`).test(s), `rendered copy leaked the raw code "${code}": "${s}"`);
+    }
+  }
+});
+
+test("4F.9-D: structural — the page shows the explanation only for a promoted row with an UP adjustment, built from basePriority", () => {
+  assert.match(
+    PAGE_SOURCE,
+    /item\.finalPriority !== item\.basePriority && item\.priorityAdjustments\.some\(\(a\) => a\.direction === "UP"\) &&/,
+    "explanation must be gated on finalPriority !== basePriority AND an UP adjustment",
+  );
+  assert.match(PAGE_SOURCE, /t\.priorityRaisedFrom\(priorityLabel\[item\.basePriority\]\)/, "text built from the localized basePriority label");
+  assert.equal((PAGE_SOURCE.match(/priorityRaisedFrom/g) ?? []).length, 1, "rendered from exactly one place");
+});
+
+test("4F.9-D: structural — the page never reads sourceOpportunities, signals, opportunities or evidence", () => {
+  assert.ok(!/sourceOpportunities/.test(PAGE_SOURCE), "no sourceOpportunities read");
+  assert.ok(!/item\.signals\b/.test(PAGE_SOURCE), "no item.signals read");
+  assert.ok(!/item\.opportunities\b/.test(PAGE_SOURCE), "no item.opportunities read");
+  assert.ok(!/\.evidence\b/.test(PAGE_SOURCE), "no evidence read");
+});
+
+test("4F.9-D: coupling — WEBSITE is what lifts LOW to MEDIUM (an UP adjustment), even alongside other opportunities", () => {
+  const result = assessPriority({ basePriority: "LOW", signals: [], opportunities: [opportunityOf("WEBSITE"), opportunityOf("PROPOSAL_RENEWAL")] });
+  assert.equal(result.finalPriority, "MEDIUM");
+  assert.ok(result.priorityAdjustments.some((a) => a.direction === "UP"));
+});
+
+test("4F.9-D: coupling — no opportunity type other than WEBSITE, alone or combined, ever produces an UP adjustment", () => {
+  const others = RADAR_OPPORTUNITY_TYPES.filter((type) => type !== "WEBSITE");
+  assert.ok(others.length > 0);
+  for (const combination of [...others.map((type) => [type]), others]) {
+    const result = assessPriority({ basePriority: "LOW", signals: [], opportunities: combination.map(opportunityOf) });
+    assert.equal(result.finalPriority, "LOW", `${combination.join("+")} must not promote`);
+    assert.ok(!result.priorityAdjustments.some((a) => a.direction === "UP"), `${combination.join("+")} must not yield UP`);
+  }
 });

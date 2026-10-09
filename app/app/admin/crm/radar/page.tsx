@@ -270,6 +270,12 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                         <div className="mt-1 text-xs text-pm-gris">
                           {t.confidencePrefix}: {confidenceLabel[item.confidence]}
                         </div>
+                        {/* 4F.9-D — explains a promoted badge from the already-computed
+                            basePriority / UP adjustment only; never re-derives the
+                            priority and never reads signals or their evidence. */}
+                        {item.finalPriority !== item.basePriority && item.priorityAdjustments.some((a) => a.direction === "UP") && (
+                          <div className="mt-1 text-xs text-pm-gris">{t.priorityRaisedFrom(priorityLabel[item.basePriority])}</div>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-pm-gris">
                         {item.reasons.slice(0, 2).map((reason, i) => (

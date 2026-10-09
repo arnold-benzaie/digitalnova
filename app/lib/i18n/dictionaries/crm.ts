@@ -113,6 +113,10 @@ export const crm = {
       confidenceMedium: "moyenne",
       confidenceLow: "faible",
       confidenceCaption: "reflète les informations de profil disponibles (secteur, localisation), pas une probabilité de conversion.",
+      // 4F.9-D — shown under the priority badge only when finalPriority was
+      // raised above basePriority (lib/radar/priority.ts: only the WEBSITE
+      // opportunity promotes). `base` is the localized basePriority label.
+      priorityRaisedFrom: (base: string) => `Relevée depuis « ${base} » : aucun site web enregistré`,
       columns: { prospect: "Prospect", priority: "Priorité", why: "Pourquoi", nextAction: "Prochaine étape", stage: "Étape", lastInteraction: "Dernière interaction", nextFollowUp: "Prochaine relance", owner: "Responsable" },
       // RADAR-CORE-3F — the deterministic scoring engine (lib/radar/score.ts)
       // emits stable semantic codes; these entries are the only place the
@@ -1044,6 +1048,8 @@ export const crm = {
       confidenceMedium: "medium",
       confidenceLow: "low",
       confidenceCaption: "reflects available profile information (industry, location), not a conversion probability.",
+      // 4F.9-D — see the FR block above.
+      priorityRaisedFrom: (base: string) => `Raised from "${base}": no website on record`,
       columns: { prospect: "Prospect", priority: "Priority", why: "Why", nextAction: "Next step", stage: "Stage", lastInteraction: "Last interaction", nextFollowUp: "Next follow-up", owner: "Owner" },
       // RADAR-CORE-3F — see the FR block above. One entry per
       // RADAR_REASON_CODES / RADAR_NEXT_ACTION_CODES member; FR/EN key sets
