@@ -2,7 +2,7 @@
 
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { crmClients, crmInvoices, crmQuotes, deals, interactions, staffMembers, tasks, users } from "@/db/schema";
+import { crmClients, crmInvoices, crmQuotes, crmWebsites, deals, discoveryResults, interactions, staffMembers, tasks, users } from "@/db/schema";
 import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { getInternalOrganizationId } from "@/lib/notifications";
 import { assessQualification } from "@/lib/radar/qualification";
@@ -13,6 +13,9 @@ import {
   type RadarNextActionCode,
   type RadarReason,
 } from "@/lib/radar/score";
+import { assessSignals, type RadarSignal } from "@/lib/radar/signals";
+import { assessOpportunities, type RadarOpportunity } from "@/lib/radar/opportunities";
+import { assessPriority, type PriorityAdjustment } from "@/lib/radar/priority";
 
 const PAGE_SIZE = 20;
 const HARD_CAP = 500;
@@ -73,7 +76,49 @@ export type RankedProspect = {
   // the PROSPECT owner, and a second owner name would compete with it.
   nextFollowUpTaskId: string | null;
   nextFollowUpAssignedUserId: string | null;
+  // MICRO-STEP 1 — read-only visibility of the Discovery row already linked
+  // to this prospect (discoveryResults.crmClientId), when one exists. Pure
+  // display context, exactly like assignedUserName/nextFollowUpTaskId
+  // above: NEVER read by assessQualification / assessOpportunity / the
+  // ranking comparator, and never a filter predicate. null when the
+  // prospect has no linked discovery_results row (e.g. created manually,
+  // or converted before this field existed).
+  discoverySource: { category: string | null; website: string | null; businessStatus: string | null } | null;
+  // MICRO-STEP 2 — pure, deterministic, read-only Signals Engine output
+  // (lib/radar/signals.ts::assessSignals()). Display context ONLY — same
+  // discipline as discoverySource above: NEVER read by
+  // assessQualification / assessOpportunity / the ranking comparator, and
+  // never a filter predicate. An empty array is a valid, real outcome.
+  signals: RadarSignal[];
+  // MICRO-STEP 3 — pure, deterministic, read-only Opportunity Engine
+  // output (lib/radar/opportunities.ts::assessOpportunities()), computed
+  // from `signals` above and nothing else. Same display-context
+  // discipline: NEVER read by assessQualification / assessOpportunity /
+  // the ranking comparator, never a filter predicate. An empty array is a
+  // valid, real outcome.
+  opportunities: RadarOpportunity[];
+  // MICRO-STEP 4B/4D.2 — Priority V2 (lib/radar/priority.ts). basePriority
+  // always equals `priority` above (kept for compatibility). Since 4D.2 the
+  // ranking comparator (finalPriority, then basePriority), the priority
+  // filter and the page badge all read finalPriority; priorityAdjustments
+  // stays informational only.
+  basePriority: Priority;
+  finalPriority: Priority;
+  priorityAdjustments: PriorityAdjustment[];
 };
+
+/**
+ * MICRO-STEP 4F.7.3 — deterministic choice between two discovery_results rows
+ * linked to the SAME crm_client (not expected — convertDiscoveryResult() links
+ * exactly one row per created client — but not DB-enforced). True when
+ * `candidate` must replace `current`: the more recent discoveredAt wins; on a
+ * tie, the lexicographically greater id. Independent of DB row order.
+ */
+function isPreferredDiscoveryRow(candidate: { id: string; discoveredAt: Date }, current: { id: string; discoveredAt: Date }): boolean {
+  const discoveredDiff = candidate.discoveredAt.getTime() - current.discoveredAt.getTime();
+  if (discoveredDiff !== 0) return discoveredDiff > 0;
+  return candidate.id > current.id;
+}
 
 /**
  * RADAR-CORE-3E — total order over a prospect's OPEN dated follow-ups so a
@@ -297,7 +342,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   const followUpFilter = sanitizeFollowUpFilter(params.followup);
   // Server-side only. Injectable purely so the follow-up day-window tests
   // are deterministic — identical role to score.ts::OpportunityInput.now.
-  const { startOfToday, startOfTomorrow } = utcDayWindow(params.now ?? new Date());
+  // MICRO-STEP 2 — the same resolved `now` is also passed to
+  // assessSignals() below, so the whole queue computation shares ONE
+  // instant, exactly like utcDayWindow's own role for follow-ups.
+  const now = params.now ?? new Date();
+  const { startOfToday, startOfTomorrow } = utcDayWindow(now);
 
   const candidates = await db
     .select({
@@ -309,6 +358,10 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       country: crmClients.country,
       region: crmClients.region,
       city: crmClients.city,
+      // MICRO-STEP 2 — read-only, for assessSignals()'s DISCOVERY_NEW
+      // check only. Never fed to assessQualification / assessOpportunity /
+      // the ranking comparator.
+      source: crmClients.source,
       stage: crmClients.stage,
       organizationId: crmClients.organizationId,
       doNotContact: crmClients.doNotContact,
@@ -356,17 +409,17 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   // over the QUALIFIED subset only, mirroring the existing precedent in
   // lib/api-v1/audits.ts's getIssueCountsForAudits(). Never loop over the
   // qualified subset calling the single-client Phase 1C action here.
-  const [clientDeals, clientInteractions, clientQuotes, clientInvoices, clientOpenFollowUps] = await Promise.all([
+  const [clientDeals, clientInteractions, clientQuotes, clientInvoices, clientOpenFollowUps, clientDiscoverySources, clientCrmWebsites] = await Promise.all([
     db
-      .select({ clientId: deals.clientId, stage: deals.stage })
+      .select({ id: deals.id, clientId: deals.clientId, stage: deals.stage, expectedCloseDate: deals.expectedCloseDate })
       .from(deals)
       .where(inArray(deals.clientId, qualifiedIds)),
     db
-      .select({ clientId: interactions.clientId, occurredAt: interactions.occurredAt })
+      .select({ clientId: interactions.clientId, dealId: interactions.dealId, occurredAt: interactions.occurredAt })
       .from(interactions)
       .where(inArray(interactions.clientId, qualifiedIds)),
     db
-      .select({ clientId: crmQuotes.clientId, status: crmQuotes.status, sentAt: crmQuotes.sentAt, respondedAt: crmQuotes.respondedAt })
+      .select({ id: crmQuotes.id, clientId: crmQuotes.clientId, dealId: crmQuotes.dealId, status: crmQuotes.status, sentAt: crmQuotes.sentAt, respondedAt: crmQuotes.respondedAt, validUntil: crmQuotes.validUntil })
       .from(crmQuotes)
       .where(inArray(crmQuotes.clientId, qualifiedIds)),
     db
@@ -397,9 +450,41 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
           isNotNull(tasks.dueDate),
         ),
       ),
+    // MICRO-STEP 1 — the Discovery row already linked to a qualified
+    // prospect, when one exists (discoveryResults.crmClientId). Same
+    // batched inArray() shape as the four reads above — no N+1. Only the
+    // three fields this micro-step exposes are read; everything else on
+    // discovery_results (status, enrichmentClaimedAt, coordinates, etc.)
+    // stays untouched and unread here.
+    db
+      .select({
+        // MICRO-STEP 4F.7.3 — internal tie-break only, never exposed.
+        id: discoveryResults.id,
+        crmClientId: discoveryResults.crmClientId,
+        category: discoveryResults.category,
+        website: discoveryResults.website,
+        businessStatus: discoveryResults.businessStatus,
+        // MICRO-STEP 2 — read-only, for assessSignals()'s DISCOVERY_NEW
+        // check only; never added to the publicly-exposed discoverySource
+        // shape below (that shape stays exactly {category, website,
+        // businessStatus}, unchanged since MICRO-STEP 1).
+        discoveredAt: discoveryResults.discoveredAt,
+      })
+      .from(discoveryResults)
+      .where(inArray(discoveryResults.crmClientId, qualifiedIds)),
+    // MICRO-STEP 4F.7.1 — presence only: which qualified prospects have at
+    // least one crm_websites row. clientId is the ONLY column read (never
+    // url/label/id/createdAt); same batched inArray() shape, never joined
+    // with discovery_results (crm_websites is 1-N).
+    db
+      .select({ clientId: crmWebsites.clientId })
+      .from(crmWebsites)
+      .where(inArray(crmWebsites.clientId, qualifiedIds)),
   ]);
 
   const dealsByClient = groupByClientId(clientDeals);
+  // 4F.7.1 — a Set, not a count: one CRM website is enough, several are never counted.
+  const crmWebsiteClientIds = new Set(clientCrmWebsites.map((row) => row.clientId));
   const interactionsByClient = groupByClientId(clientInteractions);
   const quotesByClient = groupByClientId(clientQuotes);
   // RADAR-CORE-3B/3E — OPEN dated follow-ups per qualified client;
@@ -419,6 +504,35 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   const invoicesByClient = groupByClientId(
     clientInvoices.filter((inv): inv is typeof inv & { clientId: string } => inv.clientId !== null),
   );
+  // MICRO-STEP 1 — at most one discovery_results row per crm_client in
+  // practice (convertDiscoveryResult() only ever links the ONE row that
+  // created the client; an EXACT_MATCH against an existing client never
+  // sets crmClientId at all — see that function's own contract), but this
+  // is not a DB-enforced uniqueness constraint, so a plain Map is used rather
+  // than groupByClientId's array buckets. MICRO-STEP 4F.7.3 — on a
+  // hypothetical duplicate the kept row is chosen explicitly
+  // (isPreferredDiscoveryRow: latest discoveredAt, then greatest id), never by
+  // SQL row order.
+  // MICRO-STEP 2 — discoveredAt is carried in this SAME map (one batched
+  // read, no second query) purely for assessSignals()'s internal use; the
+  // publicly-exposed discoverySource field below still only ever picks the
+  // three MICRO-STEP 1 fields out of it, unchanged.
+  const discoveryRowByClient = new Map<
+    string,
+    { id: string; category: string | null; website: string | null; businessStatus: string | null; discoveredAt: Date }
+  >();
+  for (const row of clientDiscoverySources) {
+    if (row.crmClientId === null) continue;
+    const current = discoveryRowByClient.get(row.crmClientId);
+    if (current && !isPreferredDiscoveryRow(row, current)) continue;
+    discoveryRowByClient.set(row.crmClientId, {
+      id: row.id,
+      category: row.category,
+      website: row.website,
+      businessStatus: row.businessStatus,
+      discoveredAt: row.discoveredAt,
+    });
+  }
 
   type Ranked = RankedProspect & { _createdAt: Date; _id: string };
 
@@ -446,6 +560,43 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
     const nextFollowUp = pickNextFollowUp(followUpsByClient.get(client.id) ?? []);
     const nextFollowUpDueAt = nextFollowUp?.dueDate ?? null;
     const dueMs = nextFollowUpDueAt?.getTime();
+    // Computed once and shared by the RankedProspect field and the
+    // FOLLOW_UP_OVERDUE signal, so "overdue" has a single definition.
+    const nextFollowUpOverdue = dueMs !== undefined && dueMs < startOfToday;
+    // MICRO-STEP 1 — unchanged shape: exactly the three fields, picked
+    // out of the richer discoveryRowByClient map (MICRO-STEP 2 added
+    // discoveredAt to that map, never to this exposed field).
+    const discoveryRow = discoveryRowByClient.get(client.id) ?? null;
+    const discoverySource = discoveryRow
+      ? { category: discoveryRow.category, website: discoveryRow.website, businessStatus: discoveryRow.businessStatus }
+      : null;
+    // MICRO-STEP 2 — pure, deterministic, read-only. Never feeds back into
+    // assessQualification/assessOpportunity above, and its own output is
+    // never read by either.
+    const signals = assessSignals({
+      source: client.source,
+      discoverySource,
+      discoveredAt: discoveryRow?.discoveredAt ?? null,
+      // MICRO-STEP 4F.7.1 — presence-only CRM fact, consumed by NO_WEBSITE only.
+      hasCrmWebsite: crmWebsiteClientIds.has(client.id),
+      lastInteractionAt,
+      // MICRO-STEP 4F.8.7 — the same already-loaded rows (dealId + occurredAt
+      // only used), for the per-deal contact state of overdue deals.
+      interactions: clientInteractionRows,
+      // MICRO-STEP 4E.2 — already-loaded / already-derived values only.
+      assignedUserId: client.assignedUserId,
+      nextFollowUpDueAt,
+      nextFollowUpOverdue,
+      deals: dealsByClient.get(client.id) ?? [],
+      quotes: quotesByClient.get(client.id) ?? [],
+      now,
+    });
+    // MICRO-STEP 3 — consumes `signals` above and nothing else; no new DB
+    // read, no re-derivation of any raw fact.
+    const opportunities = assessOpportunities(signals);
+    // MICRO-STEP 4B — computed from already-derived values only; not read
+    // by the ranking comparator or any filter (inert exposure).
+    const priorityV2 = assessPriority({ basePriority: opportunity.priority, signals, opportunities });
     return {
       clientId: client.id,
       name: client.name,
@@ -468,13 +619,19 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       // dueToday are derived from the single server-side UTC day window so
       // the followup filter and the page badge never disagree.
       nextFollowUpDueAt,
-      nextFollowUpOverdue: dueMs !== undefined && dueMs < startOfToday,
+      nextFollowUpOverdue,
       nextFollowUpDueToday: dueMs !== undefined && dueMs >= startOfToday && dueMs < startOfTomorrow,
       // RADAR-CORE-3E — action context only; never scored / ranked /
       // filtered. null when there is no next follow-up (id + assignee) or
       // when it is unassigned (assignee only).
       nextFollowUpTaskId: nextFollowUp?.id ?? null,
       nextFollowUpAssignedUserId: nextFollowUp?.assignedUserId ?? null,
+      discoverySource,
+      signals,
+      opportunities,
+      basePriority: priorityV2.basePriority,
+      finalPriority: priorityV2.finalPriority,
+      priorityAdjustments: priorityV2.priorityAdjustments,
       _createdAt: client.createdAt,
       _id: client.id,
     };
@@ -484,8 +641,11 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   // are tie-breakers only — none of them re-rank across a priority tier,
   // preserving Phase 1C's deliberate priority/confidence independence.
   ranked.sort((a, b) => {
-    const priorityDiff = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority];
-    if (priorityDiff !== 0) return priorityDiff;
+    const finalDiff = PRIORITY_RANK[b.finalPriority] - PRIORITY_RANK[a.finalPriority];
+    if (finalDiff !== 0) return finalDiff;
+
+    const baseDiff = PRIORITY_RANK[b.basePriority] - PRIORITY_RANK[a.basePriority];
+    if (baseDiff !== 0) return baseDiff;
 
     const confidenceDiff = CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence];
     if (confidenceDiff !== 0) return confidenceDiff;
@@ -506,7 +666,7 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
   // totalQualified / insufficientDataCount / notEligibleCount are NOT
   // touched — they keep their pre-filter meaning.
   const priorityFiltered =
-    priorityFilter.length > 0 ? ranked.filter((r) => priorityFilter.includes(r.priority)) : ranked;
+    priorityFilter.length > 0 ? ranked.filter((r) => priorityFilter.includes(r.finalPriority)) : ranked;
   const assigneeFiltered =
     assigneeFilter.mode === "unassigned"
       ? priorityFiltered.filter((r) => r.assignedUserId === null)
@@ -556,6 +716,12 @@ export async function getRadarQueue(params: RadarQueueParams = {}): Promise<Rada
       nextFollowUpDueToday: r.nextFollowUpDueToday,
       nextFollowUpTaskId: r.nextFollowUpTaskId,
       nextFollowUpAssignedUserId: r.nextFollowUpAssignedUserId,
+      discoverySource: r.discoverySource,
+      signals: r.signals,
+      opportunities: r.opportunities,
+      basePriority: r.basePriority,
+      finalPriority: r.finalPriority,
+      priorityAdjustments: r.priorityAdjustments,
     };
   });
 

@@ -84,7 +84,7 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { crmClients, deals, interactions, crmQuotes, crmInvoices, tasks, users, staffMembers, staffRoles, organizations } =
+const { crmClients, deals, interactions, crmQuotes, crmInvoices, tasks, users, staffMembers, staffRoles, organizations, discoveryResults } =
   await import("@/db/schema");
 const { inArray, eq } = await import("drizzle-orm");
 const { getRadarQueue } = await import("./radar-queue.ts");
@@ -92,6 +92,7 @@ const { getRadarQueue } = await import("./radar-queue.ts");
 const createdClientIds = new Set();
 const createdUserIds = new Set();
 const createdStaffMemberIds = new Set();
+const createdDiscoveryResultIds = new Set();
 
 async function makeClient(overrides = {}) {
   const values = {
@@ -109,6 +110,10 @@ async function makeClient(overrides = {}) {
     ownerName: overrides.ownerName ?? null,
   };
   if (overrides.createdAt !== undefined) values.createdAt = overrides.createdAt;
+  // MICRO-STEP 2 — crm_clients.source, so DISCOVERY_NEW fixtures can set
+  // the literal "RADAR Discovery" label exactly as convertDiscoveryResult()
+  // writes it. Defaults to unset (null), same as before this addition.
+  if (overrides.source !== undefined) values.source = overrides.source;
   const [client] = await db.insert(crmClients).values(values).returning();
   createdClientIds.add(client.id);
   return client;
@@ -236,6 +241,11 @@ beforeEach(() => {
 
 after(async () => {
   if (createdStaffMemberIds.size) await db.delete(staffMembers).where(inArray(staffMembers.id, [...createdStaffMemberIds]));
+  // MICRO-STEP 1 — discovery_results fixtures first: discoveryResults.crmClientId
+  // is onDelete:"set null" so it would survive a crmClients delete anyway,
+  // but deleting the rows this test file itself created keeps the shared
+  // local DB exactly as clean as every other fixture table below.
+  if (createdDiscoveryResultIds.size) await db.delete(discoveryResults).where(inArray(discoveryResults.id, [...createdDiscoveryResultIds]));
   if (createdClientIds.size) await db.delete(deals).where(inArray(deals.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(interactions).where(inArray(interactions.clientId, [...createdClientIds]));
   if (createdClientIds.size) await db.delete(crmQuotes).where(inArray(crmQuotes.clientId, [...createdClientIds]));
@@ -247,20 +257,52 @@ after(async () => {
   await db.$client.end();
 });
 
-async function makeDeal(clientId, stage) {
-  await db.insert(deals).values({ clientId, title: `Deal ${randomUUID()}`, stage });
+// MICRO-STEP 4E.3 — optional expectedCloseDate / validUntil (default null,
+// identical to every existing call site).
+async function makeDeal(clientId, stage, { expectedCloseDate = null } = {}) {
+  const [row] = await db.insert(deals).values({ clientId, title: `Deal ${randomUUID()}`, stage, expectedCloseDate }).returning({ id: deals.id });
+  return row.id;
 }
 
-async function makeQuote(clientId, { status, sentAt = null, respondedAt = null }) {
-  await db.insert(crmQuotes).values({ clientId, quoteNumber: `Q-${randomUUID()}`, title: "Test quote", status, sentAt, respondedAt });
+async function makeQuote(clientId, { status, sentAt = null, respondedAt = null, validUntil = null, dealId = null }) {
+  const [row] = await db
+    .insert(crmQuotes)
+    .values({ clientId, dealId, quoteNumber: `Q-${randomUUID()}`, title: "Test quote", status, sentAt, respondedAt, validUntil })
+    .returning({ id: crmQuotes.id });
+  return row.id;
 }
 
 async function makeInvoice(clientId, { paidAt = null }) {
   await db.insert(crmInvoices).values({ clientId, invoiceNumber: `INV-${randomUUID()}`, title: "Test invoice", paidAt });
 }
 
-async function makeInteraction(clientId, occurredAt) {
-  await db.insert(interactions).values({ clientId, type: "note", summary: "Test interaction", occurredAt });
+async function makeInteraction(clientId, occurredAt, { dealId = null } = {}) {
+  await db.insert(interactions).values({ clientId, dealId, type: "note", summary: "Test interaction", occurredAt });
+}
+
+// MICRO-STEP 1 — a discovery_results row already linked to crmClientId, the
+// exact shape convertDiscoveryResult() leaves behind (status forced to
+// "converted" to satisfy discovery_results_converted_link_check, since
+// crmClientId is non-null here). category/website/businessStatus default to
+// null so a test can exercise a partially-populated row without passing
+// every field.
+async function makeDiscoveryResult(clientId, { category = null, website = null, businessStatus = null, discoveredAt } = {}) {
+  const values = {
+    source: "google_places",
+    sourceId: `radar-ms1-${randomUUID()}`,
+    name: `Discovery MS1 ${randomUUID()}`,
+    status: "converted",
+    crmClientId: clientId,
+    category,
+    website,
+    businessStatus,
+  };
+  // MICRO-STEP 2 — override only when explicitly passed; otherwise the
+  // column's own default (now()) applies, same as before this addition.
+  if (discoveredAt !== undefined) values.discoveredAt = discoveredAt;
+  const [row] = await db.insert(discoveryResults).values(values).returning();
+  createdDiscoveryResultIds.add(row.id);
+  return row;
 }
 
 // RADAR-CORE-3B — a task row. status defaults to an OPEN state; dueDate
@@ -1453,4 +1495,1548 @@ test("3E: structural — pickNextFollowUp is a pure, non-exported helper with th
   );
   assert.ok(body.indexOf("dueDate.getTime()") < body.indexOf("createdAt.getTime()"), "due_date compared before created_at");
   assert.ok(body.indexOf("createdAt.getTime()") < body.indexOf("row.id < best.id"), "created_at compared before id");
+});
+
+// =========================================================
+// MICRO-STEP 1 — Discovery -> Radar read-only visibility.
+// discoverySource is pure DISPLAY CONTEXT, exactly like assignedUserName /
+// nextFollowUpTaskId above: read-only, never passed to assessQualification
+// / assessOpportunity / the ranking comparator, never a filter predicate.
+// =========================================================
+
+test("MICRO-STEP 1: a qualified prospect with a linked discovery_results row exposes category/website/businessStatus via discoverySource", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { category: "restaurant", website: "https://example.test", businessStatus: "OPERATIONAL" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  assert.deepEqual(row.discoverySource, {
+    category: "restaurant",
+    website: "https://example.test",
+    businessStatus: "OPERATIONAL",
+  });
+});
+
+test("MICRO-STEP 1: a qualified prospect with NO linked discovery_results row has discoverySource null", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  assert.equal(row.discoverySource, null);
+});
+
+test("MICRO-STEP 1: businessStatus = CLOSED_PERMANENTLY is surfaced verbatim, never altered or dropped", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { businessStatus: "CLOSED_PERMANENTLY" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  assert.equal(row.discoverySource.businessStatus, "CLOSED_PERMANENTLY");
+});
+
+test("MICRO-STEP 1: a linked discovery_results row with every enrichment field null surfaces as { category: null, website: null, businessStatus: null }, never fabricated", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id);
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  assert.deepEqual(row.discoverySource, { category: null, website: null, businessStatus: null });
+});
+
+test("MICRO-STEP 1: discoverySource never changes totalQualified, priority, or the relative Radar order of existing rows", async () => {
+  const before = await getRadarQueue();
+  const beforeOrder = (await scanAllPages()).map((i) => i.clientId);
+
+  const c = await makeClient();
+  await makeDeal(c.id, "proposal"); // HIGH, same as any other HIGH fixture
+  await makeDiscoveryResult(c.id, { category: "plumber", website: null, businessStatus: "OPERATIONAL" });
+
+  const after = await getRadarQueue();
+  assert.equal(after.totalQualified, before.totalQualified + 1);
+
+  const afterOrder = (await scanAllPages()).map((i) => i.clientId);
+  const afterOrderWithoutNew = afterOrder.filter((id) => id !== c.id);
+  assert.deepEqual(afterOrderWithoutNew, beforeOrder, "adding a discovery-linked row never reorders pre-existing rows");
+
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "HIGH", "priority is still driven only by deals/quotes, never by discoverySource");
+});
+
+test("MICRO-STEP 1: structural — discoveryResults is read with exactly one batched inArray() query, no N+1", () => {
+  const discoveryFroms = IMPLEMENTATION_SOURCE.match(/\.from\(discoveryResults\)/g) ?? [];
+  assert.equal(discoveryFroms.length, 1, "no second discoveryResults query, no per-row lookup");
+  assert.match(
+    IMPLEMENTATION_SOURCE,
+    /inArray\(discoveryResults\.crmClientId,\s*qualifiedIds\)/,
+    "the discoveryResults read is bounded to the qualified subset, same shape as deals/interactions/quotes/invoices",
+  );
+  assert.ok(
+    !/for \(const .* of qualified\)[\s\S]{0,200}await db/.test(IMPLEMENTATION_SOURCE),
+    "no per-row await inside the qualified-subset loop",
+  );
+});
+
+test("MICRO-STEP 1: structural — discoverySource is never passed to assessQualification or assessOpportunity, and never enters the ranking comparator", () => {
+  const qualificationCall = IMPLEMENTATION_SOURCE.match(/assessQualification\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  const opportunityCall = IMPLEMENTATION_SOURCE.match(/assessOpportunity\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  assert.ok(!/discoverySource|discoveryResults/.test(qualificationCall), "qualification input stays untouched by this micro-step");
+  assert.ok(!/discoverySource|discoveryResults/.test(opportunityCall), "opportunity input stays untouched by this micro-step");
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  assert.ok(!/discoverySource/.test(sortBody), "no discoverySource term inside the ranking comparator");
+});
+
+test("MICRO-STEP 1: structural — the candidate universe HARD_CAP=500 is unchanged by this micro-step (non-regression)", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /HARD_CAP\s*=\s*500/);
+  assert.match(IMPLEMENTATION_SOURCE, /\.limit\(HARD_CAP\)/);
+});
+
+// =========================================================
+// MICRO-STEP 2 — Signals Engine v1 (lib/radar/signals.ts), wired into
+// getRadarQueue() as RankedProspect.signals. Pure DISPLAY CONTEXT, exactly
+// like discoverySource: read-only, never fed to assessQualification /
+// assessOpportunity / the ranking comparator, never a filter predicate.
+// Per-signal behaviour (thresholds, evidence shapes, co-occurrence) is
+// unit-tested exhaustively in lib/radar/signals.test.mjs; these
+// integration tests only prove the WIRING is correct end-to-end against a
+// real database and that nothing else regresses.
+// =========================================================
+
+test("MICRO-STEP 2: a prospect with no Discovery link and no interaction history has no V1 signal (since 4E.2 a bare prospect carries only UNASSIGNED + NO_FOLLOW_UP_SCHEDULED)", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  assert.deepEqual(row.signals.map((s) => s.type), ["UNASSIGNED", "NO_FOLLOW_UP_SCHEDULED"]);
+});
+
+test("MICRO-STEP 2: a prospect converted from RADAR Discovery with a recent discoveredAt exposes DISCOVERY_NEW", async () => {
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, { discoveredAt: new Date(Date.now() - 24 * 60 * 60 * 1000) });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row, "fixture must appear in the queue");
+  const signal = row.signals.find((s) => s.type === "DISCOVERY_NEW");
+  assert.ok(signal, "DISCOVERY_NEW must be present");
+  assert.equal(signal.color, "blue");
+});
+
+test("MICRO-STEP 2: a prospect with a linked discovery_results row and website=null exposes NO_WEBSITE", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row.signals.some((s) => s.type === "NO_WEBSITE"));
+});
+
+test("MICRO-STEP 2: a prospect with a linked discovery_results row and a real website never exposes NO_WEBSITE", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: "https://example.test" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(!row.signals.some((s) => s.type === "NO_WEBSITE"));
+});
+
+test("MICRO-STEP 2: businessStatus=CLOSED_PERMANENTLY exposes BUSINESS_CLOSED end-to-end", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { businessStatus: "CLOSED_PERMANENTLY" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row.signals.some((s) => s.type === "BUSINESS_CLOSED"));
+});
+
+test("MICRO-STEP 2: businessStatus=OPERATIONAL never exposes BUSINESS_CLOSED", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { businessStatus: "OPERATIONAL" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(!row.signals.some((s) => s.type === "BUSINESS_CLOSED"));
+});
+
+test("MICRO-STEP 2: a recent interaction exposes RECENT_ACTIVITY end-to-end", async () => {
+  const c = await makeClient();
+  await makeInteraction(c.id, new Date());
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row.signals.some((s) => s.type === "RECENT_ACTIVITY"));
+  assert.ok(!row.signals.some((s) => s.type === "NO_RECENT_INTERACTION"));
+});
+
+test("MICRO-STEP 2: a stale interaction (older than RECENT_INTERACTION_THRESHOLD_DAYS) exposes NO_RECENT_INTERACTION end-to-end", async () => {
+  const c = await makeClient();
+  await makeInteraction(c.id, new Date("2020-01-01T00:00:00Z"));
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row.signals.some((s) => s.type === "NO_RECENT_INTERACTION"));
+  assert.ok(!row.signals.some((s) => s.type === "RECENT_ACTIVITY"));
+});
+
+test("MICRO-STEP 2: several signals co-occur end-to-end for a fully-populated Discovery fixture", async () => {
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, {
+    website: null,
+    businessStatus: "CLOSED_PERMANENTLY",
+    discoveredAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
+  await makeInteraction(c.id, new Date("2020-01-01T00:00:00Z"));
+  const row = await followUpFieldsFor(c.id);
+  const types = new Set(row.signals.map((s) => s.type));
+  assert.ok(types.has("DISCOVERY_NEW"));
+  assert.ok(types.has("NO_WEBSITE"));
+  assert.ok(types.has("BUSINESS_CLOSED"));
+  assert.ok(types.has("NO_RECENT_INTERACTION"));
+});
+
+test("MICRO-STEP 2: non-regression — signals never change priority, confidence, or totalQualified", async () => {
+  const before = await getRadarQueue();
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDeal(c.id, "proposal"); // HIGH, driven only by score.ts
+  await makeDiscoveryResult(c.id, { website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: new Date() });
+  const after = await getRadarQueue();
+  assert.equal(after.totalQualified, before.totalQualified + 1);
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "HIGH", "priority stays driven only by deals/quotes — signals never influence it");
+});
+
+test("MICRO-STEP 2: non-regression — adding signals never reorders pre-existing rows", async () => {
+  const beforeOrder = (await scanAllPages()).map((i) => i.clientId);
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, { website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: new Date() });
+  const afterOrder = (await scanAllPages()).map((i) => i.clientId);
+  const afterOrderWithoutNew = afterOrder.filter((id) => id !== c.id);
+  assert.deepEqual(afterOrderWithoutNew, beforeOrder, "a new signal-bearing row never reorders the rest of the queue");
+});
+
+test("MICRO-STEP 2: structural — the candidate universe HARD_CAP=500 is still unchanged (non-regression)", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /HARD_CAP\s*=\s*500/);
+  assert.match(IMPLEMENTATION_SOURCE, /\.limit\(HARD_CAP\)/);
+});
+
+test("MICRO-STEP 2: structural — assessSignals is called once per qualified prospect inside the existing qualified.map(), never a new per-row await / query", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /assessSignals\(\{/, "assessSignals must be called");
+  // No new query site was introduced beyond the ONE discoveryResults batch
+  // read already proven single by the MICRO-STEP 1 structural test above
+  // — re-asserted here so this file alone proves no N+1 was reintroduced.
+  const discoveryFroms = IMPLEMENTATION_SOURCE.match(/\.from\(discoveryResults\)/g) ?? [];
+  assert.equal(discoveryFroms.length, 1, "still exactly one discoveryResults query");
+  assert.ok(
+    !/for \(const .* of qualified\)[\s\S]{0,400}await db/.test(IMPLEMENTATION_SOURCE),
+    "no per-row await inside the qualified-subset loop",
+  );
+});
+
+test("MICRO-STEP 2: structural — signals is never passed to assessQualification or assessOpportunity, and never enters the ranking comparator", () => {
+  const qualificationCall = IMPLEMENTATION_SOURCE.match(/assessQualification\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  const opportunityCall = IMPLEMENTATION_SOURCE.match(/assessOpportunity\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  assert.ok(!/signals/.test(qualificationCall), "qualification input stays untouched by this micro-step");
+  assert.ok(!/signals/.test(opportunityCall), "opportunity input stays untouched by this micro-step");
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  assert.ok(!/signals/.test(sortBody), "no signals term inside the ranking comparator");
+});
+
+// =========================================================
+// MICRO-STEP 3 — Opportunity Engine v1 (lib/radar/opportunities.ts),
+// wired into getRadarQueue() as RankedProspect.opportunities, consuming
+// `signals` only (no new DB read). Per-opportunity behaviour is
+// unit-tested exhaustively in lib/radar/opportunities.test.mjs; these
+// integration tests only prove the WIRING is correct end-to-end.
+// =========================================================
+
+test("MICRO-STEP 3: opportunity present (type WEBSITE) when a prospect carries NO_WEBSITE", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(row.signals.some((s) => s.type === "NO_WEBSITE"), "fixture must carry NO_WEBSITE");
+  assert.equal(row.opportunities.length, 1);
+  assert.equal(row.opportunities[0].type, "WEBSITE");
+  assert.equal(row.opportunities[0].service, "website_creation");
+  assert.deepEqual(row.opportunities[0].sourceSignals, ["NO_WEBSITE"]);
+});
+
+test("MICRO-STEP 3: no opportunity when a prospect has a real website", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: "https://example.test" });
+  const row = await followUpFieldsFor(c.id);
+  assert.ok(!row.signals.some((s) => s.type === "NO_WEBSITE"));
+  assert.deepEqual(row.opportunities, []);
+});
+
+test("MICRO-STEP 3: no opportunity for a prospect with no Discovery link and no interaction history at all", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id);
+  assert.deepEqual(row.signals.map((s) => s.type), ["UNASSIGNED", "NO_FOLLOW_UP_SCHEDULED"], "only the 4E.2 CRM signals, no V1 signal");
+  assert.deepEqual(row.opportunities, []);
+});
+
+test("MICRO-STEP 3: several co-occurring signals (NO_WEBSITE + BUSINESS_CLOSED + DISCOVERY_NEW) never break the ranking, and yield no WEBSITE opportunity (BUSINESS_CLOSED blocks it — 4C.1)", async () => {
+  const beforeOrder = (await scanAllPages()).map((i) => i.clientId);
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDeal(c.id, "proposal"); // HIGH
+  await makeDiscoveryResult(c.id, {
+    website: null,
+    businessStatus: "CLOSED_PERMANENTLY",
+    discoveredAt: new Date(),
+  });
+
+  const row = await followUpFieldsFor(c.id);
+  assert.deepEqual(row.opportunities, []);
+  assert.equal(row.priority, "HIGH", "priority still driven only by deals/quotes");
+
+  const afterOrder = (await scanAllPages()).map((i) => i.clientId);
+  const afterOrderWithoutNew = afterOrder.filter((id) => id !== c.id);
+  assert.deepEqual(afterOrderWithoutNew, beforeOrder, "ranking of pre-existing rows is unaffected");
+});
+
+test("MICRO-STEP 3: non-regression — opportunities never change priority, confidence, or totalQualified", async () => {
+  const before = await getRadarQueue();
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified"); // MEDIUM, driven only by score.ts
+  await makeDiscoveryResult(c.id, { website: null });
+  const after = await getRadarQueue();
+  assert.equal(after.totalQualified, before.totalQualified + 1);
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "MEDIUM", "priority stays driven only by deals/quotes — opportunities never influence it");
+});
+
+test("MICRO-STEP 3: structural — the candidate universe HARD_CAP=500 is still unchanged (non-regression)", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /HARD_CAP\s*=\s*500/);
+  assert.match(IMPLEMENTATION_SOURCE, /\.limit\(HARD_CAP\)/);
+});
+
+test("MICRO-STEP 3: structural — assessOpportunities consumes `signals` only, no new DB query site was introduced", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /assessOpportunities\(signals\)/, "assessOpportunities must be called with signals as its only argument");
+  // Every batched read site already proven single by the MICRO-STEP 1/2
+  // structural tests is re-asserted here so this file alone proves no
+  // N+1 / no extra query was introduced by the Opportunity Engine.
+  const discoveryFroms = IMPLEMENTATION_SOURCE.match(/\.from\(discoveryResults\)/g) ?? [];
+  assert.equal(discoveryFroms.length, 1, "still exactly one discoveryResults query");
+  // 9 .from() sites already exist as of MICRO-STEP 1/2 (users x2 in
+  // resolveAssignees, crmClients, deals, interactions, crmQuotes,
+  // crmInvoices, tasks, discoveryResults) — asserting the exact count
+  // proves the Opportunity Engine introduced no new query site at all.
+  // 4F.7.1 adds exactly one batched crm_websites read (presence only) -> 10.
+  const fromCount = (IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length;
+  assert.equal(fromCount, 10, "no .from() query site beyond the 9 existing + the 4F.7.1 crm_websites read");
+  assert.ok(
+    !/for \(const .* of qualified\)[\s\S]{0,400}await db/.test(IMPLEMENTATION_SOURCE),
+    "no per-row await inside the qualified-subset loop",
+  );
+});
+
+test("MICRO-STEP 3: structural — opportunities is never passed to assessQualification or assessOpportunity, and never enters the ranking comparator", () => {
+  const qualificationCall = IMPLEMENTATION_SOURCE.match(/assessQualification\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  const opportunityScoreCall = IMPLEMENTATION_SOURCE.match(/assessOpportunity\(\{[\s\S]*?\}\)/)?.[0] ?? "";
+  assert.ok(!/opportunities/.test(qualificationCall), "qualification input stays untouched by this micro-step");
+  assert.ok(!/opportunities/.test(opportunityScoreCall), "score.ts's assessOpportunity() input stays untouched by this micro-step");
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  assert.ok(!/opportunities/.test(sortBody), "no opportunities term inside the ranking comparator");
+});
+
+// =========================================================
+// MICRO-STEP 4B — Priority V2 exposed INERT on RankedProspect
+// (basePriority / finalPriority / priorityAdjustments). `priority` keeps
+// its exact current meaning and remains the sole ranking/filter key.
+// Rule-by-rule behaviour is unit-tested in lib/radar/priority.test.mjs.
+// =========================================================
+
+const TIER_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2 };
+
+test("MICRO-STEP 4B: LOW prospect without opportunity -> basePriority LOW, finalPriority LOW, priority unchanged, no adjustment", async () => {
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "LOW");
+  assert.equal(row.basePriority, "LOW");
+  assert.equal(row.finalPriority, "LOW");
+  assert.deepEqual(row.priorityAdjustments, []);
+});
+
+test("MICRO-STEP 4B: LOW + WEBSITE -> finalPriority MEDIUM while priority stays LOW, and pre-existing ranking is unchanged", async () => {
+  const beforeOrder = (await scanAllPages()).map((i) => i.clientId);
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "LOW");
+  assert.equal(row.basePriority, "LOW");
+  assert.equal(row.finalPriority, "MEDIUM");
+  assert.deepEqual(row.priorityAdjustments, [
+    { direction: "UP", reasonCode: "OPPORTUNITY_PRESENT", sourceOpportunities: ["WEBSITE"] },
+  ]);
+  const afterOrder = (await scanAllPages()).map((i) => i.clientId);
+  assert.deepEqual(afterOrder.filter((id) => id !== c.id), beforeOrder);
+});
+
+test("MICRO-STEP 4B: MEDIUM + WEBSITE -> finalPriority MEDIUM with a NONE / OPPORTUNITY_PRESENT adjustment", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified"); // MEDIUM
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "MEDIUM");
+  assert.equal(row.basePriority, "MEDIUM");
+  assert.equal(row.finalPriority, "MEDIUM");
+  assert.deepEqual(row.priorityAdjustments, [
+    { direction: "NONE", reasonCode: "OPPORTUNITY_PRESENT", sourceOpportunities: ["WEBSITE"] },
+  ]);
+});
+
+test("MICRO-STEP 4B: HIGH + WEBSITE -> finalPriority HIGH with a NONE adjustment", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "proposal"); // HIGH
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id);
+  assert.equal(row.priority, "HIGH");
+  assert.equal(row.basePriority, "HIGH");
+  assert.equal(row.finalPriority, "HIGH");
+  assert.deepEqual(row.priorityAdjustments.map((a) => a.direction), ["NONE"]);
+});
+
+test("MICRO-STEP 4B: BUSINESS_CLOSED preserves basePriority as finalPriority and adds a review adjustment (S3), while priority keeps the base value", async () => {
+  for (const [stage, base] of [
+    [null, "LOW"],
+    ["qualified", "MEDIUM"],
+    ["proposal", "HIGH"],
+  ]) {
+    const c = await makeClient();
+    if (stage) await makeDeal(c.id, stage);
+    await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "CLOSED_PERMANENTLY" });
+    const row = await followUpFieldsFor(c.id);
+    assert.equal(row.priority, base, `priority stays ${base}`);
+    assert.equal(row.basePriority, base);
+    assert.equal(row.finalPriority, base, `${base} + BUSINESS_CLOSED -> ${base}`);
+    assert.equal(row.priorityAdjustments.at(-1).reasonCode, "BUSINESS_CLOSED_REVIEW");
+    assert.equal(row.priorityAdjustments.at(-1).direction, "NONE");
+  }
+});
+
+test("MICRO-STEP 4B: at most one tier increase for every prospect in the queue (multiple-opportunity rule is unit-tested; today's data can only yield one WEBSITE opportunity)", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const items = await scanAllPages();
+  assert.ok(items.length > 0);
+  for (const item of items) {
+    assert.ok(TIER_RANK[item.finalPriority] - TIER_RANK[item.basePriority] <= 1, `${item.clientId} rose more than one tier`);
+    assert.ok(item.priorityAdjustments.filter((a) => a.direction === "UP").length <= 1);
+  }
+});
+
+test("MICRO-STEP 4B: priority === basePriority for every prospect in the queue", async () => {
+  const items = await scanAllPages();
+  for (const item of items) assert.equal(item.priority, item.basePriority);
+});
+
+test("MICRO-STEP 4D.2: basePriority is tie-break #2 — a real MEDIUM (LOW confidence) outranks a LOW promoted to MEDIUM (HIGH confidence)", async () => {
+  // Y: basePriority MEDIUM, confidence LOW, finalPriority MEDIUM.
+  const y = await makeClient();
+  await makeDeal(y.id, "qualified");
+  // X: basePriority LOW, confidence HIGH (industry + geography), finalPriority MEDIUM.
+  // Both tie on finalPriority MEDIUM; without the basePriority tie-break X's
+  // higher confidence would put it first. basePriority MEDIUM > LOW keeps Y ahead.
+  const x = await makeClient({ industry: "restaurant", city: "Montréal" });
+  await makeDiscoveryResult(x.id, { website: null });
+
+  const items = await scanAllPages();
+  const xRow = items.find((i) => i.clientId === x.id);
+  const yRow = items.find((i) => i.clientId === y.id);
+  assert.equal(xRow.finalPriority, "MEDIUM");
+  assert.equal(xRow.basePriority, "LOW");
+  assert.equal(xRow.confidence, "HIGH");
+  assert.equal(yRow.finalPriority, "MEDIUM");
+  assert.equal(yRow.basePriority, "MEDIUM");
+  assert.equal(yRow.confidence, "LOW");
+  assert.ok(indexOfClient(items, y.id) < indexOfClient(items, x.id), "Y (real MEDIUM) ranks before X (LOW promoted to MEDIUM)");
+});
+
+test("MICRO-STEP 4D.2: the priority filter keys on finalPriority — a LOW+WEBSITE prospect appears under MEDIUM, not LOW", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const low = await scanAllPages({ priority: ["LOW"] });
+  const medium = await scanAllPages({ priority: ["MEDIUM"] });
+  assert.ok(medium.some((i) => i.clientId === c.id), "promoted prospect is listed under MEDIUM");
+  assert.ok(!low.some((i) => i.clientId === c.id), "promoted prospect is no longer listed under LOW");
+  assert.ok(medium.every((i) => i.finalPriority === "MEDIUM"), "every MEDIUM-filtered row carries finalPriority MEDIUM");
+  assert.ok(low.every((i) => i.finalPriority === "LOW"), "every LOW-filtered row carries finalPriority LOW");
+});
+
+test("MICRO-STEP 4D.2: structural — the comparator reads finalPriority then basePriority, never `priority` or priorityAdjustments; the filter reads finalPriority", () => {
+  const sortBody = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+  );
+  const finalIdx = sortBody.indexOf("PRIORITY_RANK[b.finalPriority] - PRIORITY_RANK[a.finalPriority]");
+  const baseIdx = sortBody.indexOf("PRIORITY_RANK[b.basePriority] - PRIORITY_RANK[a.basePriority]");
+  const confidenceIdx = sortBody.indexOf("CONFIDENCE_RANK[b.confidence]");
+  assert.ok(finalIdx !== -1, "finalPriority is compared");
+  assert.ok(baseIdx !== -1, "basePriority is compared");
+  assert.ok(finalIdx < baseIdx && baseIdx < confidenceIdx, "order: finalPriority -> basePriority -> confidence");
+  assert.ok(!/\b[ab]\.priority\b/.test(sortBody), "`priority` is not read by the comparator");
+  assert.ok(!/priorityAdjustments/.test(sortBody), "priorityAdjustments is not read by the comparator");
+  const filterBlock = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("// All three filters are applied"),
+    IMPLEMENTATION_SOURCE.indexOf("const filteredTotal"),
+  );
+  assert.match(filterBlock, /priorityFilter\.includes\(r\.finalPriority\)/, "the priority filter keys on finalPriority");
+  assert.ok(!/\br\.priority\b/.test(filterBlock), "no filter keys on `priority`");
+});
+
+test("MICRO-STEP 4D.2: ranking follows finalPriority — a LOW promoted to MEDIUM outranks an older plain LOW with the same confidence", async () => {
+  // Z is created first (older): under the old `priority` comparator both are
+  // LOW / HIGH confidence / no interaction, so the older Z would lead.
+  const z = await makeClient({ industry: "plumber", city: "Laval" });
+  const x = await makeClient({ industry: "restaurant", city: "Montréal" });
+  await makeDiscoveryResult(x.id, { website: null });
+
+  const items = await scanAllPages();
+  const xRow = items.find((i) => i.clientId === x.id);
+  const zRow = items.find((i) => i.clientId === z.id);
+  assert.equal(xRow.finalPriority, "MEDIUM");
+  assert.equal(zRow.finalPriority, "LOW");
+  assert.equal(xRow.confidence, zRow.confidence);
+  assert.ok(indexOfClient(items, x.id) < indexOfClient(items, z.id), "X (finalPriority MEDIUM) ranks before Z (finalPriority LOW)");
+});
+
+test("MICRO-STEP 4D.2: LOW + opportunity -> finalPriority MEDIUM, ranked in the MEDIUM tier, listed under the MEDIUM filter, and the badge reads finalPriority", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null });
+  const items = await scanAllPages();
+  const row = items.find((i) => i.clientId === c.id);
+  assert.equal(row.basePriority, "LOW");
+  assert.equal(row.finalPriority, "MEDIUM");
+  const idx = indexOfClient(items, c.id);
+  assert.ok(items.slice(0, idx).every((i) => i.finalPriority !== "LOW"), "no LOW row ranks above it");
+  assert.ok(items.slice(idx + 1).every((i) => i.finalPriority !== "HIGH"), "no HIGH row ranks below it");
+  const medium = await scanAllPages({ priority: ["MEDIUM"] });
+  assert.ok(medium.some((i) => i.clientId === c.id));
+  const PAGE_SOURCE = readFileSync(fileURLToPath(new URL("../../app/admin/crm/radar/page.tsx", import.meta.url)), "utf8");
+  assert.match(PAGE_SOURCE, /priorityLabel\[item\.finalPriority\]/, "badge label reads finalPriority");
+  assert.match(PAGE_SOURCE, /PRIORITY_CLASS\[item\.finalPriority\]/, "badge color reads finalPriority");
+  assert.ok(!/(priorityLabel|PRIORITY_CLASS)\[item\.priority\]/.test(PAGE_SOURCE), "badge no longer reads `priority`");
+});
+
+test("MICRO-STEP 4D.2: BUSINESS_CLOSED + HIGH -> finalPriority HIGH, still ranked in the HIGH tier and listed under the HIGH filter", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "proposal"); // HIGH
+  await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "CLOSED_PERMANENTLY" });
+  const items = await scanAllPages();
+  const row = items.find((i) => i.clientId === c.id);
+  assert.equal(row.basePriority, "HIGH");
+  assert.equal(row.finalPriority, "HIGH");
+  assert.equal(row.priorityAdjustments.at(-1).reasonCode, "BUSINESS_CLOSED_REVIEW");
+  const idx = indexOfClient(items, c.id);
+  assert.ok(items.slice(0, idx).every((i) => i.finalPriority === "HIGH"), "only HIGH rows rank above it");
+  const high = await scanAllPages({ priority: ["HIGH"] });
+  assert.ok(high.some((i) => i.clientId === c.id));
+});
+
+test("MICRO-STEP 4B: structural — HARD_CAP=500 unchanged", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /HARD_CAP\s*=\s*500/);
+  assert.match(IMPLEMENTATION_SOURCE, /\.limit\(HARD_CAP\)/);
+});
+
+test("MICRO-STEP 4B: structural — assessPriority uses only already-derived values, and no new DB query site exists", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /assessPriority\(\{ basePriority: opportunity\.priority, signals, opportunities \}\)/);
+  const fromCount = (IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length;
+  assert.equal(fromCount, 10, "still exactly the 9 existing .from() sites + the 4F.7.1 crm_websites read");
+});
+
+test("MICRO-STEP 4B: signals and opportunities are still exposed alongside the new fields", async () => {
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, { website: null, discoveredAt: new Date() });
+  const row = await followUpFieldsFor(c.id);
+  const types = new Set(row.signals.map((s) => s.type));
+  assert.ok(types.has("DISCOVERY_NEW"));
+  assert.ok(types.has("NO_WEBSITE"));
+  assert.deepEqual(row.opportunities.map((o) => o.type), ["WEBSITE"]);
+  assert.equal(row.finalPriority, "MEDIUM");
+});
+
+// =========================================================
+// MICRO-STEP 4E.2 — Signals V2 class A (UNASSIGNED, FOLLOW_UP_OVERDUE,
+// NO_FOLLOW_UP_SCHEDULED, DEAL_ACTIVE, QUOTE_PENDING), wired from data the
+// queue already loads. Per-rule behaviour is unit-tested in
+// lib/radar/signals.test.mjs; these tests prove the end-to-end wiring.
+// =========================================================
+
+function signalTypes(row) {
+  return row.signals.map((s) => s.type);
+}
+
+test("4E.2: UNASSIGNED is present for an unassigned prospect and absent once it is assigned", async () => {
+  const unassigned = await makeClient();
+  const u = await makeUser({ fullName: "4E2 Owner" });
+  const assigned = await makeClient({ assignedUserId: u.id });
+  assert.ok(signalTypes(await followUpFieldsFor(unassigned.id)).includes("UNASSIGNED"));
+  assert.ok(!signalTypes(await followUpFieldsFor(assigned.id)).includes("UNASSIGNED"));
+});
+
+test("4E.2: FOLLOW_UP_OVERDUE follows the queue's own nextFollowUpOverdue flag, exclusive with NO_FOLLOW_UP_SCHEDULED", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY - 1) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpOverdue, true);
+  assert.ok(signalTypes(row).includes("FOLLOW_UP_OVERDUE"));
+  assert.ok(!signalTypes(row).includes("NO_FOLLOW_UP_SCHEDULED"));
+  const signal = row.signals.find((s) => s.type === "FOLLOW_UP_OVERDUE");
+  assert.deepEqual(signal.evidence, { nextFollowUpDueAt: row.nextFollowUpDueAt });
+});
+
+test("4E.2: a follow-up due today is not overdue — neither FOLLOW_UP_OVERDUE nor NO_FOLLOW_UP_SCHEDULED", async () => {
+  const c = await makeClient();
+  await makeTask(c.id, { status: "todo", dueDate: new Date(START_OF_TODAY) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.nextFollowUpOverdue, false);
+  assert.ok(!signalTypes(row).includes("FOLLOW_UP_OVERDUE"));
+  assert.ok(!signalTypes(row).includes("NO_FOLLOW_UP_SCHEDULED"));
+});
+
+test("4E.2: NO_FOLLOW_UP_SCHEDULED is present without an open dated follow-up, absent with one", async () => {
+  const without = await makeClient();
+  const withTask = await makeClient();
+  await makeTask(withTask.id, { status: "todo", dueDate: new Date(START_OF_TOMORROW) });
+  assert.ok(signalTypes(await followUpFieldsFor(without.id, { now: FIXED_NOW })).includes("NO_FOLLOW_UP_SCHEDULED"));
+  assert.ok(!signalTypes(await followUpFieldsFor(withTask.id, { now: FIXED_NOW })).includes("NO_FOLLOW_UP_SCHEDULED"));
+});
+
+test("4E.2: DEAL_ACTIVE is present for an open deal and absent for a won-only prospect", async () => {
+  const open = await makeClient();
+  await makeDeal(open.id, "qualified");
+  const wonOnly = await makeClient();
+  await makeDeal(wonOnly.id, "won");
+  const openRow = await followUpFieldsFor(open.id);
+  assert.ok(signalTypes(openRow).includes("DEAL_ACTIVE"));
+  assert.deepEqual(openRow.signals.find((s) => s.type === "DEAL_ACTIVE").evidence, { openDealCount: 1 });
+  assert.ok(!signalTypes(await followUpFieldsFor(wonOnly.id)).includes("DEAL_ACTIVE"));
+});
+
+test("4E.2: QUOTE_PENDING is present for a sent unanswered quote, absent for a sent-and-answered or draft quote", async () => {
+  const pending = await makeClient();
+  await makeQuote(pending.id, { status: "sent", sentAt: new Date() });
+  const answered = await makeClient();
+  await makeQuote(answered.id, { status: "sent", sentAt: new Date(), respondedAt: new Date() });
+  const draft = await makeClient();
+  await makeQuote(draft.id, { status: "draft" });
+  assert.ok(signalTypes(await followUpFieldsFor(pending.id)).includes("QUOTE_PENDING"));
+  assert.ok(!signalTypes(await followUpFieldsFor(answered.id)).includes("QUOTE_PENDING"));
+  assert.ok(!signalTypes(await followUpFieldsFor(draft.id)).includes("QUOTE_PENDING"));
+});
+
+test("4E.2: across the whole queue, UNASSIGNED / FOLLOW_UP_OVERDUE / NO_FOLLOW_UP_SCHEDULED match the exposed fields exactly", async () => {
+  const items = await scanAllPages({ now: FIXED_NOW });
+  assert.ok(items.length > 0);
+  for (const item of items) {
+    const types = signalTypes(item);
+    assert.equal(types.includes("UNASSIGNED"), item.assignedUserId === null, item.clientId);
+    assert.equal(types.includes("NO_FOLLOW_UP_SCHEDULED"), item.nextFollowUpDueAt === null, item.clientId);
+    assert.equal(types.includes("FOLLOW_UP_OVERDUE"), item.nextFollowUpDueAt !== null && item.nextFollowUpOverdue, item.clientId);
+  }
+});
+
+test("4E.2: new signals do not affect ranking — an unassigned prospect keeps its createdAt position against an assigned twin", async () => {
+  const u = await makeUser({ fullName: "4E2 Twin Owner" });
+  // Future timestamps keep both rows inside the newest-first HARD_CAP window.
+  const olderUnassigned = await makeClient({ createdAt: new Date(Date.now() + 60 * 60 * 1000) });
+  const newerAssigned = await makeClient({ assignedUserId: u.id, createdAt: new Date(Date.now() + 2 * 60 * 60 * 1000) });
+  const items = await scanAllPages();
+  assert.ok(signalTypes(items.find((i) => i.clientId === olderUnassigned.id)).includes("UNASSIGNED"));
+  assert.ok(indexOfClient(items, olderUnassigned.id) < indexOfClient(items, newerAssigned.id), "older-first tie-break unchanged by UNASSIGNED");
+});
+
+test("4E.2/4E.3: structural — no new query site; deals/quotes selects gain ONLY expectedCloseDate/validUntil; signals never reach the comparator or filters", () => {
+  const fromCount = (IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length;
+  assert.equal(fromCount, 10, "still exactly the 9 existing .from() sites + the 4F.7.1 crm_websites read");
+  assert.match(
+    IMPLEMENTATION_SOURCE,
+    /\.select\(\{ id: deals\.id, clientId: deals\.clientId, stage: deals\.stage, expectedCloseDate: deals\.expectedCloseDate \}\)/,
+    "deals select = previous columns + expectedCloseDate (4E.3) + id (4F.6.2) only",
+  );
+  assert.match(
+    IMPLEMENTATION_SOURCE,
+    /\.select\(\{ id: crmQuotes\.id, clientId: crmQuotes\.clientId, dealId: crmQuotes\.dealId, status: crmQuotes\.status, sentAt: crmQuotes\.sentAt, respondedAt: crmQuotes\.respondedAt, validUntil: crmQuotes\.validUntil \}\)/,
+    "quotes select = previous columns + validUntil (4E.3) + id/dealId (4F.6.4) only",
+  );
+  assert.equal((IMPLEMENTATION_SOURCE.match(/deals\.expectedCloseDate/g) ?? []).length, 1, "expectedCloseDate read in one place");
+  assert.equal((IMPLEMENTATION_SOURCE.match(/crmQuotes\.validUntil/g) ?? []).length, 1, "validUntil read in one place");
+  const sortAndFilters = IMPLEMENTATION_SOURCE.slice(
+    IMPLEMENTATION_SOURCE.indexOf("ranked.sort((a, b) => {"),
+    IMPLEMENTATION_SOURCE.indexOf("const filteredTotal"),
+  );
+  assert.ok(
+    !/signals|UNASSIGNED|FOLLOW_UP_OVERDUE|NO_FOLLOW_UP_SCHEDULED|DEAL_ACTIVE|QUOTE_PENDING|DEAL_PAST_EXPECTED_CLOSE|QUOTE_PAST_VALIDITY|expectedCloseDate|validUntil/.test(sortAndFilters),
+  );
+});
+
+// =========================================================
+// MICRO-STEP 4E.3 — Signals V2 class B (DEAL_PAST_EXPECTED_CLOSE,
+// QUOTE_PAST_VALIDITY) from expectedCloseDate / validUntil, now carried by
+// the existing deals / crm_quotes batched reads. Deterministic via FIXED_NOW.
+// =========================================================
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+test("4E.3: DEAL_PAST_EXPECTED_CLOSE end-to-end — an open deal past expectedCloseDate yields it (evidence counted) and not DEAL_ACTIVE", async () => {
+  const c = await makeClient();
+  const close = new Date(FIXED_NOW.getTime() - DAY_MS);
+  const dealId = await makeDeal(c.id, "qualified", { expectedCloseDate: close });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const signal = row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE");
+  assert.ok(signal, "expectedCloseDate was transmitted to assessSignals");
+  assert.deepEqual(signal.evidence, {
+    overdueDealCount: 1,
+    overdueDeals: [{ dealId, stage: "qualified", expectedCloseDate: close, overdueDays: 1, lastDealInteractionAt: null, dealContactState: "NONE_RECORDED" }],
+  });
+  assert.ok(!signalTypes(row).includes("DEAL_ACTIVE"));
+});
+
+test("4E.3: a future expectedCloseDate yields DEAL_ACTIVE only; mixed overdue + future deals yield both", async () => {
+  const future = await makeClient();
+  await makeDeal(future.id, "proposal", { expectedCloseDate: new Date(FIXED_NOW.getTime() + DAY_MS) });
+  const futureRow = await followUpFieldsFor(future.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(futureRow).includes("DEAL_ACTIVE"));
+  assert.ok(!signalTypes(futureRow).includes("DEAL_PAST_EXPECTED_CLOSE"));
+
+  const mixed = await makeClient();
+  const overdueClose = new Date(FIXED_NOW.getTime() - DAY_MS);
+  const overdueId = await makeDeal(mixed.id, "qualified", { expectedCloseDate: overdueClose });
+  await makeDeal(mixed.id, "new", { expectedCloseDate: new Date(FIXED_NOW.getTime() + DAY_MS) });
+  const mixedRow = await followUpFieldsFor(mixed.id, { now: FIXED_NOW });
+  assert.deepEqual(mixedRow.signals.find((s) => s.type === "DEAL_ACTIVE").evidence, { openDealCount: 1 });
+  assert.deepEqual(mixedRow.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence, {
+    overdueDealCount: 1,
+    overdueDeals: [{ dealId: overdueId, stage: "qualified", expectedCloseDate: overdueClose, overdueDays: 1, lastDealInteractionAt: null, dealContactState: "NONE_RECORDED" }],
+  });
+});
+
+test("4E.3: QUOTE_PAST_VALIDITY end-to-end — a sent unanswered quote past validUntil yields it (evidence counted) and not QUOTE_PENDING", async () => {
+  const c = await makeClient();
+  const validUntil = new Date(FIXED_NOW.getTime() - DAY_MS);
+  const quoteId = await makeQuote(c.id, { status: "sent", sentAt: new Date(FIXED_NOW.getTime() - 10 * DAY_MS), validUntil });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const signal = row.signals.find((s) => s.type === "QUOTE_PAST_VALIDITY");
+  assert.ok(signal, "validUntil was transmitted to assessSignals");
+  assert.deepEqual(signal.evidence, { expiredQuoteCount: 1, expiredQuotes: [{ quoteId, validUntil, dealId: null, daysPastValidity: 1 }] });
+  assert.ok(!signalTypes(row).includes("QUOTE_PENDING"));
+});
+
+test("4E.3: a sent quote with a future validUntil, or without validUntil, stays QUOTE_PENDING", async () => {
+  const future = await makeClient();
+  await makeQuote(future.id, { status: "sent", sentAt: FIXED_NOW, validUntil: new Date(FIXED_NOW.getTime() + DAY_MS) });
+  const none = await makeClient();
+  await makeQuote(none.id, { status: "sent", sentAt: FIXED_NOW });
+  for (const id of [future.id, none.id]) {
+    const row = await followUpFieldsFor(id, { now: FIXED_NOW });
+    assert.ok(signalTypes(row).includes("QUOTE_PENDING"));
+    assert.ok(!signalTypes(row).includes("QUOTE_PAST_VALIDITY"));
+  }
+});
+
+test("4E.3: the new signals change neither priority nor ranking/filter keys (since 4F.2-A QUOTE_PAST_VALIDITY yields a PROPOSAL_RENEWAL opportunity)", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified", { expectedCloseDate: new Date(FIXED_NOW.getTime() - DAY_MS) }); // MEDIUM base
+  await makeQuote(c.id, { status: "sent", sentAt: FIXED_NOW, validUntil: new Date(FIXED_NOW.getTime() - DAY_MS) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(row).includes("DEAL_PAST_EXPECTED_CLOSE"));
+  assert.ok(signalTypes(row).includes("QUOTE_PAST_VALIDITY"));
+  assert.equal(row.basePriority, "MEDIUM", "score.ts unchanged: qualified deal / pending quote -> MEDIUM");
+  assert.equal(row.finalPriority, "MEDIUM", "Priority V2 ignores the new signals");
+  // 4F.2-A / 4F.3: the unchanged Priority engine records the opportunities
+  // as a NONE adjustment (MEDIUM never promotes); the tier does not move.
+  // The overdue deal with no recorded interaction now yields DEAL_STALLED.
+  assert.deepEqual(row.priorityAdjustments, [
+    { direction: "NONE", reasonCode: "OPPORTUNITY_PRESENT", sourceOpportunities: ["PROPOSAL_RENEWAL", "DEAL_STALLED"] },
+  ]);
+  assert.deepEqual(row.opportunities.map((o) => o.type), ["PROPOSAL_RENEWAL", "DEAL_STALLED"]);
+  const medium = await scanAllPages({ priority: ["MEDIUM"], now: FIXED_NOW });
+  assert.ok(medium.some((i) => i.clientId === c.id), "filter still keyed on finalPriority");
+});
+
+// =========================================================
+// MICRO-STEP 4F.2-A — PROPOSAL_RENEWAL (QUOTE_PAST_VALIDITY), end-to-end.
+// =========================================================
+
+async function makeExpiredQuote(clientId) {
+  return makeQuote(clientId, { status: "sent", sentAt: new Date(FIXED_NOW.getTime() - 10 * DAY_MS), validUntil: new Date(FIXED_NOW.getTime() - DAY_MS) });
+}
+async function makeValidQuote(clientId) {
+  await makeQuote(clientId, { status: "sent", sentAt: FIXED_NOW, validUntil: new Date(FIXED_NOW.getTime() + DAY_MS) });
+}
+function opportunityTypes(row) {
+  return row.opportunities.map((o) => o.type);
+}
+
+test("4F.2-A: QUOTE_PAST_VALIDITY yields PROPOSAL_RENEWAL (service null) whose evidence equals the signal's", async () => {
+  const c = await makeClient();
+  const quoteId = await makeExpiredQuote(c.id);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const signal = row.signals.find((s) => s.type === "QUOTE_PAST_VALIDITY");
+  assert.deepEqual(row.opportunities, [
+    {
+      type: "PROPOSAL_RENEWAL",
+      service: null,
+      reason: "QUOTE_VALIDITY_EXPIRED_UNANSWERED",
+      evidence: signal.evidence,
+      sourceSignals: ["QUOTE_PAST_VALIDITY"],
+    },
+  ]);
+  assert.deepEqual(signal.evidence, {
+    expiredQuoteCount: 1,
+    expiredQuotes: [{ quoteId, validUntil: new Date(FIXED_NOW.getTime() - DAY_MS), dealId: null, daysPastValidity: 1 }],
+  });
+});
+
+test("4F.2-A: a still-valid sent quote yields no PROPOSAL_RENEWAL", async () => {
+  const c = await makeClient();
+  await makeValidQuote(c.id);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(!opportunityTypes(row).includes("PROPOSAL_RENEWAL"));
+});
+
+test("4F.2-A: basePriority / finalPriority are identical with an expired or a valid quote — PROPOSAL_RENEWAL never promotes", async () => {
+  const expired = await makeClient();
+  await makeExpiredQuote(expired.id);
+  const valid = await makeClient();
+  await makeValidQuote(valid.id);
+  const expiredRow = await followUpFieldsFor(expired.id, { now: FIXED_NOW });
+  const validRow = await followUpFieldsFor(valid.id, { now: FIXED_NOW });
+  assert.equal(expiredRow.basePriority, validRow.basePriority);
+  assert.equal(expiredRow.finalPriority, validRow.finalPriority);
+  assert.equal(expiredRow.finalPriority, expiredRow.basePriority);
+  assert.ok(!expiredRow.priorityAdjustments.some((a) => a.direction === "UP"));
+});
+
+test("4F.2-A: across the whole queue, a PROPOSAL_RENEWAL never comes with a tier change", async () => {
+  const items = await scanAllPages({ now: FIXED_NOW });
+  for (const item of items.filter((i) => opportunityTypes(i).includes("PROPOSAL_RENEWAL"))) {
+    assert.ok(item.basePriority !== "LOW", `${item.clientId}: a sent unanswered quote always gives base >= MEDIUM`);
+    assert.equal(item.finalPriority, item.basePriority, item.clientId);
+  }
+});
+
+test("4F.2-A: ranking does not move because of PROPOSAL_RENEWAL — createdAt order holds between expired-quote and valid-quote twins", async () => {
+  // Future timestamps keep the four rows inside the newest-first HARD_CAP window.
+  const t = Date.now() + 3 * 60 * 60 * 1000;
+  const olderValid = await makeClient({ createdAt: new Date(t) });
+  await makeValidQuote(olderValid.id);
+  const newerExpired = await makeClient({ createdAt: new Date(t + 1000) });
+  await makeExpiredQuote(newerExpired.id);
+  const olderExpired = await makeClient({ createdAt: new Date(t + 2000) });
+  await makeExpiredQuote(olderExpired.id);
+  const newerValid = await makeClient({ createdAt: new Date(t + 3000) });
+  await makeValidQuote(newerValid.id);
+  const items = await scanAllPages({ now: FIXED_NOW });
+  const ids = [olderValid.id, newerExpired.id, olderExpired.id, newerValid.id];
+  const positions = ids.map((id) => indexOfClient(items, id));
+  assert.ok(positions.every((p) => p !== -1));
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions, "pure createdAt order, renewal or not");
+});
+
+test("4F.2-A: WEBSITE keeps its behaviour — NO_WEBSITE + expired quote yields WEBSITE then PROPOSAL_RENEWAL", async () => {
+  const c = await makeClient();
+  const discoveryRow = await makeDiscoveryResult(c.id, { website: null });
+  await makeExpiredQuote(c.id);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(opportunityTypes(row), ["WEBSITE", "PROPOSAL_RENEWAL"]);
+  const website = row.opportunities[0];
+  assert.deepEqual(website, {
+    type: "WEBSITE",
+    service: "website_creation",
+    reason: "NO_WEBSITE_DETECTED",
+    // 4F.6.6 — Discovery provenance copied from the NO_WEBSITE signal.
+    evidence: { website: null, discoveryCategory: null, discoveryBusinessStatus: null, discoveredAt: discoveryRow.discoveredAt },
+    sourceSignals: ["NO_WEBSITE"],
+  });
+});
+
+test("4F.2-A: BUSINESS_CLOSED + expired quote keeps PROPOSAL_RENEWAL; priority stays at base with the S3 review entry", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "CLOSED_PERMANENTLY" });
+  await makeExpiredQuote(c.id);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(opportunityTypes(row), ["PROPOSAL_RENEWAL"]);
+  assert.equal(row.finalPriority, row.basePriority);
+  assert.equal(row.priorityAdjustments.at(-1).reasonCode, "BUSINESS_CLOSED_REVIEW");
+});
+
+test("4F.2-A: BUSINESS_CLOSED + NO_WEBSITE + expired quote yields PROPOSAL_RENEWAL only, never WEBSITE", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: null, businessStatus: "CLOSED_PERMANENTLY" });
+  await makeExpiredQuote(c.id);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(opportunityTypes(row), ["PROPOSAL_RENEWAL"]);
+});
+
+test("4F.2-A: structural — still exactly 9 .from() sites (10 since 4F.7.1); the queue still calls assessOpportunities(signals) only", () => {
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10, "9 existing .from() sites + the 4F.7.1 crm_websites read");
+  assert.match(IMPLEMENTATION_SOURCE, /assessOpportunities\(signals\)/);
+});
+
+// =========================================================
+// MICRO-STEP 4F.3 — DEAL_STALLED, end-to-end (deterministic via FIXED_NOW).
+// =========================================================
+
+const OVERDUE_CLOSE = new Date(FIXED_NOW.getTime() - DAY_MS);
+const STALE_CONTACT = new Date(FIXED_NOW.getTime() - 45 * DAY_MS);
+const RECENT_CONTACT = new Date(FIXED_NOW.getTime() - 2 * DAY_MS);
+
+function stalledOf(row) {
+  return row.opportunities.find((o) => o.type === "DEAL_STALLED") ?? null;
+}
+
+test("4F.3 #1: overdue deal + no recorded interaction -> DEAL_STALLED, NONE_RECORDED, source = [DEAL_PAST_EXPECTED_CLOSE]", async () => {
+  const c = await makeClient();
+  const dealId = await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(stalledOf(row), {
+    type: "DEAL_STALLED",
+    service: null,
+    reason: "DEAL_OVERDUE_NO_RECENT_CONTACT",
+    evidence: {
+      overdueDealCount: 1,
+      overdueDeals: [{ dealId, stage: "qualified", expectedCloseDate: OVERDUE_CLOSE, overdueDays: 1, lastDealInteractionAt: null, dealContactState: "NONE_RECORDED" }],
+      lastInteractionAt: null,
+    },
+    sourceSignals: ["DEAL_PAST_EXPECTED_CLOSE"],
+  });
+});
+
+test("4F.3 #2: overdue deal + stale interaction -> DEAL_STALLED, STALE, lastInteractionAt = that interaction", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeInteraction(c.id, STALE_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const opportunity = stalledOf(row);
+  assert.ok(opportunity);
+  assert.equal(opportunity.evidence.overdueDeals[0].dealContactState, "STALE");
+  assert.equal(opportunity.evidence.overdueDeals[0].lastDealInteractionAt.getTime(), STALE_CONTACT.getTime());
+  assert.ok(!("contactState" in opportunity.evidence), "4F.8.7: no global contactState any more");
+  assert.equal(opportunity.evidence.lastInteractionAt.getTime(), STALE_CONTACT.getTime());
+  assert.deepEqual(opportunity.sourceSignals, ["DEAL_PAST_EXPECTED_CLOSE", "NO_RECENT_INTERACTION"]);
+});
+
+test("4F.3 #3/#6: overdue deal + recent interaction -> no DEAL_STALLED", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeInteraction(c.id, RECENT_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(row).includes("DEAL_PAST_EXPECTED_CLOSE"));
+  assert.ok(signalTypes(row).includes("RECENT_ACTIVITY"));
+  assert.equal(stalledOf(row), null);
+});
+
+test("4F.3 #4: BUSINESS_CLOSED + overdue deal + no recent activity -> DEAL_STALLED kept, priority at base", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "CLOSED_PERMANENTLY" });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(stalledOf(row));
+  assert.equal(row.finalPriority, row.basePriority);
+  assert.equal(row.priorityAdjustments.at(-1).reasonCode, "BUSINESS_CLOSED_REVIEW");
+});
+
+test("4F.3 #5/#9: expired quote + overdue deal (+ NO_WEBSITE) -> WEBSITE, PROPOSAL_RENEWAL, DEAL_STALLED in that order", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeExpiredQuote(c.id);
+  await makeDiscoveryResult(c.id, { website: null });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(opportunityTypes(row), ["WEBSITE", "PROPOSAL_RENEWAL", "DEAL_STALLED"]);
+});
+
+test("4F.3 #7: DEAL_STALLED is priority-neutral at every tier (deal new=LOW, qualified=MEDIUM, proposal=HIGH)", async () => {
+  for (const [stage, base] of [
+    ["new", "LOW"],
+    ["qualified", "MEDIUM"],
+    ["proposal", "HIGH"],
+  ]) {
+    const c = await makeClient();
+    await makeDeal(c.id, stage, { expectedCloseDate: OVERDUE_CLOSE });
+    const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+    assert.ok(stalledOf(row), stage);
+    assert.equal(row.basePriority, base, stage);
+    assert.equal(row.finalPriority, base, `${stage}: no promotion`);
+    assert.ok(!row.priorityAdjustments.some((a) => a.direction === "UP"), stage);
+  }
+});
+
+test("4F.3 #7b: a LOW prospect with DEAL_STALLED stays listed under the LOW filter, not MEDIUM", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  const low = await scanAllPages({ priority: ["LOW"], now: FIXED_NOW });
+  const medium = await scanAllPages({ priority: ["MEDIUM"], now: FIXED_NOW });
+  assert.ok(low.some((i) => i.clientId === c.id));
+  assert.ok(!medium.some((i) => i.clientId === c.id));
+});
+
+test("4F.3 #8: no new signal type — NO_INTERACTION_HISTORY never appears; the queue still has 9 .from() sites (10 since 4F.7.1)", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(!signalTypes(row).includes("NO_INTERACTION_HISTORY"));
+  assert.ok(!stalledOf(row).sourceSignals.includes("NO_INTERACTION_HISTORY"));
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10, "9 existing .from() sites + the 4F.7.1 crm_websites read");
+});
+
+// =========================================================
+// MICRO-STEP 4F.6.2 — DEAL_PAST_EXPECTED_CLOSE / DEAL_STALLED evidence lists
+// the overdue deals (dealId, stage, expectedCloseDate, overdueDays), end-to-end.
+// =========================================================
+
+test("4F.6.2: two overdue deals + one future + won/lost -> overdueDeals lists exactly the two overdue ids, sorted by expectedCloseDate", async () => {
+  const c = await makeClient();
+  const recentId = await makeDeal(c.id, "new", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 5 * DAY_MS) });
+  const oldestId = await makeDeal(c.id, "proposal", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 40 * DAY_MS) });
+  await makeDeal(c.id, "qualified", { expectedCloseDate: new Date(FIXED_NOW.getTime() + 10 * DAY_MS) });
+  await makeDeal(c.id, "won", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 20 * DAY_MS) });
+  await makeDeal(c.id, "lost", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 20 * DAY_MS) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const evidence = row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence;
+  assert.deepEqual(evidence.overdueDeals.map((d) => d.dealId), [oldestId, recentId]);
+  assert.deepEqual(evidence.overdueDeals.map((d) => d.stage), ["proposal", "new"]);
+  assert.deepEqual(evidence.overdueDeals.map((d) => d.overdueDays), [40, 5]);
+  assert.equal(evidence.overdueDealCount, evidence.overdueDeals.length);
+  assert.deepEqual(row.signals.find((s) => s.type === "DEAL_ACTIVE").evidence, { openDealCount: 1 });
+});
+
+test("4F.6.2/4F.8.7: DEAL_STALLED evidence.overdueDeals is exactly the signal's stalled deals, lastInteractionAt = prospect's latest", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeDeal(c.id, "qualified", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 10 * DAY_MS) });
+  await makeInteraction(c.id, STALE_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const signalEvidence = row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence;
+  const opportunity = stalledOf(row);
+  assert.deepEqual(opportunity.evidence.overdueDeals, signalEvidence.overdueDeals);
+  assert.equal(opportunity.evidence.overdueDealCount, 2);
+  assert.ok(opportunity.evidence.overdueDeals.every((d) => d.dealContactState === "STALE"));
+  assert.equal(opportunity.evidence.lastInteractionAt.getTime(), STALE_CONTACT.getTime());
+});
+
+test("4F.6.2: a recent interaction still suppresses DEAL_STALLED (detection unchanged); the signal still lists the overdue deal", async () => {
+  const c = await makeClient();
+  const dealId = await makeDeal(c.id, "contacted", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeInteraction(c.id, RECENT_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(stalledOf(row), null);
+  assert.deepEqual(row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence.overdueDeals.map((d) => d.dealId), [dealId]);
+});
+
+test("4F.6.2/4F.8.7: evidence entries expose only dealId / stage / expectedCloseDate / overdueDays / lastDealInteractionAt / dealContactState — never title or value; still 10 .from()", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  for (const entry of stalledOf(row).evidence.overdueDeals) {
+    assert.deepEqual(Object.keys(entry).sort(), ["dealContactState", "dealId", "expectedCloseDate", "lastDealInteractionAt", "overdueDays", "stage"]);
+  }
+  assert.ok(!/title: deals\.title|valueEuros: deals\.valueEuros/.test(IMPLEMENTATION_SOURCE));
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10, "9 existing .from() sites + the 4F.7.1 crm_websites read");
+});
+
+// =========================================================
+// MICRO-STEP 4F.6.4 — QUOTE_PAST_VALIDITY / PROPOSAL_RENEWAL evidence lists
+// the expired quotes (quoteId, validUntil, dealId, daysPastValidity), end-to-end.
+// Dates are stored at UTC midnight, like real calendar-date input.
+// =========================================================
+
+const UTC_TODAY_MS = Date.UTC(FIXED_NOW.getUTCFullYear(), FIXED_NOW.getUTCMonth(), FIXED_NOW.getUTCDate());
+const utcDaysAgo = (n) => new Date(UTC_TODAY_MS - n * DAY_MS);
+function renewalOf(row) {
+  return row.opportunities.find((o) => o.type === "PROPOSAL_RENEWAL") ?? null;
+}
+
+test("4F.6.4 R21-like: one expired quote (yesterday, no deal) -> one entry, daysPastValidity 1, dealId null; score divergence unchanged", async () => {
+  const c = await makeClient();
+  const quoteId = await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(15), validUntil: utcDaysAgo(1) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const renewal = renewalOf(row);
+  assert.deepEqual(renewal.evidence, { expiredQuoteCount: 1, expiredQuotes: [{ quoteId, validUntil: utcDaysAgo(1), dealId: null, daysPastValidity: 1 }] });
+  assert.deepEqual(renewal.evidence, row.signals.find((s) => s.type === "QUOTE_PAST_VALIDITY").evidence);
+  assert.ok(row.reasons.some((r) => r.code === "QUOTE_PENDING"), "score.ts divergence unchanged (separate mission)");
+  assert.equal(row.recommendedNextAction, "FOLLOW_UP_PROPOSAL");
+});
+
+test("4F.6.4 R29-like: BUSINESS_CLOSED + expired quote -> PROPOSAL_RENEWAL still present with its expiredQuotes", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "CLOSED_PERMANENTLY" });
+  const quoteId = await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(15), validUntil: utcDaysAgo(5) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(row).includes("BUSINESS_CLOSED"));
+  assert.deepEqual(renewalOf(row).evidence.expiredQuotes, [{ quoteId, validUntil: utcDaysAgo(5), dealId: null, daysPastValidity: 5 }]);
+});
+
+test("4F.6.4 R31-like: 2 pending + 1 expired -> QUOTE_PENDING 2, QUOTE_PAST_VALIDITY 1, one PROPOSAL_RENEWAL listing only the expired quote", async () => {
+  const c = await makeClient();
+  const expiredId = await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(15), validUntil: utcDaysAgo(5) });
+  await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(15), validUntil: new Date(UTC_TODAY_MS + 5 * DAY_MS) });
+  await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(15), validUntil: null });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(row.signals.find((s) => s.type === "QUOTE_PENDING").evidence, { pendingQuoteCount: 2 });
+  const renewals = row.opportunities.filter((o) => o.type === "PROPOSAL_RENEWAL");
+  assert.equal(renewals.length, 1);
+  assert.equal(renewals[0].evidence.expiredQuoteCount, 1);
+  assert.deepEqual(renewals[0].evidence.expiredQuotes.map((q) => q.quoteId), [expiredId]);
+});
+
+test("4F.6.4 R32-like: 2 expired quotes on the same deal -> two distinct quoteIds, both validUntil, dealId kept, sorted by validUntil", async () => {
+  const c = await makeClient();
+  const dealId = await makeDeal(c.id, "qualified");
+  const newer = await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(20), validUntil: utcDaysAgo(5), dealId });
+  const older = await makeQuote(c.id, { status: "sent", sentAt: utcDaysAgo(20), validUntil: utcDaysAgo(10), dealId });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const renewals = row.opportunities.filter((o) => o.type === "PROPOSAL_RENEWAL");
+  assert.equal(renewals.length, 1);
+  assert.deepEqual(renewals[0].evidence, {
+    expiredQuoteCount: 2,
+    expiredQuotes: [
+      { quoteId: older, validUntil: utcDaysAgo(10), dealId, daysPastValidity: 10 },
+      { quoteId: newer, validUntil: utcDaysAgo(5), dealId, daysPastValidity: 5 },
+    ],
+  });
+  assert.notEqual(older, newer);
+});
+
+test("4F.6.4: answered / declined / accepted / stored 'expired' / today / null validity never listed; entries expose only the 4 keys; still 9 .from() (10 since 4F.7.1)", async () => {
+  const c = await makeClient();
+  await makeQuote(c.id, { status: "sent", respondedAt: utcDaysAgo(2), validUntil: utcDaysAgo(3) });
+  await makeQuote(c.id, { status: "declined", respondedAt: utcDaysAgo(2), validUntil: utcDaysAgo(3) });
+  await makeQuote(c.id, { status: "accepted", respondedAt: utcDaysAgo(2), validUntil: utcDaysAgo(3) });
+  await makeQuote(c.id, { status: "expired", validUntil: utcDaysAgo(3) });
+  await makeQuote(c.id, { status: "sent", validUntil: new Date(UTC_TODAY_MS) });
+  await makeQuote(c.id, { status: "sent", validUntil: null });
+  const realId = await makeQuote(c.id, { status: "sent", validUntil: utcDaysAgo(3) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const evidence = row.signals.find((s) => s.type === "QUOTE_PAST_VALIDITY").evidence;
+  assert.deepEqual(evidence.expiredQuotes.map((q) => q.quoteId), [realId]);
+  assert.deepEqual(Object.keys(evidence).sort(), ["expiredQuoteCount", "expiredQuotes"]);
+  assert.deepEqual(Object.keys(evidence.expiredQuotes[0]).sort(), ["daysPastValidity", "dealId", "quoteId", "validUntil"]);
+  assert.ok(!/totalCents: crmQuotes|title: crmQuotes|quoteNumber: crmQuotes|notes: crmQuotes|createdAt: crmQuotes/.test(IMPLEMENTATION_SOURCE));
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10, "9 existing .from() sites + the 4F.7.1 crm_websites read");
+});
+
+// =========================================================
+// MICRO-STEP 4F.6.6 — NO_WEBSITE / WEBSITE evidence carries the Discovery
+// provenance already loaded by the existing discovery_results read. Scenarios
+// mirror the 4F.5-C validation set (R05-R30). crm_websites is written here
+// ONLY to prove the queue still never reads it (R08 false positive frozen).
+// =========================================================
+
+const { crmWebsites } = await import("@/db/schema");
+const DISCOVERED_30 = new Date(FIXED_NOW.getTime() - 30 * DAY_MS);
+
+function noWebsiteEvidence(row) {
+  return row.signals.find((s) => s.type === "NO_WEBSITE")?.evidence ?? null;
+}
+function websiteOf(row) {
+  return row.opportunities.find((o) => o.type === "WEBSITE") ?? null;
+}
+
+test("4F.6.6 R05-like: website null + OPERATIONAL + recent -> enriched NO_WEBSITE, WEBSITE copies it, DISCOVERY_NEW unchanged", async () => {
+  const discoveredAt = new Date(FIXED_NOW.getTime() - DAY_MS);
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, { category: "restaurant", website: null, businessStatus: "OPERATIONAL", discoveredAt });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const evidence = { website: null, discoveryCategory: "restaurant", discoveryBusinessStatus: "OPERATIONAL", discoveredAt };
+  assert.deepEqual(noWebsiteEvidence(row), evidence);
+  assert.deepEqual(websiteOf(row), { type: "WEBSITE", service: "website_creation", reason: "NO_WEBSITE_DETECTED", evidence, sourceSignals: ["NO_WEBSITE"] });
+  assert.deepEqual(row.signals.find((s) => s.type === "DISCOVERY_NEW").evidence, { discoveredAt });
+  assert.deepEqual(row.discoverySource, { category: "restaurant", website: null, businessStatus: "OPERATIONAL" });
+});
+
+test("4F.6.6 R06/R25/R29-like: Discovery website present -> no NO_WEBSITE, no WEBSITE (any businessStatus)", async () => {
+  for (const businessStatus of ["CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"]) {
+    const c = await makeClient();
+    await makeDiscoveryResult(c.id, { category: "plumber", website: "https://example.test", businessStatus, discoveredAt: DISCOVERED_30 });
+    const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+    assert.equal(noWebsiteEvidence(row), null, businessStatus);
+    assert.equal(websiteOf(row), null, businessStatus);
+    assert.deepEqual(Object.keys(row.discoverySource).sort(), ["businessStatus", "category", "website"]);
+  }
+});
+
+test("4F.6.6 R07/R30-like: website null + CLOSED_PERMANENTLY -> enriched NO_WEBSITE kept, WEBSITE still blocked", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { category: "bakery", website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: DISCOVERED_30 });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(noWebsiteEvidence(row), { website: null, discoveryCategory: "bakery", discoveryBusinessStatus: "CLOSED_PERMANENTLY", discoveredAt: DISCOVERED_30 });
+  assert.ok(signalTypes(row).includes("BUSINESS_CLOSED"));
+  assert.equal(websiteOf(row), null);
+});
+
+test("4F.6.6/4F.7.1 R08-like: a crm_websites row exists and Discovery website is null -> NO_WEBSITE and WEBSITE absent (model C), LOW stays LOW, no CRM data in the item", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { category: "dentist", website: null, businessStatus: "OPERATIONAL", discoveredAt: DISCOVERED_30 });
+  await db.insert(crmWebsites).values({ clientId: c.id, url: "https://crm-site.example.test", label: "Site principal" });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(noWebsiteEvidence(row), null, "4F.7.1 — the CRM website rules NO_WEBSITE out");
+  assert.equal(websiteOf(row), null);
+  assert.deepEqual(row.discoverySource, { category: "dentist", website: null, businessStatus: "OPERATIONAL" }, "discoverySource unchanged");
+  assert.ok(!JSON.stringify(row).includes("crm-site.example.test"), "no crm_websites URL anywhere in the item");
+  assert.ok(!JSON.stringify(row).includes("Site principal"), "no crm_websites label anywhere in the item");
+  assert.equal(row.basePriority, "LOW");
+  assert.equal(row.finalPriority, "LOW", "no WEBSITE -> no LOW -> MEDIUM promotion");
+  assert.ok(!row.priorityAdjustments.some((a) => a.direction === "UP"));
+});
+
+test("4F.6.6 R27/R28-like: website null + OPERATIONAL, no crm website -> WEBSITE with enriched evidence; null category/businessStatus kept as null", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { category: null, website: null, businessStatus: null, discoveredAt: DISCOVERED_30 });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(websiteOf(row).evidence, { website: null, discoveryCategory: null, discoveryBusinessStatus: null, discoveredAt: DISCOVERED_30 });
+  assert.deepEqual(row.discoverySource, { category: null, website: null, businessStatus: null });
+});
+
+test("4F.6.6 structural: discoverySource shape unchanged; crm_websites read only as the 4F.7.1 presence-only clientId select; 10 .from()", () => {
+  assert.match(IMPLEMENTATION_SOURCE, /\? \{ category: discoveryRow\.category, website: discoveryRow\.website, businessStatus: discoveryRow\.businessStatus \}/);
+  assert.ok(!/crmWebsites\.(url|label|id|createdAt)\b/.test(IMPLEMENTATION_SOURCE), "no crm_websites column other than clientId is ever read");
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10);
+});
+
+// =========================================================
+// MICRO-STEP 4F.7.1 — model C end-to-end: NO_WEBSITE requires a linked
+// Discovery row with website null AND no crm_websites row (presence only).
+// =========================================================
+
+async function makeCrmWebsite(clientId, n = 1) {
+  for (let i = 0; i < n; i++) {
+    await db.insert(crmWebsites).values({ clientId, url: `https://crm-${i}-${randomUUID()}.example.test`, label: `Label ${i}` });
+  }
+}
+
+test("4F.7.1 R05-like: no CRM website -> NO_WEBSITE / WEBSITE / promotion unchanged", async () => {
+  const discoveredAt = new Date(FIXED_NOW.getTime() - DAY_MS);
+  const c = await makeClient({ source: "RADAR Discovery" });
+  await makeDiscoveryResult(c.id, { category: "restaurant", website: null, businessStatus: "OPERATIONAL", discoveredAt });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.deepEqual(noWebsiteEvidence(row), { website: null, discoveryCategory: "restaurant", discoveryBusinessStatus: "OPERATIONAL", discoveredAt });
+  assert.ok(websiteOf(row));
+  assert.equal(row.finalPriority, "MEDIUM");
+});
+
+test("4F.7.1 R07/R30-like: BUSINESS_CLOSED unchanged — without CRM site NO_WEBSITE kept and WEBSITE blocked; with CRM site NO_WEBSITE absent, BUSINESS_CLOSED still there", async () => {
+  const without = await makeClient();
+  await makeDiscoveryResult(without.id, { category: "bakery", website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: DISCOVERED_30 });
+  const withSite = await makeClient();
+  await makeDiscoveryResult(withSite.id, { category: "bakery", website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: DISCOVERED_30 });
+  await makeCrmWebsite(withSite.id);
+  const a = await followUpFieldsFor(without.id, { now: FIXED_NOW });
+  const b = await followUpFieldsFor(withSite.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(a).includes("NO_WEBSITE") && signalTypes(a).includes("BUSINESS_CLOSED"));
+  assert.equal(websiteOf(a), null);
+  assert.ok(!signalTypes(b).includes("NO_WEBSITE") && signalTypes(b).includes("BUSINESS_CLOSED"));
+  assert.deepEqual(a.priorityAdjustments, b.priorityAdjustments, "same BUSINESS_CLOSED review adjustment either way");
+});
+
+test("4F.7.1 R06/R25/R29-like: Discovery website present -> no NO_WEBSITE, with or without CRM site", async () => {
+  for (const crm of [0, 1]) {
+    const c = await makeClient();
+    await makeDiscoveryResult(c.id, { website: "https://example.test", businessStatus: "OPERATIONAL", discoveredAt: DISCOVERED_30 });
+    if (crm) await makeCrmWebsite(c.id);
+    const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+    assert.ok(!signalTypes(row).includes("NO_WEBSITE"), `crm=${crm}`);
+    assert.equal(websiteOf(row), null);
+  }
+});
+
+test("4F.7.1 no Discovery link -> no NO_WEBSITE, with or without CRM site", async () => {
+  for (const crm of [0, 1]) {
+    const c = await makeClient();
+    if (crm) await makeCrmWebsite(c.id);
+    const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+    assert.ok(!signalTypes(row).includes("NO_WEBSITE"), `crm=${crm}`);
+    assert.equal(row.discoverySource, null);
+  }
+});
+
+test("4F.7.1 several CRM websites -> presence detected once, prospect listed once, nothing counted or exposed", async () => {
+  const c = await makeClient();
+  await makeDiscoveryResult(c.id, { category: "dentist", website: null, businessStatus: "OPERATIONAL", discoveredAt: DISCOVERED_30 });
+  await makeCrmWebsite(c.id, 2);
+  const items = await scanAllPages({ now: FIXED_NOW });
+  const rows = items.filter((i) => i.clientId === c.id);
+  assert.equal(rows.length, 1, "no duplication from the 1-N crm_websites read");
+  assert.ok(!signalTypes(rows[0]).includes("NO_WEBSITE"));
+  assert.ok(!JSON.stringify(rows[0]).includes("example.test"), "no CRM url in the item");
+  assert.ok(!JSON.stringify(rows[0]).includes("Label "), "no CRM label in the item");
+});
+
+test("4F.7.1 eligibility unchanged: archived / do-not-contact prospects with a CRM website stay out of the queue", async () => {
+  const archived = await makeClient({ archivedAt: new Date() });
+  const dnc = await makeClient({ doNotContact: true });
+  for (const c of [archived, dnc]) {
+    await makeDiscoveryResult(c.id, { website: null, discoveredAt: DISCOVERED_30 });
+    await makeCrmWebsite(c.id);
+  }
+  const items = await scanAllPages({ now: FIXED_NOW });
+  assert.ok(!items.some((i) => i.clientId === archived.id || i.clientId === dnc.id));
+});
+
+test("4F.7.1 structural: one batched presence-only crm_websites read over qualifiedIds, no join with Discovery, no per-prospect read, passed as hasCrmWebsite", () => {
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(crmWebsites\)/g) ?? []).length, 1, "exactly one crm_websites read");
+  assert.match(IMPLEMENTATION_SOURCE, /\.select\(\{ clientId: crmWebsites\.clientId \}\)\s*\.from\(crmWebsites\)\s*\.where\(inArray\(crmWebsites\.clientId, qualifiedIds\)\)/);
+  assert.ok(!/crmWebsites\.(url|label|id|createdAt)\b/.test(IMPLEMENTATION_SOURCE));
+  assert.ok(!/(leftJoin|innerJoin|rightJoin|fullJoin|\.join)\(\s*crmWebsites/.test(IMPLEMENTATION_SOURCE), "never joined");
+  assert.match(IMPLEMENTATION_SOURCE, /new Set\(clientCrmWebsites\.map\(\(row\) => row\.clientId\)\)/);
+  assert.match(IMPLEMENTATION_SOURCE, /hasCrmWebsite: crmWebsiteClientIds\.has\(client\.id\)/);
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10);
+});
+
+// =========================================================
+// MICRO-STEP 4F.7.3 — deterministic Discovery row selection. Several
+// discovery_results rows linked to ONE crm_client are not produced by the app
+// (convertDiscoveryResult links one row per created client) but are not
+// DB-forbidden; the queue must keep the latest discoveredAt, then the greatest
+// id — never whichever row SQL returns last. Each scenario is replayed with the
+// rows inserted in every relevant order, one fresh prospect per order.
+// =========================================================
+
+async function makeLinkedDiscoveryRow(clientId, { id = randomUUID(), category = null, website = null, businessStatus = null, discoveredAt }) {
+  const [row] = await db
+    .insert(discoveryResults)
+    .values({
+      id,
+      source: "google_places",
+      sourceId: `radar-4f73-${randomUUID()}`,
+      name: `Discovery 4F.7.3 ${randomUUID()}`,
+      status: clientId ? "converted" : "discovered",
+      crmClientId: clientId,
+      category,
+      website,
+      businessStatus,
+      discoveredAt,
+    })
+    .returning();
+  createdDiscoveryResultIds.add(row.id);
+  return row;
+}
+/** Everything the Radar decides for a prospect, minus the per-prospect identity. */
+function decisionOf(row) {
+  return {
+    discoverySource: row.discoverySource,
+    signals: row.signals,
+    opportunities: row.opportunities,
+    priority: row.priority,
+    basePriority: row.basePriority,
+    finalPriority: row.finalPriority,
+    priorityAdjustments: row.priorityAdjustments,
+    reasons: row.reasons,
+    recommendedNextAction: row.recommendedNextAction,
+    confidence: row.confidence,
+  };
+}
+/** Inserts `specs` in each given order for a fresh prospect per order; returns the queue rows. */
+async function replayOrders(specs, orders, clientOverrides = {}) {
+  const rows = [];
+  for (const order of orders) {
+    const c = await makeClient(clientOverrides);
+    for (const index of order) await makeLinkedDiscoveryRow(c.id, specs[index]);
+    rows.push(await followUpFieldsFor(c.id, { now: FIXED_NOW }));
+  }
+  return rows;
+}
+function assertSameDecision(rows) {
+  for (const row of rows.slice(1)) assert.deepEqual(decisionOf(row), decisionOf(rows[0]));
+}
+const OLD = new Date(FIXED_NOW.getTime() - 60 * DAY_MS);
+const MID = new Date(FIXED_NOW.getTime() - 30 * DAY_MS);
+const RECENT = new Date(FIXED_NOW.getTime() - 2 * DAY_MS);
+
+test("4F.7.3 A: one linked row -> unchanged behaviour (NO_WEBSITE / WEBSITE / exact discoverySource)", async () => {
+  const [row] = await replayOrders([{ category: "cafe", website: null, businessStatus: "OPERATIONAL", discoveredAt: MID }], [[0]]);
+  assert.deepEqual(row.discoverySource, { category: "cafe", website: null, businessStatus: "OPERATIONAL" });
+  assert.deepEqual(noWebsiteEvidence(row), { website: null, discoveryCategory: "cafe", discoveryBusinessStatus: "OPERATIONAL", discoveredAt: MID });
+  assert.ok(websiteOf(row));
+});
+
+test("4F.7.3 B: two identical rows -> same result in both insertion orders", async () => {
+  const spec = { category: "cafe", website: null, businessStatus: "OPERATIONAL", discoveredAt: MID };
+  const rows = await replayOrders([spec, { ...spec }], [[0, 1], [1, 0]]);
+  assertSameDecision(rows);
+  assert.ok(websiteOf(rows[0]));
+});
+
+test("4F.7.3 C: website null (older) vs website present (newer) -> newer row wins in both orders: no NO_WEBSITE, no WEBSITE, same priority", async () => {
+  const specs = [
+    { category: "cafe", website: null, businessStatus: "OPERATIONAL", discoveredAt: OLD },
+    { category: "cafe", website: "https://cafe.example.test", businessStatus: "OPERATIONAL", discoveredAt: RECENT },
+  ];
+  const rows = await replayOrders(specs, [[0, 1], [1, 0]]);
+  assertSameDecision(rows);
+  assert.deepEqual(rows[0].discoverySource, { category: "cafe", website: "https://cafe.example.test", businessStatus: "OPERATIONAL" });
+  assert.ok(!signalTypes(rows[0]).includes("NO_WEBSITE"));
+  assert.equal(websiteOf(rows[0]), null);
+  assert.equal(rows[0].finalPriority, rows[0].basePriority);
+});
+
+test("4F.7.3 D: different discoveredAt -> the most recent row wins (DISCOVERY_NEW follows it) in both orders", async () => {
+  const specs = [
+    { category: "old-category", website: null, businessStatus: "OPERATIONAL", discoveredAt: OLD },
+    { category: "new-category", website: null, businessStatus: "OPERATIONAL", discoveredAt: RECENT },
+  ];
+  const rows = await replayOrders(specs, [[0, 1], [1, 0]], { source: "RADAR Discovery" });
+  assertSameDecision(rows);
+  assert.equal(rows[0].discoverySource.category, "new-category");
+  assert.deepEqual(rows[0].signals.find((s) => s.type === "DISCOVERY_NEW").evidence, { discoveredAt: RECENT });
+  assert.equal(noWebsiteEvidence(rows[0]).discoveredAt.getTime(), RECENT.getTime());
+});
+
+test("4F.7.3 E: identical discoveredAt -> the greatest id wins, in both insertion orders", async () => {
+  const rows = [];
+  for (const order of [[0, 1], [1, 0]]) {
+    const [low, high] = [randomUUID(), randomUUID()].sort();
+    const specs = [
+      { id: low, category: "low-id", website: "https://low.example.test", businessStatus: "OPERATIONAL", discoveredAt: MID },
+      { id: high, category: "high-id", website: null, businessStatus: "CLOSED_TEMPORARILY", discoveredAt: MID },
+    ];
+    const c = await makeClient();
+    for (const index of order) await makeLinkedDiscoveryRow(c.id, specs[index]);
+    rows.push(await followUpFieldsFor(c.id, { now: FIXED_NOW }));
+  }
+  assertSameDecision(rows);
+  assert.deepEqual(rows[0].discoverySource, { category: "high-id", website: null, businessStatus: "CLOSED_TEMPORARILY" });
+  assert.ok(signalTypes(rows[0]).includes("NO_WEBSITE"));
+});
+
+test("4F.7.3 F: three rows (old null / mid website / recent other businessStatus) -> same result for all 6 insertion orders, recent row wins", async () => {
+  const specs = [
+    { category: "x", website: null, businessStatus: "OPERATIONAL", discoveredAt: OLD },
+    { category: "x", website: "https://mid.example.test", businessStatus: "OPERATIONAL", discoveredAt: MID },
+    { category: "x", website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: RECENT },
+  ];
+  const rows = await replayOrders(specs, [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]);
+  assertSameDecision(rows);
+  assert.deepEqual(rows[0].discoverySource, { category: "x", website: null, businessStatus: "CLOSED_PERMANENTLY" });
+  assert.ok(signalTypes(rows[0]).includes("BUSINESS_CLOSED") && signalTypes(rows[0]).includes("NO_WEBSITE"));
+  assert.equal(websiteOf(rows[0]), null, "BUSINESS_CLOSED still blocks WEBSITE");
+});
+
+test("4F.7.3 G: an unlinked discovery row (crmClientId null) never feeds the Radar", async () => {
+  await makeLinkedDiscoveryRow(null, { category: "unlinked", website: null, businessStatus: "CLOSED_PERMANENTLY", discoveredAt: RECENT });
+  const c = await makeClient();
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(row.discoverySource, null);
+  assert.ok(!signalTypes(row).includes("NO_WEBSITE") && !signalTypes(row).includes("BUSINESS_CLOSED"));
+  const items = await scanAllPages({ now: FIXED_NOW });
+  assert.ok(!items.some((i) => i.discoverySource?.category === "unlinked"));
+});
+
+test("4F.7.3 H/I: discoverySource has exactly category/website/businessStatus, never an id; one queue row and one discoverySource per prospect", async () => {
+  const c = await makeClient();
+  const a = await makeLinkedDiscoveryRow(c.id, { category: "h", website: null, discoveredAt: OLD });
+  const b = await makeLinkedDiscoveryRow(c.id, { category: "h", website: null, discoveredAt: RECENT });
+  const items = await scanAllPages({ now: FIXED_NOW });
+  const rows = items.filter((i) => i.clientId === c.id);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(Object.keys(rows[0].discoverySource).sort(), ["businessStatus", "category", "website"]);
+  assert.ok(!JSON.stringify(rows[0]).includes(a.id) && !JSON.stringify(rows[0]).includes(b.id), "no discovery_results id anywhere in the item");
+});
+
+test("4F.7.3 J: 4F.7.1 unchanged — a CRM website still rules NO_WEBSITE out whichever Discovery row is selected", async () => {
+  const c = await makeClient();
+  await makeLinkedDiscoveryRow(c.id, { category: "dentist", website: null, businessStatus: "OPERATIONAL", discoveredAt: OLD });
+  await makeLinkedDiscoveryRow(c.id, { category: "dentist", website: null, businessStatus: "OPERATIONAL", discoveredAt: RECENT });
+  await db.insert(crmWebsites).values({ clientId: c.id, url: "https://crm-4f73.example.test", label: "x" });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(!signalTypes(row).includes("NO_WEBSITE"));
+  assert.equal(websiteOf(row), null);
+  assert.equal(row.finalPriority, "LOW");
+});
+
+test("4F.7.3 structural: id is the only column added to the Discovery select; explicit isPreferredDiscoveryRow choice, no ORDER BY on it; 10 .from()", () => {
+  assert.match(
+    IMPLEMENTATION_SOURCE,
+    /\.select\(\{\s*\/\/[^\n]*\n\s*id: discoveryResults\.id,\s*crmClientId: discoveryResults\.crmClientId,\s*category: discoveryResults\.category,\s*website: discoveryResults\.website,\s*businessStatus: discoveryResults\.businessStatus,[\s\S]*?discoveredAt: discoveryResults\.discoveredAt,\s*\}\)\s*\.from\(discoveryResults\)\s*\.where\(inArray\(discoveryResults\.crmClientId, qualifiedIds\)\),/,
+  );
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(discoveryResults\)/g) ?? []).length, 1, "still one batched Discovery read");
+  assert.ok(!/\.from\(discoveryResults\)[\s\S]{0,120}orderBy/.test(IMPLEMENTATION_SOURCE), "no ORDER BY used as the selection mechanism");
+  assert.match(IMPLEMENTATION_SOURCE, /if \(current && !isPreferredDiscoveryRow\(row, current\)\) continue;/);
+  assert.match(IMPLEMENTATION_SOURCE, /if \(discoveredDiff !== 0\) return discoveredDiff > 0;\s*return candidate\.id > current\.id;/);
+  assert.match(IMPLEMENTATION_SOURCE, /\? \{ category: discoveryRow\.category, website: discoveryRow\.website, businessStatus: discoveryRow\.businessStatus \}/);
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10);
+});
+
+// =========================================================
+// MICRO-STEP 4F.8.7 — DEAL_STALLED per deal, end-to-end (deterministic via
+// FIXED_NOW). An overdue deal's contact = max(interactions linked to it,
+// general ones with deal_id NULL); interactions linked to another deal never
+// count. RECENT_ACTIVITY on the prospect no longer masks every deal.
+// =========================================================
+
+const FUTURE_CLOSE = new Date(FIXED_NOW.getTime() + 10 * DAY_MS);
+
+test("4F.8.7 R12-like: overdue deal + recent GENERAL note -> no DEAL_STALLED (note semantics unchanged)", async () => {
+  const c = await makeClient();
+  const dealId = await makeDeal(c.id, "contacted", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeInteraction(c.id, RECENT_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(stalledOf(row), null);
+  const [entry] = row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence.overdueDeals;
+  assert.deepEqual([entry.dealId, entry.dealContactState, entry.lastDealInteractionAt.getTime()], [dealId, "RECENT", RECENT_CONTACT.getTime()]);
+});
+
+test("4F.8.7 R16 linked: deal A overdue + deal B active + recent interaction LINKED to B -> DEAL_STALLED for A only (NONE_RECORDED)", async () => {
+  const c = await makeClient();
+  const dealA = await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  const dealB = await makeDeal(c.id, "qualified", { expectedCloseDate: FUTURE_CLOSE });
+  await makeInteraction(c.id, RECENT_CONTACT, { dealId: dealB });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.ok(signalTypes(row).includes("RECENT_ACTIVITY"), "prospect-level RECENT_ACTIVITY unchanged");
+  const opportunity = stalledOf(row);
+  assert.ok(opportunity, "the interaction linked to deal B must not mask overdue deal A");
+  assert.deepEqual(opportunity.evidence, {
+    overdueDealCount: 1,
+    overdueDeals: [{ dealId: dealA, stage: "new", expectedCloseDate: OVERDUE_CLOSE, overdueDays: 1, lastDealInteractionAt: null, dealContactState: "NONE_RECORDED" }],
+    lastInteractionAt: RECENT_CONTACT,
+  });
+  assert.deepEqual(opportunity.sourceSignals, ["DEAL_PAST_EXPECTED_CLOSE"]);
+});
+
+test("4F.8.7 R16 general: same deals + recent GENERAL interaction (deal_id NULL) -> unchanged, no DEAL_STALLED", async () => {
+  const c = await makeClient();
+  await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeDeal(c.id, "qualified", { expectedCloseDate: FUTURE_CLOSE });
+  await makeInteraction(c.id, RECENT_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  assert.equal(stalledOf(row), null);
+});
+
+test("4F.8.7 R17-like: overdue deal + deal active + OLD general interaction -> DEAL_STALLED (STALE), unchanged", async () => {
+  const c = await makeClient();
+  const dealA = await makeDeal(c.id, "new", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeDeal(c.id, "qualified", { expectedCloseDate: FUTURE_CLOSE });
+  await makeInteraction(c.id, STALE_CONTACT);
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const opportunity = stalledOf(row);
+  assert.deepEqual(opportunity.evidence.overdueDeals.map((d) => [d.dealId, d.dealContactState, d.lastDealInteractionAt.getTime()]), [[dealA, "STALE", STALE_CONTACT.getTime()]]);
+  assert.deepEqual(opportunity.sourceSignals, ["DEAL_PAST_EXPECTED_CLOSE", "NO_RECENT_INTERACTION"]);
+});
+
+test("4F.8.7 R18-like: two overdue deals, no interaction -> both NONE_RECORDED, deterministic order (expectedCloseDate ASC)", async () => {
+  const c = await makeClient();
+  const recent = await makeDeal(c.id, "new", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 5 * DAY_MS) });
+  const oldest = await makeDeal(c.id, "proposal", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 40 * DAY_MS) });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const opportunity = stalledOf(row);
+  assert.equal(opportunity.evidence.overdueDealCount, 2);
+  assert.deepEqual(opportunity.evidence.overdueDeals.map((d) => [d.dealId, d.dealContactState, d.lastDealInteractionAt]), [[oldest, "NONE_RECORDED", null], [recent, "NONE_RECORDED", null]]);
+  assert.strictEqual(opportunity.evidence.lastInteractionAt, null);
+});
+
+test("4F.8.7 several overdue deals with interactions linked to different deals -> only the deals without recent contact stall", async () => {
+  const c = await makeClient();
+  const dealA = await makeDeal(c.id, "new", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 20 * DAY_MS) });
+  const dealB = await makeDeal(c.id, "qualified", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 10 * DAY_MS) });
+  const dealC = await makeDeal(c.id, "proposal", { expectedCloseDate: new Date(FIXED_NOW.getTime() - 5 * DAY_MS) });
+  await makeInteraction(c.id, RECENT_CONTACT, { dealId: dealB });
+  await makeInteraction(c.id, STALE_CONTACT, { dealId: dealC });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const states = row.signals.find((s) => s.type === "DEAL_PAST_EXPECTED_CLOSE").evidence.overdueDeals.map((d) => [d.dealId, d.dealContactState]);
+  assert.deepEqual(states, [[dealA, "NONE_RECORDED"], [dealB, "RECENT"], [dealC, "STALE"]]);
+  const opportunity = stalledOf(row);
+  assert.equal(opportunity.evidence.overdueDealCount, 2);
+  assert.deepEqual(opportunity.evidence.overdueDeals.map((d) => d.dealId), [dealA, dealC]);
+  assert.equal(opportunity.evidence.lastInteractionAt.getTime(), RECENT_CONTACT.getTime(), "prospect's real latest interaction, linked or not");
+});
+
+test("4F.8.7 structural: the existing interactions read only gains dealId (clientId, dealId, occurredAt); still 10 .from(); no summary/type exposed", async () => {
+  assert.match(IMPLEMENTATION_SOURCE, /\.select\(\{ clientId: interactions\.clientId, dealId: interactions\.dealId, occurredAt: interactions\.occurredAt \}\)\s*\.from\(interactions\)\s*\.where\(inArray\(interactions\.clientId, qualifiedIds\)\)/);
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(interactions\)/g) ?? []).length, 1);
+  assert.equal((IMPLEMENTATION_SOURCE.match(/\.from\(/g) ?? []).length, 10);
+  const c = await makeClient();
+  const dealB = await makeDeal(c.id, "qualified", { expectedCloseDate: OVERDUE_CLOSE });
+  await makeInteraction(c.id, STALE_CONTACT, { dealId: dealB });
+  const row = await followUpFieldsFor(c.id, { now: FIXED_NOW });
+  const serialized = JSON.stringify(row);
+  assert.ok(!serialized.includes("Test interaction"), "no interaction summary anywhere in the item");
 });

@@ -266,7 +266,7 @@ export default async function CrmRadarPage({ searchParams }: { searchParams: Pro
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <Badge label={priorityLabel[item.priority]} className={PRIORITY_CLASS[item.priority]} />
+                        <Badge label={priorityLabel[item.finalPriority]} className={PRIORITY_CLASS[item.finalPriority]} />
                         <div className="mt-1 text-xs text-pm-gris">
                           {t.confidencePrefix}: {confidenceLabel[item.confidence]}
                         </div>
