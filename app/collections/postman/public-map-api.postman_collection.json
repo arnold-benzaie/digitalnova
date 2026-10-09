@@ -4590,7 +4590,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"clientId\": \"<uuid>\",\n  \"type\": \"<string>\",\n  \"summary\": \"<string>\",\n  \"occurredAt\": \"<dateTime>\"\n}",
+          "raw": "{\n  \"clientId\": \"<uuid>\",\n  \"type\": \"<string>\",\n  \"summary\": \"<string>\",\n  \"occurredAt\": \"<dateTime>\",\n  \"dealId\": \"<uuid>\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -4688,7 +4688,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"id\": \"5c831753-490b-c997-9c92-176b8df856d3\",\n    \"clientId\": \"99740381-a531-0798-0ae4-a47e87058656\",\n    \"type\": \"meeting\",\n    \"summary\": \"string\",\n    \"occurredAt\": \"2007-08-23T21:48:41.071Z\",\n    \"createdAt\": \"1976-11-09T12:01:46.586Z\"\n  }\n}",
+          "body": "{\n  \"data\": {\n    \"id\": \"5c831753-490b-c997-9c92-176b8df856d3\",\n    \"clientId\": \"99740381-a531-0798-0ae4-a47e87058656\",\n    \"type\": \"meeting\",\n    \"summary\": \"string\",\n    \"occurredAt\": \"2007-08-23T21:48:41.071Z\",\n    \"createdAt\": \"1976-11-09T12:01:46.586Z\",\n    \"dealId\": null\n  }\n}",
           "cookie": [],
           "_postman_previewlanguage": "json"
         },
