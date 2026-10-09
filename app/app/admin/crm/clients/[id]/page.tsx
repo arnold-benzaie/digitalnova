@@ -128,22 +128,24 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
       : Promise.resolve({ connected: false, locationCount: 0 }),
     client.organizationId ? getGoogleConnection(client.organizationId) : Promise.resolve(null),
   ]);
-  const searchConsoleStatus = client.organizationId
-    ? await (async () => {
-        const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.searchConsole));
-        if (!hasScope) return { connected: false, propertyCount: 0 };
-        const props = await db.select({ id: searchConsoleProperties.id }).from(searchConsoleProperties).where(eq(searchConsoleProperties.organizationId, client.organizationId!));
-        return { connected: true, propertyCount: props.length };
-      })()
-    : { connected: false, propertyCount: 0 };
-  const analyticsStatus = client.organizationId
-    ? await (async () => {
-        const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.analytics));
-        if (!hasScope) return { connected: false, propertyCount: 0 };
-        const props = await db.select({ id: analyticsProperties.id }).from(analyticsProperties).where(eq(analyticsProperties.organizationId, client.organizationId!));
-        return { connected: true, propertyCount: props.length };
-      })()
-    : { connected: false, propertyCount: 0 };
+  const [searchConsoleStatus, analyticsStatus] = await Promise.all([
+    client.organizationId
+      ? (async () => {
+          const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.searchConsole));
+          if (!hasScope) return { connected: false, propertyCount: 0 };
+          const props = await db.select({ id: searchConsoleProperties.id }).from(searchConsoleProperties).where(eq(searchConsoleProperties.organizationId, client.organizationId!));
+          return { connected: true, propertyCount: props.length };
+        })()
+      : Promise.resolve({ connected: false, propertyCount: 0 }),
+    client.organizationId
+      ? (async () => {
+          const hasScope = Boolean(googleAccount && connectionHasScope(googleAccount, GOOGLE_OAUTH_SCOPES.analytics));
+          if (!hasScope) return { connected: false, propertyCount: 0 };
+          const props = await db.select({ id: analyticsProperties.id }).from(analyticsProperties).where(eq(analyticsProperties.organizationId, client.organizationId!));
+          return { connected: true, propertyCount: props.length };
+        })()
+      : Promise.resolve({ connected: false, propertyCount: 0 }),
+  ]);
 
   const clientWebsites = await db.select().from(crmWebsites).where(eq(crmWebsites.clientId, id));
   const seoStatus = await (async () => {
