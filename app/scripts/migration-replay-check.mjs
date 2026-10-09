@@ -19,16 +19,19 @@
  *      catalogs. It never runs `drizzle-kit push`, never applies DDL to
  *      discover a diff, never generates a migration.
  *
- *   3. TWO ACCEPTED LEGACY EXCEPTIONS — and only these two. PostgreSQL
- *      truncates identifiers to 63 bytes (NAMEDATALEN). Two foreign-key
- *      constraint names drizzle generates are 66 chars, so Postgres stores
- *      them 3 chars short (dropping the trailing `_fk`). This is
- *      cosmetic-only: source/target table+column and ON DELETE CASCADE are
- *      all correct, verified directly against pg_catalog below. Human
- *      adjudication (PHASE 2A.0-B) accepted these two exact cases as KNOWN
- *      LEGACY COSMETIC DRIFT. The allowlist contains EXACTLY these two.
- *      A third name mismatch, or ANY column / index / default / FK-target
- *      / ON DELETE / table difference, is a FAIL + STOP.
+ *   3. THREE ACCEPTED LEGACY EXCEPTIONS — and only these three. PostgreSQL
+ *      truncates identifiers to 63 bytes (NAMEDATALEN). Three foreign-key
+ *      constraint names drizzle generates exceed it, so Postgres stores
+ *      them truncated. This is cosmetic-only: each one's source/target
+ *      table+columns and ON DELETE are verified directly against
+ *      pg_catalog below, against the relation recorded for it in
+ *      KNOWN_FK_NAME_TRUNCATIONS. Human adjudication (PHASE 2A.0-B)
+ *      accepted the first two (66 chars, ON DELETE CASCADE); 4F.14-E
+ *      accepted the third, from migration 0047 (74 chars, ON DELETE SET
+ *      NULL), already on master, so it cannot be renamed at the source
+ *      without a new migration. The allowlist contains EXACTLY these
+ *      three. Any other name mismatch, or ANY column / index / default /
+ *      FK-target / ON DELETE / table difference, is a FAIL + STOP.
  *
  * STRICT SAFETY:
  *   - Runs ONLY against a disposable Docker Postgres container this script
@@ -51,7 +54,8 @@
  */
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -68,20 +72,67 @@ const URL = `postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${HOST_PORT}/${PG_
 const PG_IDENTIFIER_LIMIT = 63; // NAMEDATALEN - 1
 
 /**
- * The EXACTLY TWO accepted legacy cases. Each entry's `snapshotName` is
- * the 66-char name drizzle wants; Postgres stores `snapshotName` truncated
- * to 63 bytes. Nothing else may be added here.
+ * The EXACTLY THREE accepted legacy cases. Each entry's `snapshotName` is
+ * the over-long name drizzle wants; Postgres stores `snapshotName`
+ * truncated to 63 bytes. Each entry also records the exact relation the
+ * truncated constraint must still implement, checked in pg_catalog by
+ * legacyFkDefinitionDiffs(). Nothing else may be added here without a
+ * separate human adjudication.
  */
-const KNOWN_FK_NAME_TRUNCATIONS = [
+export const KNOWN_FK_NAME_TRUNCATIONS = [
   {
     snapshotName: "search_console_metrics_property_id_search_console_properties_id_fk",
     fromTable: "search_console_metrics",
+    fromColumns: ["property_id"],
+    toTable: "search_console_properties",
+    toColumns: ["id"],
+    onDelete: "CASCADE",
   },
   {
     snapshotName: "integration_api_idempotency_keys_integration_id_integrations_id_fk",
     fromTable: "integration_api_idempotency_keys",
+    fromColumns: ["integration_id"],
+    toTable: "integrations",
+    toColumns: ["id"],
+    onDelete: "CASCADE",
+  },
+  // 4F.14-E — migration 0047_chilly_ink (74 chars).
+  {
+    snapshotName: "discovery_budget_ledger_reservation_id_discovery_budget_reservations_id_fk",
+    fromTable: "discovery_budget_ledger",
+    fromColumns: ["reservation_id"],
+    toTable: "discovery_budget_reservations",
+    toColumns: ["id"],
+    onDelete: "SET NULL",
   },
 ].map((e) => ({ ...e, storedName: e.snapshotName.slice(0, PG_IDENTIFIER_LIMIT) }));
+
+/** True only if (snapshot FK, live name) is one of the accepted truncations. */
+export function isKnownFkNameTruncation(snapshotFk, liveName) {
+  return KNOWN_FK_NAME_TRUNCATIONS.some(
+    (kt) => kt.snapshotName === snapshotFk.name && kt.fromTable === snapshotFk.tableFrom && kt.storedName === liveName,
+  );
+}
+
+/**
+ * Differences between an accepted truncation's expected relation and its
+ * pg_catalog definition (fkFunctionalDefinition() shape). Empty = verified.
+ */
+export function legacyFkDefinitionDiffs(expected, def) {
+  if (!def) return [`accepted-legacy FK "${expected.storedName}" not found by its stored name in pg_catalog`];
+  const diffs = [];
+  const cols = (c) => (c ?? []).join(",");
+  if (def.constraintType !== "FOREIGN KEY") diffs.push(`legacy FK ${def.storedName}: type is ${def.constraintType}, not FOREIGN KEY`);
+  if (def.onDelete !== expected.onDelete) diffs.push(`legacy FK ${def.storedName}: ON DELETE is ${def.onDelete}, expected ${expected.onDelete}`);
+  if (def.sourceTable !== expected.fromTable) diffs.push(`legacy FK ${def.storedName}: source table ${def.sourceTable} != ${expected.fromTable}`);
+  if (cols(def.sourceColumns) !== cols(expected.fromColumns))
+    diffs.push(`legacy FK ${def.storedName}: source columns ${cols(def.sourceColumns)} != ${cols(expected.fromColumns)}`);
+  if (def.referencedTable !== expected.toTable)
+    diffs.push(`legacy FK ${def.storedName}: referenced table ${def.referencedTable} != ${expected.toTable}`);
+  if (cols(def.referencedColumns) !== cols(expected.toColumns))
+    diffs.push(`legacy FK ${def.storedName}: referenced columns ${cols(def.referencedColumns)} != ${cols(expected.toColumns)}`);
+  return diffs;
+}
 
 function sh(cmd, args, opts = {}) {
   return spawnSync(cmd, args, { encoding: "utf8", ...opts });
@@ -196,10 +247,10 @@ async function fkFunctionalDefinition(pool, storedName) {
       con.contype                            as constraint_type,
       cl.relname                             as source_table,
       rcl.relname                            as referenced_table,
-      (select array_agg(a.attname order by u.ord)
+      (select array_agg(a.attname::text order by u.ord)
          from unnest(con.conkey) with ordinality as u(attnum, ord)
          join pg_attribute a on a.attrelid = con.conrelid and a.attnum = u.attnum) as source_columns,
-      (select array_agg(a.attname order by u.ord)
+      (select array_agg(a.attname::text order by u.ord)
          from unnest(con.confkey) with ordinality as u(attnum, ord)
          join pg_attribute a on a.attrelid = con.confrelid and a.attnum = u.attnum) as referenced_columns,
       con.confdeltype                        as on_delete_code
@@ -322,7 +373,7 @@ async function main() {
     }
 
     // 2d. foreign keys — functional match by (fromTable, fromCols, toTable);
-    //     name must match too, EXCEPT the two accepted truncations.
+    //     name must match too, EXCEPT the accepted truncations.
     const snapFks = [];
     for (const t of snapTables) for (const fk of Object.values(t.foreignKeys ?? {})) snapFks.push(fk);
     const keyOf = (fromTable, fromCols) => `${fromTable}::${[...fromCols].sort().join(",")}`;
@@ -350,12 +401,9 @@ async function main() {
         diffs.push(`FK ${sfk.name}: target cols ${sfk.columnsTo} (schema) vs ${lfk.toCols} (db)`);
       if (norm(lfk.onDelete) !== norm(sfk.onDelete))
         diffs.push(`FK ${sfk.name}: ON DELETE ${sfk.onDelete} (schema) vs ${lfk.onDelete} (db)`);
-      // name — allowlist the two known truncations only
+      // name — allowlist the known truncations only
       if (lfk.name !== sfk.name) {
-        const known = KNOWN_FK_NAME_TRUNCATIONS.find(
-          (kt) => kt.snapshotName === sfk.name && kt.fromTable === sfk.tableFrom && kt.storedName === lfk.name,
-        );
-        if (known) {
+        if (isKnownFkNameTruncation(sfk, lfk.name)) {
           matchedKnown += 1;
           log(`  accepted legacy truncation: "${sfk.name}" stored as "${lfk.name}" (${lfk.name.length} bytes)`);
         } else {
@@ -372,16 +420,12 @@ async function main() {
       }
     }
 
-    // ---- 3. DIRECT pg_catalog FUNCTIONAL CHECK of the two legacy FKs ----
-    log("Verifying the two accepted legacy FKs directly via pg_catalog …");
-    const fkReports = [];
+    // ---- 3. DIRECT pg_catalog FUNCTIONAL CHECK of the legacy FKs -------
+    log(`Verifying the ${KNOWN_FK_NAME_TRUNCATIONS.length} accepted legacy FKs directly via pg_catalog …`);
     for (const kt of KNOWN_FK_NAME_TRUNCATIONS) {
       const def = await fkFunctionalDefinition(pool, kt.storedName);
-      fkReports.push({ expected: kt, def });
-      if (!def) {
-        diffs.push(`accepted-legacy FK "${kt.storedName}" not found by its stored name in pg_catalog`);
-        continue;
-      }
+      diffs.push(...legacyFkDefinitionDiffs(kt, def));
+      if (!def) continue;
       console.log(
         `    - ${def.storedName}\n` +
           `        type              : ${def.constraintType}\n` +
@@ -389,9 +433,6 @@ async function main() {
           `        references        : ${def.referencedTable}(${def.referencedColumns})\n` +
           `        on delete         : ${def.onDelete}`,
       );
-      if (def.constraintType !== "FOREIGN KEY") diffs.push(`legacy FK ${def.storedName}: type is ${def.constraintType}, not FOREIGN KEY`);
-      if (def.onDelete !== "CASCADE") diffs.push(`legacy FK ${def.storedName}: ON DELETE is ${def.onDelete}, expected CASCADE`);
-      if (def.sourceTable !== kt.fromTable) diffs.push(`legacy FK ${def.storedName}: source table ${def.sourceTable} != ${kt.fromTable}`);
     }
 
     await pool.end();
@@ -408,7 +449,7 @@ async function main() {
         code: 1,
         reason:
           "UNEXPECTED SCHEMA DIFFERENCE — the migration chain and db/schema.ts are NOT functionally equivalent\n" +
-          "beyond the two accepted legacy FK-name truncations. STOP: separate re-audit scope. Do NOT paper over it.\n\n" +
+          `beyond the ${KNOWN_FK_NAME_TRUNCATIONS.length} accepted legacy FK-name truncations. STOP: separate re-audit scope. Do NOT paper over it.\n\n` +
           diffs.map((d) => `  • ${d}`).join("\n"),
       };
     }
@@ -417,11 +458,10 @@ async function main() {
       code: 0,
       reason:
         "MIGRATION REPLAY: PASS\n" +
-        "FUNCTIONAL SCHEMA: FUNCTIONALLY EQUIVALENT WITH 2 EXPLICIT LEGACY POSTGRESQL IDENTIFIER-TRUNCATION EXCEPTIONS\n" +
-        `  1. ${KNOWN_FK_NAME_TRUNCATIONS[0].snapshotName}\n     stored as ${KNOWN_FK_NAME_TRUNCATIONS[0].storedName}\n` +
-        `  2. ${KNOWN_FK_NAME_TRUNCATIONS[1].snapshotName}\n     stored as ${KNOWN_FK_NAME_TRUNCATIONS[1].storedName}\n` +
+        `FUNCTIONAL SCHEMA: FUNCTIONALLY EQUIVALENT WITH ${KNOWN_FK_NAME_TRUNCATIONS.length} EXPLICIT LEGACY POSTGRESQL IDENTIFIER-TRUNCATION EXCEPTIONS\n` +
+        KNOWN_FK_NAME_TRUNCATIONS.map((kt, i) => `  ${i + 1}. ${kt.snapshotName}\n     stored as ${kt.storedName}\n`).join("") +
         "UNEXPECTED DIFFERENCES: 0\n" +
-        "Both legacy FKs verified via pg_catalog: type FOREIGN KEY, correct source/target, ON DELETE CASCADE.",
+        "All legacy FKs verified via pg_catalog: type FOREIGN KEY, expected source/target tables and columns, expected ON DELETE.",
     };
   } finally {
     log(`Destroying disposable container ${CONTAINER} …`);
@@ -442,22 +482,30 @@ async function main() {
   }
 }
 
-process.on("SIGINT", () => {
-  destroyContainer();
-  process.exit(130);
-});
-
-main()
-  .then((result) => {
-    if (result.code === 0) {
-      console.log(`\n[migration-replay-check] ✓ ${result.reason}`);
-    } else {
-      console.error(`\n[migration-replay-check] ✗ ${result.reason}`);
-    }
-    process.exit(result.code);
-  })
-  .catch((err) => {
-    console.error(`[migration-replay-check] ✗ ${err?.stack || err}`);
+// Run only when invoked directly (npm run db:verify:migrations), never when
+// imported by scripts/migration-replay-check.test.mjs for its pure helpers.
+// realpathSync: import.meta.url is the symlink-resolved path, so argv[1]
+// must be resolved the same way or a symlinked invocation would silently
+// skip main() and exit 0.
+const isDirectRun = process.argv[1] !== undefined && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (isDirectRun) {
+  process.on("SIGINT", () => {
     destroyContainer();
-    process.exit(1);
+    process.exit(130);
   });
+
+  main()
+    .then((result) => {
+      if (result.code === 0) {
+        console.log(`\n[migration-replay-check] ✓ ${result.reason}`);
+      } else {
+        console.error(`\n[migration-replay-check] ✗ ${result.reason}`);
+      }
+      process.exit(result.code);
+    })
+    .catch((err) => {
+      console.error(`[migration-replay-check] ✗ ${err?.stack || err}`);
+      destroyContainer();
+      process.exit(1);
+    });
+}
