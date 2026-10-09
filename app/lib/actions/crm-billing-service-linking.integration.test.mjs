@@ -28,7 +28,31 @@ process.env.DATABASE_URL = LOCAL_DB_URL;
 
 mock.module("server-only", { defaultExport: {} });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
-mock.module("@/lib/session", { namedExports: { getCurrentSession: async () => null } });
+// P0-1: createQuote/updateQuote now call requireStaffRole() (via
+// lib/dev-role.ts's getDevRole() -> requireSession()) as their first
+// statement — this file isn't testing authorization, so it needs a
+// passing staff-like session for that new guard, not just
+// getCurrentSession() (previously the only export these actions touched,
+// via logCrmAudit's actorUserId resolution).
+mock.module("@/lib/session", {
+  namedExports: {
+    getCurrentSession: async () => null,
+    requireSession: async () => ({
+      userId: "p02a2-staff", clerkUserId: "p02a2_clerk_staff", email: "staff@example.test",
+      fullName: null, firstName: null, organizationId: null, organizationName: null,
+      role: "staff", previousLastLoginAt: null,
+    }),
+  },
+});
+// updateQuoteStatus(..., "sent") goes through deliverQuoteEmail (lib/actions/
+// crm-quotes.ts), which ends in a real Resend send. This file is not testing
+// email delivery: stub ONLY the external send boundary, same as
+// lib/actions/crm-quotes-send.integration.test.mjs. Access checks
+// (requireStaffRole, requireCrmClientAccess), the rate limit and the quote
+// access link stay real.
+mock.module("@/lib/email/resend", {
+  namedExports: { sendEmail: async () => ({ sent: true, id: "p02a2-test-email-id" }) },
+});
 
 const { db } = await import("@/db");
 const { crmClients, crmQuoteItems, crmQuotes, crmInvoiceItems, crmInvoices, services } = await import("@/db/schema");
@@ -48,7 +72,7 @@ const createdQuoteIds = new Set();
 const createdInvoiceIds = new Set();
 
 before(async () => {
-  const [client] = await db.insert(crmClients).values({ name: "P0.2A-2 Test Client" }).returning();
+  const [client] = await db.insert(crmClients).values({ name: "P0.2A-2 Test Client", email: "p02a2-client@example.test" }).returning();
   fixtureClientId = client.id;
 
   await db.insert(services).values([
