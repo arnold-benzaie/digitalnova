@@ -674,11 +674,15 @@ components:
 
     Interaction:
       type: object
-      required: [id, clientId, type, summary, occurredAt, createdAt]
+      required: [id, clientId, dealId, type, summary, occurredAt, createdAt]
       description: No `createdBy` — see lib/api-v1/interactions.ts's module docstring.
       properties:
         id: { type: string, format: uuid }
         clientId: { type: string, format: uuid }
+        dealId:
+          type: [string, "null"]
+          format: uuid
+          description: The linked deal of this client, or null for a general client interaction.
         type: { type: string, enum: [call, email, meeting, note] }
         summary: { type: string }
         occurredAt: { type: string, format: date-time }
@@ -700,6 +704,10 @@ components:
           type: string
           format: date-time
           description: Defaults to the current time if omitted. Must not be sent as null.
+        dealId:
+          type: [string, "null"]
+          format: uuid
+          description: Optional. Must reference a deal of this client. Omit or null = general interaction.
 
     Pagination:
       type: object

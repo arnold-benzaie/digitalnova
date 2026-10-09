@@ -1,14 +1,15 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { crmClients, interactions } from "@/db/schema";
+import { crmClients, deals, interactions } from "@/db/schema";
 import { logCrmAudit } from "@/lib/audit";
 import { getLocale } from "@/lib/i18n/locale";
 import { requireRadarAccess } from "@/lib/rbac/require-staff-member";
 import { requireSession } from "@/lib/session";
 import { requireCrmClientAccess } from "@/lib/crm-client-access";
+import { isValidUuid } from "@/lib/api-v1/dto";
 
 const TYPES = ["note", "call", "email", "meeting"] as const;
 type InteractionType = (typeof TYPES)[number];
@@ -27,6 +28,7 @@ const MESSAGES = {
     invalidDirection: "Direction invalide pour ce type d'interaction.",
     invalidOutcome: "Résultat invalide pour cette combinaison type/direction.",
     clientNotFound: "Client introuvable.",
+    dealNotFound: "Deal introuvable.",
     doNotContact: "Ce client est marqué « ne pas contacter » — impossible d'enregistrer un contact sortant.",
   },
   en: {
@@ -36,6 +38,7 @@ const MESSAGES = {
     invalidDirection: "Invalid direction for this interaction type.",
     invalidOutcome: "Invalid outcome for this type/direction combination.",
     clientNotFound: "Client not found.",
+    dealNotFound: "Deal not found.",
     doNotContact: "This client is marked do-not-contact — an outbound contact cannot be recorded.",
   },
 } as const;
@@ -103,6 +106,24 @@ export async function createInteraction(formData: FormData) {
   // createProject/createWebsite.
   await requireCrmClientAccess(clientId, new Error(MESSAGES[locale].clientNotFound));
 
+  // 4F.8.4 — optional link to one of THIS client's deals (absent or blank =
+  // general client interaction, deal_id NULL). Checked right after the client
+  // scope gate above — an out-of-scope EMPLOYEE already got clientNotFound, so
+  // the deal is never examined for them — and before every other rule. The
+  // deal is only ever looked up together with this clientId, and a malformed
+  // id, an unknown deal and another client's deal all throw the same
+  // dealNotFound: no deal can be probed by id alone.
+  const dealId = normalizeSelect(formData.get("dealId"));
+  if (dealId !== null) {
+    if (!isValidUuid(dealId)) throw new Error(MESSAGES[locale].dealNotFound);
+    const [deal] = await db
+      .select({ id: deals.id })
+      .from(deals)
+      .where(and(eq(deals.id, dealId), eq(deals.clientId, clientId)))
+      .limit(1);
+    if (!deal) throw new Error(MESSAGES[locale].dealNotFound);
+  }
+
   const summary = formData.get("summary");
   if (typeof summary !== "string" || !summary.trim()) {
     throw new Error(MESSAGES[locale].summaryRequired);
@@ -152,6 +173,7 @@ export async function createInteraction(formData: FormData) {
     .insert(interactions)
     .values({
       clientId,
+      dealId,
       type,
       summary: summary.trim(),
       direction,
@@ -174,6 +196,7 @@ export async function createInteraction(formData: FormData) {
     // activity-feed description; removing it would silently degrade that
     // existing display for every future interaction.
     metadata: {
+      dealId: interaction.dealId,
       type: interaction.type,
       direction: interaction.direction,
       outcome: interaction.outcome,

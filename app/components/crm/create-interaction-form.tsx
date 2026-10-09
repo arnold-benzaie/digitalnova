@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { createInteraction } from "@/lib/actions/crm-interactions";
 import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
 
-export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: string; locale?: Locale }) {
+export function CreateInteractionForm({
+  clientId,
+  locale = "fr",
+  dealOptions = [],
+}: {
+  clientId: string;
+  locale?: Locale;
+  dealOptions?: { id: string; title: string }[];
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -94,6 +102,20 @@ export function CreateInteractionForm({ clientId, locale = "fr" }: { clientId: s
         {/* RADAR-CORE-2A-A — the author is the authenticated session, never
             chosen in the browser. There is no createdBy input. */}
       </div>
+      {/* 4F.8.6 — optional link to one of THIS client's existing deals (the
+          parent passes only this client's deals). UX only: createInteraction()
+          re-checks server-side that the deal belongs to clientId. "" = no deal;
+          the native form reset() returns it to "Aucun deal" after success. */}
+      {dealOptions.length > 0 && (
+        <select name="dealId" defaultValue="" className="rounded-lg border border-pm-gris-2 bg-white px-3 py-2 text-sm text-pm-noir">
+          <option value="">Aucun deal</option>
+          {dealOptions.map((deal) => (
+            <option key={deal.id} value={deal.id}>
+              {deal.title}
+            </option>
+          ))}
+        </select>
+      )}
       <textarea
         name="summary"
         placeholder={t.summaryPlaceholder}

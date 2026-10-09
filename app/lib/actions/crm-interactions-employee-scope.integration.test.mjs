@@ -85,7 +85,7 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { crmClients, interactions, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
+const { crmClients, deals, interactions, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
 const { createInteraction } = await import("./crm-interactions.ts");
 
@@ -239,4 +239,57 @@ test("6 — MANAGER -> createInteraction on client B succeeds (current global be
   const created = rows.find((r) => r.summary === "MANAGER note");
   assert.ok(created, "interaction must have been created for client B");
   createdInteractionIds.add(created.id);
+});
+
+// =========================================================
+// 4F.8.4 — dealId and the EMPLOYEE scope: the client scope is checked
+// FIRST, so an out-of-scope EMPLOYEE gets "Client introuvable." without the
+// deal ever being examined; an in-scope EMPLOYEE may only link a deal of
+// that same client. Deals are removed with their client by after().
+// =========================================================
+
+async function makeDeal(clientId) {
+  const [deal] = await db.insert(deals).values({ clientId, title: `4F.8.4 scope deal ${randomUUID()}` }).returning();
+  return deal;
+}
+const dealA = await makeDeal(clientA.id);
+const dealB = await makeDeal(clientB.id);
+function withDealId(fd, dealId) {
+  fd.set("dealId", dealId);
+  return fd;
+}
+
+test("4F.8.4 A — EMPLOYEE assigned to client A + deal of client A -> accepted, linked to that deal", async () => {
+  actAs(employeeAUserId);
+  await createInteraction(withDealId(makeInteractionFormData({ clientId: clientA.id, summary: "4F.8.4 A linked" }), dealA.id));
+  const created = (await interactionsForClient(clientA.id)).find((r) => r.summary === "4F.8.4 A linked");
+  assert.ok(created, "interaction must have been created for client A");
+  createdInteractionIds.add(created.id);
+  assert.equal(created.dealId, dealA.id);
+});
+
+test("4F.8.4 B — EMPLOYEE assigned to client A + deal of client B -> 'Deal introuvable.', nothing created", async () => {
+  actAs(employeeAUserId);
+  await assert.rejects(
+    () => createInteraction(withDealId(makeInteractionFormData({ clientId: clientA.id, summary: "4F.8.4 B foreign deal" }), dealB.id)),
+    { message: "Deal introuvable." },
+  );
+  assert.ok(!(await interactionsForClient(clientA.id)).some((r) => r.summary === "4F.8.4 B foreign deal"));
+  assert.ok(!(await interactionsForClient(clientB.id)).some((r) => r.summary === "4F.8.4 B foreign deal"));
+});
+
+test("4F.8.4 C — EMPLOYEE NOT assigned to client A + deal of client A -> 'Client introuvable.' (the deal is never examined)", async () => {
+  for (const userId of [employeeBUserId, employeeUnassignedUserId]) {
+    actAs(userId);
+    await assert.rejects(
+      () => createInteraction(withDealId(makeInteractionFormData({ clientId: clientA.id, summary: "4F.8.4 C out of scope" }), dealA.id)),
+      { message: "Client introuvable." },
+    );
+    // a malformed dealId would fail the deal check — still "Client introuvable.", so the scope gate ran first
+    await assert.rejects(
+      () => createInteraction(withDealId(makeInteractionFormData({ clientId: clientA.id, summary: "4F.8.4 C out of scope" }), "not-a-uuid")),
+      { message: "Client introuvable." },
+    );
+  }
+  assert.ok(!(await interactionsForClient(clientA.id)).some((r) => r.summary === "4F.8.4 C out of scope"));
 });

@@ -124,7 +124,7 @@ test("integration: preflight report over all 48 real db/migrations files matches
     .filter((name) => name.endsWith(".sql"))
     .sort()
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
-  assert.equal(files.length, 48);
+  assert.equal(files.length, 49);
 
   const report = await buildPreflightReport({
     files,
@@ -132,8 +132,8 @@ test("integration: preflight report over all 48 real db/migrations files matches
     connectionString: undefined,
     connectionEnvVarName: "PREVIEW_SCHEMA_DATABASE_URL",
   });
-  assert.equal(report.statementCount, 372);
-  assert.equal(report.migrationFiles.length, 48);
+  assert.equal(report.statementCount, 375);
+  assert.equal(report.migrationFiles.length, 49);
   for (const { sql } of report.statements) {
     assert.equal((sql.match(/public/gi) ?? []).length, 0);
   }

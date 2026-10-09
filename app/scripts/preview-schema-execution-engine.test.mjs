@@ -155,7 +155,7 @@ test("integration: dry-running the engine against all 48 real db/migrations file
   const files = readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
-  assert.equal(files.length, 48);
+  assert.equal(files.length, 49);
 
   const result = await applyPreviewSchemaMigrations({ files, targetSchema: "preview", dryRun: true });
   assert.equal(result.dryRun, true);

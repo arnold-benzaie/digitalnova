@@ -148,6 +148,7 @@ export function toTaskDTO(row: TaskRow): TaskDTO {
 type InteractionRow = {
   id: string;
   clientId: string;
+  dealId?: string | null;
   type: string;
   summary: string;
   occurredAt: Date;
@@ -160,6 +161,7 @@ type InteractionRow = {
 export type InteractionDTO = {
   id: string;
   clientId: string;
+  dealId: string | null;
   type: string;
   summary: string;
   occurredAt: string;
@@ -170,6 +172,7 @@ export function toInteractionDTO(row: InteractionRow): InteractionDTO {
   return {
     id: row.id,
     clientId: row.clientId,
+    dealId: row.dealId ?? null,
     type: row.type,
     summary: row.summary,
     occurredAt: row.occurredAt.toISOString(),

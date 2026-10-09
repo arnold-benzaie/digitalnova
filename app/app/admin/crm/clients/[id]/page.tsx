@@ -760,7 +760,11 @@ export default async function CrmClientDetailPage({ params }: { params: Promise<
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-pm-gris">{t.sections.addInteraction}</h2>
         <div className="mt-3 rounded-2xl border border-pm-gris-2 bg-white p-4 shadow-[0_8px_22px_rgba(13,36,67,0.05)] transition-[box-shadow,border-color] duration-200 hover:border-[#d9e3ef] hover:shadow-[0_11px_26px_rgba(13,36,67,0.09)]">
-          <CreateInteractionForm clientId={client.id} locale={locale} />
+          <CreateInteractionForm
+            clientId={client.id}
+            locale={locale}
+            dealOptions={clientDeals.map((d) => ({ id: d.id, title: d.title, stage: d.stage }))}
+          />
         </div>
       </section>
 

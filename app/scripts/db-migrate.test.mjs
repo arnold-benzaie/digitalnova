@@ -265,8 +265,8 @@ test("readMigrationJournal: committed db/migrations journal valid; 47 entries; i
   // fixtures; they are bumped deliberately here to match, same as every
   // prior migration did.
   const j = readMigrationJournal();
-  assert.equal(j.tags.length, 48);
-  assert.equal(j.tags[j.tags.length - 1], "0047_chilly_ink");
+  assert.equal(j.tags.length, 49);
+  assert.equal(j.tags[j.tags.length - 1], "0048_parallel_nick_fury");
   j.entries.forEach((e, i) => assert.equal(e.idx, i));
   assert.equal(j.rbacSeedMigrationPresent, true);
   assert.equal(j.rbacSeedOk, true);

@@ -13,7 +13,7 @@ process.env.INTEGRATION_API_KEY_PEPPER = "integration-test-pepper-not-a-real-sec
 mock.module("server-only", { defaultExport: {} });
 
 const { db } = await import("@/db");
-const { auditLog, crmClients, integrationApiIdempotencyKeys, integrationApiKeys, integrations, interactions, organizations, tasks } = await import("@/db/schema");
+const { auditLog, crmClients, deals, integrationApiIdempotencyKeys, integrationApiKeys, integrations, interactions, organizations, tasks } = await import("@/db/schema");
 const { and, desc, eq, inArray } = await import("drizzle-orm");
 const { generateIntegrationApiKey } = await import("@/lib/integrations/crypto");
 const { runIdempotently } = await import("@/lib/api-v1/idempotency");
@@ -169,7 +169,8 @@ test("POST /api/v1/interactions: creates an interaction, sets createdBy server-s
   assert.equal(response.status, 201);
   const body = await response.json();
   assert.equal(body.data.type, "call");
-  assert.deepEqual(Object.keys(body.data).sort(), ["clientId", "createdAt", "id", "occurredAt", "summary", "type"]);
+  assert.deepEqual(Object.keys(body.data).sort(), ["clientId", "createdAt", "dealId", "id", "occurredAt", "summary", "type"]);
+  assert.strictEqual(body.data.dealId, null);
 
   const [row] = await db.select().from(interactions).where(eq(interactions.id, body.data.id)).limit(1);
   assert.ok(row.createdBy.startsWith("api:"), "createdBy should be set server-side to a non-secret marker");
@@ -370,4 +371,147 @@ test("a successful task creation is journalized under the caller's organization 
   assert.ok(entry);
   assert.equal(entry.organizationId, orgA.id);
   assert.equal(JSON.stringify(entry.metadata).includes("Confidential subject line"), false, "the task title must never be logged");
+});
+
+// ---------- 4F.8.5 — optional dealId (organization -> client -> deal) ----------
+// Deals are removed with their client (ON DELETE CASCADE) by afterEach().
+
+const DEAL_REJECTION = '"dealId" does not reference a deal of this client.';
+
+async function createDeal(clientId) {
+  const [deal] = await db.insert(deals).values({ clientId, title: `api-v1 4F.8.5 deal ${randomUUID()}` }).returning();
+  return deal;
+}
+async function postInteraction(plaintextKey, body, headers = {}) {
+  return createInteractionRoute(requestTo("/api/v1/interactions", { key: plaintextKey, body }, headers));
+}
+async function interactionRows(clientId) {
+  return db.select().from(interactions).where(eq(interactions.clientId, clientId));
+}
+async function assertDealRejected(response) {
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.error.code, "VALIDATION_ERROR");
+  assert.equal(body.error.message, DEAL_REJECTION);
+  return body;
+}
+
+test("4F.8.5 A: POST /api/v1/interactions without dealId -> 201, dealId NULL in DB and in the response", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const response = await postInteraction(plaintextKey, { clientId: client.id, type: "note", summary: "no deal" });
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.strictEqual(body.data.dealId, null);
+  const [row] = await interactionRows(client.id);
+  assert.strictEqual(row.dealId, null);
+});
+
+test("4F.8.5 B: dealId explicitly null -> 201, dealId NULL", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const response = await postInteraction(plaintextKey, { clientId: client.id, type: "note", summary: "null deal", dealId: null });
+  assert.equal(response.status, 201);
+  assert.strictEqual((await response.json()).data.dealId, null);
+  const [row] = await interactionRows(client.id);
+  assert.strictEqual(row.dealId, null);
+});
+
+test("4F.8.5 C: a deal of the same client -> 201, dealId stored and returned", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const deal = await createDeal(client.id);
+  const response = await postInteraction(plaintextKey, { clientId: client.id, type: "call", summary: "linked", dealId: deal.id });
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.equal(body.data.dealId, deal.id);
+  const rows = await interactionRows(client.id);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].dealId, deal.id);
+  assert.equal(rows[0].id, body.data.id);
+});
+
+test("4F.8.5 D/E/F: unknown deal, deal of another client of the same org, deal of another org -> the SAME 400, nothing created", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const sameOrgOtherClient = await createClient(orgA.id);
+  const otherOrgClient = await createClient(orgB.id);
+  const sameOrgDeal = await createDeal(sameOrgOtherClient.id);
+  const otherOrgDeal = await createDeal(otherOrgClient.id);
+
+  const bodies = [];
+  for (const dealId of [randomUUID(), sameOrgDeal.id, otherOrgDeal.id]) {
+    bodies.push(await assertDealRejected(await postInteraction(plaintextKey, { clientId: client.id, type: "note", summary: "should not exist", dealId })));
+  }
+  // identical apart from requestId, which is unique per request by design
+  const withoutRequestId = (error) => {
+    const copy = { ...error };
+    delete copy.requestId;
+    return copy;
+  };
+  assert.deepEqual(withoutRequestId(bodies[1].error), withoutRequestId(bodies[0].error), "deal of another client is indistinguishable from an unknown deal");
+  assert.deepEqual(withoutRequestId(bodies[2].error), withoutRequestId(bodies[0].error), "deal of another organization is indistinguishable from an unknown deal");
+  assert.deepEqual(Object.keys(bodies[0]).sort(), ["error"]);
+  for (const c of [client, sameOrgOtherClient, otherOrgClient]) assert.equal((await interactionRows(c.id)).length, 0);
+});
+
+test("4F.8.5: malformed / empty / numeric dealId -> 400 format error, nothing created; a client of another org keeps the existing clientId error", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  for (const dealId of ["not-a-uuid", "", 7]) {
+    const response = await postInteraction(plaintextKey, { clientId: client.id, type: "note", summary: "bad format", dealId });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error.code, "VALIDATION_ERROR");
+    assert.equal(body.error.message, '"dealId" must be a valid UUID or null.');
+  }
+  assert.equal((await interactionRows(client.id)).length, 0);
+
+  const otherOrgClient = await createClient(orgB.id);
+  const otherOrgDeal = await createDeal(otherOrgClient.id);
+  const crossOrg = await postInteraction(plaintextKey, { clientId: otherOrgClient.id, type: "note", summary: "x", dealId: otherOrgDeal.id });
+  assert.equal(crossOrg.status, 400);
+  assert.equal((await crossOrg.json()).error.message, '"clientId" does not reference a client in your organization.', "the client check still runs first");
+  assert.equal((await interactionRows(otherOrgClient.id)).length, 0);
+});
+
+test("4F.8.5 G: Idempotency-Key + dealId -> same resource twice (dealId included), exactly ONE row; a different dealId with the same key -> 409", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const deal = await createDeal(client.id);
+  const otherDeal = await createDeal(client.id);
+  const idempotencyKey = `deal-${randomUUID()}`;
+  const requestBody = { clientId: client.id, type: "meeting", summary: "Idempotent linked interaction", dealId: deal.id };
+
+  const first = await postInteraction(plaintextKey, requestBody, { "idempotency-key": idempotencyKey });
+  const second = await postInteraction(plaintextKey, requestBody, { "idempotency-key": idempotencyKey });
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  const [firstBody, secondBody] = await Promise.all([first.json(), second.json()]);
+  assert.deepEqual(secondBody.data, firstBody.data);
+  assert.equal(firstBody.data.dealId, deal.id);
+
+  const conflict = await postInteraction(plaintextKey, { ...requestBody, dealId: otherDeal.id }, { "idempotency-key": idempotencyKey });
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error.code, "IDEMPOTENCY_KEY_CONFLICT");
+
+  const rows = await interactionRows(client.id);
+  assert.equal(rows.length, 1, "only one interaction should ever have been created");
+  assert.equal(rows[0].dealId, deal.id);
+});
+
+test("4F.8.5 H: Idempotency-Key + dealId null -> existing idempotent behavior kept, one row with dealId NULL", async () => {
+  const { plaintextKey } = await createApiKey(orgA.id);
+  const client = await createClient(orgA.id);
+  const idempotencyKey = `nodeal-${randomUUID()}`;
+  const requestBody = { clientId: client.id, type: "note", summary: "Idempotent general interaction", dealId: null };
+
+  const first = await postInteraction(plaintextKey, requestBody, { "idempotency-key": idempotencyKey });
+  const second = await postInteraction(plaintextKey, requestBody, { "idempotency-key": idempotencyKey });
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  assert.deepEqual((await second.json()).data, (await first.json()).data);
+  const rows = await interactionRows(client.id);
+  assert.equal(rows.length, 1);
+  assert.strictEqual(rows[0].dealId, null);
 });

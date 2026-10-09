@@ -3,7 +3,7 @@ import { handleApiError } from "@/lib/api-v1/response";
 import { buildUsageHeaders } from "@/lib/api-v1/rate-limit";
 import { ApiError } from "@/lib/api-v1/errors";
 import { getClientForOrg } from "@/lib/api-v1/clients";
-import { createInteractionForClient, validateInteractionCreateBody } from "@/lib/api-v1/interactions";
+import { assertDealBelongsToClient, createInteractionForClient, validateInteractionCreateBody } from "@/lib/api-v1/interactions";
 import { toInteractionDTO } from "@/lib/api-v1/dto";
 import { logApiSuccess } from "@/lib/api-v1/logging";
 import { checkIdempotency, extractIdempotencyKey, hashRequestBody, runIdempotently } from "@/lib/api-v1/idempotency";
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     const input = validateInteractionCreateBody(rawBody);
     const client = await getClientForOrg(context.organizationId, input.clientId);
     if (!client) throw new ApiError("VALIDATION_ERROR", '"clientId" does not reference a client in your organization.');
+    await assertDealBelongsToClient(client.id, input.dealId);
 
     // P1 fix: when an Idempotency-Key is present, the claim (against the
     // key) and the interaction creation happen inside the SAME

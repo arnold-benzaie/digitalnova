@@ -337,6 +337,13 @@
       "when": 1789775520965,
       "tag": "0047_chilly_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791393770784,
+      "tag": "0048_parallel_nick_fury",
+      "breakpoints": true
     }
   ]
 }

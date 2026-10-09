@@ -554,6 +554,13 @@ export const interactions = pgTable(
     clientId: uuid("client_id")
       .notNull()
       .references(() => crmClients.id, { onDelete: "cascade" }),
+    // MICRO-STEP 4F.8.2 — optional link to the deal this interaction is
+    // about. NULL = general client interaction (every pre-existing row: no
+    // backfill, no inferred link). ON DELETE SET NULL: deleting a deal keeps
+    // the client's contact history. Schema only — no write path sets it yet,
+    // and this FK alone does NOT guarantee the deal belongs to the same
+    // client (that is an application-level check, see audit 4F.8.1).
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
     type: text("type").notNull(), // "call" | "email" | "meeting" | "note"
     summary: text("summary").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
@@ -589,6 +596,7 @@ export const interactions = pgTable(
   },
   (table) => [
     index("interactions_client_id_idx").on(table.clientId),
+    index("interactions_deal_id_idx").on(table.dealId),
     index("interactions_created_by_user_id_idx").on(table.createdByUserId),
   ],
 );

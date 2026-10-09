@@ -89,7 +89,7 @@ mock.module("@/lib/session", {
 });
 
 const { db } = await import("@/db");
-const { auditLog, crmClients, interactions, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
+const { auditLog, crmClients, deals, interactions, organizations, staffMembers, staffRoles, users } = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
 const { createInteraction } = await import("./crm-interactions.ts");
 
@@ -157,6 +157,7 @@ async function makeClient(overrides = {}) {
       name: overrides.name === undefined ? `Interaction Test ${randomUUID()}` : overrides.name,
       email: "prospect@example.test",
       doNotContact: overrides.doNotContact ?? false,
+      assignedUserId: overrides.assignedUserId === undefined ? STAFF_USER_ID : overrides.assignedUserId,
     })
     .returning();
   createdClientIds.add(client.id);
@@ -595,4 +596,101 @@ test("2A: structural — createInteraction never reads a caller createdBy/create
   assert.ok(!/formData\.get\(["']createdBy["']\)/.test(src), "never reads a caller createdBy");
   assert.ok(!/formData\.get\(["'](createdByUserId|actorUserId)["']\)/.test(src), "never reads a caller actor id");
   assert.ok(!src.includes("requireStaffRole"), "the Axis-A gate is fully replaced");
+});
+
+// =========================================================
+// 4F.8.4 — optional dealId: absent/blank -> NULL; only a deal of the SAME
+// client may be linked; a malformed id, an unknown deal and another
+// client's deal all fail with the same "Deal introuvable." (no deal can be
+// probed by id), and nothing is inserted. Deals are removed with their
+// client (ON DELETE CASCADE) by the existing after() cleanup.
+// =========================================================
+
+const DEAL_NOT_FOUND = { message: "Deal introuvable." };
+
+async function makeDeal(clientId) {
+  const [deal] = await db.insert(deals).values({ clientId, title: `4F.8.4 deal ${randomUUID()}` }).returning();
+  return deal;
+}
+function withDealId(fd, dealId) {
+  fd.set("dealId", dealId);
+  return fd;
+}
+
+test("4F.8.4 A: no dealId field -> interaction created with dealId NULL", async () => {
+  const client = await makeClient();
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note" }));
+  const rows = await interactionsFor(client.id);
+  assert.equal(rows.length, 1);
+  assert.strictEqual(rows[0].dealId, null);
+});
+
+test("4F.8.4 B: blank dealId -> interaction created with dealId NULL", async () => {
+  const client = await makeClient();
+  await createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "note" }), ""));
+  const rows = await interactionsFor(client.id);
+  assert.equal(rows.length, 1);
+  assert.strictEqual(rows[0].dealId, null);
+});
+
+test("4F.8.4 C: a deal of the same client -> interaction linked to that deal", async () => {
+  const client = await makeClient();
+  const deal = await makeDeal(client.id);
+  await createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "note" }), deal.id));
+  const rows = await interactionsFor(client.id);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].dealId, deal.id);
+});
+
+test("4F.8.4 D: an unknown deal id -> 'Deal introuvable.', nothing inserted", async () => {
+  const client = await makeClient();
+  await assert.rejects(() => createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "note" }), randomUUID())), DEAL_NOT_FOUND);
+  assert.equal((await interactionsFor(client.id)).length, 0);
+});
+
+test("4F.8.4 E: anti-IDOR — a real deal of ANOTHER client -> the same 'Deal introuvable.', nothing inserted", async () => {
+  const clientA = await makeClient();
+  const clientB = await makeClient();
+  const dealB = await makeDeal(clientB.id);
+  await assert.rejects(() => createInteraction(withDealId(interactionFormData({ clientId: clientA.id, type: "note" }), dealB.id)), DEAL_NOT_FOUND);
+  assert.equal((await interactionsFor(clientA.id)).length, 0);
+  assert.equal((await interactionsFor(clientB.id)).length, 0);
+  // indistinguishable from a deal that does not exist at all (case D)
+  const unknown = await createInteraction(withDealId(interactionFormData({ clientId: clientA.id, type: "note" }), randomUUID())).catch((error) => error);
+  const foreign = await createInteraction(withDealId(interactionFormData({ clientId: clientA.id, type: "note" }), dealB.id)).catch((error) => error);
+  assert.equal(foreign.message, unknown.message);
+});
+
+test("4F.8.4 F: a malformed dealId -> the same 'Deal introuvable.' (no raw PostgreSQL 22P02), nothing inserted", async () => {
+  const client = await makeClient();
+  const error = await createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "note" }), "not-a-uuid")).catch((e) => e);
+  assert.ok(error instanceof Error);
+  assert.equal(error.message, "Deal introuvable.");
+  assert.notEqual(error.code, "22P02");
+  assert.notEqual(error.cause?.code, "22P02");
+  assert.equal((await interactionsFor(client.id)).length, 0);
+});
+
+test("4F.8.4 G: the crm.interaction_logged audit entry carries the linked dealId (and null when unlinked)", async () => {
+  const client = await makeClient();
+  const deal = await makeDeal(client.id);
+  await createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "note", summary: "linked" }), deal.id));
+  await createInteraction(interactionFormData({ clientId: client.id, type: "note", summary: "general" }));
+  const rows = await interactionsFor(client.id);
+  const linked = rows.find((r) => r.summary === "linked");
+  const general = rows.find((r) => r.summary === "general");
+  assert.equal((await auditRowsForTarget(linked.id, "crm.interaction_logged"))[0].metadata.dealId, deal.id);
+  assert.strictEqual((await auditRowsForTarget(general.id, "crm.interaction_logged"))[0].metadata.dealId, null);
+});
+
+test("4F.8.4 H: a rejected dealId never leaves an interaction or an audit entry behind (invalid, unknown, other client)", async () => {
+  const client = await makeClient();
+  const other = await makeClient();
+  const otherDeal = await makeDeal(other.id);
+  for (const dealId of ["not-a-uuid", randomUUID(), otherDeal.id]) {
+    await assert.rejects(() => createInteraction(withDealId(interactionFormData({ clientId: client.id, type: "call", direction: "outbound" }), dealId)), DEAL_NOT_FOUND);
+  }
+  assert.equal((await interactionsFor(client.id)).length, 0);
+  const audits = await db.select().from(auditLog).where(eq(auditLog.action, "crm.interaction_logged"));
+  assert.ok(!audits.some((a) => a.metadata?.clientId === client.id), "no audit entry for the rejected attempts");
 });

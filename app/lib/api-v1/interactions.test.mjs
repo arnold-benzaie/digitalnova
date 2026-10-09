@@ -70,5 +70,54 @@ test("toInteractionDTO: never exposes createdBy, even if present on the row", ()
     occurredAt: new Date("2026-01-01T00:00:00Z"), createdAt: new Date("2026-01-01T00:00:00Z"),
     createdBy: "api:pm_live_secretlookingprefix — must never leak",
   });
-  assert.deepEqual(Object.keys(dto).sort(), ["clientId", "createdAt", "id", "occurredAt", "summary", "type"]);
+  assert.deepEqual(Object.keys(dto).sort(), ["clientId", "createdAt", "dealId", "id", "occurredAt", "summary", "type"]);
+  assert.strictEqual(dto.dealId, null, "a row without dealId is exposed as dealId: null (4F.8.5)");
+});
+
+// ---------- 4F.8.5 — optional dealId ----------
+
+const DEAL_ID = "44444444-4444-4444-8444-444444444444";
+function assertDealIdRejected(body) {
+  assert.throws(() => validateInteractionCreateBody(body), (error) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.code, "VALIDATION_ERROR");
+    assert.equal(error.message, '"dealId" must be a valid UUID or null.');
+    return true;
+  });
+}
+
+test("4F.8.5 validateInteractionCreateBody: dealId absent -> accepted, dealId null", () => {
+  assert.strictEqual(validateInteractionCreateBody(VALID).dealId, null);
+});
+
+test("4F.8.5 validateInteractionCreateBody: dealId null -> accepted, dealId null", () => {
+  assert.strictEqual(validateInteractionCreateBody({ ...VALID, dealId: null }).dealId, null);
+});
+
+test("4F.8.5 validateInteractionCreateBody: a valid UUID dealId -> accepted verbatim (ownership is checked later, in the route)", () => {
+  assert.equal(validateInteractionCreateBody({ ...VALID, dealId: DEAL_ID }).dealId, DEAL_ID);
+});
+
+test("4F.8.5 validateInteractionCreateBody: a numeric dealId -> VALIDATION_ERROR", () => {
+  assertDealIdRejected({ ...VALID, dealId: 42 });
+});
+
+test("4F.8.5 validateInteractionCreateBody: an empty-string dealId -> VALIDATION_ERROR", () => {
+  assertDealIdRejected({ ...VALID, dealId: "" });
+});
+
+test("4F.8.5 validateInteractionCreateBody: a malformed UUID dealId -> VALIDATION_ERROR (also object/array/boolean)", () => {
+  for (const dealId of ["not-a-uuid", "44444444-4444-4444-8444-44444444444", ` ${DEAL_ID}`, {}, [], true]) assertDealIdRejected({ ...VALID, dealId });
+});
+
+test("4F.8.5 validateInteractionCreateBody: the whitelist stays strict — an unknown field is still rejected, with or without dealId", () => {
+  for (const body of [{ ...VALID, dealId: DEAL_ID, dealTitle: "x" }, { ...VALID, deal_id: DEAL_ID }, { ...VALID, notARealField: "x" }]) {
+    assert.throws(() => validateInteractionCreateBody(body), (error) => error instanceof ApiError && error.code === "VALIDATION_ERROR" && /not allowed/.test(error.message));
+  }
+});
+
+test("4F.8.5 toInteractionDTO: exposes dealId (UUID or null) and nothing else about the deal", () => {
+  const row = { id: "1", clientId: VALID.clientId, type: "call", summary: "x", occurredAt: new Date("2026-01-01T00:00:00Z"), createdAt: new Date("2026-01-01T00:00:00Z") };
+  assert.equal(toInteractionDTO({ ...row, dealId: DEAL_ID }).dealId, DEAL_ID);
+  assert.strictEqual(toInteractionDTO({ ...row, dealId: null }).dealId, null);
 });

@@ -72,7 +72,7 @@ test("integration: transforming all 48 real db/migrations files leaves zero \"pu
     .filter((name) => name.endsWith(".sql"))
     .map((name) => ({ name, sql: readFileSync(join(dir, name), "utf8") }));
 
-  assert.equal(files.length, 48, "expected exactly the 48 known migration files (including 0022 for system_health_checks) — re-check this test if the count legitimately changed");
+  assert.equal(files.length, 49, "expected exactly the 48 known migration files (including 0022 for system_health_checks) — re-check this test if the count legitimately changed");
 
   const transformed = validateAndTransformAll(files, "preview");
   for (const { name, sql } of transformed) {
