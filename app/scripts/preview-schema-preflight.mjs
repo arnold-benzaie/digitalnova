@@ -78,6 +78,9 @@ export async function buildPreflightReport({ files, targetSchema, connectionStri
 }
 
 function formatDatabaseLine(database, envVarName) {
+  if (database.skipped) {
+    return `  (non lue — mode à blanc : ${envVarName} et .env.local ne sont pas chargés, aucune cible de connexion)`;
+  }
   if (!database.configured) {
     return `  (non configuré — ${envVarName} n'est pas défini localement)`;
   }

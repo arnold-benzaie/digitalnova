@@ -29,6 +29,11 @@
  *     else — including in --dry-run mode, and including immediately
  *     before the real run in --execute mode. No path through this file
  *     skips showing the plan first.
+ *   - 4F.14-K — the dry-run builds that plan from the given SQL files
+ *     ONLY: it never loads .env.local, never reads
+ *     PREVIEW_SCHEMA_DATABASE_URL and never shows a connection target
+ *     (dotenv is imported only on the --execute path). Any `--` argument
+ *     other than --execute is rejected.
  *   - Defaults to --dry-run. --execute additionally requires typing the
  *     literal word APPLY at an interactive prompt (no --yes escape
  *     hatch) — same pattern as scripts/audit-db-migrate.mjs.
@@ -47,28 +52,26 @@
  *   npx tsx scripts/preview-schema-apply.mjs 0015_new_diamondback.sql 0016_first_outlaw_kid.sql --execute
  *     → prints the same report, then asks to type APPLY before touching anything for real.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { config } from "dotenv";
+import { pathToFileURL } from "node:url";
 import { Client } from "pg";
 import { applyPreviewSchemaMigrations, ExecutionEngineError } from "./preview-schema-execution-engine.mjs";
 import { buildPreflightReport, formatPreflightReport } from "./preview-schema-preflight.mjs";
 
-config({ path: ".env.local" });
-
 const MIGRATIONS_DIR = join("db", "migrations");
 const TARGET_SCHEMA = "preview";
 const CONNECTION_ENV_VAR = "PREVIEW_SCHEMA_DATABASE_URL";
+export const SUPPORTED_FLAGS = new Set(["--execute"]);
 
-const args = process.argv.slice(2);
-const isExecute = args.includes("--execute");
-const fileNames = args.filter((a) => !a.startsWith("--"));
-
-if (fileNames.length === 0) {
-  console.error("Usage: npx tsx scripts/preview-schema-apply.mjs <fichier1.sql> [fichier2.sql ...] [--execute]");
-  console.error('Aucun nom de fichier fourni — refus de deviner "tous les fichiers". Liste-les explicitement.');
-  process.exit(1);
+/** Splits argv into file names (order preserved) and the --execute flag; rejects any unknown `--` argument. */
+export function parseApplyArgs(argv) {
+  const unknown = argv.filter((a) => a.startsWith("--") && !SUPPORTED_FLAGS.has(a));
+  if (unknown.length > 0) return { error: `Option(s) non prise(s) en charge : ${unknown.join(", ")} — seule --execute est acceptée.` };
+  const fileNames = argv.filter((a) => !a.startsWith("--"));
+  if (fileNames.length === 0) return { error: 'Aucun nom de fichier fourni — refus de deviner "tous les fichiers". Liste-les explicitement.' };
+  return { isExecute: argv.includes("--execute"), fileNames };
 }
 
 function loadNamedMigrationFiles(names) {
@@ -95,85 +98,118 @@ function extractCreatedTableNames(sql) {
   return names;
 }
 
-const files = loadNamedMigrationFiles(fileNames);
-const connectionString = process.env[CONNECTION_ENV_VAR];
-
-console.log("═".repeat(70));
-console.log("PUBLIC-MAP — Preview schema — Phase 4 (première phase pouvant exécuter du SQL réel)");
-console.log("═".repeat(70));
-
-if (!connectionString) {
-  console.error(`\n✗ ${CONNECTION_ENV_VAR} n'est pas défini. Rien n'a été tenté.`);
-  process.exit(1);
+/** Dry-run report: the plan from the SQL files alone — no env, no connection string, no target shown. */
+export async function buildDryRunReport(files) {
+  const report = await buildPreflightReport({ files, targetSchema: TARGET_SCHEMA, connectionString: undefined, connectionEnvVarName: CONNECTION_ENV_VAR });
+  return { ...report, database: { configured: false, skipped: true } };
 }
 
-const report = await buildPreflightReport({
-  files,
-  targetSchema: TARGET_SCHEMA,
-  connectionString,
-  connectionEnvVarName: CONNECTION_ENV_VAR,
-});
-console.log("\n" + formatPreflightReport(report));
+/** Returns the exit code for the dry-run and argument errors; the --execute path keeps its own process.exit calls. */
+export async function main(argv = process.argv.slice(2)) {
+  const parsed = parseApplyArgs(argv);
+  if (parsed.error) {
+    console.error("Usage: npx tsx scripts/preview-schema-apply.mjs <fichier1.sql> [fichier2.sql ...] [--execute]");
+    console.error(parsed.error);
+    return 1;
+  }
+  const { isExecute, fileNames } = parsed;
+  const files = loadNamedMigrationFiles(fileNames);
 
-if (!isExecute) {
-  console.log("\nMode dry-run (défaut) — aucune connexion PostgreSQL ouverte, aucune instruction envoyée.");
-  console.log("Relancer avec --execute pour proposer une exécution réelle (confirmation interactive requise).");
-  process.exit(0);
-}
+  console.log("═".repeat(70));
+  console.log("PUBLIC-MAP — Preview schema — Phase 4 (première phase pouvant exécuter du SQL réel)");
+  console.log("═".repeat(70));
 
-console.log("\n" + "─".repeat(70));
-console.log("--execute demandé — vérifications supplémentaires avant toute connexion réelle...");
-
-const client = new Client({ connectionString });
-await client.connect();
-
-try {
-  // Extra, file-specific guard (see module docstring) — beyond the engine's
-  // own "is the schema entirely empty" check, which `preview` intentionally
-  // fails at this stage.
-  const candidateTables = files.flatMap((f) => extractCreatedTableNames(f.sql));
-  if (candidateTables.length > 0) {
-    const { rows } = await client.query(
-      `select table_name from information_schema.tables where table_schema = $1 and table_name = any($2::text[])`,
-      [TARGET_SCHEMA, candidateTables],
-    );
-    if (rows.length > 0) {
-      console.error(
-        `\n✗ REFUS : la (les) table(s) suivante(s) existent DÉJÀ dans "${TARGET_SCHEMA}" — ces migrations semblent déjà appliquées : ` +
-          rows.map((r) => r.table_name).join(", "),
-      );
-      process.exit(1);
-    }
-    console.log(`✓ Aucune des tables que ces fichiers créeraient (${candidateTables.join(", ")}) n'existe encore dans "${TARGET_SCHEMA}".`);
+  if (!isExecute) {
+    console.log("\n" + formatPreflightReport(await buildDryRunReport(files)));
+    console.log("\nMode dry-run (défaut) — .env.local non lu, aucune variable de connexion chargée, aucune connexion PostgreSQL ouverte, aucune instruction envoyée.");
+    console.log("Relancer avec --execute pour proposer une exécution réelle (confirmation interactive requise).");
+    return 0;
   }
 
-  console.log(`\nCible : ${CONNECTION_ENV_VAR} → schéma "${TARGET_SCHEMA}" (voir la ligne "Hôte"/"Base de données" du rapport ci-dessus).`);
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question('Taper "APPLY" pour exécuter réellement ce plan, toute autre réponse annule : ');
-  rl.close();
+  // --execute only: configuration is loaded here and nowhere else.
+  const { config } = await import("dotenv");
+  config({ path: ".env.local" });
+  const connectionString = process.env[CONNECTION_ENV_VAR];
 
-  if (answer.trim() !== "APPLY") {
-    console.log("Annulé — aucune modification effectuée.");
-    process.exit(0);
+  if (!connectionString) {
+    console.error(`\n✗ ${CONNECTION_ENV_VAR} n'est pas défini. Rien n'a été tenté.`);
+    process.exit(1);
   }
 
-  const result = await applyPreviewSchemaMigrations({
+  const report = await buildPreflightReport({
     files,
     targetSchema: TARGET_SCHEMA,
-    client,
-    dryRun: false,
-    allowExisting: true, // preview already holds earlier migrations by design — see module docstring.
+    connectionString,
+    connectionEnvVarName: CONNECTION_ENV_VAR,
   });
+  console.log("\n" + formatPreflightReport(report));
 
-  console.log(`\n✓ Appliqué — ${result.statementCount} instruction(s) exécutée(s) dans une seule transaction, COMMIT confirmé.`);
-} catch (err) {
-  if (err instanceof ExecutionEngineError) {
-    console.error(`\n✗ REFUSÉ par le moteur d'exécution : ${err.message}`);
-  } else {
-    console.error(`\n✗ ÉCHEC pendant l'exécution : ${err instanceof Error ? err.message : err}`);
-    console.error("La transaction a été annulée (ROLLBACK) si elle avait démarré — voir preview-schema-execution-engine.mjs.");
+  console.log("\n" + "─".repeat(70));
+  console.log("--execute demandé — vérifications supplémentaires avant toute connexion réelle...");
+
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    // Extra, file-specific guard (see module docstring) — beyond the engine's
+    // own "is the schema entirely empty" check, which `preview` intentionally
+    // fails at this stage.
+    const candidateTables = files.flatMap((f) => extractCreatedTableNames(f.sql));
+    if (candidateTables.length > 0) {
+      const { rows } = await client.query(
+        `select table_name from information_schema.tables where table_schema = $1 and table_name = any($2::text[])`,
+        [TARGET_SCHEMA, candidateTables],
+      );
+      if (rows.length > 0) {
+        console.error(
+          `\n✗ REFUS : la (les) table(s) suivante(s) existent DÉJÀ dans "${TARGET_SCHEMA}" — ces migrations semblent déjà appliquées : ` +
+            rows.map((r) => r.table_name).join(", "),
+        );
+        process.exit(1);
+      }
+      console.log(`✓ Aucune des tables que ces fichiers créeraient (${candidateTables.join(", ")}) n'existe encore dans "${TARGET_SCHEMA}".`);
+    }
+
+    console.log(`\nCible : ${CONNECTION_ENV_VAR} → schéma "${TARGET_SCHEMA}" (voir la ligne "Hôte"/"Base de données" du rapport ci-dessus).`);
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await rl.question('Taper "APPLY" pour exécuter réellement ce plan, toute autre réponse annule : ');
+    rl.close();
+
+    if (answer.trim() !== "APPLY") {
+      console.log("Annulé — aucune modification effectuée.");
+      process.exit(0);
+    }
+
+    const result = await applyPreviewSchemaMigrations({
+      files,
+      targetSchema: TARGET_SCHEMA,
+      client,
+      dryRun: false,
+      allowExisting: true, // preview already holds earlier migrations by design — see module docstring.
+    });
+
+    console.log(`\n✓ Appliqué — ${result.statementCount} instruction(s) exécutée(s) dans une seule transaction, COMMIT confirmé.`);
+  } catch (err) {
+    if (err instanceof ExecutionEngineError) {
+      console.error(`\n✗ REFUSÉ par le moteur d'exécution : ${err.message}`);
+    } else {
+      console.error(`\n✗ ÉCHEC pendant l'exécution : ${err instanceof Error ? err.message : err}`);
+      console.error("La transaction a été annulée (ROLLBACK) si elle avait démarré — voir preview-schema-execution-engine.mjs.");
+    }
+    process.exit(1);
+  } finally {
+    await client.end();
   }
-  process.exit(1);
-} finally {
-  await client.end();
+  return 0;
+}
+
+const isDirectRun = process.argv[1] !== undefined && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (isDirectRun) {
+  main().then(
+    (code) => process.exit(code),
+    (err) => {
+      console.error(`\n✗ ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    },
+  );
 }
