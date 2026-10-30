@@ -448,7 +448,9 @@ a { color: inherit; }
 
 @media (max-width: 1024px) {
   .booking-main { grid-template-columns: 1fr; width: min(860px, calc(100% - 40px)); }
-  .booking-intro { position: static; }
+  /* relative (not static): the card stops being sticky but still clips its decorative ring (::after, right: -80px),
+     which otherwise widened the mobile layout viewport to 470px */
+  .booking-intro { position: relative; }
 }
 
 @media (max-width: 720px) {

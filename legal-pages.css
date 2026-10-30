@@ -351,6 +351,8 @@ a {
 
   .legal-title {
     font-size: clamp(40px, 13vw, 58px);
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
 }
 

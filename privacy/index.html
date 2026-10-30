@@ -10,7 +10,7 @@
   <link rel="canonical" href="https://www.public-map.com/privacy"/>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='40' cy='40' r='30' fill='%23E8F4FD' stroke='%231B5BFF' stroke-width='3.5'/%3E%3Cpath d='M40 22 C32 22 26 28 26 36 C26 44 40 56 40 56 C40 56 54 44 54 36 C54 28 48 22 40 22 Z' fill='%23EA4335'/%3E%3Ccircle cx='40' cy='35' r='5' fill='%23fff'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%231B5BFF' stroke-width='12' stroke-linecap='round'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"/>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500;1,600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="../legal-pages.css?v=2026071801"/>
+  <link rel="stylesheet" href="../legal-pages.css?v=2026103101"/>
 </head>
 <body>
   <header class="legal-nav">
@@ -37,7 +37,8 @@
       <p class="legal-sub" data-lang-content="fr">Cette politique explique comment PUBLIC-MAP traite les données du site public et, séparément, celles de l’espace SaaS lorsque ses fonctionnalités sont utilisées.</p>
       <p class="legal-sub" data-lang-content="en" hidden>This policy explains how PUBLIC-MAP processes data from the public website and, separately, data from the SaaS client area when its features are used.</p>
       <div class="legal-meta">
-        <span class="legal-pill" data-fr="Mise à jour : 10 avril 2026" data-en="Updated: April 10, 2026">Mise à jour : 10 avril 2026</span>
+        <!-- Date de dernière mise à jour du contenu de cette page -->
+        <span class="legal-pill" data-fr="Mise à jour : 30 octobre 2026" data-en="Updated: October 30, 2026">Mise à jour : 30 octobre 2026</span>
         <span class="legal-pill">contact@public-map.com</span>
       </div>
     </div>
@@ -56,7 +57,8 @@
           <a href="#conservation">6. Conservation</a>
           <a href="#droits">7. Droits</a>
           <a href="#securite">8. Sécurité</a>
-          <a href="#contact">9. Contact</a>
+          <a href="#cookies">9. Cookies</a>
+          <a href="#contact">10. Contact</a>
         </aside>
         <aside class="legal-toc" data-lang-content="en" aria-label="Table of contents" hidden>
           <strong>Contents</strong>
@@ -68,14 +70,15 @@
           <a href="#retention-en">6. Retention</a>
           <a href="#rights-en">7. Rights</a>
           <a href="#security-en">8. Security</a>
-          <a href="#contact-en">9. Contact</a>
+          <a href="#cookies-en">9. Cookies</a>
+          <a href="#contact-en">10. Contact</a>
         </aside>
 
         <div class="legal-content" data-lang-content="fr">
           <section id="responsable">
             <h2>1. Responsable du traitement</h2>
-            <p>PUBLIC-MAP est le nom commercial utilisé par <strong>Arnaud Fogang</strong> pour une activité indépendante en cours de formalisation à Maurice.</p>
-            <p>Localisation publique : Rose-Hill / Quatre Bornes, République de Maurice. Contact : <a href="mailto:contact@public-map.com">contact@public-map.com</a>. Assistance du lundi au vendredi, de 09:00 à 17:00, heure de Maurice.</p>
+            <p>À compter de la présente mise à jour, le responsable du traitement des données personnelles collectées via ce site est <strong>PUBLIC-MAP Ltd</strong> (ci-après « PUBLIC-MAP »), société constituée en République de Maurice, BRN C26238840, dont le siège social est situé : Belle Rose / Quatre Bornes 11 L, Leckning Avenue, Belle Rose, 1722-07 1518-07 MAURITIUS.</p>
+            <p>Contact : <a href="mailto:contact@public-map.com">contact@public-map.com</a>. Assistance du lundi au vendredi, de 09:00 à 17:00, heure de Maurice.</p>
           </section>
           <section id="donnees">
             <h2>2. Données collectées</h2>
@@ -95,13 +98,14 @@
           </section>
           <section id="services">
             <h2>4. Site public, SaaS et prestataires</h2>
-            <p>Le site public et l’espace SaaS sont deux services distincts. Le site public peut utiliser <strong>Supabase Auth</strong> pour ses fonctions d’authentification lorsqu’elles sont configurées. L’espace SaaS utilise <strong>Clerk</strong> pour l’authentification.</p>
+            <p>Le site public et l’espace SaaS sont deux services distincts. Le site public ne propose pas de connexion propre : son lien de connexion redirige vers l’espace SaaS. L’espace SaaS utilise <strong>Clerk</strong> pour l’authentification.</p>
             <p>PUBLIC-MAP peut également utiliser Vercel pour l’hébergement et, uniquement lorsque le client active une connexion, les API Google concernées. L’accès est limité aux données et autorisations nécessaires à la fonctionnalité demandée. Les prestataires peuvent traiter des données dans d’autres pays, avec les protections requises par la loi applicable.</p>
             <p>PUBLIC-MAP ne vend pas les données personnelles. Elles sont communiquées uniquement aux prestataires nécessaires, aux autorités lorsque la loi l’impose, ou avec l’autorisation de la personne concernée.</p>
           </section>
           <section id="paiements">
             <h2>5. Paiements</h2>
             <p>La fonctionnalité de paiement en ligne n’est pas actuellement présentée comme active. Lorsqu’elle sera activée, les paiements seront traités par un prestataire de paiement ou un établissement bancaire autorisé. PUBLIC-MAP ne stockera pas les données complètes de carte.</p>
+            <p><strong>Sécurité de la transmission des données de carte.</strong> À ce jour, aucune passerelle de paiement n’est active sur ce site, aucun formulaire du site ne demande de données de carte bancaire, et l’ensemble du site est servi exclusivement en HTTPS (chiffrement TLS). Lorsque le paiement par carte sera activé, les données de carte seront saisies uniquement sur l’interface sécurisée du prestataire de paiement retenu, qui devra être conforme à la norme PCI DSS et approuvé par la banque acquéreuse ; elles ne seront ni transmises aux serveurs de PUBLIC-MAP ni stockées par PUBLIC-MAP. L’authentification forte du porteur de carte (3-D Secure) sera appliquée lorsque la banque ou le réseau de carte l’exige.</p>
           </section>
           <section id="conservation">
             <h2>6. Conservation</h2>
@@ -115,8 +119,14 @@
             <h2>8. Sécurité</h2>
             <p>PUBLIC-MAP applique des mesures raisonnables de contrôle d’accès, de chiffrement en transit, de journalisation et de limitation des données. Aucun système n’étant infaillible, un incident sera traité conformément aux obligations applicables.</p>
           </section>
+          <section id="cookies">
+            <h2>9. Cookies et stockage local</h2>
+            <p>Le site utilise Google Analytics 4 pour mesurer son audience. Par défaut, le stockage à des fins de mesure est refusé : aucun cookie Google Analytics n’est déposé tant que vous n’avez pas cliqué sur « Accepter » dans le bandeau affiché lors de votre première visite. Avant ce choix, ou en cas de refus, Google peut recevoir des signaux de mesure sans cookie.</p>
+            <p>Le site enregistre également dans le stockage local de votre navigateur : votre choix concernant les cookies, votre langue et votre thème d’affichage, le contenu de votre sélection de services pour devis et l’état de la fenêtre de discussion. Ces informations restent sur votre appareil.</p>
+            <p>Pour modifier votre choix, effacez les données de ce site dans les réglages de votre navigateur : le bandeau s’affichera de nouveau lors de votre prochaine visite.</p>
+          </section>
           <section id="contact">
-            <h2>9. Contact</h2>
+            <h2>10. Contact</h2>
             <div class="contact-box">
               <p>Pour toute question ou demande relative à vos données :</p>
               <a href="mailto:contact@public-map.com?subject=Confidentialit%C3%A9%20PUBLIC-MAP">contact@public-map.com</a>
@@ -127,8 +137,8 @@
         <div class="legal-content" data-lang-content="en" hidden>
           <section id="controller-en">
             <h2>1. Data controller</h2>
-            <p>PUBLIC-MAP is the trading name used by <strong>Arnaud Fogang</strong> for an independent activity currently being formalised in Mauritius.</p>
-            <p>Public location: Rose-Hill / Quatre Bornes, Republic of Mauritius. Contact: <a href="mailto:contact@public-map.com">contact@public-map.com</a>. Support is available Monday to Friday, 09:00–17:00 Mauritius Time.</p>
+            <p>From the date of this policy update, the controller of personal data collected through this website is <strong>PUBLIC-MAP Ltd</strong> (“PUBLIC-MAP”), a company incorporated in the Republic of Mauritius, BRN C26238840, whose registered office is: Belle Rose / Quatre Bornes 11 L, Leckning Avenue, Belle Rose, 1722-07 1518-07 MAURITIUS.</p>
+            <p>Contact: <a href="mailto:contact@public-map.com">contact@public-map.com</a>. Support is available Monday to Friday, 09:00–17:00 Mauritius Time.</p>
           </section>
           <section id="data-en">
             <h2>2. Data collected</h2>
@@ -148,13 +158,14 @@
           </section>
           <section id="services-en">
             <h2>4. Public website, SaaS and providers</h2>
-            <p>The public website and SaaS client area are separate services. The public website may use <strong>Supabase Auth</strong> for authentication features when configured. The SaaS client area uses <strong>Clerk</strong> for authentication.</p>
+            <p>The public website and SaaS client area are separate services. The public website has no sign-in of its own: its sign-in link redirects to the SaaS client area. The SaaS client area uses <strong>Clerk</strong> for authentication.</p>
             <p>PUBLIC-MAP may also use Vercel for hosting and, only when enabled by the client, the relevant Google APIs. Access is limited to the data and permissions required for the requested feature. Providers may process data in other countries, subject to protections required by applicable law.</p>
             <p>PUBLIC-MAP does not sell personal data. Data is disclosed only to necessary providers, to authorities where required by law, or with the data subject’s authorisation.</p>
           </section>
           <section id="payments-en">
             <h2>5. Payments</h2>
             <p>Online payment is not currently presented as active. Once enabled, payments will be processed by an authorised payment provider or banking institution. PUBLIC-MAP will not store full card data.</p>
+            <p><strong>Security of card data transmission.</strong> At present, no payment gateway is active on this website, no form on this website requests payment card data, and the whole website is served exclusively over HTTPS (TLS encryption). Once card payment is enabled, card data will be entered only on the secure interface of the selected payment provider, which will have to be PCI DSS compliant and approved by the acquiring bank; it will be neither transmitted to PUBLIC-MAP’s servers nor stored by PUBLIC-MAP. Strong cardholder authentication (3-D Secure) will be applied where required by the bank or the card scheme.</p>
           </section>
           <section id="retention-en">
             <h2>6. Retention</h2>
@@ -168,8 +179,14 @@
             <h2>8. Security</h2>
             <p>PUBLIC-MAP applies reasonable access-control, encryption-in-transit, logging and data-minimisation measures. As no system is infallible, any incident will be handled in accordance with applicable obligations.</p>
           </section>
+          <section id="cookies-en">
+            <h2>9. Cookies and local storage</h2>
+            <p>This website uses Google Analytics 4 to measure its audience. By default, analytics storage is denied: no Google Analytics cookie is set until you click “Accept” in the banner shown on your first visit. Before you choose, or if you reject, Google may receive cookieless measurement signals.</p>
+            <p>The website also saves in your browser’s local storage: your cookie choice, your language and display theme, the contents of your service selection for a quote, and the state of the chat window. This information stays on your device.</p>
+            <p>To change your choice, clear this website’s data in your browser settings: the banner will appear again on your next visit.</p>
+          </section>
           <section id="contact-en">
-            <h2>9. Contact</h2>
+            <h2>10. Contact</h2>
             <div class="contact-box">
               <p>For any privacy question or data request:</p>
               <a href="mailto:contact@public-map.com?subject=Privacy%20PUBLIC-MAP">contact@public-map.com</a>
