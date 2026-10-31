@@ -23,6 +23,7 @@
       unavailable: "Le service d’envoi automatique n’est pas encore connecté. Votre demande n’a pas été transmise ni enregistrée.",
       error: "La demande n’a pas pu être transmise. Aucune réservation n’a été créée.",
       success: "Votre demande a été transmise pour examen. Le créneau reste à confirmer par PUBLIC-MAP.",
+      rateLimited: "Trop de tentatives ont été faites depuis votre connexion en peu de temps. Votre demande n’a pas été transmise ni enregistrée. Réessayez dans quelques minutes ou contactez-nous par e-mail.",
       email: "Contacter PUBLIC-MAP par e-mail"
     },
     en: {
@@ -35,6 +36,7 @@
       unavailable: "The automated submission service is not connected yet. Your request has not been sent or stored.",
       error: "The request could not be sent. No booking has been created.",
       success: "Your request has been submitted for review. The time slot still needs to be confirmed by PUBLIC-MAP.",
+      rateLimited: "Too many attempts were made from your connection in a short time. Your request has not been sent or stored. Please try again in a few minutes or contact us by email.",
       email: "Contact PUBLIC-MAP by email"
     }
   };
@@ -165,6 +167,11 @@
           submitButton.setAttribute("aria-disabled", "true");
           submitLabel.textContent = language === "en" ? "Automatic submission unavailable" : "Envoi automatique indisponible";
         }
+        return;
+      }
+
+      if (response.status === 429 || payload.code === "rate_limited") {
+        setStatus(ui[language].rateLimited, "warning", true);
         return;
       }
 

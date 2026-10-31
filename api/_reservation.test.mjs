@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import handler, { validateReservation, upstreamUrl } from "./reservation.js";
+import handler, { validateReservation, upstreamUrl, checkRateLimit, clientIp, __resetRateLimits } from "./reservation.js";
 
 const ENV_KEYS = ["RESERVATION_UPSTREAM_URL", "RESERVATION_UPSTREAM_TOKEN"];
 let savedEnv;
@@ -13,6 +13,7 @@ beforeEach(() => {
   savedFetch = globalThis.fetch;
   savedError = console.error;
   console.error = () => {};
+  __resetRateLimits();
 });
 
 afterEach(() => {
@@ -37,10 +38,10 @@ function validBody(overrides = {}) {
   };
 }
 
-function post(body, contentType = "application/json") {
+function post(body, contentType = "application/json", ip) {
   return new Request("https://example.com/api/reservation", {
     method: "POST",
-    headers: { "Content-Type": contentType },
+    headers: { "Content-Type": contentType, ...(ip ? { "x-forwarded-for": ip } : {}) },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
@@ -193,5 +194,69 @@ describe("reservation: backend configured", () => {
     const res = await handler(post(validBody()));
     assert.equal(res.status, 502);
     assert.equal((await res.json()).code, "reservation_upstream_failed");
+  });
+});
+
+describe("reservation: rate limiting", () => {
+  test("allows 6 POSTs per visitor in 10 minutes, then answers 429 with Retry-After and forwards nothing", async () => {
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    let forwarded = 0;
+    globalThis.fetch = async () => { forwarded++; return new Response("{}", { status: 200 }); };
+    for (let i = 0; i < 6; i++) assert.equal((await handler(post(validBody(), "application/json", "203.0.113.7"))).status, 200);
+    const res = await handler(post(validBody(), "application/json", "203.0.113.7"));
+    assert.equal(res.status, 429);
+    assert.deepEqual(await res.json(), { ok: false, code: "rate_limited" });
+    const retry = Number(res.headers.get("Retry-After"));
+    assert.ok(retry > 590 && retry <= 600, `Retry-After ${retry}`);
+    assert.equal(forwarded, 6);
+  });
+
+  test("counts invalid requests too (a flood of junk cannot be retried for free)", async () => {
+    for (let i = 0; i < 6; i++) assert.equal((await handler(post("{junk", "application/json", "203.0.113.8"))).status, 400);
+    assert.equal((await handler(post(validBody(), "application/json", "203.0.113.8"))).status, 429);
+  });
+
+  test("one visitor being limited never blocks another visitor", async () => {
+    for (let i = 0; i < 7; i++) await handler(post("{junk", "application/json", "203.0.113.9"));
+    assert.equal((await handler(post(validBody(), "application/json", "198.51.100.1"))).status, 503);
+  });
+
+  test("a legitimate visitor who retries a few times after an error is not blocked", async () => {
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    globalThis.fetch = async () => new Response("down", { status: 500 });
+    for (let i = 0; i < 3; i++) assert.equal((await handler(post(validBody(), "application/json", "192.0.2.10"))).status, 502);
+    globalThis.fetch = async () => new Response("{}", { status: 200 });
+    assert.equal((await handler(post(validBody(), "application/json", "192.0.2.10"))).status, 200);
+  });
+
+  test("GET requests are refused (405) without consuming the quota", async () => {
+    for (let i = 0; i < 10; i++) {
+      await handler(new Request("https://example.com/api/reservation", { headers: { "x-forwarded-for": "192.0.2.20" } }));
+    }
+    assert.equal((await handler(post(validBody(), "application/json", "192.0.2.20"))).status, 503);
+  });
+
+  test("the window slides: a limited visitor is allowed again after 10 minutes", () => {
+    const t0 = 1_800_000_000_000;
+    for (let i = 0; i < 6; i++) assert.equal(checkRateLimit("192.0.2.30", t0 + i).limited, false);
+    assert.equal(checkRateLimit("192.0.2.30", t0 + 1000).limited, true);
+    assert.equal(checkRateLimit("192.0.2.30", t0 + 10 * 60 * 1000 + 10).limited, false);
+  });
+
+  test("a global cap of 60 POSTs per minute protects the intake from many IPs", () => {
+    const t0 = 1_900_000_000_000;
+    for (let i = 0; i < 60; i++) assert.equal(checkRateLimit(`10.0.${Math.floor(i / 250)}.${i % 250}`, t0).limited, false);
+    const over = checkRateLimit("10.9.9.9", t0 + 5);
+    assert.equal(over.limited, true);
+    assert.ok(over.retryAfterSec >= 59 && over.retryAfterSec <= 60);
+    assert.equal(checkRateLimit("10.9.9.9", t0 + 60_001).limited, false);
+  });
+
+  test("reads the first x-forwarded-for address and ignores malformed values", () => {
+    const req = (h) => new Request("https://example.com/", { headers: h });
+    assert.equal(clientIp(req({ "x-forwarded-for": "203.0.113.5, 10.0.0.1" })), "203.0.113.5");
+    assert.equal(clientIp(req({ "x-real-ip": "2001:db8::1" })), "2001:db8::1");
+    assert.equal(clientIp(req({ "x-forwarded-for": "<script>" })), "unknown");
+    assert.equal(clientIp(req({})), "unknown");
   });
 });

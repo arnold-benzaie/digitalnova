@@ -19,9 +19,14 @@
  * RESERVATION_UPSTREAM_TOKEN, when set, is sent as a Bearer token. Personal
  * data is never logged: only status codes and variable NAMES.
  *
- * Not handled here: rate limiting. The honeypot and minimum fill time only
- * stop naive bots; before an intake URL is configured, add a platform rate
- * limit (e.g. a Vercel WAF rule on /api/reservation) or a challenge.
+ * Abuse protection: a honeypot and a minimum fill time stop naive bots, and
+ * every POST is rate limited before the body is read — at most 6 per visitor
+ * IP in 10 minutes and 60 per minute overall, answered with 429
+ * { ok: false, code: "rate_limited" } and a Retry-After header. The IP comes
+ * from x-forwarded-for, which Vercel overwrites (clients cannot spoof it).
+ * Limits: the counters live in the memory of each function instance, so
+ * they are per instance, not global, and reset on cold start. A Vercel WAF
+ * rate-limit rule on /api/reservation remains the stronger, global option.
  */
 export const config = { runtime: "edge" };
 
@@ -40,10 +45,49 @@ const SINGLE_LINE_CONTROL = /[\u0000-\u001f\u007f]/;
 // The message may contain line breaks and tabs, but no other control characters.
 const MULTI_LINE_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
-function json(status, body) {
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const RATE_MAX_PER_IP = 6;
+const GLOBAL_WINDOW_MS = 60 * 1000;
+const RATE_MAX_GLOBAL = 60;
+const MAX_TRACKED_IPS = 5000;
+const hitsByIp = new Map(); // ip -> timestamps (ms) of recent POSTs, oldest first
+let globalHits = [];
+
+/** Visitor IP as set by the platform; "unknown" when absent (local runs). */
+export function clientIp(request) {
+  const raw = (request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "").split(",")[0].trim();
+  return /^[0-9a-fA-F:.]{2,64}$/.test(raw) ? raw : "unknown";
+}
+
+/** Records one POST for `ip` and says whether it must be refused. */
+export function checkRateLimit(ip, now = Date.now()) {
+  globalHits = globalHits.filter((t) => now - t < GLOBAL_WINDOW_MS);
+  const hits = (hitsByIp.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (hits.length >= RATE_MAX_PER_IP) {
+    hitsByIp.set(ip, hits);
+    return { limited: true, retryAfterSec: Math.ceil((hits[0] + RATE_WINDOW_MS - now) / 1000) };
+  }
+  if (globalHits.length >= RATE_MAX_GLOBAL) {
+    return { limited: true, retryAfterSec: Math.ceil((globalHits[0] + GLOBAL_WINDOW_MS - now) / 1000) };
+  }
+  hits.push(now);
+  globalHits.push(now);
+  hitsByIp.delete(ip); // re-insert so Map order stays "least recently seen first"
+  hitsByIp.set(ip, hits);
+  while (hitsByIp.size > MAX_TRACKED_IPS) hitsByIp.delete(hitsByIp.keys().next().value);
+  return { limited: false, retryAfterSec: 0 };
+}
+
+/** Test helper: forget all counters. */
+export function __resetRateLimits() {
+  hitsByIp.clear();
+  globalHits = [];
+}
+
+function json(status, body, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extraHeaders },
   });
 }
 
@@ -135,6 +179,12 @@ async function readBody(request) {
 
 export default async function handler(request) {
   if (request.method !== "POST") return json(405, { ok: false, code: "method_not_allowed" });
+  // Counted before anything else, invalid requests included, so retries and floods cost nothing further.
+  const rate = checkRateLimit(clientIp(request));
+  if (rate.limited) {
+    console.error("reservation: rate limited");
+    return json(429, { ok: false, code: "rate_limited" }, { "Retry-After": String(rate.retryAfterSec) });
+  }
   if (!(request.headers.get("content-type") || "").toLowerCase().includes("application/json")) return invalid();
 
   const raw = await readBody(request);
