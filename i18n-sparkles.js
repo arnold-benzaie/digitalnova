@@ -150,6 +150,12 @@ const T = {
 
   // Service intro
   "Ce que comprend notre service":"What our service includes",
+  "Visibilité en ligne":"Online visibility",
+  "· SEO · IA · Automatisation":"· SEO · AI · Automation",
+  "Marketing digital, web et automatisation — Nos offres":"Digital marketing, web and automation — Our offers",
+  "Services IA — visibilité, web et automatisation":"AI services — visibility, web and automation",
+  "📍 Présence locale sur les cartes":"📍 Local presence on maps",
+  "Les noms et logos de plateformes identifient les technologies citées. Ils n’impliquent aucun partenariat officiel ni aucune affiliation avec leurs propriétaires.":"Platform names and logos identify the technologies referenced. They do not imply any official partnership or affiliation with their owners.",
   "Trois outils complémentaires pour faciliter la collecte d'avis, structurer la visibilité locale et présenter votre activité.":"Three complementary tools to facilitate review collection, structure local visibility and present your business.",
   "Google Business Profile · SEO · IA · Automatisation":"Google Business Profile · SEO · AI · Automation",
   "Une offre complète pour transformer votre présence en ligne : visibilité locale, contenus IA, avis clients, site web, CRM et automatisations.":"A complete offer to transform your online presence: local visibility, AI content, customer reviews, website, CRM and automations.",

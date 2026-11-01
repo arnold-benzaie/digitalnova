@@ -397,6 +397,10 @@ footer.foot-bar-rounded {
   color:#9AA6B8; transition:color .3s ease, transform .3s ease; cursor:default; white-space:nowrap;
 }
 .pf-logo:hover{ color:#2A3648; transform:translateY(-2px); }
+.platforms-note{
+  font-family:'Outfit',sans-serif; font-size:12px; line-height:1.5; color:#8A94A6;
+  max-width:640px; margin:20px auto 0;
+}
 .pf-google{ opacity:.96; }
 .pf-google .g-b{color:#4285F4;} .pf-google .g-r{color:#EA4335;}
 .pf-google .g-y{color:#FBBC05;} .pf-google .g-g{color:#34A853;}
