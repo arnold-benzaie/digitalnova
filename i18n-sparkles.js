@@ -127,7 +127,7 @@ const T = {
   "Google 5 étoiles":"5-star Google",
   "Vos clients laissent un avis Google ⭐⭐⭐⭐⭐ en":"Your clients leave a 5-star Google review in",
   "🚀 Demander un devis — $1 000 CAD":"🚀 Request a quote — $1,000 CAD",
-  "🇪🇺 Europe — 219 € HT":"🇪🇺 Europe — €219 excl. tax",
+  "🇪🇺 Europe — 219 € HT":"🇪🇺 Europe — €219 excl. VAT",
   "Local SEO":"Local SEO",
   "Organic SEO":"Organic SEO",
   "Google Ads":"Google Ads",
@@ -294,8 +294,8 @@ const T = {
   "Chatbot IA de qualification si compatible":"AI qualification chatbot if compatible",
   "Configuration CAD et conformité Canada":"CAD setup and Canada compliance",
   "Configuration EUR et conformité RGPD":"EUR setup and GDPR compliance",
-  "Unique":"Unique",
-  "Unique Europe":"Unique Europe",
+  "Unique":"One-time",
+  "Unique Europe":"One-time Europe",
   "Installation gestion des avis Google":"Google review management setup",
   "Système pour faciliter la collecte d'avis clients via QR Code, lien direct et relances encadrées, tout en respectant les règles Google.":"A system to simplify customer review collection through QR code, direct link and guided follow-ups while respecting Google rules.",
   "paiement unique · installation incluse":"one-time payment · setup included",
@@ -552,7 +552,7 @@ const T = {
   "8 articles SEO optimisés · inclus 1 an":"8 optimized SEO articles · 1 year included",
   "Dashboard positions en temps réel":"Real-time position dashboard",
   "Demander un devis — $2 500 CAD/an →":"Request a quote — $2,500 CAD/yr →",
-  "🇪🇺 Zone Europe — Prix en Euro HT":"🇪🇺 Europe Zone — Prices in Euros excl. tax",
+  "🇪🇺 Zone Europe — Prix en Euro HT":"🇪🇺 Europe Zone — Prices in Euros excl. VAT",
   "Starter 219 €":"Starter €219",
   "Pro 369 €":"Pro €369",
   "SEO 439 €/an":"SEO €439/yr",
@@ -1091,6 +1091,86 @@ const T = {
   "Une stratégie SEO annuelle pour améliorer durablement votre visibilité en France, Belgique, Suisse et Europe francophone : audit technique, contenus mensuels, mots-clés ciblés et acquisition de liens de qualité en méthode white-hat.":"An annual SEO strategy to sustainably improve your visibility in France, Belgium, Switzerland and French-speaking Europe: technical audit, monthly content, targeted keywords and quality link building using white-hat methods.",
   "Campagnes Google Ads & Meta Ads":"Google Ads & Meta Ads campaigns",
 
+  // Complete EN audit 2026-11-01: hidden/zone texts, tax markers of static prices, attributes
+  "Des offres simples pour":"Simple offers to",
+  "Google Business Profile, SEO local, Ads, site web, CRM et automatisation IA · Canada et Europe francophone":"Google Business Profile, local SEO, Ads, websites, CRM and AI automation · Canada and French-speaking Europe",
+  "Rapport d'optimisation clair et prochaines actions":"Clear optimization report and next actions",
+  "paiement annuel · suivi mensuel":"annual payment · monthly follow-up",
+  "Publications Google mensuelles et contenus courts":"Monthly Google posts and short content",
+  "paiement annuel · budget publicitaire non inclus":"annual payment · ad budget not included",
+  "Structuration des campagnes Google Search ou Meta":"Google Search or Meta campaign structure",
+  "Suivi des leads, appels et demandes de devis":"Tracking of leads, calls and quote requests",
+  "Site web vitrine & paiement":"Showcase website & payment",
+  "10 mots-clés supplémentaires stratégiques":"10 additional strategic keywords",
+  "Intégration IA pour sélectionner les cibles les plus pertinentes":"AI integration to select the most relevant targets",
+  "Mots-clés géo-ciblés par ville, région ou service":"Geo-targeted keywords by city, region or service",
+  "Liste de produits et services réécrite avec IA":"Product and service list rewritten with AI",
+  "Descriptions claires, mots-clés locaux et catégories":"Clear descriptions, local keywords and categories",
+  "Optimisation des photos compatibles avec votre fiche":"Optimization of photos compatible with your listing",
+  "Assistance incluse pendant 12 mois sur les ajustements":"Assistance included for 12 months on adjustments",
+  "Structure adaptée aux recherches Canada":"Structure adapted to searches in Canada",
+  "Structure adaptée aux recherches Europe":"Structure adapted to searches in Europe",
+  "Audit Google Business Profile et SEO local":"Google Business Profile and local SEO audit",
+  "Analyse rapide du site, des avis et du parcours devis":"Quick analysis of the website, reviews and quote journey",
+  "Liste priorisée des corrections à faire":"Prioritized list of fixes to make",
+  "Priorités adaptées au marché Canada":"Priorities adapted to the Canadian market",
+  "Priorités adaptées au marché Europe":"Priorities adapted to the European market",
+  "Formulaire intelligent relié au suivi prospect":"Smart form connected to prospect tracking",
+  "Qualification automatique par type de demande":"Automatic qualification by request type",
+  "Notification email ou webhook n8n si disponible":"Email notification or n8n webhook if available",
+  "Modèles de relance et résumé IA de la demande":"Follow-up templates and AI summary of the request",
+  "Flux adapté au marché Canada":"Flow adapted to the Canadian market",
+  "Flux adapté au marché Europe":"Flow adapted to the European market",
+  "\"agence SEO pour entreprise au Canada\"":"\"SEO agency for businesses in Canada\"",
+  "\"dentiste Vancouver\"":"\"dentist Vancouver\"",
+  "\"avocat Bruxelles\"":"\"lawyer Brussels\"",
+  "Mots-clés géolocalisés pour renforcer votre visibilité dans votre quartier, ville et région.":"Geo-targeted keywords to strengthen your visibility in your neighborhood, city and region.",
+  "Copyright © 2026 🌍 PUBLIC-MAP. Tous droits réservés.":"Copyright © 2026 🌍 PUBLIC-MAP. All rights reserved.",
+  "8 publications Google Maps par mois":"8 Google Maps posts per month",
+  "Demander le pack complet":"Request the full pack",
+  "Formulaire de devis et suivi des demandes":"Quote form and request tracking",
+  "paiement unique · calendrier selon devis":"one-time payment · schedule per quote",
+  "Plan d'action 90 jours inclus":"90-day action plan included",
+  "✨ IA · Annuel":"✨ AI · Annual",
+  "Structure Google Search ou Meta selon objectif":"Google Search or Meta structure depending on the objective",
+  "Rapport clair : budget, clics, prospects et pistes":"Clear report: budget, clicks, prospects and next steps",
+  "annuel · budget publicitaire non inclus":"annual · ad budget not included",
+  "annuel · TVA selon pays · renouvellement libre":"annual · VAT depending on country · free renewal",
+  "paiement unique · TVA selon pays":"one-time payment · VAT depending on country",
+  "annuel · TVA selon pays":"annual · VAT depending on country",
+  "paiement annuel · TVA selon pays":"annual payment · VAT depending on country",
+  "annuel · TTC":"annual · incl. VAT",
+  "paiement annuel · TTC":"annual payment · incl. VAT",
+  "1 990 € HT":"1 990 € excl. VAT",
+  "1 690 € HT":"1 690 € excl. VAT",
+  "1 190 € HT":"1 190 € excl. VAT",
+  "790 € TTC":"790 € incl. VAT",
+  "590 € HT":"590 € excl. VAT",
+  "190 € HT":"190 € excl. VAT",
+  "329 € HT":"329 € excl. VAT",
+  "690 € HT":"690 € excl. VAT",
+  "PUBLIC-MAP accueil":"PUBLIC-MAP home",
+  "Ouvrir le menu":"Open menu",
+  "Fermer le menu":"Close menu",
+  "Changer de thème":"Change theme",
+  "Couple cherchant un restaurant sur Google dans une nouvelle ville, smartphone en main":"Couple searching for a restaurant on Google in a new city, smartphone in hand",
+  "Voyageurs préparant leurs vacances à l'étranger et cherchant un hôtel sur Google Maps":"Travellers planning a holiday abroad and searching for a hotel on Google Maps",
+  "Personnes dans un café trouvé grâce à Google Maps":"People in a café found through Google Maps",
+  "Automobiliste cherchant un garagiste ouvert à proximité sur Google":"Driver searching Google for a nearby garage that is open",
+  "Personne cherchant un avocat ou un médecin de confiance sur Google":"Person searching Google for a trusted lawyer or doctor",
+  "Entrepreneurs consultant les performances de leur fiche Google Business Profile":"Entrepreneurs reviewing the performance of their Google Business Profile",
+  "Services digitaux à la carte":"À-la-carte digital services",
+  "Aperçu Google Maps sur ordinateur — PUBLIC-MAP":"Google Maps preview on desktop — PUBLIC-MAP",
+  "Aperçu Google Maps sur mobile — PUBLIC-MAP":"Google Maps preview on mobile — PUBLIC-MAP",
+  "Filtrer les démonstrations":"Filter demos",
+  "Réservation et expertises PUBLIC-MAP":"PUBLIC-MAP booking and expertise",
+  "courriel@exemple.com":"email@example.com",
+  "Prénom Nom":"First and last name",
+  "Nom de votre entreprise":"Your company name",
+  "Processus de confirmation de commande":"Order confirmation process",
+  "votre@courriel.com":"your@email.com",
+  "Nom de l'entreprise":"Company name",
+
   // Modal
   "Fermer":"Close",
   "Service":"Service",
@@ -1137,6 +1217,22 @@ function walkAndTranslate(targetLang){
     const orig = el.dataset.origPlaceholder.trim();
     el.placeholder = (targetLang === 'en' && T[orig]) ? T[orig] : el.dataset.origPlaceholder;
   });
+  ['alt','aria-label','title'].forEach(attr => {
+    const key = 'orig' + attr.replace(/-(\w)/g, (m, c) => c.toUpperCase()).replace(/^\w/, c => c.toUpperCase());
+    document.querySelectorAll('[' + attr + ']').forEach(el => {
+      if(el.closest('#lang-toggle')) return;
+      if(el.dataset[key] === undefined) el.dataset[key] = el.getAttribute(attr);
+      const orig = el.dataset[key].trim();
+      el.setAttribute(attr, (targetLang === 'en' && T[orig]) ? T[orig] : el.dataset[key]);
+    });
+  });
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if(metaDesc){
+    if(metaDesc.dataset.origContent === undefined) metaDesc.dataset.origContent = metaDesc.content;
+    metaDesc.content = targetLang === 'en'
+      ? "PUBLIC-MAP Ltd — Digital Technology & IT Solutions, based in Mauritius: web development, AI and automation, hosting, digital marketing; software, mobile apps and cloud subject to a feasibility assessment."
+      : metaDesc.dataset.origContent;
+  }
   document.querySelectorAll('button, input[type=submit]').forEach(el => {
     if(el.tagName === 'INPUT' && el.value){
       if(!el.dataset.origValue) el.dataset.origValue = el.value;

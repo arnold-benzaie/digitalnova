@@ -30,14 +30,20 @@
     }).format(value);
   }
 
+  // English labels for the French tax/period markers (amounts never change).
+  function markerLabel(label){
+    if(document.documentElement.lang !== 'en') return label;
+    return String(label).replace(/\bHT\b/, 'excl. VAT').replace(/\bTTC\b/, 'incl. VAT').replace('/an', '/year');
+  }
+
   function fmtAmount(amount, currency){
     const locale = document.documentElement.lang === 'en' ? 'en-CA' : 'fr-CA';
     const formatted = formatAmountNumber(amount, locale);
     // CAD: "$1 000 CAD" · EU: "219 € HT" or "255 € TTC"
     if(currency.startsWith('€') || currency === 'EUR' || currency.includes('€')){
-      return { num: formatted + ' €', cur: currency.replace('€','').trim() || 'HT' };
+      return { num: formatted + ' €', cur: markerLabel(currency.replace('€','').trim() || 'HT') };
     }
-    return { num: '$' + formatted, cur: currency };
+    return { num: '$' + formatted, cur: markerLabel(currency) };
   }
 
   function syncCard(card, zone){
@@ -72,7 +78,7 @@
       const locale = isEnglish ? 'en-CA' : 'fr-CA';
       const formatted = formatAmountNumber(amount, locale);
       const action = isEnglish ? 'Request a quote' : 'Demander un devis';
-      const suffix = f.cur || (zone === 'eu' ? (isEnglish ? 'excl. tax' : 'HT') : 'CAD');
+      const suffix = f.cur || (zone === 'eu' ? markerLabel('HT') : 'CAD');
       const label = zone === 'eu' ? `${action} — ${formatted} € ${suffix} →` : `${action} — $${formatted} ${suffix} →`;
       btn.textContent = label;
     }

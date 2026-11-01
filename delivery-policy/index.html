@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="/analytics.js" async></script>
   <title data-fr="Politique de livraison numérique — PUBLIC-MAP" data-en="Digital Delivery Policy — PUBLIC-MAP">Politique de livraison numérique — PUBLIC-MAP</title>
-  <meta name="description" content="Politique bilingue de livraison et d’exécution à distance des services numériques PUBLIC-MAP."/>
+  <meta name="description" content="Politique bilingue de livraison et d’exécution à distance des services numériques PUBLIC-MAP." data-content-fr="Politique bilingue de livraison et d’exécution à distance des services numériques PUBLIC-MAP." data-content-en="PUBLIC-MAP bilingual policy for remote delivery and performance of digital services."/>
   <meta name="robots" content="index, follow"/>
   <link rel="canonical" href="https://www.public-map.com/delivery-policy"/>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='40' cy='40' r='30' fill='%23E8F4FD' stroke='%231B5BFF' stroke-width='3.5'/%3E%3Cpath d='M40 22 C32 22 26 28 26 36 C26 44 40 56 40 56 C40 56 54 44 54 36 C54 28 48 22 40 22 Z' fill='%23EA4335'/%3E%3Ccircle cx='40' cy='35' r='5' fill='%23fff'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%231B5BFF' stroke-width='12' stroke-linecap='round'/%3E%3Cline x1='62' y1='62' x2='92' y2='92' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"/>
@@ -15,7 +15,7 @@
 <body>
   <header class="legal-nav">
     <a class="brand" href="/">PUBLIC-<span>MAP</span></a>
-    <nav class="legal-nav-links" aria-label="Navigation légale">
+    <nav class="legal-nav-links" aria-label="Navigation légale" data-aria-fr="Navigation légale" data-aria-en="Legal navigation">
       <a href="/" data-fr="Accueil" data-en="Home">Accueil</a>
       <a href="/privacy" data-fr="Confidentialité" data-en="Privacy">Confidentialité</a>
       <a href="/terms" data-fr="Conditions" data-en="Terms">Conditions</a>
@@ -164,6 +164,8 @@
       function applyLang(lang){
         document.documentElement.lang=lang;
         document.querySelectorAll('[data-fr]').forEach(function(el){var text=lang==='en'?(el.dataset.en||el.dataset.fr):el.dataset.fr;if(text)el.textContent=text;});
+        document.querySelectorAll('[data-aria-fr]').forEach(function(el){el.setAttribute('aria-label',lang==='en'?el.dataset.ariaEn:el.dataset.ariaFr);});
+        var md=document.querySelector('meta[name="description"][data-content-fr]');if(md)md.setAttribute('content',lang==='en'?md.dataset.contentEn:md.dataset.contentFr);
         document.querySelectorAll('[data-lang-content]').forEach(function(el){el.hidden=el.dataset.langContent!==lang;});
         document.querySelectorAll('.lang-toggle button').forEach(function(b){b.classList.toggle('active',b.dataset.lang===lang);});
         try{localStorage.setItem('digitalnova-lang',lang);}catch(e){}

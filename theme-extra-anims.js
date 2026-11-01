@@ -344,8 +344,10 @@
     if(!navRight) return;
     const btn = document.createElement('button');
     btn.id = 'theme-toggle';
-    btn.title = 'Changer de thème';
-    btn.setAttribute('aria-label','Toggle theme');
+    const label = () => document.documentElement.lang === 'en' ? 'Change theme' : 'Changer de thème';
+    btn.title = label();
+    btn.setAttribute('aria-label', label());
+    document.addEventListener('digitalnova:language-updated', () => { btn.title = label(); btn.setAttribute('aria-label', label()); });
     btn.innerHTML = '<span class="icon-moon">🌙</span><span class="icon-sun">☀️</span>';
     navRight.insertBefore(btn, navRight.firstChild);
 

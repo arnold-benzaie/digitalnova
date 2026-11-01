@@ -49,6 +49,9 @@
     document.querySelectorAll("[data-fr][data-en]").forEach((element) => {
       element.textContent = element.dataset[language];
     });
+    document.querySelectorAll("[data-aria-fr][data-aria-en]").forEach((element) => {
+      element.setAttribute("aria-label", element.dataset[language === "en" ? "ariaEn" : "ariaFr"]);
+    });
     document.querySelectorAll("[data-placeholder-fr][data-placeholder-en]").forEach((element) => {
       element.setAttribute("placeholder", element.dataset[`placeholder${language === "en" ? "En" : "Fr"}`]);
     });

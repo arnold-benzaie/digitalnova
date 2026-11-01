@@ -1931,8 +1931,8 @@ footer{background:#050505;}
                data-eu-period-en="one-time payment · VAT by country"
                data-ca-name="Unique"
                data-eu-name="Unique Europe"
-               data-ca-name-en="Unique"
-               data-eu-name-en="Unique Europe"
+               data-ca-name-en="One-time"
+               data-eu-name-en="One-time Europe"
                data-ca-title="Installation gestion des avis Google"
                data-eu-title="Installation gestion des avis Google"
                data-ca-title-en="Google review management setup"
@@ -3503,14 +3503,15 @@ window.addEventListener('pageshow',updateNavbarState);
     nav.classList.remove('nav-open');
     document.body.classList.remove('nav-open');
     btn.setAttribute('aria-expanded','false');
-    btn.setAttribute('aria-label','Ouvrir le menu');
+    btn.setAttribute('aria-label',document.documentElement.lang==='en'?'Open menu':'Ouvrir le menu');
   };
   btn.addEventListener('click',()=>{
     const open=!nav.classList.contains('nav-open');
     nav.classList.toggle('nav-open',open);
     document.body.classList.toggle('nav-open',open);
     btn.setAttribute('aria-expanded',open?'true':'false');
-    btn.setAttribute('aria-label',open?'Fermer le menu':'Ouvrir le menu');
+    const en=document.documentElement.lang==='en';
+    btn.setAttribute('aria-label',open?(en?'Close menu':'Fermer le menu'):(en?'Open menu':'Ouvrir le menu'));
   });
   panel.querySelectorAll('a,button.zone-btn').forEach(el=>el.addEventListener('click',close));
   window.addEventListener('resize',()=>{if(window.innerWidth>900)close();});
@@ -3869,7 +3870,8 @@ function formatQuoteAmount(value, locale){
 
 function quoteAmountLabel(price,zone,currencyLabel){
   const en=document.documentElement.lang==='en';
-  const label=currencyLabel || (zone==='ca'?'CAD':'HT');
+  const raw=currencyLabel || (zone==='ca'?'CAD':'HT');
+  const label=en&&raw==='HT/TTC'?'excl./incl. VAT':en?raw.replace(/\bHT\b/,'excl. VAT').replace(/\bTTC\b/,'incl. VAT').replace('/an','/year'):raw;
   const locale=en?'en-CA':(zone==='ca'?'fr-CA':'fr-FR');
   return zone==='ca'?`$${formatQuoteAmount(price,locale)} ${label}`:`€${formatQuoteAmount(price,locale)} ${label}`;
 }
@@ -4014,13 +4016,13 @@ document.getElementById('newsletter-form')?.addEventListener('submit',subscribeN
 </script>
 <script src="projects-gallery-data.js?v=2026071601"></script>
 <script src="projects-gallery.js?v=2026071601" defer></script>
-<script src="i18n-sparkles.js?v=2026110105"></script>
+<script src="i18n-sparkles.js?v=2026110106"></script>
 <script src="hero-search.js?v=2026110101" defer></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>
-<script src="theme-extra-anims.js?v=2026060601"></script>
-<script src="cart.js?v=2026110101"></script>
-<script src="dynamic-pricing.js?v=2026110101"></script>
+<script src="theme-extra-anims.js?v=2026110101"></script>
+<script src="cart.js?v=2026110102"></script>
+<script src="dynamic-pricing.js?v=2026110102"></script>
 <script src="/libphonenumber-min.js?v=2026082401" defer></script>
 <script src="/chat-widget-embed.js?v=2026110101" defer></script>
 <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Retour en haut" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>

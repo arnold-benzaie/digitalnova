@@ -370,6 +370,9 @@ function parsePrice(card){
 }
 
 function priceUnit(card){
+  // Read the language-independent value (data-*-currency) when the card has one.
+  const dataCur = card.dataset[getCardZone(card) + 'Currency'];
+  if(dataCur) return dataCur.replace('€', '').trim() || 'HT';
   const cur = card.querySelector('.amount-cur')?.textContent.trim();
   if(cur) return cur;
   const main = card.querySelector('.srv-price-main')?.textContent || '';
@@ -377,9 +380,13 @@ function priceUnit(card){
   return m ? m[0].replace(/\s+/g, '') : '';
 }
 function taxBasis(unit){ return String(unit || '').replace(/\/.*$/, '').trim(); }
-// Same tax/period markers as the offer cards (HT, TTC, /an) so a line always
-// matches the price shown on its card, in both languages.
-function unitLabel(unit){ return String(unit || ''); }
+// Same tax/period markers as the offer cards, in the active language, so a line
+// always matches the price shown on its card. The stored unit stays French.
+function unitLabel(unit){
+  const u = String(unit || '');
+  if(isEN() && u === 'HT/TTC') return 'excl./incl. VAT';
+  return isEN() ? u.replace(/\bHT\b/, 'excl. VAT').replace(/\bTTC\b/, 'incl. VAT').replace('/an', '/year') : u;
+}
 function lineAmount(item){
   const cur = item.zone === 'eu' ? {code:'EUR',symbol:'€',position:'after'} : {code:'CAD',symbol:'$',position:'before'};
   const base = fmt(item.price, cur);
@@ -597,7 +604,8 @@ function renderCart(){
   const total = CART.total();
   const bases = [...new Set(CART.items.map(i => taxBasis(i.unit)))];
   const periods = [...new Set(CART.items.map(i => String(i.unit || '').includes('/') ? 'an' : 'once'))];
-  const basis = zone === 'eu' ? (bases.length === 1 && bases[0] ? bases[0] : 'HT/TTC') : 'CAD';
+  const rawBasis = zone === 'eu' ? (bases.length === 1 && bases[0] ? bases[0] : 'HT/TTC') : 'CAD';
+  const basis = unitLabel(rawBasis);
   const totalLabel = zone === 'eu' ? `${fmt(total, {code:'EUR',symbol:'€',position:'after'})} ${basis}` : fmt(total, {code:'CAD',symbol:'$',position:'before'});
   const mixed = (zone === 'eu' && bases.length > 1) || periods.length > 1;
   const totalsHtml = `
@@ -641,7 +649,7 @@ function renderCart(){
           total,
           total,
           zone,
-          zone === 'eu' ? basis : 'CAD',
+          rawBasis,
           CART.items.map(i => ({ name: i.name, amount: lineAmount(i) }))
         );
       } else {
