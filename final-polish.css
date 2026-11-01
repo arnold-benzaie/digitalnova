@@ -398,7 +398,7 @@ footer.foot-bar-rounded {
 }
 .pf-logo:hover{ color:#2A3648; transform:translateY(-2px); }
 .platforms-note{
-  font-family:'Outfit',sans-serif; font-size:12px; line-height:1.5; color:#8A94A6;
+  font-family:'Outfit',sans-serif; font-size:12px; line-height:1.5; color:#5F6B7A;
   max-width:640px; margin:20px auto 0;
 }
 .pf-google{ opacity:.96; }
