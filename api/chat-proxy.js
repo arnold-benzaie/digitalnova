@@ -46,6 +46,17 @@
  */
 export const config = { runtime: "edge" };
 
+// The upstream app must answer (headers and body) within this delay;
+// otherwise the visitor gets a clean 504 instead of an endless wait.
+export const UPSTREAM_TIMEOUT_MS = 18000;
+
+function timeoutResponse() {
+  return new Response(JSON.stringify({ error: "proxy_timeout" }), {
+    status: 504,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export default async function handler(request) {
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
@@ -82,14 +93,20 @@ export default async function handler(request) {
 
   const upstreamUrl = `${upstreamOrigin.replace(/\/+$/, "")}/api/chat`;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
   let upstreamResponse;
   try {
     upstreamResponse = await fetch(upstreamUrl, {
       method: "POST",
       headers: upstreamHeaders,
       body,
+      signal: controller.signal,
     });
   } catch {
+    clearTimeout(timer);
+    if (controller.signal.aborted) return timeoutResponse();
     // Never relay the raw error (could embed internals) — generic only.
     return new Response(JSON.stringify({ error: "proxy_unavailable" }), {
       status: 502,
@@ -112,6 +129,17 @@ export default async function handler(request) {
     if (singleSetCookie) responseHeaders.set("Set-Cookie", singleSetCookie);
   }
 
-  const responseBody = await upstreamResponse.text();
+  let responseBody;
+  try {
+    responseBody = await upstreamResponse.text();
+  } catch {
+    clearTimeout(timer);
+    if (controller.signal.aborted) return timeoutResponse();
+    return new Response(JSON.stringify({ error: "proxy_unavailable" }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  clearTimeout(timer);
   return new Response(responseBody, { status: upstreamResponse.status, headers: responseHeaders });
 }

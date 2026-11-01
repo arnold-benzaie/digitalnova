@@ -1,7 +1,7 @@
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import handler from "./chat-proxy.js";
+import handler, { UPSTREAM_TIMEOUT_MS } from "./chat-proxy.js";
 
 const ENV_KEYS = ["CHAT_UPSTREAM_URL", "CHAT_PROXY_BYPASS_SECRET"];
 let savedEnv;
@@ -177,5 +177,97 @@ describe("chat-proxy: unrelated behavior unchanged", () => {
     assert.equal(res.status, 502);
     const body = await res.json();
     assert.deepEqual(body, { error: "proxy_unavailable" });
+  });
+});
+
+describe("chat-proxy: upstream timeout (18 s)", () => {
+  // A fetch that never settles on its own, but rejects like the real fetch when its signal aborts.
+  // Lets the handler run up to its next await (it reads the request body before arming the timer).
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  function hangingFetch() {
+    return (url, init) => new Promise((resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    });
+  }
+
+  test("the limit is 18 seconds", () => {
+    assert.equal(UPSTREAM_TIMEOUT_MS, 18000);
+  });
+
+  test("an upstream that never answers gets a clean 504 proxy_timeout after 18 s", async () => {
+    process.env.CHAT_UPSTREAM_URL = "https://app.example-preview.vercel.app";
+    globalThis.fetch = hangingFetch();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const pending = handler(postRequest('{"type":"message","content":"test"}'));
+      await flush();
+      mock.timers.tick(UPSTREAM_TIMEOUT_MS - 1);
+      let settled = false;
+      pending.then(() => { settled = true; });
+      await flush();
+      assert.equal(settled, false, "must still be waiting just before 18 s");
+      mock.timers.tick(1);
+      const res = await pending;
+      assert.equal(res.status, 504);
+      assert.deepEqual(await res.json(), { error: "proxy_timeout" });
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("headers received but body never completes: also 504 proxy_timeout", async () => {
+    process.env.CHAT_UPSTREAM_URL = "https://app.example-preview.vercel.app";
+    globalThis.fetch = (url, init) => Promise.resolve({
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: () => new Promise((resolve, reject) => init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))),
+    });
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const pending = handler(postRequest("{}"));
+      await flush();
+      mock.timers.tick(UPSTREAM_TIMEOUT_MS);
+      const res = await pending;
+      assert.equal(res.status, 504);
+      assert.deepEqual(await res.json(), { error: "proxy_timeout" });
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("a timely answer is relayed unchanged and the timer is cleared", async () => {
+    process.env.CHAT_UPSTREAM_URL = "https://app.example-preview.vercel.app";
+    let signal;
+    globalThis.fetch = async (url, init) => { signal = init.signal; return new Response('{"reply":"ok"}', { status: 200, headers: { "Content-Type": "application/json" } }); };
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const res = await handler(postRequest("{}"));
+      mock.timers.tick(UPSTREAM_TIMEOUT_MS * 2);
+      assert.equal(res.status, 200);
+      assert.equal(await res.text(), '{"reply":"ok"}');
+      assert.equal(signal.aborted, false, "the timer must not fire after a successful answer");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("the timeout response exposes no upstream URL or secret", async () => {
+    process.env.CHAT_UPSTREAM_URL = "https://app.example-preview.vercel.app";
+    process.env.CHAT_PROXY_BYPASS_SECRET = "secret-value-for-test";
+    globalThis.fetch = hangingFetch();
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const pending = handler(postRequest("{}"));
+      await flush();
+      mock.timers.tick(UPSTREAM_TIMEOUT_MS);
+      const res = await pending;
+      const text = await res.text();
+      assert.equal(text.includes("example-preview"), false);
+      assert.equal(text.includes("secret-value-for-test"), false);
+      assert.equal([...res.headers.keys()].some((k) => k.includes("bypass")), false);
+    } finally {
+      mock.timers.reset();
+    }
   });
 });

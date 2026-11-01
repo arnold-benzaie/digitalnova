@@ -41,6 +41,10 @@
   // above for why. The switch to a Production endpoint is a separate step
   // requiring explicit authorization, never done automatically here.
   var API_ENDPOINT = "/api/chat-proxy";
+  // The relay (api/chat-proxy.js) gives up on the app after 18 s and answers
+  // 504 proxy_timeout; this client-side limit is a safety net in case that
+  // answer itself never arrives, so the typing indicator can never stay forever.
+  var CHAT_CLIENT_TIMEOUT_MS = 20000;
 
   var STORAGE_KEY = "pm_chat_embed_state_v1";
   var WELCOME_SHOWN_KEY = "pm_chat_welcome_shown_v1"; // sessionStorage — avoids re-showing on every page in the same session
@@ -95,6 +99,7 @@
       deliveryStatusFailed: "Échec de l'envoi",
       errorGeneric: "Je rencontre un petit problème pour répondre. Veuillez réessayer dans quelques secondes.",
       errorRateLimited: "Trop de messages envoyés. Merci de patienter un instant avant de réessayer.",
+      errorTimeout: "La réponse prend trop de temps. Votre message n'a peut-être pas été traité : vous pouvez réessayer ou nous écrire à contact@public-map.com.",
       errorRepeatedFailure: "Je n'arrive toujours pas à traiter votre demande. Souhaitez-vous parler à un conseiller PUBLIC-MAP ?",
       retry: "Réessayer",
       retrying: "En cours…",
@@ -213,6 +218,7 @@
       deliveryStatusFailed: "Delivery failed",
       errorGeneric: "I'm having a temporary problem answering. Please try again in a few seconds.",
       errorRateLimited: "Too many messages sent. Please wait a moment before trying again.",
+      errorTimeout: "The reply is taking too long. Your message may not have been processed: you can retry or email contact@public-map.com.",
       errorRepeatedFailure: "I'm still unable to process your request. Would you like to speak with a PUBLIC-MAP advisor?",
       retry: "Retry",
       retrying: "Retrying…",
@@ -452,21 +458,40 @@
     Object.keys(body).forEach(function (key) {
       if (body[key] !== null && body[key] !== undefined) cleanBody[key] = body[key];
     });
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, CHAT_CLIENT_TIMEOUT_MS) : null;
+    function done() { if (timer) clearTimeout(timer); }
     return fetch(API_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(cleanBody),
+      signal: controller ? controller.signal : undefined,
     }).then(function (res) {
-      return res.json().then(function (data) {
+      // A platform error page is HTML, not JSON: treat it as an empty body.
+      return res.json().catch(function () {
+        if (controller && controller.signal.aborted) {
+          var late = new Error("client_timeout");
+          late.kind = "timeout";
+          throw late;
+        }
+        return {};
+      }).then(function (data) {
+        done();
         if (!res.ok || data.error) {
-          var kind = res.status === 429 ? "rate_limited" : "generic";
+          var kind = res.status === 429 ? "rate_limited"
+            : (res.status === 504 || data.error === "proxy_timeout") ? "timeout" : "generic";
           var err = new Error(data.error || "request_failed");
           err.kind = kind;
           throw err;
         }
         return data;
       });
+    }, function (networkErr) {
+      done();
+      var err = new Error(networkErr && networkErr.name === "AbortError" ? "client_timeout" : "network_error");
+      err.kind = networkErr && networkErr.name === "AbortError" ? "timeout" : "generic";
+      throw err;
     });
   }
 
@@ -993,7 +1018,9 @@
       var existing = panel.querySelector(".pm-chat-error-box");
       if (existing) existing.remove();
       var showAdvisorCta = consecutiveFailures >= 2;
-      var msg = showAdvisorCta ? t.errorRepeatedFailure : kind === "rate_limited" ? t.errorRateLimited : t.errorGeneric;
+      var msg = showAdvisorCta ? t.errorRepeatedFailure
+        : kind === "rate_limited" ? t.errorRateLimited
+        : kind === "timeout" ? t.errorTimeout : t.errorGeneric;
       var box = el("div", { class: "pm-chat-error-box" });
       box.appendChild(el("p", { class: "pm-chat-error-text", text: msg }));
       var actions = el("div", { class: "pm-chat-error-actions" });
