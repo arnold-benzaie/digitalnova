@@ -3243,7 +3243,7 @@ footer{background:#050505;}
           <p class="cred-premium-sub">Helping businesses grow with SEO • Google Business Profile • AI Automation • Web Development</p>
           <div class="cred-regs">
             <div class="reg-row"><img src="https://flagcdn.com/w40/ca.png" alt="CA" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Canada & Amérique du Nord</h5><p>SEO local · Google Business Profile · campagnes adaptées</p></div><span class="reg-ok">✅</span></div>
-            <div class="reg-row"><img src="https://flagcdn.com/w40/eu.png" alt="EU" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Europe & marchés francophones</h5><p>Approche RGPD · contenus localisés · devis clair</p></div><span class="reg-ok">✅</span></div>
+            <div class="reg-row"><img src="https://flagcdn.com/w40/eu.png" alt="EU" class="reg-flag" loading="lazy"/><div class="reg-info"><h5>Europe & marchés francophones</h5><p>Approche attentive à la protection des données · contenus localisés · devis clair</p></div><span class="reg-ok">✅</span></div>
             <div class="reg-row"><span class="reg-flag" style="display:inline-flex;align-items:center;justify-content:center;background:#EEF4FF;font-size:22px;">🌍</span><div class="reg-info"><h5>Accompagnement international</h5><p>Web, SEO, IA et automatisation pour une croissance globale</p></div><span class="reg-ok">✅</span></div>
           </div>
           <div class="addr-block" style="margin-top:24px;">
@@ -3352,7 +3352,7 @@ footer{background:#050505;}
   <div class="nl-eu-symbol" aria-hidden="true">🇪🇺</div>
   <div style="position:relative;z-index:2;max-width:680px;margin:0 auto;">
     <h2 class="nl-title">Rejoignez nos<br><em>abonnés professionnels</em></h2>
-    <p class="nl-sub">Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.</p>
+    <p class="nl-sub">Recevez ponctuellement nos conseils sur le web, l’IA, l’automatisation et le marketing digital.</p>
     <form class="nl-form" id="newsletter-form" method="post" action="" novalidate>
       <input type="email" class="nl-inp" id="nl-email" placeholder="votre@courriel.com" autocomplete="email"/>
       <button class="nl-btn" type="submit" onclick="subscribeNewsletter(event)">S'inscrire →</button>
@@ -3362,7 +3362,7 @@ footer{background:#050505;}
       <p class="nl-sub" style="margin-top:16px;color:rgba(255,255,255,.78)!important;">JavaScript est nécessaire pour utiliser ce formulaire. Pour recevoir des informations de PUBLIC-MAP, écrivez à <a href="mailto:contact@public-map.com" style="color:inherit;text-decoration:underline;">contact@public-map.com</a>.</p>
     </noscript>
     <div class="nl-msg" id="nl-msg" aria-live="polite"></div>
-    <p style="color:rgba(255,255,255,.4);font-size:11px;margin-top:14px;text-align:center;">Désinscription libre · RGPD & LPRPDE compliant</p>
+    <p style="color:rgba(255,255,255,.55);font-size:11px;margin-top:14px;text-align:center;">Inscription par e-mail. Pour vous désinscrire, écrivez à contact@public-map.com.</p>
   </div>
 </section>
 
@@ -3987,16 +3987,24 @@ function subscribeNewsletter(event){
     msg.className='nl-msg err';
     return;
   }
-  const subject='Inscription newsletter PUBLIC-MAP';
-  const body=[
+  const subject=isEn?'PUBLIC-MAP newsletter sign-up':'Inscription newsletter PUBLIC-MAP';
+  const body=(isEn?[
+    'Hello PUBLIC-MAP,',
+    '',
+    'I would like to subscribe to your professional newsletter.',
+    '',
+    `Email: ${email}`,
+    '',
+    'I understand I can unsubscribe at any time by writing to contact@public-map.com.'
+  ]:[
     'Bonjour PUBLIC-MAP,',
     '',
     'Je souhaite m’inscrire à votre newsletter professionnelle.',
     '',
     `Courriel : ${email}`,
     '',
-    'Merci.'
-  ].join('\n');
+    'Je peux me désinscrire à tout moment en écrivant à contact@public-map.com.'
+  ]).join('\n');
   msg.textContent=isEn?'Your mailbox is opening to confirm the subscription.':'Votre messagerie va s’ouvrir pour confirmer l’inscription.';
   msg.className='nl-msg ok';
   window.location.href=`mailto:contact@public-map.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -4006,7 +4014,7 @@ document.getElementById('newsletter-form')?.addEventListener('submit',subscribeN
 </script>
 <script src="projects-gallery-data.js?v=2026071601"></script>
 <script src="projects-gallery.js?v=2026071601" defer></script>
-<script src="i18n-sparkles.js?v=2026110104"></script>
+<script src="i18n-sparkles.js?v=2026110105"></script>
 <script src="hero-search.js?v=2026110101" defer></script>
 <script src="3d-effects.js?v=2026061301"></script>
 <script src="animations-pack.js?v=2026061301"></script>

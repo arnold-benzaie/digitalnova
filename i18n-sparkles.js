@@ -762,7 +762,7 @@ const T = {
   "Canada & Amérique du Nord":"Canada & North America",
   "SEO local · Google Business Profile · campagnes adaptées":"Local SEO · Google Business Profile · tailored campaigns",
   "Europe & marchés francophones":"Europe & francophone markets",
-  "Approche RGPD · contenus localisés · devis clair":"GDPR-aware approach · localized content · clear quote",
+  "Approche attentive à la protection des données · contenus localisés · devis clair":"Data-protection-conscious approach · localized content · clear quote",
   "Accompagnement international":"International support",
   "Web, SEO, IA et automatisation pour une croissance globale":"Web, SEO, AI and automation for global growth",
   "Marché Canada":"Canada market",
@@ -826,7 +826,7 @@ const T = {
   // Newsletter
   "Rejoignez nos":"Join our",
   "abonnés professionnels":"professional subscribers",
-  "Conseils exclusifs marketing digital, tendances Canada & Europe, offres membres réservées.":"Exclusive digital marketing tips, Canada & Europe trends, members-only offers.",
+  "Recevez ponctuellement nos conseils sur le web, l’IA, l’automatisation et le marketing digital.":"Occasional insights on web, AI, automation and digital marketing.",
   "S'inscrire →":"Subscribe →",
   "Pourquoi choisir":"Why choose",
   "Optimisation de la fiche Google Business":"Google Business Profile Optimization",
@@ -835,7 +835,7 @@ const T = {
   "Création de site web":"Website Creation",
   "Expertise Canada & Europe":"Canada & Europe Focus",
   "Support client rapide":"Fast Customer Support",
-  "Désinscription libre · RGPD & LPRPDE compliant":"Free unsubscribe · GDPR & PIPEDA compliant",
+  "Inscription par e-mail. Pour vous désinscrire, écrivez à contact@public-map.com.":"Sign-up by email. To unsubscribe, write to contact@public-map.com.",
 
   // Footer
   "Solution pour développer votre visibilité locale":"Solution for growing your local visibility",
