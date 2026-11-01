@@ -14,7 +14,7 @@
       'garagiste ouvert maintenant',
       'dentiste en urgence',
       'meilleur café du quartier',
-      'avocat près de moi'
+      'agent immobilier près de moi'
     ],
     en: [
       'restaurant near me',
@@ -22,7 +22,7 @@
       'garage open now',
       'emergency dentist',
       'best coffee nearby',
-      'lawyer near me'
+      'real estate agent near me'
     ]
   };
 

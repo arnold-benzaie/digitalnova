@@ -62,13 +62,13 @@
   // other suggestion — no parallel system. "human" is deliberately
   // excluded from both arrays: it gets its own small, discreet CTA
   // instead (see renderInitialSuggestions) — available, never pushed.
-  var INITIAL_SUGGESTIONS_MAIN = ["visibility", "lead_generation", "automation", "website"];
+  var INITIAL_SUGGESTIONS_MAIN = ["website", "automation", "visibility", "quote"];
 
   // Mirrors app/lib/chat/request-type-catalog.ts's REQUEST_TYPE_KEYS — the
   // server validates against this exact same closed set (a client-sent
   // key, never free text — see that file's own header comment).
   var REQUEST_TYPE_KEYS = ["meeting", "quote", "advisor", "audit", "website", "other"];
-  var INITIAL_SUGGESTIONS_MORE = ["gbp", "google_ads", "seo", "quote", "automation_setup", "performance_review", "reviews"];
+  var INITIAL_SUGGESTIONS_MORE = ["lead_generation", "automation_setup", "gbp", "google_ads", "seo", "performance_review", "reviews"];
 
   // ---- Strings (mirrors app/lib/i18n/dictionaries/chat.ts) ---------------
 
@@ -82,7 +82,7 @@
       onlineStatus: "En ligne",
       closeAriaLabel: "Fermer",
       minimizeAriaLabel: "Réduire",
-      greetingAnonymous: "👋 Bonjour ! Je suis l'assistant PUBLIC-MAP.\nJe peux vous aider à améliorer votre présence en ligne, votre SEO, Google Ads, votre site web ou vos automatisations.\n\nQue souhaitez-vous améliorer aujourd'hui ?",
+      greetingAnonymous: "👋 Bonjour ! Je suis l'assistant PUBLIC-MAP.\nJe peux vous orienter pour un site ou une plateforme web, l'IA et l'automatisation, le marketing digital, ou un projet logiciel ou mobile à étudier sur devis.\n\nComment puis-je vous aider ?",
       typingIndicator: "PUBLIC-MAP Assistant écrit…",
       inputPlaceholder: "Posez votre question à PUBLIC-MAP…",
       sendAriaLabel: "Envoyer",
@@ -202,7 +202,7 @@
       onlineStatus: "Online",
       closeAriaLabel: "Close",
       minimizeAriaLabel: "Minimize",
-      greetingAnonymous: "👋 Hi! I'm the PUBLIC-MAP Assistant.\nI can help you with your online presence, SEO, Google Ads, websites and business automation.\n\nWhat would you like to improve today?",
+      greetingAnonymous: "👋 Hi! I'm the PUBLIC-MAP Assistant.\nI can guide you on a website or web platform, AI and automation, digital marketing, or a software or mobile project to be assessed through a quote.\n\nHow can I help you?",
       typingIndicator: "PUBLIC-MAP Assistant is typing…",
       inputPlaceholder: "Ask PUBLIC-MAP anything…",
       sendAriaLabel: "Send",
