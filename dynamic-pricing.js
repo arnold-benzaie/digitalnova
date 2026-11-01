@@ -8,11 +8,17 @@
     return document.body.classList.contains('eu-active') ? 'eu' : 'ca';
   }
 
+  // English copy: a dedicated data-*-en attribute wins; otherwise the French
+  // attribute goes through the site dictionary (T, i18n-sparkles.js), so this
+  // re-render no longer puts French text back after a language switch.
   function zoneText(card, zone, key){
     const isEnglish = document.documentElement.lang === 'en';
     const enKey = zone + key + 'En';
     const baseKey = zone + key;
-    return (isEnglish && card.dataset[enKey]) ? card.dataset[enKey] : card.dataset[baseKey];
+    if(isEnglish && card.dataset[enKey]) return card.dataset[enKey];
+    const text = card.dataset[baseKey];
+    if(isEnglish && text && typeof T !== 'undefined' && T[text.trim()]) return T[text.trim()];
+    return text;
   }
 
   function formatAmountNumber(amount, locale){
