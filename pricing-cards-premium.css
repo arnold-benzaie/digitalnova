@@ -189,6 +189,11 @@
 .srv-grid > .srv-card:nth-child(3n+1) .srv-bottom {
   border-top-color: rgba(10,37,64,.08) !important;
 }
+/* "Ajouter à ma sélection" is longer than the former cart label: give it its
+   own row so the two buttons never overflow the card. */
+.srv-card .srv-bottom .btn-cart {
+  grid-column: 1 / -1;
+}
 
 /* Price area */
 .srv-card .srv-price-main {

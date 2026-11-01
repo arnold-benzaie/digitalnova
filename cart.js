@@ -1,12 +1,12 @@
 /* ═══════════════════════════════════════════════════════
-   🌍 PUBLIC-MAP — Panier (Shopping Cart) système
-   - Détecte chaque carte service et ajoute un bouton "Panier"
-   - Drawer latéral droit avec liste, quantités, total
+   🌍 PUBLIC-MAP — « Ma sélection pour devis » (quote list)
+   - Détecte chaque carte service et ajoute un bouton « Ajouter à ma sélection »
+   - Volet latéral : services choisis (une fois chacun), montant indicatif
    - Persistance localStorage (survit aux rechargements)
-   - Une seule devise par panier (CAD ou EUR)
+   - Une seule devise par sélection (CAD ou EUR) ; HT/TTC conservé par ligne
    - Bilingue FR/EN
-   - Animation "fly to cart" au clic
-   - Checkout → ouvre la demande de devis avec le total
+   - Une sélection n'est pas une commande : « Demander un devis » ouvre la
+     demande de devis par e-mail avec la liste des services. Aucun paiement.
    ═══════════════════════════════════════════════════════ */
 
 (function injectCartStyles(){
@@ -143,22 +143,6 @@
       font-size: 10px; color: var(--gray-500, #4A5568);
       letter-spacing: .1em; text-transform: uppercase;
     }
-    .ci-qty {
-      display: inline-flex; align-items: center;
-      margin-top: 8px; border: 1px solid var(--gray-200, #E5EAF0);
-      border-radius: 6px; overflow: hidden;
-    }
-    .ci-qty button {
-      background: var(--gray-100, #F1F4F8); border: none;
-      width: 26px; height: 26px; cursor: pointer;
-      font-size: 14px; font-weight: 700; color: var(--navy, #0A2540);
-      transition: background .2s ease;
-    }
-    .ci-qty button:hover { background: var(--tech-blue, #1B5BFF); color: #fff; }
-    .ci-qty span {
-      min-width: 30px; text-align: center;
-      font-size: 12px; font-weight: 700; color: var(--navy, #0A2540);
-    }
     .ci-right {
       text-align: right;
     }
@@ -197,6 +181,7 @@
       font-family: 'Cormorant Garamond', serif;
       font-size: 28px;
     }
+    .cart-line.cart-note { display: block; font-size: 11.5px; line-height: 1.45; }
     .cart-checkout {
       width: 100%;
       background: var(--tech-blue, #1B5BFF);
@@ -322,7 +307,7 @@ const CART = {
   load(){
     try {
       const raw = localStorage.getItem('digitalnova-cart');
-      this.items = raw ? JSON.parse(raw) : [];
+      this.items = (raw ? JSON.parse(raw) : []).map(item => ({ ...item, qty: 1 }));
       const zones = new Set(this.items.map(item => item.zone).filter(zone => zone === 'ca' || zone === 'eu'));
       if(zones.size > 1){
         this.items = [];
@@ -337,9 +322,8 @@ const CART = {
   add(item){
     const currentZone = this.items[0]?.zone;
     if(currentZone && currentZone !== item.zone) return false;
-    const ex = this.items.find(i => i.id === item.id && i.zone === item.zone);
-    if(ex) ex.qty += 1;
-    else this.items.push({ ...item, qty: 1 });
+    if(this.items.some(i => i.id === item.id && i.zone === item.zone)) return 'exists';
+    this.items.push({ ...item, qty: 1 });
     this.save();
     return true;
   },
@@ -347,18 +331,11 @@ const CART = {
     this.items = this.items.filter(i => !(i.id === id && i.zone === zone));
     this.save();
   },
-  setQty(id, zone, qty){
-    const ex = this.items.find(i => i.id === id && i.zone === zone);
-    if(ex){
-      if(qty <= 0) this.remove(id, zone);
-      else { ex.qty = qty; this.save(); }
-    }
-  },
   total(){
-    return this.items.reduce((s,i) => s + i.price * i.qty, 0);
+    return this.items.reduce((s,i) => s + i.price, 0);
   },
   count(){
-    return this.items.reduce((s,i) => s + i.qty, 0);
+    return this.items.length;
   },
   clear(){
     this.items = []; this.save();
@@ -392,6 +369,24 @@ function parsePrice(card){
   return isFinite(num) ? num : null;
 }
 
+function priceUnit(card){
+  const cur = card.querySelector('.amount-cur')?.textContent.trim();
+  if(cur) return cur;
+  const main = card.querySelector('.srv-price-main')?.textContent || '';
+  const m = main.match(/(CAD|HT|TTC)(\s*\/\s*an)?/);
+  return m ? m[0].replace(/\s+/g, '') : '';
+}
+function taxBasis(unit){ return String(unit || '').replace(/\/.*$/, '').trim(); }
+// Same tax/period markers as the offer cards (HT, TTC, /an) so a line always
+// matches the price shown on its card, in both languages.
+function unitLabel(unit){ return String(unit || ''); }
+function lineAmount(item){
+  const cur = item.zone === 'eu' ? {code:'EUR',symbol:'€',position:'after'} : {code:'CAD',symbol:'$',position:'before'};
+  const base = fmt(item.price, cur);
+  if(item.zone === 'eu') return item.unit ? `${base} ${unitLabel(item.unit)}` : base;
+  return item.unit && item.unit.includes('/') ? base + unitLabel(item.unit.replace('CAD', '')) : base;
+}
+
 function getCardZone(card){
   if(card.classList.contains('dyn-price-card')){
     return document.body.classList.contains('eu-active') ? 'eu' : 'ca';
@@ -413,6 +408,7 @@ function syncCartButton(card, cartBtn, idx){
   cartBtn.dataset.icon = icon;
   cartBtn.dataset.price = price;
   cartBtn.dataset.zone = zone;
+  cartBtn.dataset.unit = priceUnit(card);
   return true;
 }
 
@@ -439,20 +435,21 @@ window.addOfferPairToCart = function(pairId){
       name,
       icon: iconEl?.textContent.trim() || '📦',
       price,
-      zone
+      zone,
+      unit: priceUnit(card)
     });
-    if(wasAdded) added += 1;
+    if(wasAdded === true) added += 1;
   });
 
   renderCart();
   if(added){
-    showToast(t(`✓ ${added} services ajoutés au panier`, `✓ ${added} services added to cart`));
+    showToast(t(`✓ ${added} services ajoutés à votre sélection pour devis`, `✓ ${added} services added to your quote list`));
     openCart();
   } else if(CART.items.length && CART.items[0].zone !== zone) {
-    showToast(t('Votre panier contient déjà des services dans une autre devise. Videz-le avant de changer de région.','Your cart already contains services in another currency. Empty it before changing region.'));
+    showToast(t('Votre sélection contient déjà des services dans une autre devise. Videz-la avant de changer de région.','Your quote list already contains services in another currency. Empty it before changing region.'));
     openCart();
   } else {
-    showToast(t('Ces services sont déjà dans votre panier','These services are already in your cart'));
+    showToast(t('Ces services sont déjà dans votre sélection','These services are already in your quote list'));
   }
 };
 
@@ -474,7 +471,7 @@ function injectCartButtons(){
     cartBtn = document.createElement('button');
     cartBtn.type = 'button';
     cartBtn.className = 'btn-cart';
-    cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">🛒</span><span>${t('Panier','Cart')}</span>`;
+    cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">📋</span><span>${t('Ajouter à ma sélection','Add to quote list')}</span>`;
     if(!syncCartButton(card, cartBtn, idx)) return;
     card.dataset.cartReady = '1';
 
@@ -485,9 +482,15 @@ function injectCartButtons(){
       const icon = cartBtn.dataset.icon;
       const price = Number(cartBtn.dataset.price);
       const zone = cartBtn.dataset.zone;
-      const wasAdded = CART.add({ id, name, icon, price, zone });
+      const unit = cartBtn.dataset.unit;
+      const wasAdded = CART.add({ id, name, icon, price, zone, unit });
+      if(wasAdded === 'exists'){
+        showToast(t('Ce service est déjà dans votre sélection','This service is already in your quote list'));
+        openCart();
+        return;
+      }
       if(!wasAdded){
-        showToast(t('Une seule devise est autorisée par panier. Videz le panier avant de changer de région.','Only one currency is allowed per cart. Empty the cart before changing region.'));
+        showToast(t('Une seule devise est autorisée par sélection. Videz la sélection avant de changer de région.','Only one currency is allowed per quote list. Empty the list before changing region.'));
         openCart();
         return;
       }
@@ -497,9 +500,9 @@ function injectCartButtons(){
       cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">✓</span><span>${t('Ajouté','Added')}</span>`;
       setTimeout(() => {
         cartBtn.classList.remove('added');
-        cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">🛒</span><span>${t('Panier','Cart')}</span>`;
+        cartBtn.innerHTML = `<span class="cart-ico" aria-hidden="true">📋</span><span>${t('Ajouter à ma sélection','Add to quote list')}</span>`;
       }, 1500);
-      showToast(`✓ ${name} ${t('ajouté au panier','added to cart')}`);
+      showToast(`✓ ${name} ${t('ajouté à votre sélection pour devis','added to your quote list')}`);
     });
 
     // Insert next to the order button
@@ -564,9 +567,9 @@ function renderCart(){
   if(CART.items.length === 0){
     body.innerHTML = `
       <div class="cart-empty">
-        <div class="cart-empty-ic">🛒</div>
-        <div class="cart-empty-h">${t('Votre panier est vide','Your cart is empty')}</div>
-        <div class="cart-empty-p">${t('Ajoutez nos services pour commencer','Add our services to get started')}</div>
+        <div class="cart-empty-ic">📋</div>
+        <div class="cart-empty-h">${t('Votre sélection est vide','Your quote list is empty')}</div>
+        <div class="cart-empty-p">${t('Ajoutez des services pour préparer une demande de devis','Add services to prepare a quote request')}</div>
       </div>`;
     footer.style.display = 'none';
     return;
@@ -580,39 +583,40 @@ function renderCart(){
       <div class="ci-info">
         <div class="ci-name">${i.name}</div>
         <div class="ci-zone">${i.zone === 'eu' ? '🇪🇺 ' + t('Zone Europe','Europe Zone') : '🇨🇦 ' + t('Zone Canada','Canada Zone')}</div>
-        <div class="ci-qty">
-          <button data-act="dec">−</button>
-          <span>${i.qty}</span>
-          <button data-act="inc">+</button>
-        </div>
       </div>
       <div class="ci-right">
-        <div class="ci-price">${fmt(i.price * i.qty, i.zone === 'eu' ? {code:'EUR',symbol:'€',position:'after'} : {code:'CAD',symbol:'$',position:'before'})}</div>
+        <div class="ci-price">${lineAmount(i)}</div>
         <button class="ci-remove" data-act="rm">${t('Retirer','Remove')}</button>
       </div>
     </div>`).join('');
 
-  // One cart = one region/currency. CART.add rejects cross-zone items.
+  // One list = one region/currency. CART.add rejects cross-zone items.
+  // The amount is only the sum of the displayed prices: taxes, one-time vs
+  // annual billing and the final amount are set by the written quote.
   const zone = CART.items[0].zone;
-  const total = CART.items.reduce((sum,item)=>sum+item.price*item.qty,0);
-  const totalLabel = zone === 'eu' ? `${total.toLocaleString()} €` : `$${total.toLocaleString()} CAD`;
+  const total = CART.total();
+  const bases = [...new Set(CART.items.map(i => taxBasis(i.unit)))];
+  const periods = [...new Set(CART.items.map(i => String(i.unit || '').includes('/') ? 'an' : 'once'))];
+  const basis = zone === 'eu' ? (bases.length === 1 && bases[0] ? bases[0] : 'HT/TTC') : 'CAD';
+  const totalLabel = zone === 'eu' ? `${fmt(total, {code:'EUR',symbol:'€',position:'after'})} ${basis}` : fmt(total, {code:'CAD',symbol:'$',position:'before'});
+  const mixed = (zone === 'eu' && bases.length > 1) || periods.length > 1;
   const totalsHtml = `
     <div class="cart-totals">
-      <div class="cart-line"><span>${t('Sous-total','Subtotal')}</span><strong>${totalLabel}</strong></div>
-      <div class="cart-line"><span>${t('Taxes applicables','Applicable taxes')}</span><span>${t('Précisées dans le devis','Detailed in the quote')}</span></div>
       <div class="cart-line total">
-        <span>${t('Total','Total')}</span>
+        <span>${t('Montant indicatif','Indicative amount')}</span>
         <span class="amount">${totalLabel}</span>
       </div>
+      <div class="cart-line"><span>${t('Taxes et montant final','Taxes and final amount')}</span><span>${t('Confirmés dans le devis','Confirmed in the quote')}</span></div>
+      ${mixed ? `<div class="cart-line cart-note">${t('Simple addition des prix affichés, qui mélangent des montants HT/TTC ou uniques/annuels.','Simple sum of the displayed prices, which mix excl./incl. tax or one-time/annual amounts.')}</div>` : ''}
     </div>
     <button class="cart-checkout" id="cart-checkout">
       📋 ${t('Demander un devis','Request a quote')} →
     </button>
-    <div class="cart-secure">${t('Devis personnalisé · Paiement après validation du devis','Personalized quote · Payment after quote approval')}</div>
+    <div class="cart-secure">${t('Cette sélection n’est pas une commande · Devis personnalisé · Paiement après validation du devis','This list is not an order · Personalized quote · Payment after quote approval')}</div>
   `;
   footer.innerHTML = totalsHtml;
 
-  // Wire up qty / remove buttons
+  // Wire up remove buttons
   body.querySelectorAll('.cart-item').forEach(row => {
     const id = row.dataset.id, zone = row.dataset.zone;
     row.querySelectorAll('[data-act]').forEach(btn => {
@@ -620,8 +624,6 @@ function renderCart(){
         const act = btn.dataset.act;
         const item = CART.items.find(i => i.id === id && i.zone === zone);
         if(!item) return;
-        if(act === 'inc') CART.setQty(id, zone, item.qty + 1);
-        if(act === 'dec') CART.setQty(id, zone, item.qty - 1);
         if(act === 'rm')  CART.remove(id, zone);
         renderCart();
       });
@@ -632,20 +634,37 @@ function renderCart(){
   const checkoutBtn = document.getElementById('cart-checkout');
   if(checkoutBtn){
     checkoutBtn.addEventListener('click', () => {
-      // Open the quote modal with the single-currency cart total.
+      // Open the quote request with the list of selected services.
       if(typeof window.openModal === 'function'){
         window.openModal(
-          t('Panier 🌍 PUBLIC-MAP','🌍 PUBLIC-MAP Cart') + ' — ' + CART.count() + ' ' + t('article(s)','item(s)'),
+          t('Ma sélection pour devis','My quote list') + ' — ' + CART.count() + ' ' + t('service(s)','service(s)'),
           total,
           total,
-          zone
+          zone,
+          zone === 'eu' ? basis : 'CAD',
+          CART.items.map(i => ({ name: i.name, amount: lineAmount(i) }))
         );
       } else {
-        alert(t('Total : ','Total: ') + totalLabel);
+        alert(t('Montant indicatif : ','Indicative amount: ') + totalLabel);
       }
       closeCart();
     });
   }
+}
+
+/* ─── Labels of the nav button and drawer (follow the active language) ─── */
+function renderCartChrome(){
+  const toggle = document.getElementById('cart-toggle');
+  if(toggle){
+    toggle.title = t('Ma sélection pour devis','My quote list');
+    toggle.setAttribute('aria-label', t('Ma sélection pour devis','My quote list'));
+  }
+  const drawer = document.getElementById('cart-drawer');
+  if(!drawer) return;
+  drawer.setAttribute('aria-label', t('Ma sélection pour devis','My quote list'));
+  drawer.querySelector('.cart-title').textContent = '📋 ' + t('Ma sélection pour devis','My quote list');
+  drawer.querySelector('.cart-close').setAttribute('aria-label', t('Fermer','Close'));
+  drawer.querySelector('.cart-zone-banner').textContent = '📍 ' + t('Une seule devise par sélection','One currency per list') + ' · CAD 🇨🇦 · EUR 🇪🇺';
 }
 
 /* ─── Open/close drawer ─── */
@@ -664,7 +683,7 @@ function closeCart(){
 window.addEventListener('DOMContentLoaded', () => {
   CART.load();
   if(CART.resetMixedOnLoad){
-    showToast(t('Un ancien panier mélangeait CAD et EUR : il a été vidé pour éviter un total incorrect.','A previous cart mixed CAD and EUR, so it was cleared to prevent an incorrect total.'));
+    showToast(t('Une ancienne sélection mélangeait CAD et EUR : elle a été vidée pour éviter un montant incorrect.','A previous quote list mixed CAD and EUR, so it was cleared to prevent an incorrect amount.'));
   }
 
   // Cart button in nav
@@ -672,9 +691,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if(navRight){
     const btn = document.createElement('button');
     btn.id = 'cart-toggle';
-    btn.title = t('Panier','Cart');
-    btn.setAttribute('aria-label','Cart');
-    btn.innerHTML = '🛒<span id="cart-count" class="zero">0</span>';
+    btn.innerHTML = '📋<span id="cart-count" class="zero">0</span>';
     btn.addEventListener('click', openCart);
     navRight.insertBefore(btn, navRight.firstChild);
   }
@@ -689,17 +706,16 @@ window.addEventListener('DOMContentLoaded', () => {
   drawer.id = 'cart-drawer';
   drawer.innerHTML = `
     <div class="cart-header">
-      <div class="cart-title">🛒 ${t('Votre panier','Your cart')}</div>
-      <button class="cart-close" aria-label="Close">×</button>
+      <div class="cart-title"></div>
+      <button class="cart-close">×</button>
     </div>
-    <div class="cart-zone-banner">
-      📍 ${t('Une seule devise par panier','One currency per cart')} · CAD 🇨🇦 · EUR 🇪🇺
-    </div>
+    <div class="cart-zone-banner"></div>
     <div class="cart-body" id="cart-body"></div>
     <div class="cart-footer" id="cart-footer"></div>
   `;
   document.body.appendChild(drawer);
   drawer.querySelector('.cart-close').addEventListener('click', closeCart);
+  renderCartChrome();
 
   // ESC to close
   document.addEventListener('keydown', e => {
@@ -712,10 +728,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const observer = new MutationObserver(() => injectCartButtons());
   observer.observe(document.body, {childList: true, subtree: true});
 
-  // Re-render cart when language changes
+  // Re-render the list and its labels when the language changes
   document.querySelectorAll('.lang-btn').forEach(b => {
-    b.addEventListener('click', () => setTimeout(renderCart, 200));
+    b.addEventListener('click', () => setTimeout(() => { renderCartChrome(); renderCart(); }, 200));
   });
+  document.addEventListener('digitalnova:language-updated', () => { renderCartChrome(); renderCart(); });
 
   renderCart();
 });
