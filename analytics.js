@@ -170,6 +170,7 @@
       applyChoice(granted);
       bar.remove();
       openBar = null;
+      if (bar._unpublish) bar._unpublish();
       document.removeEventListener("click", onPossibleLangClick);
       document.removeEventListener("digitalnova:language-updated", applyCopy);
     }
@@ -207,6 +208,17 @@
 
     openBar = bar;
     document.body.appendChild(bar);
+    // Lets fixed panels (e.g. the quote list) keep clear of the banner.
+    var root = document.documentElement;
+    function publishHeight() {
+      root.style.setProperty("--pm-cookie-banner-h", (openBar ? bar.offsetHeight : 0) + "px");
+    }
+    publishHeight();
+    window.addEventListener("resize", publishHeight);
+    bar._unpublish = function () {
+      window.removeEventListener("resize", publishHeight);
+      root.style.removeProperty("--pm-cookie-banner-h");
+    };
   }
 
   // "Manage cookies": a link added next to the footer's privacy link, plus

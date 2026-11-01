@@ -63,6 +63,13 @@
       box-shadow: -24px 0 60px rgba(10,37,64,.20);
     }
     #cart-drawer.open { transform: translateX(0); }
+    /* While the quote list is open nothing floats over it: the cookie banner
+       (until a choice is made) keeps its own space at the bottom, the chat
+       launcher is hidden and the toast moves to the top. */
+    #cart-drawer { padding-bottom: var(--pm-cookie-banner-h, 0px); }
+    body.pm-quote-list-open .pm-chat-widget-root { visibility: hidden !important; }
+    body.pm-quote-list-open #cart-toast { bottom: auto; top: 24px; transform: translateX(-50%) translateY(-120px); }
+    body.pm-quote-list-open #cart-toast.show { transform: translateX(-50%) translateY(0); }
     #cart-backdrop {
       position: fixed; inset: 0;
       background: rgba(10,24,40,.55);
@@ -607,7 +614,14 @@ function renderCart(){
   const rawBasis = zone === 'eu' ? (bases.length === 1 && bases[0] ? bases[0] : 'HT/TTC') : 'CAD';
   const basis = unitLabel(rawBasis);
   const totalLabel = zone === 'eu' ? `${fmt(total, {code:'EUR',symbol:'€',position:'after'})} ${basis}` : fmt(total, {code:'CAD',symbol:'$',position:'before'});
-  const mixed = (zone === 'eu' && bases.length > 1) || periods.length > 1;
+  const mixedTax = zone === 'eu' && bases.length > 1;
+  const mixedPeriod = periods.length > 1;
+  const mixed = mixedTax || mixedPeriod;
+  const mixNote = mixedTax && mixedPeriod
+    ? t('Simple addition des prix affichés, qui mélangent des montants HT/TTC et uniques/annuels.','Simple sum of the displayed prices, which mix excl./incl. VAT and one-time/annual amounts.')
+    : mixedTax
+      ? t('Simple addition des prix affichés, qui mélangent des montants HT et TTC.','Simple sum of the displayed prices, which mix excl. VAT and incl. VAT amounts.')
+      : t('Simple addition des prix affichés, qui mélangent des montants uniques et annuels.','Simple sum of the displayed prices, which mix one-time and annual amounts.');
   const totalsHtml = `
     <div class="cart-totals">
       <div class="cart-line total">
@@ -615,7 +629,7 @@ function renderCart(){
         <span class="amount">${totalLabel}</span>
       </div>
       <div class="cart-line"><span>${t('Taxes et montant final','Taxes and final amount')}</span><span>${t('Confirmés dans le devis','Confirmed in the quote')}</span></div>
-      ${mixed ? `<div class="cart-line cart-note">${t('Simple addition des prix affichés, qui mélangent des montants HT/TTC ou uniques/annuels.','Simple sum of the displayed prices, which mix excl./incl. tax or one-time/annual amounts.')}</div>` : ''}
+      ${mixed ? `<div class="cart-line cart-note">${mixNote}</div>` : ''}
     </div>
     <button class="cart-checkout" id="cart-checkout">
       📋 ${t('Demander un devis','Request a quote')} →
@@ -680,11 +694,13 @@ function openCart(){
   document.getElementById('cart-drawer').classList.add('open');
   document.getElementById('cart-backdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
+  document.body.classList.add('pm-quote-list-open');
 }
 function closeCart(){
   document.getElementById('cart-drawer').classList.remove('open');
   document.getElementById('cart-backdrop').classList.remove('open');
   document.body.style.overflow = '';
+  document.body.classList.remove('pm-quote-list-open');
 }
 
 /* ─── Init ─── */
