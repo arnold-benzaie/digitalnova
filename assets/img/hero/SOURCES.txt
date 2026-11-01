@@ -7,3 +7,7 @@ photo-1487754180451-c456f719a1fc  https://unsplash.com/photos/1487754180451-c456
 photo-1519085360753-af0119f7cbe7  https://unsplash.com/photos/1519085360753-af0119f7cbe7
 photo-1600880292203-757bb62b4baf  https://unsplash.com/photos/1600880292203-757bb62b4baf
 Source URLs: https://images.unsplash.com/photo-<id>?fm=webp&fit=crop&w=720&q=72
+
+Responsive variants added on 2026-11-01 from the same source and settings (fit=crop, q=72):
+photo-<id>-480.avif, photo-<id>-720.avif (fm=avif) and photo-<id>-480.webp (fm=webp).
+The page serves AVIF when supported, else WebP; photo-<id>.webp (720 px) stays the <img> fallback.
