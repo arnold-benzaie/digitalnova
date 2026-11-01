@@ -1,0 +1,9 @@
+Hero use-case photos — copies of Unsplash images (Unsplash License: https://unsplash.com/license),
+downloaded on 2026-11-01 at the size the site already used (720 px wide, quality 72, WebP).
+photo-1556742049-0cfed4f6a45d  https://unsplash.com/photos/1556742049-0cfed4f6a45d
+photo-1529156069898-49953e39b3ac  https://unsplash.com/photos/1529156069898-49953e39b3ac
+photo-1543269865-cbf427effbad  https://unsplash.com/photos/1543269865-cbf427effbad
+photo-1487754180451-c456f719a1fc  https://unsplash.com/photos/1487754180451-c456f719a1fc
+photo-1519085360753-af0119f7cbe7  https://unsplash.com/photos/1519085360753-af0119f7cbe7
+photo-1600880292203-757bb62b4baf  https://unsplash.com/photos/1600880292203-757bb62b4baf
+Source URLs: https://images.unsplash.com/photo-<id>?fm=webp&fit=crop&w=720&q=72

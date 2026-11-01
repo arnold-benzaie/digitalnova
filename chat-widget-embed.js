@@ -380,7 +380,7 @@
 
   function flagImg(iso, altText) {
     return el("img", {
-      src: "https://flagcdn.com/w40/" + iso.toLowerCase() + ".png",
+      src: "/assets/flags/w40/" + iso.toLowerCase() + ".png", // local copies (public-domain flags, see assets/flags/SOURCES.txt)
       alt: altText || "",
       class: "pm-chat-phone-flag",
       loading: "lazy",

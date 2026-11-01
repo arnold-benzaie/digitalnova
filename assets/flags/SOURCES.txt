@@ -1,0 +1,5 @@
+Flag icons (40 px wide PNG) copied from flagcdn.com / Flagpedia.net on 2026-11-01.
+Flagpedia: "Flag images are in the public domain (exempt from copyright). They are completely
+free for non-commercial and even commercial use." (https://flagpedia.net/about)
+Codes: every country returned by libphonenumber getCountries() plus "eu".
+Not available on flagcdn (also missing before): ac (Ascension), ta (Tristan da Cunha).
