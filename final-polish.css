@@ -387,14 +387,14 @@ footer.foot-bar-rounded {
 .platforms-inner{ max-width:1120px; margin:0 auto; text-align:center; }
 .platforms-kicker{
   font-family:'Outfit',sans-serif; font-size:12px; font-weight:700;
-  letter-spacing:.14em; text-transform:uppercase; color:#8A94A6; margin:0 0 22px;
+  letter-spacing:.14em; text-transform:uppercase; color:#5F6B7A; margin:0 0 22px;
 }
 .platforms-row{
   display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:20px 46px;
 }
 .pf-logo{
   font-family:'Outfit',sans-serif; font-weight:700; font-size:23px; letter-spacing:-.01em;
-  color:#9AA6B8; transition:color .3s ease, transform .3s ease; cursor:default; white-space:nowrap;
+  color:#5F6B7A; transition:color .3s ease, transform .3s ease; cursor:default; white-space:nowrap;
 }
 .pf-logo:hover{ color:#2A3648; transform:translateY(-2px); }
 .platforms-note{

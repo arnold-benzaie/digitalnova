@@ -250,6 +250,9 @@
 }
 .hero-stats-strip .fc-val.red{ color:#1852E8 !important; -webkit-text-fill-color:#1852E8 !important; }
 .hero-stats-strip .fc-val.or{ color:#B8860B !important; -webkit-text-fill-color:#B8860B !important; }
+/* Dark theme: the cards turn dark, so their figures use the light colours of the hero (contrast ≥ 3:1). */
+body.theme-dark .hero-stats-strip .fc-val{ color:#FFFFFF !important; -webkit-text-fill-color:#FFFFFF !important; }
+body.theme-dark .hero-stats-strip .fc-val.red{ color:#6B95FF !important; -webkit-text-fill-color:#6B95FF !important; }
 .hero-stats-strip .fc-sub{
   font-family:'Outfit',sans-serif; font-size:14px; font-weight:400; color:#5B6B86 !important;
 }

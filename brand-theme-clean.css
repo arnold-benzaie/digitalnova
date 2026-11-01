@@ -258,6 +258,8 @@ nav.scrolled {
 }
 .zone-btn { color: var(--gray-500) !important; }
 .zone-btn.active { background: var(--tech-blue) !important; color: #FFFFFF !important; }
+/* The selected zone keeps white text on its blue background in every nav state and theme (contrast ≥ 4.5:1). */
+nav:not(.scrolled) .zone-btn.active, body.theme-light .zone-btn.active { color: #FFFFFF !important; }
 #theme-toggle { background: var(--gray-100) !important; border-color: var(--gray-200) !important; }
 
 /* ─── HERO: cinematic — VIDEO AT MAXIMUM CLARITY ─── */

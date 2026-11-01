@@ -320,7 +320,7 @@ a { color: inherit; }
 
 .booking-counter {
   align-self: flex-end;
-  color: #8a98aa;
+  color: #5f6b7a;
   font-size: 9px;
 }
 
@@ -397,7 +397,7 @@ a { color: inherit; }
 .booking-privacy,
 .booking-noscript {
   margin: 14px 0 0;
-  color: #7b899b;
+  color: #5f6b7a;
   font-size: 9px;
   line-height: 1.6;
   text-align: center;
