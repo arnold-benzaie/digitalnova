@@ -49,6 +49,9 @@
   var WELCOME_BUBBLE_INITIAL_DELAY_MAX_MS = 1000;
   var WELCOME_BUBBLE_AUTO_DISMISS_MS = 10000;
   var WELCOME_BUBBLE_FADE_MS = 250;
+  // Below this width the automatic bubble would cover page content (e.g. the
+  // hero booking button at 320 px); the chat trigger stays available.
+  var WELCOME_BUBBLE_MIN_VIEWPORT_PX = 768;
 
   // Phase 1E — a compact 4-chip bootstrap (was 6 in Phase 1C) shown
   // alongside the greeting on a fresh panel open, before any real
@@ -597,8 +600,12 @@
     var bubbleDismissed = !!stored;
     if (!bubbleDismissed && !hasSeenWelcomeThisSession()) {
       window.setTimeout(function () {
-        if (phase === "closed") showWelcomeBubble();
+        if (phase === "closed" && !isNarrowViewport()) showWelcomeBubble();
       }, WELCOME_BUBBLE_INITIAL_DELAY_MIN_MS + Math.random() * (WELCOME_BUBBLE_INITIAL_DELAY_MAX_MS - WELCOME_BUBBLE_INITIAL_DELAY_MIN_MS));
+    }
+
+    function isNarrowViewport() {
+      return !!(window.matchMedia && window.matchMedia("(max-width: " + (WELCOME_BUBBLE_MIN_VIEWPORT_PX - 1) + "px)").matches);
     }
 
     function hasSeenWelcomeThisSession() {
