@@ -134,6 +134,11 @@
 .hero.hero-novideo .hero-trust-item .ht-svg{ width:18px; height:18px; flex:0 0 auto; }
 
 /* ── Animated search bar (centerpiece) ── */
+.hero.hero-novideo .hsb-note{
+  margin:0 auto 10px; text-align:center;
+  font-family:'Outfit',sans-serif; font-size:12px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:rgba(226,232,240,.72);
+}
 .hero-searchbar{
   width:min(760px,100%);
   display:flex; align-items:center; gap:10px;

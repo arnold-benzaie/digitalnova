@@ -90,6 +90,7 @@ const T = {
   "Démarrez l'audit gratuit →":"Start your free audit →",
   "Technologie propriétaire":"Proprietary Technology",
   "Rechercher":"Search",
+  "Exemple de recherche Google — illustration":"Example Google search — illustration",
   "Restaurant près de moi":"Restaurant near me",
   "Meilleur café du coin":"Best coffee nearby",
   "Garagiste près de moi":"Mechanic near me",
@@ -1005,6 +1006,7 @@ const T = {
   "Services à distance · Canada + Europe":"Remote services · Canada + Europe",
   "Lundi–vendredi, 09:00–17:00, heure de Maurice":"Monday–Friday, 09:00–17:00 Mauritius Time",
   "Ouvert : lundi à vendredi, 09:00–17:00, heure de Maurice":"Open: Monday to Friday, 09:00–17:00 Mauritius Time",
+  "Réponse rapide du lundi au vendredi, 09:00–17:00 (heure de Maurice)":"Quick reply Monday to Friday, 09:00–17:00 (Mauritius Time)",
   "Devis à confirmer par email":"Quote to be confirmed by email",
 
   // Modal
@@ -1061,10 +1063,10 @@ function walkAndTranslate(targetLang){
     }
   });
 
-  // Update <title> with factual, location-neutral wording.
+  // Keep <title> aligned with the static <title> of index.html.
   document.title = targetLang === 'en'
-    ? "PUBLIC-MAP — Remote SEO and digital services"
-    : "PUBLIC-MAP — SEO et services digitaux à distance";
+    ? "PUBLIC-MAP Ltd — Digital Technology & IT Solutions · Mauritius"
+    : "PUBLIC-MAP Ltd — Digital Technology & IT Solutions · Maurice";
 
   document.documentElement.lang = targetLang;
   CURRENT_LANG = targetLang;

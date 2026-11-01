@@ -7,11 +7,6 @@
 (function () {
   var field = document.querySelector('.hero-searchbar .hsb-field');
   if (!field) return;
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    field.textContent = 'restaurant près de moi';
-    return;
-  }
-
   var QUERIES = {
     fr: [
       'restaurant près de moi',
@@ -36,6 +31,13 @@
     if (active && /en/i.test(active.textContent)) return 'en';
     if ((document.documentElement.lang || '').toLowerCase().indexOf('en') === 0) return 'en';
     return 'fr';
+  }
+
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var still = function () { field.textContent = QUERIES[lang()][0]; };
+    still();
+    document.addEventListener('digitalnova:language-updated', still);
+    return;
   }
 
   var caret = document.createElement('span');

@@ -114,7 +114,10 @@
   }
 
   languageButtons.forEach((button) => {
-    button.addEventListener("click", () => updateLanguage(button.dataset.language));
+    button.addEventListener("click", () => {
+      updateLanguage(button.dataset.language);
+      try { window.localStorage.setItem("digitalnova-lang", language); } catch {}
+    });
   });
 
   if (startedAt) startedAt.value = String(Date.now());
@@ -188,5 +191,7 @@
     }
   });
 
-  updateLanguage("fr");
+  let savedLanguage = null;
+  try { savedLanguage = window.localStorage.getItem("digitalnova-lang"); } catch {}
+  updateLanguage(savedLanguage === "en" ? "en" : "fr");
 })();
