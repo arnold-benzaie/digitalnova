@@ -1,6 +1,6 @@
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import handler, { validateReservation, upstreamUrl, checkRateLimit, clientIp, __resetRateLimits } from "./reservation.js";
+import handler, { validateReservation, upstreamUrl, checkRateLimit, clientIp, originAllowed, BODY_READ_TIMEOUT_MS, __resetRateLimits } from "./reservation.js";
 
 const ENV_KEYS = ["RESERVATION_UPSTREAM_URL", "RESERVATION_UPSTREAM_TOKEN"];
 let savedEnv;
@@ -258,5 +258,158 @@ describe("reservation: rate limiting", () => {
     assert.equal(clientIp(req({ "x-real-ip": "2001:db8::1" })), "2001:db8::1");
     assert.equal(clientIp(req({ "x-forwarded-for": "<script>" })), "unknown");
     assert.equal(clientIp(req({})), "unknown");
+  });
+});
+
+describe("reservation: origin check", () => {
+  const withOrigin = (origin, body = validBody()) => new Request("https://www.public-map.com/api/reservation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(origin === undefined ? {} : { origin }) },
+    body: JSON.stringify(body),
+  });
+
+  test("a foreign Origin gets 403 origin_not_allowed and nothing is sent", async () => {
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    let called = false;
+    globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+    const res = await handler(withOrigin("https://evil.example"));
+    assert.equal(res.status, 403);
+    assert.deepEqual(await res.json(), { ok: false, code: "origin_not_allowed" });
+    assert.equal(res.headers.get("Cache-Control"), "no-store");
+    assert.equal(called, false);
+  });
+
+  test("the site's own origin and requests without Origin go on to the usual checks", async () => {
+    for (const origin of ["https://www.public-map.com", "https://public-map.com", "https://digitalnova-l66m407h4-arnold-benzaies-projects.vercel.app", undefined]) {
+      __resetRateLimits();
+      const res = await handler(withOrigin(origin));
+      assert.equal(res.status, 503, String(origin));
+      assert.equal((await res.json()).code, "reservation_backend_not_configured");
+    }
+  });
+
+  test("look-alike and opaque origins are refused", () => {
+    const req = (o) => new Request("https://www.public-map.com/api/reservation", { method: "POST", headers: { origin: o } });
+    for (const o of ["null", "http://www.public-map.com", "https://www.public-map.com.evil.example", "https://evil-arnold-benzaies-projects.vercel.app"]) {
+      assert.equal(originAllowed(req(o)), false, o);
+    }
+  });
+
+  test("refused origins still consume the rate-limit quota (checked first)", async () => {
+    for (let i = 0; i < 6; i++) assert.equal((await handler(post(validBody(), "application/json", "203.0.113.40"))).status, 503);
+    const res = await handler(new Request("https://www.public-map.com/api/reservation", {
+      method: "POST", headers: { "Content-Type": "application/json", origin: "https://evil.example", "x-forwarded-for": "203.0.113.40" }, body: "{}",
+    }));
+    assert.equal(res.status, 429);
+  });
+});
+
+describe("reservation: body read deadline (10 s)", () => {
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+  const enc = (s) => new TextEncoder().encode(s);
+  const slow = (stream) => new Request("https://example.com/api/reservation", { method: "POST", headers: { "Content-Type": "application/json" }, body: stream, duplex: "half" });
+
+  test("the limit is 10 seconds", () => {
+    assert.equal(BODY_READ_TIMEOUT_MS, 10000);
+  });
+
+  test("a body that never finishes gets 408 request_timeout at 10 s, and nothing is sent", async () => {
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    let called = false;
+    globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const pending = handler(slow(new ReadableStream({ start(c) { c.enqueue(enc('{"fullName":')); } })));
+      await flush();
+      let settled = false;
+      pending.then(() => { settled = true; });
+      mock.timers.tick(BODY_READ_TIMEOUT_MS - 1);
+      await flush();
+      assert.equal(settled, false, "must still be waiting just before 10 s");
+      mock.timers.tick(1);
+      const res = await pending;
+      assert.equal(res.status, 408);
+      assert.deepEqual(await res.json(), { ok: false, code: "request_timeout" });
+      assert.equal(res.headers.get("Cache-Control"), "no-store");
+      assert.equal(called, false);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("a body completed in 9 s is processed normally", async () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const text = JSON.stringify(validBody());
+      const stream = new ReadableStream({
+        start(c) {
+          c.enqueue(enc(text.slice(0, 10)));
+          setTimeout(() => { c.enqueue(enc(text.slice(10))); c.close(); }, 9000);
+        },
+      });
+      const pending = handler(slow(stream));
+      await flush();
+      mock.timers.tick(9000);
+      const res = await pending;
+      assert.equal(res.status, 503);
+      assert.equal((await res.json()).code, "reservation_backend_not_configured");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+});
+
+describe("reservation: existing protections preserved", () => {
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  test("the upstream gets 8 seconds, then the request is aborted and answered 502", async () => {
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    globalThis.fetch = (url, init) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    });
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const pending = handler(post(validBody()));
+      await flush();
+      await flush();
+      let settled = false;
+      pending.then(() => { settled = true; });
+      mock.timers.tick(7999);
+      await flush();
+      assert.equal(settled, false, "must still be waiting just before 8 s");
+      mock.timers.tick(1);
+      const res = await pending;
+      assert.equal(res.status, 502);
+      assert.equal((await res.json()).code, "reservation_upstream_failed");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("no personal data ever appears in the logs", async () => {
+    const logged = [];
+    console.error = (...args) => logged.push(args.join(" "));
+    const body = validBody({ fullName: "Jeanne Exemple", email: "jeanne.exemple@example.com", phone: "+230 5555 1234", company: "Société Exemple" });
+    await handler(post(body));                                   // 503 not configured
+    process.env.RESERVATION_UPSTREAM_URL = "https://intake.example.com/hook";
+    globalThis.fetch = async () => new Response("no", { status: 500 });
+    await handler(post(body));                                   // 502 upstream error
+    globalThis.fetch = async () => { throw new TypeError("network"); };
+    await handler(post(body));                                   // 502 network
+    for (let i = 0; i < 6; i++) await handler(post(body, "application/json", "203.0.113.77"));
+    await handler(post(body, "application/json", "203.0.113.77")); // 429
+    assert.ok(logged.length >= 4, "the failures above are logged");
+    for (const secret of ["Jeanne", "jeanne.exemple", "5555", "Société", "intake.example.com"]) {
+      assert.equal(logged.some((line) => line.includes(secret)), false, `"${secret}" leaked into a log line`);
+    }
+  });
+
+  test("honeypot, fill time, 16 KB cap, JSON and https upstream still answer as before", async () => {
+    assert.equal((await handler(post(validBody({ website: "spam" })))).status, 400);
+    assert.equal((await handler(post(validBody({ startedAt: Date.now() })))).status, 400);
+    assert.equal((await handler(post("x".repeat(16 * 1024 + 1)))).status, 400);
+    assert.equal((await handler(post("{not json"))).status, 400);
+    process.env.RESERVATION_UPSTREAM_URL = "http://intake.example.com/hook";
+    assert.equal((await handler(post(validBody()))).status, 503);
   });
 });

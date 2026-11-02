@@ -7,6 +7,8 @@
  * This handler implements the contract the page already expects:
  *   200 { ok: true }                                         request forwarded
  *   400 { ok: false, code: "validation_failed" }             bad or bot input
+ *   403 { ok: false, code: "origin_not_allowed" }            foreign Origin header
+ *   408 { ok: false, code: "request_timeout" }               body slower than 10 s
  *   503 { ok: false, code: "reservation_backend_not_configured" }
  *   502 { ok: false, code: "reservation_upstream_failed" }
  *
@@ -27,10 +29,14 @@
  * Limits: the counters live in the memory of each function instance, so
  * they are per instance, not global, and reset on cold start. A Vercel WAF
  * rate-limit rule on /api/reservation remains the stronger, global option.
+ * After the rate limit, an Origin header that is not the site's own is
+ * refused (requests without Origin, i.e. non-browser clients, go on to the
+ * usual checks), and reading the body is abandoned after 10 seconds.
  */
 export const config = { runtime: "edge" };
 
 const MAX_BODY_BYTES = 16 * 1024;
+export const BODY_READ_TIMEOUT_MS = 10000;
 const MIN_FILL_MS = 2000;
 const MAX_ADVANCE_MS = 366 * 24 * 3600 * 1000;
 const UPSTREAM_TIMEOUT_MS = 8000;
@@ -93,6 +99,22 @@ function json(status, body, extraHeaders = {}) {
 
 const invalid = () => json(400, { ok: false, code: "validation_failed" });
 
+// The site's own domains; any deployment of the digitalnova project is
+// also accepted, and so is the origin the request was actually sent to.
+const ALLOWED_ORIGINS = new Set(["https://public-map.com", "https://www.public-map.com", "https://digitalnova-kohl.vercel.app"]);
+const PROJECT_DEPLOYMENT_ORIGIN = /^https:\/\/digitalnova(-[a-z0-9-]+)?-arnold-benzaies-projects\.vercel\.app$/;
+
+/** No Origin header (non-browser client) is accepted; a present one must be the site's own. */
+export function originAllowed(request) {
+  const origin = request.headers.get("origin");
+  if (origin === null) return true;
+  let own = null;
+  try {
+    own = new URL(request.url).origin;
+  } catch {}
+  return origin === own || ALLOWED_ORIGINS.has(origin) || PROJECT_DEPLOYMENT_ORIGIN.test(origin);
+}
+
 function text(value, { min = 0, max, required = true, multiline = false }) {
   if (typeof value !== "string") return null;
   if ((multiline ? MULTI_LINE_CONTROL : SINGLE_LINE_CONTROL).test(value)) return null;
@@ -150,23 +172,38 @@ export function upstreamUrl(value = process.env.RESERVATION_UPSTREAM_URL) {
   }
 }
 
-/** Reads at most MAX_BODY_BYTES; returns null as soon as the body is larger. */
+/**
+ * Reads at most MAX_BODY_BYTES within BODY_READ_TIMEOUT_MS.
+ * Returns the text, null as soon as the body is larger, or "timeout".
+ */
 async function readBody(request) {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return null;
   if (!request.body) return "";
   const reader = request.body.getReader();
+  let timer;
+  const expired = new Promise((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), BODY_READ_TIMEOUT_MS);
+  });
   const chunks = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_BODY_BYTES) {
-      await reader.cancel().catch(() => {});
-      return null;
+  try {
+    for (;;) {
+      const step = await Promise.race([reader.read(), expired]);
+      if (step === "timeout") {
+        reader.cancel().catch(() => {});
+        return "timeout";
+      }
+      if (step.done) break;
+      size += step.value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(step.value);
     }
-    chunks.push(value);
+  } finally {
+    clearTimeout(timer);
   }
   const bytes = new Uint8Array(size);
   let offset = 0;
@@ -185,9 +222,11 @@ export default async function handler(request) {
     console.error("reservation: rate limited");
     return json(429, { ok: false, code: "rate_limited" }, { "Retry-After": String(rate.retryAfterSec) });
   }
+  if (!originAllowed(request)) return json(403, { ok: false, code: "origin_not_allowed" });
   if (!(request.headers.get("content-type") || "").toLowerCase().includes("application/json")) return invalid();
 
   const raw = await readBody(request);
+  if (raw === "timeout") return json(408, { ok: false, code: "request_timeout" });
   if (raw === null) return invalid();
   let input;
   try {
